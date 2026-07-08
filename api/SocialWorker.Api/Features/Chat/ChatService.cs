@@ -551,11 +551,8 @@ public sealed class ChatService
 
             if (!Guid.TryParse(imageIdStr, out var imageId))
             {
-                _log.LogWarning("view_image: Failed to parse GUID from ID string: {IdStr}", imageIdStr);
                 return new { error = "Invalid Guid ID format" };
             }
-
-            _log.LogInformation("view_image tool processing image: {ImageId}", imageId);
 
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -606,8 +603,6 @@ public sealed class ChatService
                 var bytes = data.ToArray();
                 var base64 = Convert.ToBase64String(bytes);
 
-                _log.LogInformation("view_image: Successfully loaded and resized image {FileName} ({Width}x{Height}), alt text: \"{AltText}\", base64 length: {Base64Length}", asset.FileName, asset.Width, asset.Height, asset.AltText ?? "(none)", base64.Length);
-
                 return new object[]
                 {
                     new { type = "text", text = $"Image: {asset.FileName} ({asset.Width}x{asset.Height}). Current alt text: {asset.AltText ?? "(none)"}" },
@@ -616,7 +611,6 @@ public sealed class ChatService
             }
             catch (Exception ex)
             {
-                _log.LogError(ex, "view_image: Failed to process image {ImageId}", imageId);
                 return new { error = $"Failed to process image: {ex.Message}" };
             }
         }
