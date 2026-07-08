@@ -28,6 +28,19 @@ public static class DraftsEndpoint
                     Status = d.Status.ToString(),
                     d.Content,
                     Threads = d.Threads.Select(t => new { t.Id, t.Platform, Stage = t.Stage.ToString() }).ToList(),
+                    MediaAssets = d.MediaAssets.Select(m => new
+                    {
+                        m.Id,
+                        m.DraftId,
+                        m.FileName,
+                        m.MimeType,
+                        m.AltText,
+                        m.FilePath,
+                        m.SizeBytes,
+                        m.Width,
+                        m.Height,
+                        m.CreatedAt
+                    }).ToList(),
                     d.CreatedAt,
                     d.UpdatedAt
                 })
@@ -72,6 +85,7 @@ public static class DraftsEndpoint
                 Status = draft.Status.ToString(),
                 draft.Content,
                 Threads = new[] { new { thread.Id, thread.Platform, Stage = thread.Stage.ToString(), thread.Content } },
+                MediaAssets = new List<object>(),
                 draft.CreatedAt,
                 draft.UpdatedAt
             });
@@ -84,6 +98,7 @@ public static class DraftsEndpoint
 
             var draft = await db.Drafts
                 .Include(d => d.Threads)
+                .Include(d => d.MediaAssets)
                 .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId.Value && d.Status != DraftStatus.Deleted);
             if (draft is null) return Results.NotFound();
             return Results.Ok(new
@@ -93,6 +108,19 @@ public static class DraftsEndpoint
                 Status = draft.Status.ToString(),
                 draft.Content,
                 Threads = draft.Threads.Select(t => new { t.Id, t.Platform, Stage = t.Stage.ToString(), t.Content }).ToList(),
+                MediaAssets = draft.MediaAssets.Select(m => new
+                {
+                    m.Id,
+                    m.DraftId,
+                    m.FileName,
+                    m.MimeType,
+                    m.AltText,
+                    m.FilePath,
+                    m.SizeBytes,
+                    m.Width,
+                    m.Height,
+                    m.CreatedAt
+                }).ToList(),
                 draft.CreatedAt,
                 draft.UpdatedAt
             });
@@ -105,6 +133,7 @@ public static class DraftsEndpoint
 
             var draft = await db.Drafts
                 .Include(d => d.Threads)
+                .Include(d => d.MediaAssets)
                 .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId.Value && d.Status != DraftStatus.Deleted);
             if (draft is null) return Results.NotFound();
 
@@ -160,6 +189,19 @@ public static class DraftsEndpoint
                 Status = draft.Status.ToString(),
                 draft.Content,
                 Threads = draft.Threads.Select(t => new { t.Id, t.Platform, Stage = t.Stage.ToString(), t.Content }).ToList(),
+                MediaAssets = draft.MediaAssets.Select(m => new
+                {
+                    m.Id,
+                    m.DraftId,
+                    m.FileName,
+                    m.MimeType,
+                    m.AltText,
+                    m.FilePath,
+                    m.SizeBytes,
+                    m.Width,
+                    m.Height,
+                    m.CreatedAt
+                }).ToList(),
                 draft.CreatedAt,
                 draft.UpdatedAt
             });

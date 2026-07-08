@@ -205,7 +205,7 @@ public sealed class ChatService
 
         if (supportsVision)
         {
-            systemPrompt += "\n\nYou have access to view the attached images using the 'view_image' tool. If an image alt text is empty (alt: \"\"), view the image using the tool and suggest a concise alt text description to the user.";
+            systemPrompt += "\n\nYou have access to view the attached images using the 'view_image' tool. If the user asks you to describe, analyze, or draft content based on an attached image, or if the image alt text is empty (alt: \"\"), you MUST call the 'view_image' tool with the image's Guid ID to inspect its visual content before responding.";
         }
         else
         {
@@ -286,8 +286,10 @@ public sealed class ChatService
         const int maxRounds = 3;
         for (var round = 0; round < maxRounds; round++)
         {
+            _log.LogInformation("Starting chat stream round {Round}. Total messages: {MessageCount}", round, payload.Messages.Count);
             var toolCalls = new Dictionary<int, AccumulatedToolCall>();
             string? finishReason = null;
+            var responseBuilder = new StringBuilder();
 
             await foreach (var chunk in CallOpenAiAsync(payload, providerBaseUrl, providerApiKey, ct))
             {
@@ -295,6 +297,7 @@ public sealed class ChatService
                 {
                     if (choice.Delta.Content is { } c)
                     {
+                        responseBuilder.Append(c);
                         yield return "0:" + JsonSerializer.Serialize(c) + "\n";
                     }
 
@@ -320,6 +323,11 @@ public sealed class ChatService
                 }
             }
 
+            if (responseBuilder.Length > 0)
+            {
+                _log.LogInformation("LLM streamed response (Round {Round}): {Response}", round, responseBuilder.ToString());
+            }
+
             if (toolCalls.Count == 0)
             {
                 yield return SerializeFinishStep(finishReason ?? "stop", false);
@@ -339,9 +347,11 @@ public sealed class ChatService
 
             foreach (var tc in toolCalls.Values)
             {
+                _log.LogInformation("LLM requested tool execution: {ToolName} with arguments: {Args}", tc.Name, tc.Arguments);
                 yield return SerializeToolCall(tc.Id, tc.Name, tc.Arguments);
 
                 var result = await ExecuteToolAsync(tc.Name, tc.Arguments, req.DraftId, userId, ct);
+                _log.LogInformation("Tool {ToolName} execution completed.", tc.Name);
                 yield return SerializeToolResult(tc.Id, result);
 
                 if (tc.Name == "view_image")
@@ -487,6 +497,15 @@ public sealed class ChatService
         {
             using var doc = JsonDocument.Parse(argumentsJson);
             var sourceIdStr = doc.RootElement.GetProperty("id").GetString() ?? "";
+            if (sourceIdStr.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                sourceIdStr = sourceIdStr.Substring("file://".Length);
+            }
+            else if (sourceIdStr.StartsWith("media://", StringComparison.OrdinalIgnoreCase))
+            {
+                sourceIdStr = sourceIdStr.Substring("media://".Length);
+            }
+
             if (!Guid.TryParse(sourceIdStr, out var sourceId))
             {
                 return new { error = "Invalid Guid ID format" };
@@ -521,10 +540,22 @@ public sealed class ChatService
         {
             using var doc = JsonDocument.Parse(argumentsJson);
             var imageIdStr = doc.RootElement.GetProperty("id").GetString() ?? "";
+            if (imageIdStr.StartsWith("media://", StringComparison.OrdinalIgnoreCase))
+            {
+                imageIdStr = imageIdStr.Substring("media://".Length);
+            }
+            else if (imageIdStr.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                imageIdStr = imageIdStr.Substring("file://".Length);
+            }
+
             if (!Guid.TryParse(imageIdStr, out var imageId))
             {
+                _log.LogWarning("view_image: Failed to parse GUID from ID string: {IdStr}", imageIdStr);
                 return new { error = "Invalid Guid ID format" };
             }
+
+            _log.LogInformation("view_image tool processing image: {ImageId}", imageId);
 
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -575,6 +606,8 @@ public sealed class ChatService
                 var bytes = data.ToArray();
                 var base64 = Convert.ToBase64String(bytes);
 
+                _log.LogInformation("view_image: Successfully loaded and resized image {FileName} ({Width}x{Height}), alt text: \"{AltText}\", base64 length: {Base64Length}", asset.FileName, asset.Width, asset.Height, asset.AltText ?? "(none)", base64.Length);
+
                 return new object[]
                 {
                     new { type = "text", text = $"Image: {asset.FileName} ({asset.Width}x{asset.Height}). Current alt text: {asset.AltText ?? "(none)"}" },
@@ -583,6 +616,7 @@ public sealed class ChatService
             }
             catch (Exception ex)
             {
+                _log.LogError(ex, "view_image: Failed to process image {ImageId}", imageId);
                 return new { error = $"Failed to process image: {ex.Message}" };
             }
         }

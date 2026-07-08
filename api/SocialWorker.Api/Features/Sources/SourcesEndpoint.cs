@@ -153,7 +153,7 @@ public static class SourcesEndpoint
                 await db.SaveChangesAsync();
                 return Results.BadRequest($"Failed to process file attachment: {ex.Message}");
             }
-        });
+        }).DisableAntiforgery();
     }
 
     public static async Task ReconcileSourcesAsync(AppDbContext db, IServiceScopeFactory scopeFactory, Draft draft, string content)

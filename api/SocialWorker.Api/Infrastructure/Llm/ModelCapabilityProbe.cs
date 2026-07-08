@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Data.Entities;
 
 namespace SocialWorker.Api.Infrastructure.Llm;
@@ -13,11 +14,13 @@ public class ModelCapabilityProbe
 {
     private readonly HttpClient _client;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<ModelCapabilityProbe> _log;
 
-    public ModelCapabilityProbe(HttpClient client, IMemoryCache cache)
+    public ModelCapabilityProbe(HttpClient client, IMemoryCache cache, ILogger<ModelCapabilityProbe> log)
     {
         _client = client;
         _cache = cache;
+        _log = log;
     }
 
     public async Task<ModelCapabilities> GetCapabilitiesAsync(LlmProvider provider)
@@ -29,6 +32,7 @@ public class ModelCapabilityProbe
         }
 
         var caps = await ProbeCapabilitiesAsync(provider);
+        _log.LogInformation("Probed capabilities for model {Model} ({ProviderType}): SupportsVision={SupportsVision}, SupportsTools={SupportsTools}", provider.Model, provider.ProviderType, caps.SupportsVision, caps.SupportsTools);
         _cache.Set(cacheKey, caps, TimeSpan.FromHours(1));
         return caps;
     }
@@ -96,6 +100,12 @@ public class ModelCapabilityProbe
                 if (response.IsSuccessStatusCode)
                 {
                     var result = await response.Content.ReadFromJsonAsync<OllamaShowResponse>();
+                    
+                    _log.LogInformation("Ollama /api/show response for {Model}: Capabilities={Capabilities}, Families={Families}",
+                        model,
+                        result?.Capabilities != null ? string.Join(",", result.Capabilities) : "none",
+                        result?.Details?.Families != null ? string.Join(",", result.Details.Families) : "none");
+
                     if (result?.Capabilities != null)
                     {
                         var supportsVision = Array.Exists(result.Capabilities, val => string.Equals(val, "vision", StringComparison.OrdinalIgnoreCase));
@@ -108,12 +118,20 @@ public class ModelCapabilityProbe
                         return new ModelCapabilities(SupportsVision: supportsVision, SupportsTools: true);
                     }
                 }
+                else
+                {
+                    _log.LogWarning("Ollama /api/show returned status code {StatusCode} for model {Model}", response.StatusCode, model);
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                _log.LogWarning(ex, "Failed to query Ollama /api/show for model {Model}. Falling back to heuristics.", model);
             }
 
-            return new ModelCapabilities(SupportsVision: model.Contains("vision", StringComparison.OrdinalIgnoreCase), SupportsTools: true);
+            var fallbackVision = model.Contains("vision", StringComparison.OrdinalIgnoreCase) 
+                || model.Contains("paligemma", StringComparison.OrdinalIgnoreCase) 
+                || model.Contains("llava", StringComparison.OrdinalIgnoreCase);
+            return new ModelCapabilities(SupportsVision: fallbackVision, SupportsTools: true);
         }
 
         return new ModelCapabilities(SupportsVision: false, SupportsTools: false);

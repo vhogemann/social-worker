@@ -46,7 +46,10 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   switchDraft: async (id) => {
     const draft = await fetchDraft(id);
-    set({ activeDraftId: id });
+    set((s) => ({
+      activeDraftId: id,
+      drafts: s.drafts.map((d) => (d.id === id ? draft : d)),
+    }));
     await get().loadSources(id);
     return draft;
   },
