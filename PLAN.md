@@ -357,6 +357,22 @@ With that done, the remaining v1 items are:
 - **Chat history not persisted to backend** — only in-memory on the web app; reload clears it (next step)
 - **Twitter/LinkedIn/Facebook/Instagram publishers** — stubbed for v1; Bluesky is the working publisher sink
 
-### Image Uploads, YouTube Embeds, and LLM Vision
+### Image Uploads, YouTube Embeds, LLM Vision, Clean Deletions, & Hashing Deduplication
 
-**Planned.** Detailed plan in [IMAGE_UPLOADS.md](docs/IMAGE_UPLOADS.md). Covers image drag-and-drop/paste upload, YouTube metadata extraction (oEmbed + ATOM feed), per-segment Bluesky conflict validation, `view_image` LLM tool with model capability detection, and alt text editing in preview cards.
+**Done.** Implemented local image uploads, drag-and-drop/paste integration, YouTube metadata parsing, platform limits validation, dynamic vision-capability-aware assistant tools, a browser draft deletion confirmation flow with clean switching, and SHA-256 fingerprinting deduplication for both media images and document sources. Detailed plans are tracked in [IMAGE_UPLOADS.md](docs/IMAGE_UPLOADS.md).
+
+#### Backend
+- **Image Resizing & Storage**: Processed and stored uploaded images inside `/app/uploads/{draftId}/` via SkiaSharp, downscaling to maximum 1200px.
+- **Dynamic Vision-Aware Tools**: Injected `ModelCapabilityProbe` to probe LLM endpoints for tool and vision support. Exposed the `view_image` tool schema to the assistant only if the active LLM provider supports vision.
+- **Multimodal SSE Routing**: Implemented `view_image` execution returning a base64 JPEG block and structured it correctly for upstream OpenAI/Ollama endpoints. Tool execution outputs are stringified, and image arrays are appended as separate `user` messages.
+- **YouTube metadata & Conflict Checks**: Extracted YouTube titles/embeds and enforced Bluesky platform constraints (rejecting transitions to `Ready` or `Sent` if a segment contains both images and YouTube embeds).
+- **SHA-256 deduplication & Disk Cleanup**:
+  - Implemented SHA-256 file fingerprinting on both image and text/PDF document uploads (`POST /api/drafts/{draftId}/media` and `POST /api/drafts/{draftId}/files`). If a file with the same SHA-256 exists, it creates a database row pointing to the existing file path or content and skips duplicate work.
+  - Added sharing checks to draft and asset deletes to only remove files from disk if no other draft points to that file path.
+- **Database Migrations**: Created and applied `AddMediaAssetSha256` and `AddSourceSha256` migrations.
+
+#### Frontend
+- **Drag-and-Drop & Clipboard Paste**: Enabled drag-and-drop/paste files inside the editor to upload instantly and insert markdown references.
+- **Preview Alt-Text Editor**: Added collapsible alt-text inputs inside preview cards and highlighted Bluesky segment formatting warnings in amber.
+- **Draft List Deletions**: Added confirmation prompts before deletions. Deleting an active draft resets the chat runtime and switches to the next available draft (or spawns a clean fallback draft).
+- **Settings & Providers Edit**: Enabled editing of existing provider forms and rendered indicator badges for model capabilities.
