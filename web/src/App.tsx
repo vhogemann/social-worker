@@ -1,0 +1,69 @@
+import { useEffect, useRef } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { ChatProvider, restoreChat } from "./api/chat";
+import { ChatPanel } from "./components/ChatPanel/ChatPanel";
+import { EditorPanel } from "./components/EditorPanel/EditorPanel";
+import { DraftList } from "./components/DraftList/DraftList";
+import { useDraftStore } from "./store/draftStore";
+import { useEditorStore } from "./store/editorStore";
+
+function AppContent() {
+  const chatRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const loadDrafts = useDraftStore((s) => s.loadDrafts);
+  const setDoc = useEditorStore((s) => s.setDoc);
+
+  useEffect(() => {
+    loadDrafts().then(async () => {
+      const state = useDraftStore.getState();
+      if (state.drafts.length > 0) {
+        const first = state.drafts[0];
+        useDraftStore.setState({ activeDraftId: first.id });
+        setDoc(first.content ?? "");
+        restoreChat(first.id);
+      } else {
+        const draft = await state.createDraft();
+        setDoc(draft.content ?? "");
+        restoreChat(draft.id);
+      }
+    });
+  }, []);
+
+  useHotkey("Mod+J", () => chatRef.current?.focus());
+  useHotkey("Mod+K", () => editorRef.current?.focus());
+
+  return (
+    <div className="h-screen flex flex-col overflow-hidden">
+      <header className="shrink-0 px-4 py-2 border-b border-border text-xs font-mono text-muted">
+        social-worker <span className="text-accent">·</span> mvp
+      </header>
+      <div className="flex-1 min-h-0 flex">
+        <DraftList />
+        <div className="flex-1 min-w-0">
+          <PanelGroup direction="horizontal">
+            <Panel defaultSize={45} minSize={25}>
+              <div ref={chatRef} tabIndex={-1} className="h-full overflow-hidden focus:outline-none">
+                <ChatPanel />
+              </div>
+            </Panel>
+            <PanelResizeHandle className="w-1 bg-border hover:bg-accent transition-colors" />
+            <Panel defaultSize={55} minSize={25}>
+              <div ref={editorRef} tabIndex={-1} className="h-full overflow-hidden focus:outline-none">
+                <EditorPanel />
+              </div>
+            </Panel>
+          </PanelGroup>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ChatProvider>
+      <AppContent />
+    </ChatProvider>
+  );
+}

@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: socialworker
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "8101:8080"
+    environment:
+      LLM__BaseUrl: https://openrouter.ai/api/v1
+      LLM__ApiKey: ${LLM__ApiKey}
+      LLM__Model: ${LLM__Model:-anthropic/claude-3.5-sonnet}
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: Host=db;Database=socialworker;Username=postgres;Password=postgres
+      Auth__JwtSecret: ${Auth__JwtSecret}
+      Auth__AdminPassword: ${Auth__AdminPassword:-changeme}
+      Auth__AccessTokenLifetimeMinutes: ${Auth__AccessTokenLifetimeMinutes:-60}
+      Auth__RefreshTokenLifetimeDays: ${Auth__RefreshTokenLifetimeDays:-7}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "8100:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
