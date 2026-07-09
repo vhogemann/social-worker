@@ -56,6 +56,21 @@ export function clearChat(draftId: string) {
 }
 
 function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
+  const activeDraftId = useDraftStore((s) => s.activeDraftId);
+
+  useEffect(() => {
+    if (activeDraftId) {
+      const saved = useChatStore.getState().loadMessages(activeDraftId);
+      if (saved) {
+        runtime.thread.import(saved);
+      } else {
+        runtime.thread.reset();
+      }
+    } else {
+      runtime.thread.reset();
+    }
+  }, [activeDraftId, runtime]);
+
   runtimeRef = runtime;
   return null;
 }

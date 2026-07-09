@@ -5,8 +5,8 @@ export interface PostDto {
   platformThreadId: string;
   segmentIndex: number;
   platform: string;
-  remoteId: string;
-  url: string;
+  remoteId?: string;
+  url?: string;
 }
 
 export interface PlatformThreadDto {
@@ -153,7 +153,10 @@ export async function uploadMedia(draftId: string, file: File): Promise<{ id: st
     method: "POST",
     body: formData,
   });
-  if (!res.ok) throw new Error(`uploadMedia failed: ${res.status}`);
+  if (!res.ok) {
+    const msg = await res.text().catch(() => `${res.status}`);
+    throw new Error(msg || `uploadMedia failed: ${res.status}`);
+  }
   return res.json();
 }
 

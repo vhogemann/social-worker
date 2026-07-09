@@ -49,15 +49,19 @@ public sealed class MediaService
             ?? throw new KeyNotFoundException("Draft not found or access denied.");
 
         using var sha256 = System.Security.Cryptography.SHA256.Create();
-        byte[] hashBytes;
-        using (var tempStream = new MemoryStream())
+        var imageBytes = new byte[stream.Length > 0 ? stream.Length : 0];
+        var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, ct);
+        imageBytes = buffer.ToArray();
+
+        string shaHashStr;
+        using (var hashStream = new MemoryStream(imageBytes))
         {
-            await stream.CopyToAsync(tempStream, ct);
-            tempStream.Position = 0;
-            hashBytes = sha256.ComputeHash(tempStream);
-            stream = tempStream; // swap to memory stream for repeated reads
+            var hashBytes = sha256.ComputeHash(hashStream);
+            shaHashStr = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
         }
-        var shaHashStr = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+
+        stream = new MemoryStream(imageBytes);
 
         var existing = await _db.MediaAssets.FirstOrDefaultAsync(m => m.Sha256 == shaHashStr, ct);
         if (existing != null)

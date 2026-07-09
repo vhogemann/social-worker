@@ -128,13 +128,31 @@ public class ModelCapabilityProbe
                 _log.LogWarning(ex, "Failed to query Ollama /api/show for model {Model}. Falling back to heuristics.", model);
             }
 
-            var fallbackVision = model.Contains("vision", StringComparison.OrdinalIgnoreCase) 
-                || model.Contains("paligemma", StringComparison.OrdinalIgnoreCase) 
-                || model.Contains("llava", StringComparison.OrdinalIgnoreCase);
+            var fallbackVision = (model.Contains("vision", StringComparison.OrdinalIgnoreCase)
+                || model.Contains("paligemma", StringComparison.OrdinalIgnoreCase)
+                || model.Contains("llava", StringComparison.OrdinalIgnoreCase)
+                || model.Contains("moondream", StringComparison.OrdinalIgnoreCase)
+                || model.Contains("minicpm-v", StringComparison.OrdinalIgnoreCase))
+                && !model.Contains("gemma", StringComparison.OrdinalIgnoreCase)
+                && !model.Contains("mistral", StringComparison.OrdinalIgnoreCase)
+                && !model.Contains("llama", StringComparison.OrdinalIgnoreCase);
             return new ModelCapabilities(SupportsVision: fallbackVision, SupportsTools: true);
         }
 
         return new ModelCapabilities(SupportsVision: false, SupportsTools: false);
+    }
+
+    private static bool IsKnownVisionModel(string model)
+    {
+        var m = model.ToLowerInvariant();
+        return m.Contains("llava")
+            || m.Contains("llava-llama")
+            || m.Contains("llava-phi")
+            || m.Contains("moondream")
+            || m.Contains("paligemma")
+            || m.Contains("minicpm-v")
+            || m.Contains("vision")
+            || m.Contains("bakllava");
     }
 
     private class OpenRouterModelsResponse

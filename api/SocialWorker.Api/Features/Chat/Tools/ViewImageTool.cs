@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -15,9 +16,13 @@ namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record ViewImageArgs(string Id);
 
-public sealed record ViewImageResultItem(string Type, string? Text, ViewImageResultImageUrl? ImageUrl);
+public sealed record ViewImageResultItem(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("text")] string? Text,
+    [property: JsonPropertyName("image_url")] ViewImageResultImageUrl? ImageUrl);
 
-public sealed record ViewImageResultImageUrl(string Url);
+public sealed record ViewImageResultImageUrl(
+    [property: JsonPropertyName("url")] string Url);
 
 public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageResultItem>>
 {
@@ -102,7 +107,11 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
         }
 
         stream.Position = 0;
-        using var original = SKBitmap.Decode(codec);
+        using var original = SKBitmap.Decode(stream);
+        if (original == null)
+        {
+            throw new InvalidDataException("Failed to decode bitmap from stream");
+        }
         using var resized = original.Resize(new SKImageInfo(newWidth, newHeight), SKFilterQuality.Medium);
         using var image = SKImage.FromBitmap(resized);
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 80);

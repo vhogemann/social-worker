@@ -13,6 +13,8 @@ export function EditorPanel() {
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
   const drafts = useDraftStore((s) => s.drafts);
   const publishThread = useDraftStore((s) => s.publishThread);
+  const saveDraftContent = useDraftStore((s) => s.saveDraftContent);
+  const updateThreadContent = useDraftStore((s) => s.updateThreadContent);
 
   const activeDraft = drafts.find((d) => d.id === activeDraftId);
   const blueskyThread = activeDraft?.threads?.find(t => t.platform === "Bluesky");
@@ -21,7 +23,13 @@ export function EditorPanel() {
     if (!activeDraftId || !blueskyThread) return;
     try {
       setIsPublishing(true);
-      await publishThread(activeDraftId, blueskyThread.id);
+      await saveDraftContent(activeDraftId, doc);
+      await updateThreadContent(activeDraftId, blueskyThread.id, doc);
+      const result = await publishThread(activeDraftId, blueskyThread.id);
+      
+      if (result && !result.success && !result.Success) {
+        throw new Error(result.errorMessage || result.ErrorMessage || "Failed to publish thread.");
+      }
     } catch (err: any) {
       alert(err.message || "Failed to publish");
     } finally {

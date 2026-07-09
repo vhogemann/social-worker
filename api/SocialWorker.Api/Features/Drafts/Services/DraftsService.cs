@@ -14,7 +14,7 @@ using SocialWorker.Api.Features.Sources;
 
 namespace SocialWorker.Api.Features.Drafts;
 
-public sealed record PostDto(Guid Id, Guid PlatformThreadId, int SegmentIndex, string Platform, string RemoteId, string Url);
+public sealed record PostDto(Guid Id, Guid PlatformThreadId, int SegmentIndex, string Platform, string? RemoteId, string? Url);
 
 public sealed record PlatformThreadDto(Guid Id, Guid DraftId, string Platform, string Stage, string? Content, List<PostDto> Posts);
 

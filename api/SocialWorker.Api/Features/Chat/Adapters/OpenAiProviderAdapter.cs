@@ -6,6 +6,7 @@ using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,11 @@ public sealed class OpenAiProviderAdapter : ILlmProviderAdapter
     private readonly HttpClient _http;
     private readonly ILogger<OpenAiProviderAdapter> _log;
 
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
     public OpenAiProviderAdapter(HttpClient http, ILogger<OpenAiProviderAdapter> log)
     {
         _http = http;
@@ -26,7 +32,7 @@ public sealed class OpenAiProviderAdapter : ILlmProviderAdapter
     public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
         OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, [EnumeratorCancellation] CancellationToken ct)
     {
-        var json = JsonSerializer.Serialize(request);
+        var json = JsonSerializer.Serialize(request, SerializerOptions);
         var req = new HttpRequestMessage(HttpMethod.Post, $"{credentials.BaseUrl.TrimEnd('/')}/chat/completions")
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
@@ -74,7 +80,7 @@ public sealed class OpenAiProviderAdapter : ILlmProviderAdapter
     public async Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(
         OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
     {
-        var json = JsonSerializer.Serialize(request);
+        var json = JsonSerializer.Serialize(request, SerializerOptions);
         var req = new HttpRequestMessage(HttpMethod.Post, $"{credentials.BaseUrl.TrimEnd('/')}/chat/completions")
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json")

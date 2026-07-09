@@ -163,7 +163,7 @@ public sealed class DraftTests : IDisposable
         {
             DraftId = draft.Id,
             Platform = "Bluesky",
-            Stage = PlatformThreadStage.Ready
+            Stage = PlatformThreadStage.Sent
         };
         _db.PlatformThreads.Add(thread2);
         await Assert.ThrowsAsync<DbUpdateException>(async () => await _db.SaveChangesAsync());

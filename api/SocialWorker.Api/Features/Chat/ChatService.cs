@@ -196,6 +196,7 @@ public sealed class ChatService
         catch (Exception ex)
         {
             var inner = ex.InnerException ?? ex;
+            _log.LogError(inner, "Error executing tool {ToolName} with args {Args}", name, argumentsJson);
             return new ToolExecutionResult(new { error = inner.Message });
         }
     }

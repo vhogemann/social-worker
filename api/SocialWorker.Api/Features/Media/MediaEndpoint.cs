@@ -31,10 +31,10 @@ public static class MediaEndpoint
             }
 
             var mimeType = file.ContentType.ToLowerInvariant();
-            var allowedMimeTypes = new[] { "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif" };
+            var allowedMimeTypes = new[] { "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp", "image/x-bmp" };
             if (!allowedMimeTypes.Contains(mimeType))
             {
-                return Results.BadRequest("Unsupported image format. Supported formats: JPG, PNG, WEBP, GIF");
+                return Results.BadRequest($"Unsupported image format '{mimeType}'. Supported formats: JPG, PNG, WEBP, GIF");
             }
 
             try
