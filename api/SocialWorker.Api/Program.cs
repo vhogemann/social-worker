@@ -12,6 +12,7 @@ using SocialWorker.Api.Features.Providers;
 using SocialWorker.Api.Features.Providers.Services;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Infrastructure.Llm;
 using SocialWorker.Api.Infrastructure.Auth;
 
@@ -40,6 +41,12 @@ builder.Services.AddScoped<IChatTool, ProposeStageTransitionTool>();
 builder.Services.AddScoped<IChatTool, ListSourcesTool>();
 builder.Services.AddScoped<IChatTool, FetchSourceTool>();
 builder.Services.AddScoped<IChatTool, ViewImageTool>();
+builder.Services.AddScoped<IChatTool, PublishPlatformTool>();
+builder.Services.AddHttpClient<IPublisher, BlueskyPublisher>();
+builder.Services.AddScoped<IPublisher, TwitterPublisher>();
+builder.Services.AddScoped<IPublisher, LinkedInPublisher>();
+builder.Services.AddScoped<IPublisher, FacebookPublisher>();
+builder.Services.AddScoped<IPublisher, InstagramPublisher>();
 builder.Services.AddMemoryCache();
 
 builder.Services.AddDbContextPool<AppDbContext>(o =>
@@ -146,5 +153,6 @@ app.MapDraftEndpoints();
 app.MapProvidersEndpoints();
 app.MapSourcesEndpoints();
 app.MapMediaEndpoints();
+app.MapPublishingEndpoints();
 
 app.Run();
