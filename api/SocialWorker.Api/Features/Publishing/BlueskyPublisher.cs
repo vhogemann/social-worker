@@ -1,29 +1,39 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
+using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Drafts;
+using SocialWorker.Api.Features.Media;
 
 namespace SocialWorker.Api.Features.Publishing;
 
 public class BlueskyPublisher : IPublisher
 {
     private readonly HttpClient _http;
+    private readonly AppDbContext _db;
+    private readonly FileStorageProvider _storage;
     private readonly string _identifier;
     private readonly string _appPassword;
+    private static readonly Regex MediaRegex = new(@"!\[(.*?)\]\(media://([0-9a-fA-F\-]{36})\)", RegexOptions.Compiled);
 
     public string Platform => "Bluesky";
 
-    public BlueskyPublisher(HttpClient http, IConfiguration config)
+    public BlueskyPublisher(HttpClient http, IConfiguration config, AppDbContext db, FileStorageProvider storage)
     {
         _http = http;
+        _db = db;
+        _storage = storage;
         _identifier = config["Bluesky:Identifier"] ?? "";
         _appPassword = config["Bluesky:AppPassword"] ?? "";
     }
@@ -32,16 +42,11 @@ public class BlueskyPublisher : IPublisher
     {
         if (string.IsNullOrEmpty(_identifier) || string.IsNullOrEmpty(_appPassword))
         {
-            return new PublishResult
-            {
-                Success = false,
-                ErrorMessage = "Bluesky credentials not configured."
-            };
+            return new PublishResult { Success = false, ErrorMessage = "Bluesky credentials not configured." };
         }
 
         try
         {
-            // 1. Create Session
             var sessionReq = new { identifier = _identifier, password = _appPassword };
             var sessionRes = await _http.PostAsJsonAsync("https://bsky.social/xrpc/com.atproto.server.createSession", sessionReq, ct);
             
@@ -62,14 +67,9 @@ public class BlueskyPublisher : IPublisher
 
             _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessJwt);
 
-            // 2. Parse thread content into segments
             var segments = DraftsService.SplitMarkdownIntoSegments(thread.Content ?? "");
-            if (segments.Count == 0)
-            {
-                return new PublishResult { Success = false, ErrorMessage = "Thread is empty." };
-            }
+            if (segments.Count == 0) return new PublishResult { Success = false, ErrorMessage = "Thread is empty." };
 
-            // 3. Post segments sequentially
             JsonObject? rootRef = null;
             JsonObject? parentRef = null;
             string? firstPostUri = null;
@@ -79,12 +79,61 @@ public class BlueskyPublisher : IPublisher
                 var text = segment.Trim();
                 if (string.IsNullOrEmpty(text)) continue;
 
+                var imagesList = new JsonArray();
+                var matches = MediaRegex.Matches(text);
+                
+                foreach (Match match in matches)
+                {
+                    var altText = match.Groups[1].Value;
+                    if (Guid.TryParse(match.Groups[2].Value, out var mediaId))
+                    {
+                        var asset = await _db.MediaAssets.FirstOrDefaultAsync(a => a.Id == mediaId, ct);
+                        if (asset != null)
+                        {
+                            var fullPath = _storage.GetFullPath(asset.FilePath);
+                            if (File.Exists(fullPath))
+                            {
+                                var fileBytes = await File.ReadAllBytesAsync(fullPath, ct);
+                                using var content = new ByteArrayContent(fileBytes);
+                                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(asset.MimeType);
+                                
+                                var uploadRes = await _http.PostAsync("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", content, ct);
+                                if (uploadRes.IsSuccessStatusCode)
+                                {
+                                    var uploadData = await uploadRes.Content.ReadFromJsonAsync<JsonNode>(cancellationToken: ct);
+                                    var blob = uploadData?["blob"];
+                                    if (blob != null)
+                                    {
+                                        imagesList.Add(new JsonObject
+                                        {
+                                            ["alt"] = !string.IsNullOrEmpty(asset.AltText) ? asset.AltText : altText,
+                                            ["image"] = blob.DeepClone()
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Remove the image markdown tags from the text before posting
+                text = MediaRegex.Replace(text, "").Trim();
+
                 var postRecord = new JsonObject
                 {
                     ["$type"] = "app.bsky.feed.post",
                     ["text"] = text,
                     ["createdAt"] = DateTime.UtcNow.ToString("O")
                 };
+
+                if (imagesList.Count > 0)
+                {
+                    postRecord["embed"] = new JsonObject
+                    {
+                        ["$type"] = "app.bsky.embed.images",
+                        ["images"] = imagesList
+                    };
+                }
 
                 if (rootRef != null && parentRef != null)
                 {
@@ -95,13 +144,7 @@ public class BlueskyPublisher : IPublisher
                     };
                 }
 
-                var createRecordReq = new
-                {
-                    repo = did,
-                    collection = "app.bsky.feed.post",
-                    record = postRecord
-                };
-
+                var createRecordReq = new { repo = did, collection = "app.bsky.feed.post", record = postRecord };
                 var postRes = await _http.PostAsJsonAsync("https://bsky.social/xrpc/com.atproto.repo.createRecord", createRecordReq, ct);
                 
                 if (!postRes.IsSuccessStatusCode)
@@ -114,23 +157,15 @@ public class BlueskyPublisher : IPublisher
                 var uri = postData?["uri"]?.GetValue<string>();
                 var cid = postData?["cid"]?.GetValue<string>();
 
-                if (uri == null || cid == null)
-                {
-                    return new PublishResult { Success = false, ErrorMessage = "Invalid post response from Bluesky." };
-                }
+                if (uri == null || cid == null) return new PublishResult { Success = false, ErrorMessage = "Invalid post response from Bluesky." };
 
                 firstPostUri ??= uri;
-
                 var currentRef = new JsonObject { ["uri"] = uri, ["cid"] = cid };
                 rootRef ??= (JsonObject)currentRef.DeepClone();
                 parentRef = (JsonObject)currentRef.DeepClone();
             }
 
-            return new PublishResult
-            {
-                Success = true,
-                RemoteId = firstPostUri
-            };
+            return new PublishResult { Success = true, RemoteId = firstPostUri };
         }
         catch (Exception ex)
         {
