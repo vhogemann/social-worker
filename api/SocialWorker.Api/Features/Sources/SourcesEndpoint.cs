@@ -1,12 +1,12 @@
 using System;
 using System.IO;
-using System.Linq;
+using System.Collections.Generic;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
@@ -19,37 +19,32 @@ public static class SourcesEndpoint
     {
         var group = app.MapGroup("/api/drafts/{draftId:guid}").RequireAuthorization();
 
-        group.MapGet("/sources", async (ClaimsPrincipal principal, AppDbContext db, Guid draftId) =>
+        group.MapGet("/sources", async (ClaimsPrincipal principal, SourcesService sourcesService, Guid draftId, CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            var draftExists = await db.Drafts.AnyAsync(d => d.Id == draftId && d.UserId == userId.Value && d.Status != DraftStatus.Deleted);
-            if (!draftExists) return Results.NotFound();
-
-            var sources = await db.Sources
-                .Where(s => s.DraftId == draftId)
-                .Select(s => new
-                {
-                    s.Id,
-                    s.DraftId,
-                    Kind = s.Kind.ToString(),
-                    s.Reference,
-                    s.Title,
-                    s.AddedAt
-                })
-                .ToListAsync();
-
-            return Results.Ok(sources);
+            try
+            {
+                var sources = await sourcesService.GetSourcesForDraftAsync(userId.Value, draftId, ct);
+                return Results.Ok(sources);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
         });
 
-        group.MapPost("/files", async (ClaimsPrincipal principal, AppDbContext db, SourceExtractor extractor, Guid draftId, IFormFile file) =>
+        group.MapPost("/files", async (
+            ClaimsPrincipal principal,
+            SourcesService sourcesService,
+            SourceExtractor extractor,
+            Guid draftId,
+            IFormFile file,
+            CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
-
-            var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId.Value && d.Status != DraftStatus.Deleted);
-            if (draft is null) return Results.NotFound();
 
             if (file == null || file.Length == 0)
             {
@@ -58,82 +53,24 @@ public static class SourcesEndpoint
 
             try
             {
-                using var sha256 = System.Security.Cryptography.SHA256.Create();
-                byte[] hashBytes;
-                using (var tempStream = new MemoryStream())
-                {
-                    using var uploadStream = file.OpenReadStream();
-                    await uploadStream.CopyToAsync(tempStream);
-                    tempStream.Position = 0;
-                    hashBytes = sha256.ComputeHash(tempStream);
-                }
-                var shaHashStr = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
-
-                var existing = await db.Sources.FirstOrDefaultAsync(s => s.Sha256 == shaHashStr);
-                if (existing != null)
-                {
-                    var source = new Source
-                    {
-                        DraftId = draftId,
-                        Kind = SourceKind.File,
-                        Reference = file.FileName,
-                        Title = existing.Title ?? file.FileName,
-                        Content = existing.Content,
-                        Sha256 = shaHashStr,
-                        AddedAt = DateTime.UtcNow
-                    };
-
-                    db.Sources.Add(source);
-                    draft.Status = DraftStatus.Editing;
-                    await db.SaveChangesAsync();
-
-                    return Results.Ok(new
-                    {
-                        sourceId = source.Id,
-                        markdownLink = $"[File: {source.Reference}](file://{source.Id})"
-                    });
-                }
-
-                draft.Status = DraftStatus.Sourcing;
-                await db.SaveChangesAsync();
-
-                string extractedText;
-                try
-                {
-                    extractedText = await extractor.ExtractTextAsync(file);
-                }
-                catch (NotSupportedException ex)
-                {
-                    draft.Status = DraftStatus.Editing;
-                    await db.SaveChangesAsync();
-                    return Results.BadRequest(ex.Message);
-                }
-
-                var newSource = new Source
-                {
-                    DraftId = draftId,
-                    Kind = SourceKind.File,
-                    Reference = file.FileName,
-                    Title = file.FileName,
-                    Content = extractedText,
-                    Sha256 = shaHashStr,
-                    AddedAt = DateTime.UtcNow
-                };
-
-                db.Sources.Add(newSource);
-                draft.Status = DraftStatus.Editing;
-                await db.SaveChangesAsync();
-
+                using var stream = file.OpenReadStream();
+                var result = await sourcesService.AddFileSourceAsync(userId.Value, draftId, file.FileName, stream, extractor, ct);
                 return Results.Ok(new
                 {
-                    sourceId = newSource.Id,
-                    markdownLink = $"[File: {newSource.Reference}](file://{newSource.Id})"
+                    sourceId = result.SourceId,
+                    markdownLink = $"[File: {result.Reference}](file://{result.SourceId})"
                 });
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
+            catch (NotSupportedException ex)
+            {
+                return Results.BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
-                draft.Status = DraftStatus.Editing;
-                await db.SaveChangesAsync();
                 return Results.BadRequest($"Failed to process file attachment: {ex.Message}");
             }
         }).DisableAntiforgery();

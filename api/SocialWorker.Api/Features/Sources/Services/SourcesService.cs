@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +11,10 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 
 namespace SocialWorker.Api.Features.Sources;
+
+public sealed record SourceDto(Guid Id, Guid DraftId, string Kind, string Reference, string? Title, DateTime AddedAt);
+
+public sealed record AddFileSourceResult(Guid SourceId, string Reference);
 
 public sealed class SourcesService
 {
@@ -23,6 +30,101 @@ public sealed class SourcesService
         _db = db;
         _scraper = scraper;
         _scopeFactory = scopeFactory;
+    }
+
+    public async Task<List<SourceDto>> GetSourcesForDraftAsync(Guid userId, Guid draftId, CancellationToken ct)
+    {
+        var draftExists = await _db.Drafts.AnyAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+        if (!draftExists)
+        {
+            throw new KeyNotFoundException("Draft not found or access denied.");
+        }
+
+        return await _db.Sources
+            .Where(s => s.DraftId == draftId)
+            .Select(s => new SourceDto(s.Id, s.DraftId, s.Kind.ToString(), s.Reference, s.Title, s.AddedAt))
+            .ToListAsync(ct);
+    }
+
+    public async Task<AddFileSourceResult> AddFileSourceAsync(
+        Guid userId,
+        Guid draftId,
+        string fileName,
+        Stream fileStream,
+        SourceExtractor extractor,
+        CancellationToken ct)
+    {
+        var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
+            ?? throw new KeyNotFoundException("Draft not found or access denied.");
+
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        byte[] hashBytes;
+        using (var tempStream = new MemoryStream())
+        {
+            await fileStream.CopyToAsync(tempStream, ct);
+            tempStream.Position = 0;
+            hashBytes = sha256.ComputeHash(tempStream);
+        }
+        var shaHashStr = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+
+        var existing = await _db.Sources.FirstOrDefaultAsync(s => s.Sha256 == shaHashStr, ct);
+        if (existing != null)
+        {
+            var source = new Source
+            {
+                DraftId = draftId,
+                Kind = SourceKind.File,
+                Reference = fileName,
+                Title = existing.Title ?? fileName,
+                Content = existing.Content,
+                Sha256 = shaHashStr,
+                AddedAt = DateTime.UtcNow
+            };
+
+            _db.Sources.Add(source);
+            draft.Status = DraftStatus.Editing;
+            await _db.SaveChangesAsync(ct);
+
+            return new AddFileSourceResult(source.Id, source.Reference);
+        }
+
+        draft.Status = DraftStatus.Sourcing;
+        await _db.SaveChangesAsync(ct);
+
+        string extractedText;
+        try
+        {
+            using (var tempStreamForExtract = new MemoryStream())
+            {
+                fileStream.Position = 0;
+                await fileStream.CopyToAsync(tempStreamForExtract, ct);
+                tempStreamForExtract.Position = 0;
+                extractedText = await extractor.ExtractTextAsync(fileName, tempStreamForExtract);
+            }
+        }
+        catch (Exception)
+        {
+            draft.Status = DraftStatus.Editing;
+            await _db.SaveChangesAsync(ct);
+            throw;
+        }
+
+        var newSource = new Source
+        {
+            DraftId = draftId,
+            Kind = SourceKind.File,
+            Reference = fileName,
+            Title = fileName,
+            Content = extractedText,
+            Sha256 = shaHashStr,
+            AddedAt = DateTime.UtcNow
+        };
+
+        _db.Sources.Add(newSource);
+        draft.Status = DraftStatus.Editing;
+        await _db.SaveChangesAsync(ct);
+
+        return new AddFileSourceResult(newSource.Id, newSource.Reference);
     }
 
     public async Task ReconcileSourcesAsync(Draft draft, string content)

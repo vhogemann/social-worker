@@ -2,17 +2,15 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using UglyToad.PdfPig;
 
 namespace SocialWorker.Api.Features.Sources;
 
 public sealed class SourceExtractor
 {
-    public async Task<string> ExtractTextAsync(IFormFile file)
+    public async Task<string> ExtractTextAsync(string fileName, Stream stream)
     {
-        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        using var stream = file.OpenReadStream();
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
 
         if (ext == ".pdf")
         {
