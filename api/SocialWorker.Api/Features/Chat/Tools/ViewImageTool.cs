@@ -1,0 +1,137 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SkiaSharp;
+using SocialWorker.Api.Data;
+using SocialWorker.Api.Data.Entities;
+
+namespace SocialWorker.Api.Features.Chat.Tools;
+
+public sealed record ViewImageArgs(string Id);
+
+public sealed record ViewImageResultItem(string Type, string? Text, ViewImageResultImageUrl? ImageUrl);
+
+public sealed record ViewImageResultImageUrl(string Url);
+
+public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageResultItem>>
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+
+    public ViewImageTool(IServiceScopeFactory scopeFactory)
+    {
+        _scopeFactory = scopeFactory;
+    }
+
+    public override string Name => "view_image";
+    public override string Description => "Fetch a specific image by its Guid ID. Returns the image so you can inspect its visual content.";
+    public override bool RequiresVision => true;
+
+    public override JsonElement Parameters { get; } = JsonDocument.Parse("""
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique Guid identifier of the image to view."
+            }
+          },
+          "required": ["id"]
+        }
+        """).RootElement.Clone();
+
+    public override async Task<List<ViewImageResultItem>> ExecuteAsync(ViewImageArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    {
+        var imageIdStr = args.Id;
+        if (imageIdStr.StartsWith("media://", StringComparison.OrdinalIgnoreCase))
+        {
+            imageIdStr = imageIdStr.Substring("media://".Length);
+        }
+        else if (imageIdStr.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            imageIdStr = imageIdStr.Substring("file://".Length);
+        }
+
+        if (!Guid.TryParse(imageIdStr, out var imageId))
+        {
+            throw new ArgumentException("Invalid Guid ID format");
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var asset = await db.MediaAssets.FirstOrDefaultAsync(m => m.Id == imageId, ct);
+        if (asset == null)
+        {
+            throw new InvalidOperationException($"Image {imageId} not found");
+        }
+
+        var owned = await db.Drafts.AnyAsync(d => d.Id == asset.DraftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+        if (!owned)
+        {
+            throw new UnauthorizedAccessException("Access denied to target image");
+        }
+
+        var fullPath = Path.Combine("/app/uploads", asset.FilePath);
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException("Image file not found on disk");
+        }
+
+        using var stream = File.OpenRead(fullPath);
+        using var codec = SKCodec.Create(stream);
+        if (codec == null)
+        {
+            throw new InvalidDataException("Failed to decode image");
+        }
+
+        int maxDim = 512;
+        int newWidth = codec.Info.Width;
+        int newHeight = codec.Info.Height;
+        
+        if (newWidth > maxDim || newHeight > maxDim)
+        {
+            double ratio = Math.Min((double)maxDim / newWidth, (double)maxDim / newHeight);
+            newWidth = (int)(newWidth * ratio);
+            newHeight = (int)(newHeight * ratio);
+        }
+
+        stream.Position = 0;
+        using var original = SKBitmap.Decode(codec);
+        using var resized = original.Resize(new SKImageInfo(newWidth, newHeight), SKFilterQuality.Medium);
+        using var image = SKImage.FromBitmap(resized);
+        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 80);
+        var bytes = data.ToArray();
+        var base64 = Convert.ToBase64String(bytes);
+
+        return new List<ViewImageResultItem>
+        {
+            new ViewImageResultItem("text", $"Image: {asset.FileName} ({asset.Width}x{asset.Height}). Current alt text: {asset.AltText ?? "(none)"}", null),
+            new ViewImageResultItem("image_url", null, new ViewImageResultImageUrl($"data:image/jpeg;base64,{base64}"))
+        };
+    }
+
+    protected override ToolExecutionResult BuildResult(List<ViewImageResultItem> result)
+    {
+        var extraMessages = new List<OpenAiModels.OpenAiMessage>
+        {
+            new()
+            {
+                Role = "tool",
+                Content = "Image successfully retrieved and loaded."
+            },
+            new()
+            {
+                Role = "user",
+                Content = result.ToArray()
+            }
+        };
+
+        return new ToolExecutionResult(result, extraMessages);
+    }
+}

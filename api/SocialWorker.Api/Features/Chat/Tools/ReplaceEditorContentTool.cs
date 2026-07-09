@@ -1,0 +1,63 @@
+using System;
+using System.Linq;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SocialWorker.Api.Data;
+using SocialWorker.Api.Data.Entities;
+
+namespace SocialWorker.Api.Features.Chat.Tools;
+
+public sealed record ReplaceEditorContentArgs(string Markdown);
+
+public sealed record ReplaceEditorContentResult(bool Success, int Length, string Content);
+
+public sealed class ReplaceEditorContentTool : ChatToolBase<ReplaceEditorContentArgs, ReplaceEditorContentResult>
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+
+    public ReplaceEditorContentTool(IServiceScopeFactory scopeFactory)
+    {
+        _scopeFactory = scopeFactory;
+    }
+
+    public override string Name => "replace_editor_content";
+    public override string Description => "Replace the entire content of the markdown editor with the provided text.";
+
+    public override JsonElement Parameters { get; } = JsonDocument.Parse("""
+        {
+          "type": "object",
+          "properties": {
+            "markdown": {
+              "type": "string",
+              "description": "The full markdown content to replace the editor with. Use --- on its own line to separate thread segments."
+            }
+          },
+          "required": ["markdown"]
+        }
+        """).RootElement.Clone();
+
+    public override async Task<ReplaceEditorContentResult> ExecuteAsync(ReplaceEditorContentArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    {
+        var markdown = args.Markdown;
+
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var draft = draftId.HasValue
+            ? await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
+                ?? throw new InvalidOperationException($"Draft {draftId.Value} not found or access denied")
+            : await db.Drafts.OrderByDescending(d => d.UpdatedAt).FirstOrDefaultAsync(d => d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
+                ?? throw new InvalidOperationException("No active draft found");
+
+        draft.Content = markdown;
+        draft.UpdatedAt = DateTime.UtcNow;
+
+        await SocialWorker.Api.Features.Drafts.DraftsEndpoint.ReconcileSegmentsAsync(db, draft, markdown, ct);
+        await db.SaveChangesAsync(ct);
+
+        return new ReplaceEditorContentResult(true, markdown.Length, markdown);
+    }
+}

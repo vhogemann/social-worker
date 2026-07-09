@@ -150,4 +150,25 @@ public static class OpenAiModels
         [JsonPropertyName("arguments")]
         public string? Arguments { get; set; }
     }
+
+    public sealed class ChatCompletionResponse
+    {
+        [JsonPropertyName("choices")]
+        public List<ChatCompletionChoice> Choices { get; set; } = new();
+    }
+
+    public sealed class ChatCompletionChoice
+    {
+        [JsonPropertyName("message")]
+        public ChatCompletionMessage Message { get; set; } = new();
+    }
+
+    public sealed class ChatCompletionMessage
+    {
+        [JsonPropertyName("role")]
+        public string Role { get; set; } = "";
+
+        [JsonPropertyName("content")]
+        public string? Content { get; set; }
+    }
 }

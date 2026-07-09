@@ -39,6 +39,6 @@ Extract business rules and reconciliation out of `DraftsEndpoint.cs`:
 ## 3. Progress Tracking
 
 - [x] **ChatService Refactoring & Namespace Grouping** (Completed)
-- [ ] **Sources Feature Refactoring** (Planned)
+- [/] **Sources Feature Refactoring** (In Progress)
 - [ ] **Media Feature Refactoring** (Planned)
 - [ ] **Drafts Feature Refactoring** (Planned)

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Features.Chat;
+using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Auth;
 using SocialWorker.Api.Features.Users;
@@ -17,9 +18,22 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("LLM"));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
-builder.Services.AddHttpClient<ChatService>();
+builder.Services.AddHttpClient<ILlmProviderAdapter, OpenAiProviderAdapter>();
+builder.Services.AddScoped<DraftTitleGenerator>();
+builder.Services.AddScoped<ChatSessionLoader>();
+builder.Services.AddScoped<SystemPromptBuilder>();
+builder.Services.AddScoped<ChatStreamWriter>();
+builder.Services.AddScoped<ChatService>();
 builder.Services.AddHttpClient<ModelCapabilityProbe>();
+builder.Services.AddScoped<SourceExtractor>();
+builder.Services.AddHttpClient<WebScraperService>();
+builder.Services.AddScoped<SourcesService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<IChatTool, ReplaceEditorContentTool>();
+builder.Services.AddScoped<IChatTool, ProposeStageTransitionTool>();
+builder.Services.AddScoped<IChatTool, ListSourcesTool>();
+builder.Services.AddScoped<IChatTool, FetchSourceTool>();
+builder.Services.AddScoped<IChatTool, ViewImageTool>();
 builder.Services.AddMemoryCache();
 
 builder.Services.AddDbContextPool<AppDbContext>(o =>
