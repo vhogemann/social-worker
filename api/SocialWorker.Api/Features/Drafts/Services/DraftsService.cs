@@ -91,6 +91,7 @@ public sealed class DraftsService
             d.Title,
             d.Status.ToString(),
             d.Content,
+            threads.Where(t => t.DraftId == d.Id)
                 .Select(t => new PlatformThreadDto(
                     t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
                     posts.Where(p => p.PlatformThreadId == t.Id)
