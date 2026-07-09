@@ -40,5 +40,5 @@ Extract business rules and reconciliation out of `DraftsEndpoint.cs`:
 
 - [x] **ChatService Refactoring & Namespace Grouping** (Completed)
 - [x] **Sources Feature Refactoring** (Completed)
-- [ ] **Media Feature Refactoring** (Planned)
+- [/] **Media Feature Refactoring** (In Progress)
 - [ ] **Drafts Feature Refactoring** (Planned)
