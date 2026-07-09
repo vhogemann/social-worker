@@ -41,16 +41,36 @@ public static class PublishingEndpoint
                 return Results.BadRequest("Thread must be in Ready stage to publish.");
             }
 
+            var account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == thread.Platform, ct);
+            if (account == null)
+            {
+                return Results.BadRequest($"No connected account found for platform: {thread.Platform}");
+            }
+
             var publisher = publishers.FirstOrDefault(p => string.Equals(p.Platform, thread.Platform, StringComparison.OrdinalIgnoreCase));
             if (publisher == null)
             {
                 return Results.BadRequest($"No publisher configured for platform: {thread.Platform}");
             }
 
-            var result = await publisher.PublishAsync(thread, ct);
+            var result = await publisher.PublishAsync(thread, account, ct);
 
             if (result.Success)
             {
+                foreach (var publishedPost in result.Posts)
+                {
+                    var post = new Post
+                    {
+                        DraftId = draftId,
+                        PlatformThreadId = threadId,
+                        SegmentIndex = publishedPost.SegmentIndex,
+                        Platform = thread.Platform,
+                        RemoteId = publishedPost.RemoteId,
+                        Url = publishedPost.Url
+                    };
+                    db.Posts.Add(post);
+                }
+                
                 thread.Stage = PlatformThreadStage.Sent;
                 thread.UpdatedAt = DateTime.UtcNow;
                 await db.SaveChangesAsync(ct);

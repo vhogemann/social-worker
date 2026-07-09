@@ -60,16 +60,36 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, object>
             return new { error = $"Cannot publish. The thread for '{platform}' is currently in stage '{thread.Stage}', but must be 'Ready'." };
         }
 
+        var account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == platform, ct);
+        if (account == null)
+        {
+            return new { error = $"No connected account found for platform: {platform}" };
+        }
+
         var publisher = publishers.FirstOrDefault(p => string.Equals(p.Platform, platform, StringComparison.OrdinalIgnoreCase));
         if (publisher == null)
         {
             return new { error = $"No publisher configured for platform: {platform}" };
         }
 
-        var result = await publisher.PublishAsync(thread, ct);
+        var result = await publisher.PublishAsync(thread, account, ct);
 
         if (result.Success)
         {
+            foreach (var publishedPost in result.Posts)
+            {
+                var post = new Post
+                {
+                    DraftId = draftId.Value,
+                    PlatformThreadId = thread.Id,
+                    SegmentIndex = publishedPost.SegmentIndex,
+                    Platform = thread.Platform,
+                    RemoteId = publishedPost.RemoteId,
+                    Url = publishedPost.Url
+                };
+                db.Posts.Add(post);
+            }
+            
             thread.Stage = PlatformThreadStage.Sent;
             thread.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
@@ -77,8 +97,8 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, object>
             return new
             {
                 success = true,
-                message = $"Successfully published to {platform}.",
-                remoteId = result.RemoteId
+                message = $"Successfully published {result.Posts.Count} segments to {platform}.",
+                posts = result.Posts
             };
         }
         else

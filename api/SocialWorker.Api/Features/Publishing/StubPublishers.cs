@@ -8,7 +8,7 @@ public class TwitterPublisher : IPublisher
 {
     public string Platform => "Twitter";
 
-    public Task<PublishResult> PublishAsync(PlatformThread thread, CancellationToken ct = default)
+    public Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)
     {
         return Task.FromResult(new PublishResult
         {
@@ -23,7 +23,7 @@ public class LinkedInPublisher : IPublisher
 {
     public string Platform => "LinkedIn";
 
-    public Task<PublishResult> PublishAsync(PlatformThread thread, CancellationToken ct = default)
+    public Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)
     {
         return Task.FromResult(new PublishResult
         {
@@ -38,7 +38,7 @@ public class FacebookPublisher : IPublisher
 {
     public string Platform => "Facebook";
 
-    public Task<PublishResult> PublishAsync(PlatformThread thread, CancellationToken ct = default)
+    public Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)
     {
         return Task.FromResult(new PublishResult
         {
@@ -53,7 +53,7 @@ public class InstagramPublisher : IPublisher
 {
     public string Platform => "Instagram";
 
-    public Task<PublishResult> PublishAsync(PlatformThread thread, CancellationToken ct = default)
+    public Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)
     {
         return Task.FromResult(new PublishResult
         {

@@ -15,6 +15,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Infrastructure.Security;
 
 namespace SocialWorker.Api.Features.Publishing;
 
@@ -23,8 +24,7 @@ public class BlueskyPublisher : IPublisher
     private readonly HttpClient _http;
     private readonly AppDbContext _db;
     private readonly FileStorageProvider _storage;
-    private readonly string _identifier;
-    private readonly string _appPassword;
+    private readonly string _encryptionKey;
     private static readonly Regex MediaRegex = new(@"!\[(.*?)\]\(media://([0-9a-fA-F\-]{36})\)", RegexOptions.Compiled);
 
     public string Platform => "Bluesky";
@@ -34,20 +34,29 @@ public class BlueskyPublisher : IPublisher
         _http = http;
         _db = db;
         _storage = storage;
-        _identifier = config["Bluesky:Identifier"] ?? "";
-        _appPassword = config["Bluesky:AppPassword"] ?? "";
+        _encryptionKey = config["Auth:DbEncryptionKey"] ?? "";
     }
 
-    public async Task<PublishResult> PublishAsync(PlatformThread thread, CancellationToken ct = default)
+    public async Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(_identifier) || string.IsNullOrEmpty(_appPassword))
+        if (string.IsNullOrEmpty(_encryptionKey))
         {
-            return new PublishResult { Success = false, ErrorMessage = "Bluesky credentials not configured." };
+            return new PublishResult { Success = false, ErrorMessage = "Server encryption key not configured." };
+        }
+
+        string appPassword;
+        try
+        {
+            appPassword = CryptoHelper.DecryptString(account.CredentialsEncrypted, _encryptionKey);
+        }
+        catch (Exception ex)
+        {
+            return new PublishResult { Success = false, ErrorMessage = $"Failed to decrypt credentials: {ex.Message}" };
         }
 
         try
         {
-            var sessionReq = new { identifier = _identifier, password = _appPassword };
+            var sessionReq = new { identifier = account.Handle, password = appPassword };
             var sessionRes = await _http.PostAsJsonAsync("https://bsky.social/xrpc/com.atproto.server.createSession", sessionReq, ct);
             
             if (!sessionRes.IsSuccessStatusCode)
@@ -72,12 +81,17 @@ public class BlueskyPublisher : IPublisher
 
             JsonObject? rootRef = null;
             JsonObject? parentRef = null;
-            string? firstPostUri = null;
+            var publishedPosts = new List<PublishedPost>();
+            int segmentIndex = 0;
 
             foreach (var segment in segments)
             {
                 var text = segment.Trim();
-                if (string.IsNullOrEmpty(text)) continue;
+                if (string.IsNullOrEmpty(text)) 
+                {
+                    segmentIndex++;
+                    continue;
+                }
 
                 var imagesList = new JsonArray();
                 var matches = MediaRegex.Matches(text);
@@ -159,13 +173,25 @@ public class BlueskyPublisher : IPublisher
 
                 if (uri == null || cid == null) return new PublishResult { Success = false, ErrorMessage = "Invalid post response from Bluesky." };
 
-                firstPostUri ??= uri;
+                var parts = uri.Split('/');
+                var rkey = parts.LastOrDefault();
+                var postUrl = $"https://bsky.app/profile/{account.Handle}/post/{rkey}";
+
+                publishedPosts.Add(new PublishedPost
+                {
+                    SegmentIndex = segmentIndex,
+                    RemoteId = uri,
+                    Url = postUrl
+                });
+
+                segmentIndex++;
+
                 var currentRef = new JsonObject { ["uri"] = uri, ["cid"] = cid };
                 rootRef ??= (JsonObject)currentRef.DeepClone();
                 parentRef = (JsonObject)currentRef.DeepClone();
             }
 
-            return new PublishResult { Success = true, RemoteId = firstPostUri };
+            return new PublishResult { Success = true, Posts = publishedPosts };
         }
         catch (Exception ex)
         {

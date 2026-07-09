@@ -13,6 +13,8 @@ public class AppDbContext : DbContext
     public DbSet<PlatformThread> PlatformThreads => Set<PlatformThread>();
     public DbSet<Source> Sources => Set<Source>();
     public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
+    public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<Post> Posts => Set<Post>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -116,6 +118,36 @@ public class AppDbContext : DbContext
             e.Property(x => x.ApiKey).HasMaxLength(500);
             e.Property(x => x.Model).HasMaxLength(200);
             e.HasIndex(x => x.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<Account>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Platform).HasMaxLength(100);
+            e.Property(x => x.Handle).HasMaxLength(255);
+            e.Property(x => x.Status).HasMaxLength(50);
+            e.HasIndex(x => new { x.UserId, x.Platform }).IsUnique();
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Post>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Platform).HasMaxLength(100);
+            e.Property(x => x.RemoteId).HasMaxLength(255);
+            e.Property(x => x.Url).HasMaxLength(1000);
+            e.HasOne(x => x.Draft)
+                .WithMany()
+                .HasForeignKey(x => x.DraftId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.PlatformThread)
+                .WithMany()
+                .HasForeignKey(x => x.PlatformThreadId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.PlatformThreadId, x.SegmentIndex }).IsUnique();
         });
     }
 }

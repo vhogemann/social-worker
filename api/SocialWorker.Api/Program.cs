@@ -13,6 +13,7 @@ using SocialWorker.Api.Features.Providers.Services;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing;
+using SocialWorker.Api.Features.Accounts;
 using SocialWorker.Api.Infrastructure.Llm;
 using SocialWorker.Api.Infrastructure.Auth;
 
@@ -145,6 +146,7 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapAccountsEndpoints();
 app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapAccountEndpoints();
