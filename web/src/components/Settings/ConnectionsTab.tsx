@@ -76,14 +76,10 @@ export function ConnectionsTab() {
             <select
               value={platform}
               onChange={(e) => setPlatform(e.target.value)}
-              disabled={isSubmitting}
+              disabled={true}
               className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
             >
               <option value="Bluesky">Bluesky</option>
-              <option value="Twitter">Twitter</option>
-              <option value="LinkedIn">LinkedIn</option>
-              <option value="Facebook">Facebook</option>
-              <option value="Instagram">Instagram</option>
             </select>
           </div>
           

@@ -33,6 +33,7 @@ services:
       Auth__AdminPassword: ${Auth__AdminPassword:-changeme}
       Auth__AccessTokenLifetimeMinutes: ${Auth__AccessTokenLifetimeMinutes:-60}
       Auth__RefreshTokenLifetimeDays: ${Auth__RefreshTokenLifetimeDays:-7}
+      Auth__DbEncryptionKey: ${Auth__DbEncryptionKey:-}
     depends_on:
       db:
         condition: service_healthy

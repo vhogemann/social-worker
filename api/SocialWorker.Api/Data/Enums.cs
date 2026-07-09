@@ -3,7 +3,6 @@ namespace SocialWorker.Api.Data;
 public enum PlatformThreadStage
 {
     Draft,
-    Ready,
     Sent
 }
 

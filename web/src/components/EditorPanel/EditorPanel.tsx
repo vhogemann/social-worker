@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { MarkdownEditor } from "./MarkdownEditor";
-import { StageStepper } from "./StageStepper";
 import { ThreadPreview } from "./ThreadPreview";
 import { SourcesPanel } from "./SourcesPanel";
 import { useEditorStore } from "../../store/editorStore";
@@ -36,7 +35,6 @@ export function EditorPanel() {
           </button>
         </div>
       </div>
-      <StageStepper />
       <div className="flex-1 overflow-y-auto">
         {mode === "edit" ? <MarkdownEditor /> : <ThreadPreview content={doc} />}
       </div>

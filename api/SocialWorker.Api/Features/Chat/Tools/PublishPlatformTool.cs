@@ -22,7 +22,7 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, object>
     }
 
     public override string Name => "publish";
-    public override string Description => "Triggers the publication of a drafted thread to a target platform. This is only allowed when the draft's platform variant is in the 'Ready' stage.";
+    public override string Description => "Triggers the publication of a drafted thread to a target platform. This is only allowed when the draft's platform variant is not already Sent.";
     public override JsonElement Parameters => JsonDocument.Parse("""
     {
         "type": "object",
@@ -55,9 +55,9 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, object>
             return new { error = $"No platform thread found for platform '{platform}' in this draft." };
         }
 
-        if (thread.Stage != PlatformThreadStage.Ready)
+        if (thread.Stage == PlatformThreadStage.Sent)
         {
-            return new { error = $"Cannot publish. The thread for '{platform}' is currently in stage '{thread.Stage}', but must be 'Ready'." };
+            return new { error = $"Cannot publish. The thread for '{platform}' has already been 'Sent'." };
         }
 
         var account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == platform, ct);

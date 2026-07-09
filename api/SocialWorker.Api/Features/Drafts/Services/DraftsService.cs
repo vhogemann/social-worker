@@ -288,7 +288,7 @@ public sealed class DraftsService
 
         if (stageStr is not null && Enum.TryParse<PlatformThreadStage>(stageStr, true, out var stage))
         {
-            if (stage == PlatformThreadStage.Ready || stage == PlatformThreadStage.Sent)
+            if (stage == PlatformThreadStage.Sent)
             {
                 if (string.Equals(thread.Platform, "Bluesky", StringComparison.OrdinalIgnoreCase))
                 {
