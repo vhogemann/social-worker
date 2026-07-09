@@ -1,11 +1,21 @@
 import { apiFetch } from "./client";
 
+export interface PostDto {
+  id: string;
+  platformThreadId: string;
+  segmentIndex: number;
+  platform: string;
+  remoteId: string;
+  url: string;
+}
+
 export interface PlatformThreadDto {
   id: string;
   draftId: string;
   platform: string;
   stage: string;
   content: string | null;
+  posts: PostDto[];
 }
 
 export interface SourceDto {
@@ -100,6 +110,20 @@ export async function patchPlatformThread(
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`patchPlatformThread failed: ${res.status}`);
+  return res.json();
+}
+
+export async function publishPlatformThread(
+  draftId: string,
+  threadId: string
+): Promise<any> {
+  const res = await apiFetch(`/api/drafts/${draftId}/threads/${threadId}/publish`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `publishPlatformThread failed: ${res.status}`);
+  }
   return res.json();
 }
 

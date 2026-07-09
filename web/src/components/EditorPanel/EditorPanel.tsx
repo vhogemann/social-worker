@@ -3,10 +3,31 @@ import { MarkdownEditor } from "./MarkdownEditor";
 import { ThreadPreview } from "./ThreadPreview";
 import { SourcesPanel } from "./SourcesPanel";
 import { useEditorStore } from "../../store/editorStore";
+import { useDraftStore } from "../../store/draftStore";
 
 export function EditorPanel() {
   const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [isPublishing, setIsPublishing] = useState(false);
+  
   const doc = useEditorStore((s) => s.doc);
+  const activeDraftId = useDraftStore((s) => s.activeDraftId);
+  const drafts = useDraftStore((s) => s.drafts);
+  const publishThread = useDraftStore((s) => s.publishThread);
+
+  const activeDraft = drafts.find((d) => d.id === activeDraftId);
+  const blueskyThread = activeDraft?.threads?.find(t => t.platform === "Bluesky");
+
+  const handlePublish = async () => {
+    if (!activeDraftId || !blueskyThread) return;
+    try {
+      setIsPublishing(true);
+      await publishThread(activeDraftId, blueskyThread.id);
+    } catch (err: any) {
+      alert(err.message || "Failed to publish");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-panel overflow-hidden">
@@ -34,6 +55,15 @@ export function EditorPanel() {
             preview
           </button>
         </div>
+        {blueskyThread && (
+          <button
+            onClick={handlePublish}
+            disabled={isPublishing || blueskyThread.stage === "Sent"}
+            className="ml-auto px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md text-xs font-semibold uppercase tracking-wider transition-colors"
+          >
+            {isPublishing ? "Publishing..." : blueskyThread.stage === "Sent" ? "Sent" : "Publish"}
+          </button>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto">
         {mode === "edit" ? <MarkdownEditor /> : <ThreadPreview content={doc} />}

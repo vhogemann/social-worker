@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { fetchDrafts, createDraft, fetchDraft, patchDraft, createPlatformThread, patchPlatformThread, fetchSources, uploadFile, uploadMedia, patchMediaAsset, deleteMediaAsset, type DraftDto, type PlatformThreadDto, type SourceDto, type MediaAssetDto } from "../api/drafts";
+import { fetchDrafts, createDraft, fetchDraft, patchDraft, createPlatformThread, patchPlatformThread, publishPlatformThread, fetchSources, uploadFile, uploadMedia, patchMediaAsset, deleteMediaAsset, type DraftDto, type PlatformThreadDto, type SourceDto, type MediaAssetDto } from "../api/drafts";
 
 interface DraftStore {
   drafts: DraftDto[];
@@ -19,6 +19,7 @@ interface DraftStore {
   createThreadVariant: (draftId: string, platform: string) => Promise<void>;
   updateThreadStage: (draftId: string, threadId: string, stage: string) => Promise<void>;
   updateThreadContent: (draftId: string, threadId: string, content: string) => Promise<void>;
+  publishThread: (draftId: string, threadId: string) => Promise<any>;
   loadSources: (draftId: string) => Promise<void>;
   uploadFileSource: (draftId: string, file: File) => Promise<{ sourceId: string; markdownLink: string }>;
   uploadMediaAsset: (draftId: string, file: File) => Promise<{ id: string; markdownTag: string }>;
@@ -132,6 +133,12 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
           : d
       ),
     }));
+  },
+
+  publishThread: async (draftId, threadId) => {
+    const result = await publishPlatformThread(draftId, threadId);
+    await get().switchDraft(draftId);
+    return result;
   },
 
   loadSources: async (draftId) => {

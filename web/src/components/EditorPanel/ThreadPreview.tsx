@@ -66,17 +66,26 @@ export const ThreadPreview: React.FC<ThreadPreviewProps> = ({ content }) => {
     );
   }
 
+  const drafts = useDraftStore((s) => s.drafts);
+  const activeDraftId = useDraftStore((s) => s.activeDraftId);
+  const activeDraft = drafts.find((d) => d.id === activeDraftId);
+  const blueskyThread = activeDraft?.threads?.find(t => t.platform === "Bluesky");
+
   return (
     <div className="space-y-0 relative max-w-xl mx-auto py-6 px-4">
-      {segments.map((segment, index) => (
-        <PreviewCard
-          key={index}
-          content={segment}
-          index={index}
-          total={segments.length}
-          isLast={index === segments.length - 1}
-        />
-      ))}
+      {segments.map((segment, index) => {
+        const post = blueskyThread?.posts?.find(p => p.segmentIndex === index);
+        return (
+          <PreviewCard
+            key={index}
+            content={segment}
+            index={index}
+            total={segments.length}
+            isLast={index === segments.length - 1}
+            postUrl={post?.url}
+          />
+        );
+      })}
     </div>
   );
 };
@@ -86,6 +95,7 @@ interface PreviewCardProps {
   index: number;
   total: number;
   isLast: boolean;
+  postUrl?: string;
 }
 
 const AltTextEditor: React.FC<{ mediaId: string; initialAlt: string }> = ({ mediaId, initialAlt }) => {
@@ -138,7 +148,7 @@ const AltTextEditor: React.FC<{ mediaId: string; initialAlt: string }> = ({ medi
   );
 };
 
-const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total, isLast }) => {
+const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total, isLast, postUrl }) => {
   const [copied, setCopied] = useState(false);
   const drafts = useDraftStore((s) => s.drafts);
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
@@ -227,6 +237,21 @@ const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total, isLast
             )}
           </button>
         </div>
+
+        {postUrl && (
+          <a
+            href={postUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+              <path fillRule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h5a.75.75 0 010 1.5h-5z" clipRule="evenodd" />
+              <path fillRule="evenodd" d="M6.194 12.753a.75.75 0 001.06.053L16.5 4.44v2.81a.75.75 0 001.5 0v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 000 1.5h2.553l-9.056 8.194a.75.75 0 00-.053 1.06z" clipRule="evenodd" />
+            </svg>
+            View on Bluesky
+          </a>
+        )}
 
         {cleanText && (
           <div className="text-zinc-800 dark:text-zinc-200 text-sm whitespace-pre-wrap break-words leading-relaxed select-text">

@@ -14,7 +14,9 @@ using SocialWorker.Api.Features.Sources;
 
 namespace SocialWorker.Api.Features.Drafts;
 
-public sealed record PlatformThreadDto(Guid Id, Guid DraftId, string Platform, string Stage, string? Content);
+public sealed record PostDto(Guid Id, Guid PlatformThreadId, int SegmentIndex, string Platform, string RemoteId, string Url);
+
+public sealed record PlatformThreadDto(Guid Id, Guid DraftId, string Platform, string Stage, string? Content, List<PostDto> Posts);
 
 public sealed record MediaAssetMiniDto(
     Guid Id,
@@ -79,13 +81,21 @@ public sealed class DraftsService
             .Where(m => draftIds.Contains(m.DraftId))
             .ToListAsync(ct);
 
+        var threadIds = threads.Select(t => t.Id).ToList();
+        var posts = await _db.Posts
+            .Where(p => threadIds.Contains(p.PlatformThreadId))
+            .ToListAsync(ct);
+
         return drafts.Select(d => new DraftDto(
             d.Id,
             d.Title,
             d.Status.ToString(),
             d.Content,
-            threads.Where(t => t.DraftId == d.Id)
-                .Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content))
+                .Select(t => new PlatformThreadDto(
+                    t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
+                    posts.Where(p => p.PlatformThreadId == t.Id)
+                         .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
+                         .ToList()))
                 .ToList(),
             media.Where(m => m.DraftId == d.Id)
                 .Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt))
@@ -127,7 +137,7 @@ public sealed class DraftsService
             draft.Title,
             draft.Status.ToString(),
             draft.Content,
-            new List<PlatformThreadDto> { new(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content) },
+            new List<PlatformThreadDto> { new(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>()) },
             new List<MediaAssetMiniDto>(),
             draft.CreatedAt,
             draft.UpdatedAt
@@ -141,6 +151,8 @@ public sealed class DraftsService
             ?? throw new KeyNotFoundException("Draft not found or access denied.");
 
         var threads = await _db.PlatformThreads.Where(t => t.DraftId == id).ToListAsync(ct);
+        var threadIds = threads.Select(t => t.Id).ToList();
+        var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
 
         return new DraftDto(
@@ -148,7 +160,10 @@ public sealed class DraftsService
             draft.Title,
             draft.Status.ToString(),
             draft.Content,
-            threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content)).ToList(),
+            threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
+                posts.Where(p => p.PlatformThreadId == t.Id)
+                     .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
+                     .ToList())).ToList(),
             media.Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt)).ToList(),
             draft.CreatedAt,
             draft.UpdatedAt
@@ -205,6 +220,8 @@ public sealed class DraftsService
         await _db.SaveChangesAsync(ct);
 
         var threads = await _db.PlatformThreads.Where(t => t.DraftId == id).ToListAsync(ct);
+        var threadIds = threads.Select(t => t.Id).ToList();
+        var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
 
         return new DraftDto(
@@ -212,7 +229,10 @@ public sealed class DraftsService
             draft.Title,
             draft.Status.ToString(),
             draft.Content,
-            threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content)).ToList(),
+            threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
+                posts.Where(p => p.PlatformThreadId == t.Id)
+                     .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
+                     .ToList())).ToList(),
             media.Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt)).ToList(),
             draft.CreatedAt,
             draft.UpdatedAt
@@ -231,7 +251,13 @@ public sealed class DraftsService
             .Where(t => t.DraftId == id)
             .ToListAsync(ct);
 
-        return threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content)).ToList();
+        var threadIds = threads.Select(t => t.Id).ToList();
+        var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
+
+        return threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
+            posts.Where(p => p.PlatformThreadId == t.Id)
+                 .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
+                 .ToList())).ToList();
     }
 
     public async Task<PlatformThreadDto> CreatePlatformThreadAsync(Guid userId, Guid id, string platform, CancellationToken ct)
@@ -261,7 +287,7 @@ public sealed class DraftsService
         _db.PlatformThreads.Add(thread);
         await _db.SaveChangesAsync(ct);
 
-        return new PlatformThreadDto(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content);
+        return new PlatformThreadDto(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>());
     }
 
     public async Task<PlatformThreadDto> UpdatePlatformThreadAsync(
@@ -309,7 +335,9 @@ public sealed class DraftsService
         thread.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        return new PlatformThreadDto(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content);
+        var posts = await _db.Posts.Where(p => p.PlatformThreadId == threadId).ToListAsync(ct);
+        return new PlatformThreadDto(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content,
+            posts.Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url)).ToList());
     }
 
     public async Task ReconcileSegmentsAsync(Draft draft, string markdown, CancellationToken ct = default)
