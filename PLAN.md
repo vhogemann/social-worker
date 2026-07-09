@@ -256,6 +256,8 @@ With the MVP proving the stack, the remaining v1 work is to add the pieces the M
 
 **Thread Stages & Segment Reconciliation** — **In Progress.** Reconciling editor markdown splits into `ThreadSegments` database rows, and implementing the visual Stage Stepper interface with LLM transitions. See [THREAD_STAGES.md](./docs/THREAD_STAGES.md) for design and progress tracking.
 
+**ChatService Refactoring** — **Done.** Extracted tools into separate services implementing `IChatTool` and structured the Chat namespace. See [CHAT_SERVICE_REFACTORING.md](./docs/CHAT_SERVICE_REFACTORING.md) for details. A broader API refactoring plan is tracked in [REFACTORING_PLAN.md](./docs/REFACTORING_PLAN.md).
+
 With that done, the remaining v1 items are:
 
 1. ~~Postgres + EF Core + migrator service + the 7 entities~~ — **done** (Draft + ThreadSegment; see "v1 step 1 & 2" below)
