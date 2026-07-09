@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using SocialWorker.Api.Data;
+using SocialWorker.Api.Data.Entities;
 
 namespace SocialWorker.Api.Features.Drafts;
 
