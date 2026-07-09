@@ -42,3 +42,4 @@ Extract business rules and reconciliation out of `DraftsEndpoint.cs`:
 - [x] **Sources Feature Refactoring** (Completed)
 - [x] **Media Feature Refactoring** (Completed)
 - [x] **Drafts Feature Refactoring** (Completed)
+- [x] **Providers Feature Refactoring** (Completed)
