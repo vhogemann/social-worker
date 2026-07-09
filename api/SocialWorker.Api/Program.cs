@@ -31,6 +31,7 @@ builder.Services.AddScoped<SourcesService>();
 builder.Services.AddSingleton<ImageResizer>();
 builder.Services.AddSingleton<FileStorageProvider>();
 builder.Services.AddScoped<MediaService>();
+builder.Services.AddScoped<DraftsService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IChatTool, ReplaceEditorContentTool>();
 builder.Services.AddScoped<IChatTool, ProposeStageTransitionTool>();

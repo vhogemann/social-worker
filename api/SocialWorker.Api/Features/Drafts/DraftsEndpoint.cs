@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Security.Claims;
-using Microsoft.EntityFrameworkCore;
-using SocialWorker.Api.Data;
-using SocialWorker.Api.Data.Entities;
-using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 
 namespace SocialWorker.Api.Features.Drafts;
 
@@ -13,401 +15,130 @@ public static class DraftsEndpoint
     {
         var group = app.MapGroup("/api/drafts").RequireAuthorization();
 
-        group.MapGet("/", async (ClaimsPrincipal principal, AppDbContext db) =>
+        group.MapGet("/", async (ClaimsPrincipal principal, DraftsService draftsService, CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            var drafts = await db.Drafts
-                .Where(d => d.UserId == userId.Value && d.Status != DraftStatus.Deleted)
-                .OrderByDescending(d => d.UpdatedAt)
-                .Select(d => new
-                {
-                    d.Id,
-                    d.Title,
-                    Status = d.Status.ToString(),
-                    d.Content,
-                    Threads = d.Threads.Select(t => new { t.Id, t.Platform, Stage = t.Stage.ToString() }).ToList(),
-                    MediaAssets = d.MediaAssets.Select(m => new
-                    {
-                        m.Id,
-                        m.DraftId,
-                        m.FileName,
-                        m.MimeType,
-                        m.AltText,
-                        m.FilePath,
-                        m.SizeBytes,
-                        m.Width,
-                        m.Height,
-                        m.CreatedAt
-                    }).ToList(),
-                    d.CreatedAt,
-                    d.UpdatedAt
-                })
-                .ToListAsync();
+            var drafts = await draftsService.GetDraftsForUserAsync(userId.Value, ct);
             return Results.Ok(drafts);
         });
 
-        group.MapPost("/", async (ClaimsPrincipal principal, AppDbContext db, IServiceScopeFactory scopeFactory, CreateDraftRequest req) =>
+        group.MapPost("/", async (ClaimsPrincipal principal, DraftsService draftsService, CreateDraftRequest req, CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            var draft = new Draft
-            {
-                Title = string.IsNullOrWhiteSpace(req.Title) ? "Untitled" : req.Title,
-                Content = req.Content,
-                UserId = userId.Value
-            };
-            db.Drafts.Add(draft);
-            await db.SaveChangesAsync();
-
-            var thread = new PlatformThread
-            {
-                DraftId = draft.Id,
-                Platform = "Bluesky",
-                Stage = PlatformThreadStage.Draft,
-                Content = req.Content
-            };
-            db.PlatformThreads.Add(thread);
-            await db.SaveChangesAsync();
-
-            await ReconcileSegmentsAsync(db, draft, req.Content ?? "");
-            await db.SaveChangesAsync();
-
-            await SocialWorker.Api.Features.Sources.SourcesEndpoint.ReconcileSourcesAsync(db, scopeFactory, draft, req.Content ?? "");
-            await db.SaveChangesAsync();
-
-            return Results.Created($"/api/drafts/{draft.Id}", new
-            {
-                draft.Id,
-                draft.Title,
-                Status = draft.Status.ToString(),
-                draft.Content,
-                Threads = new[] { new { thread.Id, thread.Platform, Stage = thread.Stage.ToString(), thread.Content } },
-                MediaAssets = new List<object>(),
-                draft.CreatedAt,
-                draft.UpdatedAt
-            });
+            var result = await draftsService.CreateDraftAsync(userId.Value, req.Title, req.Content, ct);
+            return Results.Created($"/api/drafts/{result.Id}", result);
         });
 
-        group.MapGet("/{id:guid}", async (ClaimsPrincipal principal, AppDbContext db, Guid id) =>
+        group.MapGet("/{id:guid}", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            var draft = await db.Drafts
-                .Include(d => d.Threads)
-                .Include(d => d.MediaAssets)
-                .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId.Value && d.Status != DraftStatus.Deleted);
-            if (draft is null) return Results.NotFound();
-            return Results.Ok(new
+            try
             {
-                draft.Id,
-                draft.Title,
-                Status = draft.Status.ToString(),
-                draft.Content,
-                Threads = draft.Threads.Select(t => new { t.Id, t.Platform, Stage = t.Stage.ToString(), t.Content }).ToList(),
-                MediaAssets = draft.MediaAssets.Select(m => new
-                {
-                    m.Id,
-                    m.DraftId,
-                    m.FileName,
-                    m.MimeType,
-                    m.AltText,
-                    m.FilePath,
-                    m.SizeBytes,
-                    m.Width,
-                    m.Height,
-                    m.CreatedAt
-                }).ToList(),
-                draft.CreatedAt,
-                draft.UpdatedAt
-            });
-        });
-
-        group.MapPatch("/{id:guid}", async (ClaimsPrincipal principal, AppDbContext db, IServiceScopeFactory scopeFactory, Guid id, UpdateDraftRequest req) =>
-        {
-            var userId = GetUserId(principal);
-            if (userId is null) return Results.Unauthorized();
-
-            var draft = await db.Drafts
-                .Include(d => d.Threads)
-                .Include(d => d.MediaAssets)
-                .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId.Value && d.Status != DraftStatus.Deleted);
-            if (draft is null) return Results.NotFound();
-
-            if (req.Title is not null)
-            {
-                draft.Title = string.IsNullOrWhiteSpace(req.Title) ? "Untitled" : req.Title;
+                var draft = await draftsService.GetDraftByIdAsync(userId.Value, id, ct);
+                return Results.Ok(draft);
             }
-            if (req.Content is not null)
+            catch (KeyNotFoundException)
             {
-                draft.Content = req.Content;
-                await ReconcileSegmentsAsync(db, draft, req.Content);
-                await SocialWorker.Api.Features.Sources.SourcesEndpoint.ReconcileSourcesAsync(db, scopeFactory, draft, req.Content);
+                return Results.NotFound();
             }
-            if (req.Status is not null && Enum.TryParse<DraftStatus>(req.Status, true, out var status))
-            {
-                if (status == DraftStatus.Deleted)
-                {
-                    var draftAssets = await db.MediaAssets.Where(m => m.DraftId == draft.Id).ToListAsync();
-                    foreach (var asset in draftAssets)
-                    {
-                        var isShared = await db.MediaAssets.AnyAsync(m => m.Id != asset.Id && m.FilePath == asset.FilePath);
-                        if (!isShared)
-                        {
-                            var fullPath = Path.Combine("/app/uploads", asset.FilePath);
-                            if (File.Exists(fullPath))
-                            {
-                                try { File.Delete(fullPath); } catch {}
-                            }
-                        }
-                    }
-
-                    var draftFolder = Path.Combine("/app/uploads", draft.Id.ToString());
-                    if (Directory.Exists(draftFolder) && !Directory.EnumerateFileSystemEntries(draftFolder).Any())
-                    {
-                        try { Directory.Delete(draftFolder); } catch {}
-                    }
-
-                    db.Drafts.Remove(draft);
-                }
-                else
-                {
-                    draft.Status = status;
-                }
-            }
-
-            draft.UpdatedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync();
-
-            return Results.Ok(new
-            {
-                draft.Id,
-                draft.Title,
-                Status = draft.Status.ToString(),
-                draft.Content,
-                Threads = draft.Threads.Select(t => new { t.Id, t.Platform, Stage = t.Stage.ToString(), t.Content }).ToList(),
-                MediaAssets = draft.MediaAssets.Select(m => new
-                {
-                    m.Id,
-                    m.DraftId,
-                    m.FileName,
-                    m.MimeType,
-                    m.AltText,
-                    m.FilePath,
-                    m.SizeBytes,
-                    m.Width,
-                    m.Height,
-                    m.CreatedAt
-                }).ToList(),
-                draft.CreatedAt,
-                draft.UpdatedAt
-            });
         });
 
-        group.MapGet("/{id:guid}/threads", async (ClaimsPrincipal principal, AppDbContext db, Guid id) =>
+        group.MapPatch("/{id:guid}", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, UpdateDraftRequest req, CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            var draftExists = await db.Drafts.AnyAsync(d => d.Id == id && d.UserId == userId.Value && d.Status != DraftStatus.Deleted);
-            if (!draftExists) return Results.NotFound();
-
-            var threads = await db.PlatformThreads
-                .Where(t => t.DraftId == id)
-                .Select(t => new
-                {
-                    t.Id,
-                    t.DraftId,
-                    t.Platform,
-                    Stage = t.Stage.ToString(),
-                    t.Content
-                })
-                .ToListAsync();
-            return Results.Ok(threads);
+            try
+            {
+                var result = await draftsService.UpdateDraftAsync(userId.Value, id, req.Title, req.Content, req.Status, ct);
+                return Results.Ok(result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
         });
 
-        group.MapPost("/{id:guid}/threads", async (ClaimsPrincipal principal, AppDbContext db, Guid id, CreatePlatformThreadRequest req) =>
+        group.MapGet("/{id:guid}/threads", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId.Value && d.Status != DraftStatus.Deleted);
-            if (draft is null) return Results.NotFound();
+            try
+            {
+                var threads = await draftsService.GetPlatformThreadsForDraftAsync(userId.Value, id, ct);
+                return Results.Ok(threads);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
+        });
+
+        group.MapPost("/{id:guid}/threads", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, CreatePlatformThreadRequest req, CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
 
             if (string.IsNullOrWhiteSpace(req.Platform))
             {
                 return Results.BadRequest("Platform is required");
             }
 
-            var exists = await db.PlatformThreads.AnyAsync(t => t.DraftId == id && t.Platform == req.Platform);
-            if (exists)
+            try
             {
-                return Results.Conflict($"A thread variant for platform '{req.Platform}' already exists.");
+                var result = await draftsService.CreatePlatformThreadAsync(userId.Value, id, req.Platform, ct);
+                return Results.Created($"/api/drafts/{id}/threads/{result.Id}", result);
             }
-
-            var thread = new PlatformThread
+            catch (KeyNotFoundException)
             {
-                DraftId = id,
-                Platform = req.Platform,
-                Stage = PlatformThreadStage.Draft,
-                Content = draft.Content
-            };
-
-            db.PlatformThreads.Add(thread);
-            await db.SaveChangesAsync();
-
-            return Results.Created($"/api/drafts/{id}/threads/{thread.Id}", new
+                return Results.NotFound();
+            }
+            catch (InvalidOperationException ex)
             {
-                thread.Id,
-                thread.DraftId,
-                thread.Platform,
-                Stage = thread.Stage.ToString(),
-                thread.Content
-            });
+                return Results.Conflict(ex.Message);
+            }
         });
 
-        group.MapPatch("/{id:guid}/threads/{threadId:guid}", async (ClaimsPrincipal principal, AppDbContext db, Guid id, Guid threadId, UpdatePlatformThreadRequest req) =>
+        group.MapPatch("/{id:guid}/threads/{threadId:guid}", async (
+            ClaimsPrincipal principal,
+            DraftsService draftsService,
+            Guid id,
+            Guid threadId,
+            UpdatePlatformThreadRequest req,
+            CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            var draftExists = await db.Drafts.AnyAsync(d => d.Id == id && d.UserId == userId.Value && d.Status != DraftStatus.Deleted);
-            if (!draftExists) return Results.NotFound();
-
-            var thread = await db.PlatformThreads.FirstOrDefaultAsync(t => t.Id == threadId && t.DraftId == id);
-            if (thread is null) return Results.NotFound();
-
-            if (req.Content is not null)
+            try
             {
-                thread.Content = req.Content;
+                var result = await draftsService.UpdatePlatformThreadAsync(userId.Value, id, threadId, req.Content, req.Stage, ct);
+                return Results.Ok(result);
             }
-
-            if (req.Stage is not null && Enum.TryParse<PlatformThreadStage>(req.Stage, true, out var stage))
+            catch (KeyNotFoundException)
             {
-                if (stage == PlatformThreadStage.Ready || stage == PlatformThreadStage.Sent)
-                {
-                    if (string.Equals(thread.Platform, "Bluesky", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var segments = SplitMarkdownIntoSegments(thread.Content ?? "");
-                        foreach (var segment in segments)
-                        {
-                            var analysis = AnalyzeSegmentMedia(segment);
-                            if (analysis.HasConflict)
-                            {
-                                return Results.BadRequest("Bluesky segment contains both images and a YouTube embed. Only images OR one YouTube embed is allowed per post.");
-                            }
-                        }
-                    }
-                }
-                thread.Stage = stage;
+                return Results.NotFound();
             }
-
-            thread.UpdatedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync();
-
-            return Results.Ok(new
+            catch (InvalidOperationException ex)
             {
-                thread.Id,
-                thread.DraftId,
-                thread.Platform,
-                Stage = thread.Stage.ToString(),
-                thread.Content
-            });
+                return Results.BadRequest(ex.Message);
+            }
         });
     }
 
-    private static readonly Regex MediaRegex = new(@"!\[.*?\]\(media://([0-9a-fA-F\-]{36})\)", RegexOptions.Compiled);
-    private static readonly Regex YouTubeEmbedRegex = new(@"!\[.*?\]\((https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+|https?://youtu\.be/[\w-]+)\)", RegexOptions.Compiled);
-
-    public static SegmentMediaAnalysis AnalyzeSegmentMedia(string segmentContent)
-    {
-        var imageIds = MediaRegex.Matches(segmentContent)
-            .Select(m => Guid.TryParse(m.Groups[1].Value, out var guid) ? guid : Guid.Empty)
-            .Where(g => g != Guid.Empty)
-            .Distinct()
-            .ToArray();
-
-        string? youtubeUrl = null;
-        var ytMatch = YouTubeEmbedRegex.Match(segmentContent);
-        if (ytMatch.Success)
-        {
-            youtubeUrl = ytMatch.Groups[1].Value;
-        }
-
-        bool hasConflict = imageIds.Length > 0 && youtubeUrl != null;
-
-        return new SegmentMediaAnalysis(imageIds, youtubeUrl, hasConflict);
-    }
-
-    public record SegmentMediaAnalysis(Guid[] ImageIds, string? YouTubeUrl, bool HasConflict);
-
+    public static List<string> SplitMarkdownIntoSegments(string markdown) => DraftsService.SplitMarkdownIntoSegments(markdown);
+    public static DraftsService.SegmentMediaAnalysis AnalyzeSegmentMedia(string segmentContent) => DraftsService.AnalyzeSegmentMedia(segmentContent);
     public static async Task ReconcileSegmentsAsync(AppDbContext db, Draft draft, string markdown, CancellationToken ct = default)
     {
-        var rawSegments = SplitMarkdownIntoSegments(markdown);
-        var existing = await db.ThreadSegments
-            .Where(s => s.DraftId == draft.Id)
-            .OrderBy(s => s.Position)
-            .ToListAsync(ct);
-
-        int max = Math.Max(rawSegments.Count, existing.Count);
-        for (int i = 0; i < max; i++)
-        {
-            if (i < rawSegments.Count)
-            {
-                var content = rawSegments[i];
-                if (i < existing.Count)
-                {
-                    existing[i].Content = content;
-                }
-                else
-                {
-                    db.ThreadSegments.Add(new ThreadSegment
-                    {
-                        DraftId = draft.Id,
-                        Position = i,
-                        Content = content
-                    });
-                }
-            }
-            else
-            {
-                db.ThreadSegments.Remove(existing[i]);
-            }
-        }
-    }
-
-    public static List<string> SplitMarkdownIntoSegments(string markdown)
-    {
-        var result = new List<string>();
-        if (string.IsNullOrEmpty(markdown))
-        {
-            return new List<string> { "" };
-        }
-
-        var lines = markdown.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-        var current = new System.Text.StringBuilder();
-
-        foreach (var line in lines)
-        {
-            if (line.Trim() == "---")
-            {
-                result.Add(current.ToString().Trim());
-                current.Clear();
-            }
-            else
-            {
-                if (current.Length > 0)
-                {
-                    current.AppendLine();
-                }
-                current.Append(line);
-            }
-        }
-        result.Add(current.ToString().Trim());
-        return result;
+        var service = new DraftsService(db, null!, null!, null!);
+        await service.ReconcileSegmentsAsync(draft, markdown, ct);
     }
 
     private static Guid? GetUserId(ClaimsPrincipal principal)
