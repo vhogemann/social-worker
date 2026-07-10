@@ -27,6 +27,16 @@ export interface SourceDto {
   addedAt: string;
 }
 
+export interface SourceDetailDto {
+  id: string;
+  draftId: string;
+  kind: string;
+  reference: string;
+  title: string | null;
+  content: string | null;
+  addedAt: string;
+}
+
 export interface MediaAssetDto {
   id: string;
   draftId: string;
@@ -48,6 +58,9 @@ export interface DraftDto {
   threads: PlatformThreadDto[];
   sources?: SourceDto[];
   mediaAssets?: MediaAssetDto[];
+  chatHistory?: string | null;
+  chatSummary?: string | null;
+  lastSummarizedMessageCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -75,7 +88,14 @@ export async function fetchDraft(id: string): Promise<DraftDto> {
 
 export async function patchDraft(
   id: string,
-  data: { title?: string; content?: string; status?: string }
+  data: {
+    title?: string;
+    content?: string;
+    status?: string;
+    chatHistory?: string;
+    chatSummary?: string;
+    lastSummarizedMessageCount?: number;
+  }
 ): Promise<DraftDto> {
   const res = await apiFetch(`/api/drafts/${id}`, {
     method: "PATCH",
@@ -131,6 +151,19 @@ export async function fetchSources(draftId: string): Promise<SourceDto[]> {
   const res = await apiFetch(`/api/drafts/${draftId}/sources`);
   if (!res.ok) throw new Error(`fetchSources failed: ${res.status}`);
   return res.json();
+}
+
+export async function fetchSourceDetail(draftId: string, sourceId: string): Promise<SourceDetailDto> {
+  const res = await apiFetch(`/api/drafts/${draftId}/sources/${sourceId}`);
+  if (!res.ok) throw new Error(`fetchSourceDetail failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteSource(draftId: string, sourceId: string): Promise<void> {
+  const res = await apiFetch(`/api/drafts/${draftId}/sources/${sourceId}`, {
+    method: "DELETE"
+  });
+  if (!res.ok) throw new Error(`deleteSource failed: ${res.status}`);
 }
 
 export async function uploadFile(draftId: string, file: File): Promise<{ sourceId: string; markdownLink: string }> {

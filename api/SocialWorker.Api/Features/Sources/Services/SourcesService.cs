@@ -14,6 +14,8 @@ namespace SocialWorker.Api.Features.Sources;
 
 public sealed record SourceDto(Guid Id, Guid DraftId, string Kind, string Reference, string? Title, DateTime AddedAt);
 
+public sealed record SourceDetailDto(Guid Id, Guid DraftId, string Kind, string Reference, string? Title, string? Content, DateTime AddedAt);
+
 public sealed record AddFileSourceResult(Guid SourceId, string Reference);
 
 public sealed class SourcesService
@@ -44,6 +46,23 @@ public sealed class SourcesService
             .Where(s => s.DraftId == draftId)
             .Select(s => new SourceDto(s.Id, s.DraftId, s.Kind.ToString(), s.Reference, s.Title, s.AddedAt))
             .ToListAsync(ct);
+    }
+
+    public async Task<SourceDetailDto> GetSourceDetailAsync(Guid userId, Guid draftId, Guid sourceId, CancellationToken ct)
+    {
+        var draftExists = await _db.Drafts.AnyAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+        if (!draftExists)
+        {
+            throw new KeyNotFoundException("Draft not found or access denied.");
+        }
+
+        var source = await _db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId && s.DraftId == draftId, ct);
+        if (source == null)
+        {
+            throw new KeyNotFoundException("Source not found.");
+        }
+
+        return new SourceDetailDto(source.Id, source.DraftId, source.Kind.ToString(), source.Reference, source.Title, source.Content, source.AddedAt);
     }
 
     public async Task<AddFileSourceResult> AddFileSourceAsync(
@@ -148,12 +167,7 @@ public sealed class SourcesService
         bool changed = false;
         foreach (var src in existing)
         {
-            if ((src.Kind == SourceKind.Url || src.Kind == SourceKind.YouTube) && !urls.Contains(src.Reference))
-            {
-                _db.Sources.Remove(src);
-                changed = true;
-            }
-            else if (src.Kind == SourceKind.File && !fileIds.Contains(src.Id))
+            if (src.Kind == SourceKind.File && !fileIds.Contains(src.Id))
             {
                 _db.Sources.Remove(src);
                 changed = true;
@@ -218,5 +232,23 @@ public sealed class SourcesService
                 await scopedDb.SaveChangesAsync();
             });
         }
+    }
+
+    public async Task DeleteSourceAsync(Guid userId, Guid draftId, Guid sourceId, CancellationToken ct)
+    {
+        var draftExists = await _db.Drafts.AnyAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+        if (!draftExists)
+        {
+            throw new KeyNotFoundException("Draft not found or access denied.");
+        }
+
+        var source = await _db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId && s.DraftId == draftId, ct);
+        if (source == null)
+        {
+            throw new KeyNotFoundException("Source not found.");
+        }
+
+        _db.Sources.Remove(source);
+        await _db.SaveChangesAsync(ct);
     }
 }

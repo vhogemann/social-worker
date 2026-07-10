@@ -58,7 +58,7 @@ public static class DraftsEndpoint
 
             try
             {
-                var result = await draftsService.UpdateDraftAsync(userId.Value, id, req.Title, req.Content, req.Status, ct);
+                var result = await draftsService.UpdateDraftAsync(userId.Value, id, req.Title, req.Content, req.Status, req.ChatHistory, req.ChatSummary, req.LastSummarizedMessageCount, ct);
                 return Results.Ok(result);
             }
             catch (KeyNotFoundException)
@@ -155,7 +155,10 @@ public sealed record CreateDraftRequest(string? Title, string? Content);
 public sealed record UpdateDraftRequest(
     string? Title,
     string? Content,
-    string? Status = null);
+    string? Status = null,
+    string? ChatHistory = null,
+    string? ChatSummary = null,
+    int? LastSummarizedMessageCount = null);
 
 public sealed record CreatePlatformThreadRequest(string Platform);
 

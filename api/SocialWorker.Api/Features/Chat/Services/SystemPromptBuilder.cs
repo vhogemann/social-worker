@@ -6,19 +6,48 @@ namespace SocialWorker.Api.Features.Chat;
 
 public sealed class SystemPromptBuilder
 {
+    private static string GetBasePrompt()
+    {
+        const string defaultPrompt = "You are a helpful assistant that helps the user draft social media threads. "
+          + "When the user asks you to write or update content, call replace_editor_content with the full markdown. "
+          + "Use --- on its own line to separate thread segments (each segment is one post).\n"
+          + "You have access to reference sources (attached files or URLs detected in the draft). "
+          + "To view the list of available sources, call the 'list_sources' tool. "
+          + "To read the actual cached text content of a source, call the 'fetch_source' tool with its Guid ID. "
+          + "If the user asks you to summarize, explain, or draft posts based on a link or file attachment, you MUST first call 'list_sources' to locate it, and then call 'fetch_source' with the corresponding ID to read the source text before responding.";
+
+        try
+        {
+            var paths = new[]
+            {
+                "SYSTEM_PROMPT.md",
+                "/app/SYSTEM_PROMPT.md",
+                "../SYSTEM_PROMPT.md"
+            };
+
+            foreach (var path in paths)
+            {
+                if (System.IO.File.Exists(path))
+                {
+                    return System.IO.File.ReadAllText(path);
+                }
+            }
+        }
+        catch
+        {
+            // Fallback
+        }
+
+        return defaultPrompt;
+    }
+
     public string Build(string? customSystemPrompt, string editorContent, List<MediaAsset> mediaAssets, bool supportsVision)
     {
         var sb = new StringBuilder();
 
         var basePrompt = !string.IsNullOrWhiteSpace(customSystemPrompt)
             ? customSystemPrompt
-            : "You are a helpful assistant that helps the user draft social media threads. "
-              + "When the user asks you to write or update content, call replace_editor_content with the full markdown. "
-              + "Use --- on its own line to separate thread segments (each segment is one post).\n"
-              + "You have access to reference sources (attached files or URLs detected in the draft). "
-              + "To view the list of available sources, call the 'list_sources' tool. "
-              + "To read the actual cached text content of a source, call the 'fetch_source' tool with its Guid ID. "
-              + "If the user asks you to summarize, explain, or draft posts based on a link or file attachment, you MUST first call 'list_sources' to locate it, and then call 'fetch_source' with the corresponding ID to read the source text before responding.";
+            : GetBasePrompt();
 
         sb.Append(basePrompt);
 

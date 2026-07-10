@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useDataStreamRuntime } from "@assistant-ui/react-data-stream";
-import { AssistantRuntimeProvider, type AssistantRuntime } from "@assistant-ui/react";
+import { AssistantRuntimeProvider, type AssistantRuntime, useThread } from "@assistant-ui/react";
 import { useEditorStore } from "../store/editorStore";
 import { useDraftStore } from "../store/draftStore";
 import { useChatStore } from "../store/chatStore";
@@ -36,6 +36,7 @@ export function saveCurrentChat(draftId: string) {
   if (!runtimeRef) return;
   const exported = runtimeRef.thread.export();
   useChatStore.getState().saveMessages(draftId, exported);
+  useDraftStore.getState().saveDraftChat(draftId, JSON.stringify(exported));
 }
 
 export function restoreChat(draftId: string) {
@@ -57,6 +58,15 @@ export function clearChat(draftId: string) {
 
 function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
+  const isRunning = useThread((state) => state.isRunning);
+
+  const isMounted = useRef(false);
+  const prevDraftId = useRef(activeDraftId);
+
+  if (prevDraftId.current !== activeDraftId) {
+    isMounted.current = false;
+    prevDraftId.current = activeDraftId;
+  }
 
   useEffect(() => {
     if (activeDraftId) {
@@ -70,6 +80,16 @@ function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
       runtime.thread.reset();
     }
   }, [activeDraftId, runtime]);
+
+  useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      return;
+    }
+    if (activeDraftId) {
+      saveCurrentChat(activeDraftId);
+    }
+  }, [isRunning]);
 
   runtimeRef = runtime;
   return null;

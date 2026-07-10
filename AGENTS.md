@@ -79,7 +79,8 @@ social-worker/
 - **EF migrations**: generate with `dotnet ef migrations add <Name>` inside the `api` container; commit the migration files. The migrator service applies them on `up`.
 - **New platform publishers** implement `IPublisher` in `api/SocialWorker.Api/Features/Publishing/`. `BlueskyPublisher` is the reference; others return `NotImplemented` + an auth URL until implemented.
 - **Stage transitions** are server-enforced: the model calls `set_stage`, but the server only applies it after the UI records user approval. `publish` is rejected unless `Stage=Ready` and the target platform's variant is confirmed.
-- **Implementation plans** are saved as `*.md` files in the `docs/` directory (e.g. `docs/IMAGE_UPLOADS.md`, `docs/AUTHENTICATION.md`). Each plan must be linked from `PLAN.md` under the relevant section. This is the source of truth for tracking planned and completed work.
+- **Implementation plans**: saved as `*.md` files in the `docs/` directory (e.g. `docs/IMAGE_UPLOADS.md`, `docs/AUTHENTICATION.md`). Each plan must be linked from `PLAN.md` under the relevant section. This is the source of truth for tracking planned and completed work.
+- **TDD / Test Coverage**: Nothing is done until it is covered by tests. All new features, services, endpoints, and tools must have accompanying unit tests under `api/SocialWorker.Api.Tests/`.
 
 ## LLM configuration
 

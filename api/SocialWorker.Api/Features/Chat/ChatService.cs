@@ -47,12 +47,24 @@ public sealed class ChatService
             session.MediaAssets,
             session.Capabilities.SupportsVision);
 
+        var finalSystemPrompt = systemPrompt;
+        if (!string.IsNullOrEmpty(session.Draft.ChatSummary))
+        {
+            finalSystemPrompt += $"\n\nContext summary of the conversation so far:\n{session.Draft.ChatSummary}";
+        }
+
         var convo = new List<OpenAiModels.OpenAiMessage>
         {
-            new() { Role = "system", Content = systemPrompt }
+            new() { Role = "system", Content = finalSystemPrompt }
         };
 
-        foreach (var m in req.Messages)
+        var messagesToSend = req.Messages;
+        if (messagesToSend.Count > 10)
+        {
+            messagesToSend = messagesToSend.Skip(messagesToSend.Count - 10).ToList();
+        }
+
+        foreach (var m in messagesToSend)
         {
             var text = string.Join("\n", m.Content.Where(p => p.Type == "text").Select(p => p.Text ?? ""));
             convo.Add(new OpenAiModels.OpenAiMessage { Role = m.Role, Content = text });
@@ -186,12 +198,16 @@ public sealed class ChatService
         var tool = _tools.FirstOrDefault(t => t.Name == name);
         if (tool == null)
         {
+            _log.LogWarning("Unknown tool call request: {ToolName}", name);
             return new ToolExecutionResult(new { error = $"unknown tool: {name}" });
         }
 
         try
         {
-            return await tool.ExecuteRawAsync(argumentsJson, draftId, userId, ct);
+            _log.LogInformation("Executing tool {ToolName} (Draft: {DraftId}, User: {UserId}) with args: {Args}", name, draftId, userId, argumentsJson);
+            var result = await tool.ExecuteRawAsync(argumentsJson, draftId, userId, ct);
+            _log.LogInformation("Successfully executed tool {ToolName}. Output: {Result}", name, JsonSerializer.Serialize(result.Result));
+            return result;
         }
         catch (Exception ex)
         {

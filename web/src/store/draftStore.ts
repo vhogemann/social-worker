@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { fetchDrafts, createDraft, fetchDraft, patchDraft, createPlatformThread, patchPlatformThread, publishPlatformThread, fetchSources, uploadFile, uploadMedia, patchMediaAsset, deleteMediaAsset, type DraftDto, type PlatformThreadDto, type SourceDto, type MediaAssetDto } from "../api/drafts";
+import { useChatStore } from "./chatStore";
 
 interface DraftStore {
   drafts: DraftDto[];
@@ -25,6 +26,7 @@ interface DraftStore {
   uploadMediaAsset: (draftId: string, file: File) => Promise<{ id: string; markdownTag: string }>;
   updateMediaAltText: (mediaId: string, altText: string) => Promise<void>;
   deleteMediaAsset: (mediaId: string) => Promise<void>;
+  saveDraftChat: (id: string, chatHistory: string) => Promise<void>;
 }
 
 export const useDraftStore = create<DraftStore>((set, get) => ({
@@ -37,6 +39,16 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   loadDrafts: async () => {
     const drafts = await fetchDrafts();
     set({ drafts });
+    for (const d of drafts) {
+      if (d.chatHistory) {
+        try {
+          const parsed = JSON.parse(d.chatHistory);
+          useChatStore.getState().saveMessages(d.id, parsed);
+        } catch (e) {
+          console.error("Failed to parse chat history for draft", d.id, e);
+        }
+      }
+    }
   },
 
   createDraft: async (title, content) => {
@@ -51,6 +63,14 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
       activeDraftId: id,
       drafts: s.drafts.map((d) => (d.id === id ? draft : d)),
     }));
+    if (draft.chatHistory) {
+      try {
+        const parsed = JSON.parse(draft.chatHistory);
+        useChatStore.getState().saveMessages(id, parsed);
+      } catch (e) {
+        console.error("Failed to parse chat history for draft", id, e);
+      }
+    }
     await get().loadSources(id);
     return draft;
   },
@@ -178,5 +198,12 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     await deleteMediaAsset(mediaId);
     const drafts = await fetchDrafts();
     set({ drafts });
+  },
+
+  saveDraftChat: async (id, chatHistory) => {
+    const updated = await patchDraft(id, { chatHistory });
+    set((s) => ({
+      drafts: s.drafts.map((d) => (d.id === id ? updated : d)),
+    }));
   },
 }));

@@ -35,6 +35,38 @@ public static class SourcesEndpoint
             }
         });
 
+        group.MapGet("/sources/{sourceId:guid}", async (ClaimsPrincipal principal, SourcesService sourcesService, Guid draftId, Guid sourceId, CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            try
+            {
+                var source = await sourcesService.GetSourceDetailAsync(userId.Value, draftId, sourceId, ct);
+                return Results.Ok(source);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
+        });
+
+        group.MapDelete("/sources/{sourceId:guid}", async (ClaimsPrincipal principal, SourcesService sourcesService, Guid draftId, Guid sourceId, CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            try
+            {
+                await sourcesService.DeleteSourceAsync(userId.Value, draftId, sourceId, ct);
+                return Results.Ok(new { success = true });
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
+        });
+
         group.MapPost("/files", async (
             ClaimsPrincipal principal,
             SourcesService sourcesService,

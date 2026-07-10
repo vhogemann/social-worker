@@ -2,15 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Sources;
+using SocialWorker.Api.Infrastructure.Llm;
 
 namespace SocialWorker.Api.Features.Drafts;
 
@@ -38,6 +43,9 @@ public sealed record DraftDto(
     string? Content,
     List<PlatformThreadDto> Threads,
     List<MediaAssetMiniDto> MediaAssets,
+    string? ChatHistory,
+    string? ChatSummary,
+    int LastSummarizedMessageCount,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );
@@ -101,6 +109,9 @@ public sealed class DraftsService
             media.Where(m => m.DraftId == d.Id)
                 .Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt))
                 .ToList(),
+            d.ChatHistory,
+            d.ChatSummary,
+            d.LastSummarizedMessageCount,
             d.CreatedAt,
             d.UpdatedAt
         )).ToList();
@@ -140,6 +151,9 @@ public sealed class DraftsService
             draft.Content,
             new List<PlatformThreadDto> { new(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>()) },
             new List<MediaAssetMiniDto>(),
+            draft.ChatHistory,
+            draft.ChatSummary,
+            draft.LastSummarizedMessageCount,
             draft.CreatedAt,
             draft.UpdatedAt
         );
@@ -166,6 +180,9 @@ public sealed class DraftsService
                      .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
                      .ToList())).ToList(),
             media.Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt)).ToList(),
+            draft.ChatHistory,
+            draft.ChatSummary,
+            draft.LastSummarizedMessageCount,
             draft.CreatedAt,
             draft.UpdatedAt
         );
@@ -177,6 +194,9 @@ public sealed class DraftsService
         string? title,
         string? content,
         string? statusStr,
+        string? chatHistory,
+        string? chatSummary,
+        int? lastSummarizedMessageCount,
         CancellationToken ct)
     {
         var draft = await _db.Drafts
@@ -217,6 +237,22 @@ public sealed class DraftsService
             }
         }
 
+        if (chatHistory is not null)
+        {
+            draft.ChatHistory = chatHistory;
+            TriggerBackgroundSummarization(userId, id, chatHistory);
+        }
+
+        if (chatSummary is not null)
+        {
+            draft.ChatSummary = chatSummary;
+        }
+
+        if (lastSummarizedMessageCount is not null)
+        {
+            draft.LastSummarizedMessageCount = lastSummarizedMessageCount.Value;
+        }
+
         draft.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
@@ -235,6 +271,9 @@ public sealed class DraftsService
                      .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
                      .ToList())).ToList(),
             media.Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt)).ToList(),
+            draft.ChatHistory,
+            draft.ChatSummary,
+            draft.LastSummarizedMessageCount,
             draft.CreatedAt,
             draft.UpdatedAt
         );
@@ -374,6 +413,128 @@ public sealed class DraftsService
                 _db.ThreadSegments.Remove(existing[i]);
             }
         }
+    }
+
+    private void TriggerBackgroundSummarization(Guid userId, Guid draftId, string chatHistoryJson)
+    {
+        Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var adapter = scope.ServiceProvider.GetRequiredService<ILlmProviderAdapter>();
+                var logger = scope.ServiceProvider.GetRequiredService<ILogger<DraftsService>>();
+
+                var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
+                if (user == null) return;
+
+                LlmProvider? provider = null;
+                if (user.PreferredProviderId.HasValue)
+                {
+                    provider = await db.LlmProviders.FirstOrDefaultAsync(p => p.Id == user.PreferredProviderId.Value && p.IsActive);
+                }
+
+                if (provider == null)
+                {
+                    provider = await db.LlmProviders.FirstOrDefaultAsync(p => p.IsDefault && p.IsActive);
+                }
+
+                if (provider == null) return;
+
+                var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
+
+                using var doc = JsonDocument.Parse(chatHistoryJson);
+                if (!doc.RootElement.TryGetProperty("messages", out var messagesArray) || messagesArray.ValueKind != JsonValueKind.Array)
+                {
+                    return;
+                }
+
+                var totalCount = messagesArray.GetArrayLength();
+
+                var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId);
+                if (draft == null) return;
+
+                if (totalCount - draft.LastSummarizedMessageCount < 20)
+                {
+                    return;
+                }
+
+                logger.LogInformation("Triggering compaction for draft {DraftId}. Total messages: {TotalCount}, Last summarized: {LastSummarized}", draftId, totalCount, draft.LastSummarizedMessageCount);
+
+                int messagesToSummarize = Math.Max(0, totalCount - 5);
+                if (messagesToSummarize <= 0) return;
+
+                var existingSummaryContext = "";
+                if (!string.IsNullOrEmpty(draft.ChatSummary))
+                {
+                    existingSummaryContext = $"Existing Summary of earlier conversation:\n{draft.ChatSummary}\n\n";
+                }
+
+                var sb = new StringBuilder();
+                sb.AppendLine("Please read this conversation history and provide a concise, structured summary. Focus on key user instructions, preferences, decisions, and outcomes that the assistant should remember. Do not lose context. Keep the summary under 300 words.");
+                sb.AppendLine(existingSummaryContext);
+                sb.AppendLine("New Conversation History:");
+
+                for (int i = 0; i < messagesToSummarize; i++)
+                {
+                    var msg = messagesArray[i];
+                    var role = msg.TryGetProperty("role", out var r) ? r.GetString() : "unknown";
+                    
+                    var contentText = "";
+                    if (msg.TryGetProperty("content", out var contentProp))
+                    {
+                        if (contentProp.ValueKind == JsonValueKind.String)
+                        {
+                            contentText = contentProp.GetString() ?? "";
+                        }
+                        else if (contentProp.ValueKind == JsonValueKind.Array)
+                        {
+                            var parts = new List<string>();
+                            foreach (var part in contentProp.EnumerateArray())
+                            {
+                                if (part.TryGetProperty("text", out var t))
+                                {
+                                    parts.Add(t.GetString() ?? "");
+                                }
+                            }
+                            contentText = string.Join(" ", parts);
+                        }
+                    }
+
+                    sb.AppendLine($"{role}: {contentText}");
+                }
+
+                var summarizeRequest = new OpenAiModels.ChatCompletionRequest
+                {
+                    Model = credentials.Model,
+                    Messages = new List<OpenAiModels.OpenAiMessage>
+                    {
+                        new() { Role = "system", Content = "You are a helpful assistant that summarizes chat conversations to keep context tight." },
+                        new() { Role = "user", Content = sb.ToString() }
+                    },
+                    Stream = false
+                };
+
+                var response = await adapter.CompleteAsync(summarizeRequest, credentials, CancellationToken.None);
+                if (response?.Choices != null && response.Choices.Count > 0)
+                {
+                    var newSummary = response.Choices[0].Message.Content?.ToString();
+                    if (!string.IsNullOrEmpty(newSummary))
+                    {
+                        draft.ChatSummary = newSummary;
+                        draft.LastSummarizedMessageCount = messagesToSummarize;
+                        draft.UpdatedAt = DateTime.UtcNow;
+                        await db.SaveChangesAsync();
+                        logger.LogInformation("Compaction completed for draft {DraftId}. New LastSummarizedMessageCount: {LastSummarized}", draftId, messagesToSummarize);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in background summarization: {ex}");
+            }
+        });
     }
 
     public static List<string> SplitMarkdownIntoSegments(string markdown)

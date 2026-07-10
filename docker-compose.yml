@@ -34,11 +34,15 @@ services:
       Auth__AccessTokenLifetimeMinutes: ${Auth__AccessTokenLifetimeMinutes:-60}
       Auth__RefreshTokenLifetimeDays: ${Auth__RefreshTokenLifetimeDays:-7}
       Auth__DbEncryptionKey: ${Auth__DbEncryptionKey:-}
+      Search__Provider: ${Search__Provider:-SearXng}
+      Search__BraveApiKey: ${Search__BraveApiKey:-}
+      Search__SearXngBaseUrl: http://searxng:8080
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./uploads:/app/uploads
+      - ./SYSTEM_PROMPT.md:/app/SYSTEM_PROMPT.md:ro
     restart: unless-stopped
 
   web:
@@ -49,6 +53,14 @@ services:
       - "8100:80"
     depends_on:
       - api
+    restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:latest
+    volumes:
+      - ./searxng:/etc/searxng:ro
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
     restart: unless-stopped
 
 volumes:

@@ -14,6 +14,9 @@ public class Draft
     public ICollection<PlatformThread> Threads { get; set; } = new List<PlatformThread>();
     public ICollection<Source> Sources { get; set; } = new List<Source>();
     public ICollection<MediaAsset> MediaAssets { get; set; } = new List<MediaAsset>();
+    public string? ChatHistory { get; set; }
+    public string? ChatSummary { get; set; }
+    public int LastSummarizedMessageCount { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

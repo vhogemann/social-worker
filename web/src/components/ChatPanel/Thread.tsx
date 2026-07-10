@@ -151,14 +151,19 @@ function Composer() {
 export function Thread() {
   const isRunning = useThread((state) => state.isRunning);
   const loadDrafts = useDraftStore((s) => s.loadDrafts);
+  const activeDraftId = useDraftStore((s) => s.activeDraftId);
+  const loadSources = useDraftStore((s) => s.loadSources);
   const prevRunningRef = useRef(false);
 
   useEffect(() => {
     if (prevRunningRef.current && !isRunning) {
       loadDrafts();
+      if (activeDraftId) {
+        loadSources(activeDraftId);
+      }
     }
     prevRunningRef.current = isRunning;
-  }, [isRunning, loadDrafts]);
+  }, [isRunning, loadDrafts, activeDraftId, loadSources]);
 
   return (
     <ThreadPrimitive.Root className="flex flex-col h-full bg-panel">

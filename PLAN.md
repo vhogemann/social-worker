@@ -258,6 +258,12 @@ With the MVP proving the stack, the remaining v1 work is to add the pieces the M
 
 **ChatService Refactoring** — **Done.** Extracted tools into separate services implementing `IChatTool` and structured the Chat namespace. See [CHAT_SERVICE_REFACTORING.md](./docs/CHAT_SERVICE_REFACTORING.md) for details. A broader API refactoring plan is tracked in [REFACTORING_PLAN.md](./docs/REFACTORING_PLAN.md).
 
+**Chat History Persistence & Compaction** — **Done.** Implemented full history persistence in PostgreSQL and an asynchronous compaction model to keep the LLM context tight. See [CHAT_HISTORY_PERSISTENCE.md](./docs/CHAT_HISTORY_PERSISTENCE.md) for details.
+
+**Web Search Tool Integration** — **Planned.** Implement a web search tool for the agent using either Brave Search API or a local SearXNG Docker container. See [SEARCH_TOOL.md](./docs/SEARCH_TOOL.md) for details.
+
+**Thread Expansion & Interactions (Bluesky replies)** — **Planned.** Enable appending new posts/replies to an already published thread, and viewing/interacting with replies from Bluesky within the app UI/chat. See [SEARCH_TOOL.md](./docs/SEARCH_TOOL.md) for details.
+
 With that done, the remaining v1 items are:
 
 1. ~~Postgres + EF Core + migrator service + the 7 entities~~ — **done** (Draft + ThreadSegment; see "v1 step 1 & 2" below)

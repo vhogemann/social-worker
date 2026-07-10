@@ -19,6 +19,17 @@ public sealed class WebScraperService
 
     public async Task<(string Title, string Content, bool IsYouTube)> ScrapeUrlAsync(string url)
     {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return ("Empty URL", "", false);
+        }
+
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            url = "https://" + url;
+        }
+
         if (IsYouTubeUrl(url))
         {
             var (title, contentText) = await FetchYouTubeMetadataAsync(url);

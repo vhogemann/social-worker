@@ -16,6 +16,7 @@ using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Accounts;
 using SocialWorker.Api.Infrastructure.Llm;
 using SocialWorker.Api.Infrastructure.Auth;
+using SocialWorker.Api.Infrastructure.Search;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,6 +44,24 @@ builder.Services.AddScoped<IChatTool, ListSourcesTool>();
 builder.Services.AddScoped<IChatTool, FetchSourceTool>();
 builder.Services.AddScoped<IChatTool, ViewImageTool>();
 builder.Services.AddScoped<IChatTool, PublishPlatformTool>();
+builder.Services.AddScoped<IChatTool, WebSearchTool>();
+builder.Services.AddScoped<IChatTool, AddSourceTool>();
+builder.Services.AddScoped<IChatTool, ValidateDraftTool>();
+builder.Services.AddScoped<IChatTool, AddImageSourceTool>();
+builder.Services.AddScoped<IChatTool, ImageSearchTool>();
+
+builder.Services.Configure<SearchOptions>(builder.Configuration.GetSection(SearchOptions.SectionName));
+builder.Services.AddHttpClient<BraveSearchEngine>();
+builder.Services.AddHttpClient<SearXngSearchEngine>();
+builder.Services.AddScoped<ISearchEngine>(sp =>
+{
+    var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SearchOptions>>().Value;
+    if (string.Equals(opts.Provider, "Brave", StringComparison.OrdinalIgnoreCase))
+    {
+        return sp.GetRequiredService<BraveSearchEngine>();
+    }
+    return sp.GetRequiredService<SearXngSearchEngine>();
+});
 builder.Services.AddHttpClient<IPublisher, BlueskyPublisher>();
 builder.Services.AddScoped<IPublisher, TwitterPublisher>();
 builder.Services.AddScoped<IPublisher, LinkedInPublisher>();
