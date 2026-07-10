@@ -193,6 +193,23 @@ export async function uploadMedia(draftId: string, file: File): Promise<{ id: st
   return res.json();
 }
 
+export async function renderCodeImage(
+  draftId: string,
+  code: string,
+  language: string,
+  theme: "Dark" | "Light" = "Dark"
+): Promise<{ id: string; markdownTag: string }> {
+  const res = await apiFetch(`/api/drafts/${draftId}/code-image`, {
+    method: "POST",
+    body: JSON.stringify({ code, language, theme }),
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => `${res.status}`);
+    throw new Error(msg || `renderCodeImage failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function patchMediaAsset(id: string, data: { altText: string }): Promise<MediaAssetDto> {
   const res = await apiFetch(`/api/media/${id}`, {
     method: "PATCH",

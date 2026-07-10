@@ -22,6 +22,11 @@
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
     <PackageReference Include="SkiaSharp" Version="2.88.9" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.9" />
+    <PackageReference Include="ColorCode.Core" Version="2.0.15" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Features/CodeImages/Fonts/JetBrainsMono-Regular.ttf" />
   </ItemGroup>
 
 </Project>

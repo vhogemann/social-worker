@@ -15,6 +15,7 @@ using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Accounts;
 using SocialWorker.Api.Features.Prompts;
+using SocialWorker.Api.Features.CodeImages;
 using SocialWorker.Api.Infrastructure.Llm;
 using SocialWorker.Api.Infrastructure.Auth;
 using SocialWorker.Api.Infrastructure.Search;
@@ -50,6 +51,9 @@ builder.Services.AddScoped<IChatTool, AddSourceTool>();
 builder.Services.AddScoped<IChatTool, ValidateDraftTool>();
 builder.Services.AddScoped<IChatTool, AddImageSourceTool>();
 builder.Services.AddScoped<IChatTool, ImageSearchTool>();
+builder.Services.AddScoped<IChatTool, RenderCodeBlocksTool>();
+builder.Services.AddSingleton<CodeImageRenderer>();
+builder.Services.AddScoped<CodeImageService>();
 
 builder.Services.Configure<SearchOptions>(builder.Configuration.GetSection(SearchOptions.SectionName));
 builder.Services.AddHttpClient<BraveSearchEngine>();
@@ -177,5 +181,6 @@ app.MapSourcesEndpoints();
 app.MapMediaEndpoints();
 app.MapPublishingEndpoints();
 app.MapBrandVoicePromptsEndpoints();
+app.MapCodeImageEndpoints();
 
 app.Run();

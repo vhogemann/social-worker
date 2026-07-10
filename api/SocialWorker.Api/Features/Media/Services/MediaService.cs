@@ -43,7 +43,8 @@ public sealed class MediaService
         string fileName,
         string mimeType,
         Stream stream,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? altText = null)
     {
         var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
             ?? throw new KeyNotFoundException("Draft not found or access denied.");
@@ -78,10 +79,14 @@ public sealed class MediaService
                 Height = existing.Height
             };
 
+            if (!string.IsNullOrEmpty(altText))
+                sharedAsset.AltText = altText;
+            
             _db.MediaAssets.Add(sharedAsset);
             await _db.SaveChangesAsync(ct);
 
-            return new UploadMediaResult(sharedAsset.Id, $"![{sharedAsset.FileName}](media://{sharedAsset.Id})");
+            var displayAlt = altText ?? sharedAsset.FileName;
+            return new UploadMediaResult(sharedAsset.Id, $"![{displayAlt}](media://{sharedAsset.Id})");
         }
 
         var mediaId = Guid.NewGuid();
@@ -114,13 +119,15 @@ public sealed class MediaService
             Sha256 = shaHashStr,
             SizeBytes = processResult.Data.Length,
             Width = processResult.Width,
-            Height = processResult.Height
+            Height = processResult.Height,
+            AltText = altText
         };
 
         _db.MediaAssets.Add(mediaAsset);
         await _db.SaveChangesAsync(ct);
 
-        return new UploadMediaResult(mediaAsset.Id, $"![{mediaAsset.FileName}](media://{mediaAsset.Id})");
+        var markdownAlt = altText ?? mediaAsset.FileName;
+        return new UploadMediaResult(mediaAsset.Id, $"![{markdownAlt}](media://{mediaAsset.Id})");
     }
 
     public async Task<(string FullPath, string MimeType)> GetMediaFileAsync(Guid id, CancellationToken ct)
