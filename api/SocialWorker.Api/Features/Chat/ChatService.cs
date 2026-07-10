@@ -45,7 +45,8 @@ public sealed class ChatService
             req.System,
             session.EditorContent,
             session.MediaAssets,
-            session.Capabilities.SupportsVision);
+            session.Capabilities.SupportsVision,
+            session.DefaultBrandVoiceBody);
 
         var finalSystemPrompt = systemPrompt;
         if (!string.IsNullOrEmpty(session.Draft.ChatSummary))

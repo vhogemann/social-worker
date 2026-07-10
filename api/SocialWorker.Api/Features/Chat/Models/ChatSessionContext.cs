@@ -10,4 +10,5 @@ public sealed record ChatSessionContext(
     ModelCapabilities Capabilities,
     Draft Draft,
     string EditorContent,
-    List<MediaAsset> MediaAssets);
+    List<MediaAsset> MediaAssets,
+    string? DefaultBrandVoiceBody = null);

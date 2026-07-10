@@ -107,9 +107,6 @@ public sealed class SourcesService
             return new AddFileSourceResult(source.Id, source.Reference);
         }
 
-        draft.Status = DraftStatus.Sourcing;
-        await _db.SaveChangesAsync(ct);
-
         string extractedText;
         try
         {
@@ -123,8 +120,6 @@ public sealed class SourcesService
         }
         catch (Exception)
         {
-            draft.Status = DraftStatus.Editing;
-            await _db.SaveChangesAsync(ct);
             throw;
         }
 
@@ -182,7 +177,23 @@ public sealed class SourcesService
         var newUrls = urls.Where(url => !existing.Any(e => (e.Kind == SourceKind.Url || e.Kind == SourceKind.YouTube) && e.Reference == url)).ToList();
         if (newUrls.Count > 0)
         {
-            draft.Status = DraftStatus.Sourcing;
+            var loadingSources = new List<Source>();
+            foreach (var url in newUrls)
+            {
+                var isYouTube = url.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
+                                url.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
+
+                var source = new Source
+                {
+                    DraftId = draft.Id,
+                    Kind = isYouTube ? SourceKind.YouTube : SourceKind.Url,
+                    Reference = url,
+                    Title = "Fetching...",
+                    Content = null
+                };
+                _db.Sources.Add(source);
+                loadingSources.Add(source);
+            }
             await _db.SaveChangesAsync();
 
             _ = Task.Run(async () =>
@@ -191,42 +202,33 @@ public sealed class SourcesService
                 var scopedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var scopedScraper = scope.ServiceProvider.GetRequiredService<WebScraperService>();
 
-                foreach (var url in newUrls)
+                foreach (var ls in loadingSources)
                 {
                     try
                     {
-                        var (title, contentText, isYouTube) = await scopedScraper.ScrapeUrlAsync(url);
-                        var source = new Source
+                        var (title, contentText, isYouTube) = await scopedScraper.ScrapeUrlAsync(ls.Reference);
+                        var dbSource = await scopedDb.Sources.FindAsync(ls.Id);
+                        if (dbSource != null)
                         {
-                            DraftId = draft.Id,
-                            Kind = isYouTube ? SourceKind.YouTube : SourceKind.Url,
-                            Reference = url,
-                            Title = title,
-                            Content = contentText
-                        };
-                        scopedDb.Sources.Add(source);
+                            dbSource.Title = title;
+                            dbSource.Content = contentText;
+                            dbSource.Kind = isYouTube ? SourceKind.YouTube : SourceKind.Url;
+                        }
                     }
                     catch (Exception ex)
                     {
-                        var isYouTube = url.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
-                                        url.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
-
-                        var source = new Source
+                        var dbSource = await scopedDb.Sources.FindAsync(ls.Id);
+                        if (dbSource != null)
                         {
-                            DraftId = draft.Id,
-                            Kind = isYouTube ? SourceKind.YouTube : SourceKind.Url,
-                            Reference = url,
-                            Title = url,
-                            Content = $"Error fetching link: {ex.Message}"
-                        };
-                        scopedDb.Sources.Add(source);
+                            dbSource.Title = $"Failed: {ls.Reference}";
+                            dbSource.Content = $"Error fetching link: {ex.Message}";
+                        }
                     }
                 }
 
                 var d = await scopedDb.Drafts.FindAsync(draft.Id);
                 if (d != null)
                 {
-                    d.Status = DraftStatus.Editing;
                     d.UpdatedAt = DateTime.UtcNow;
                 }
                 await scopedDb.SaveChangesAsync();

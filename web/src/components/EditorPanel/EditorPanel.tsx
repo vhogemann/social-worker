@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ThreadPreview } from "./ThreadPreview";
-import { SourcesPanel } from "./SourcesPanel";
+import { SourcesPanel } from "./Sources/SourcesPanel";
 import { useEditorStore } from "../../store/editorStore";
 import { useDraftStore } from "../../store/draftStore";
 

@@ -7,6 +7,8 @@ interface ThreadPreviewProps {
 
 const MEDIA_REGEX = /!\[(.*?)\]\(media:\/\/([0-9a-fA-F\-]{36})\)/g;
 const YOUTUBE_REGEX = /!\[(.*?)\]\((https?:\/\/(?:www\.)?youtube\.com\/watch\?v=[\w-]+|https?:\/\/youtu\.be\/[\w-]+)\)/g;
+const MD_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+const RAW_LINK_REGEX = /(?<!\]\()https?:\/\/[^\s]+(?!\))/g;
 
 function extractVideoId(url: string): string | null {
   if (url.includes("youtube.com/watch")) {
@@ -26,11 +28,13 @@ interface ParsedSegment {
   cleanText: string;
   images: { alt: string; id: string; raw: string }[];
   youtubeUrls: string[];
+  links: { text: string; url: string; raw: string }[];
 }
 
 function parseSegment(text: string): ParsedSegment {
   const images: { alt: string; id: string; raw: string }[] = [];
   const youtubeUrls: string[] = [];
+  const links: { text: string; url: string; raw: string }[] = [];
 
   let match;
   let textWithoutYt = text;
@@ -47,10 +51,26 @@ function parseSegment(text: string): ParsedSegment {
     textWithoutImages = textWithoutImages.replace(match[0], "");
   }
 
+  let textWithoutMdLinks = textWithoutImages;
+  MD_LINK_REGEX.lastIndex = 0;
+  while ((match = MD_LINK_REGEX.exec(textWithoutImages)) !== null) {
+    links.push({ text: match[1], url: match[2], raw: match[0] });
+    textWithoutMdLinks = textWithoutMdLinks.replace(match[0], match[1]);
+  }
+
+  RAW_LINK_REGEX.lastIndex = 0;
+  while ((match = RAW_LINK_REGEX.exec(textWithoutMdLinks)) !== null) {
+    const url = match[0];
+    if (!youtubeUrls.includes(url) && !links.some(l => l.url === url)) {
+      links.push({ text: url, url, raw: url });
+    }
+  }
+
   return {
-    cleanText: textWithoutImages.trim(),
+    cleanText: textWithoutMdLinks.trim(),
     images,
     youtubeUrls,
+    links,
   };
 }
 
@@ -154,7 +174,7 @@ const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total, isLast
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
   const activeDraft = drafts.find((d) => d.id === activeDraftId);
 
-  const { cleanText, images, youtubeUrls } = parseSegment(content);
+  const { cleanText, images, youtubeUrls, links } = parseSegment(content);
   const hasConflict = images.length > 0 && youtubeUrls.length > 0;
 
   const handleCopy = async () => {
@@ -309,6 +329,40 @@ const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total, isLast
             </a>
           );
         })}
+
+        {links.length === 1 && (
+          (() => {
+            const link = links[0];
+            let domain = "";
+            try {
+              domain = new URL(link.url).hostname;
+            } catch {
+              domain = "link";
+            }
+
+            const source = activeDraft?.sources?.find(
+              (s) => s.reference.toLowerCase() === link.url.toLowerCase()
+            );
+
+            const displayTitle = source?.title || link.text || "View Link";
+
+            return (
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 block overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 hover:opacity-95 transition relative group/link"
+              >
+                <div className="p-3">
+                  <div className="text-xs text-zinc-500 font-mono">{domain}</div>
+                  <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate mt-0.5">
+                    {displayTitle}
+                  </div>
+                </div>
+              </a>
+            );
+          })()
+        )}
 
         {hasConflict && (
           <div className="mt-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs rounded-xl flex items-center gap-1.5 font-medium select-none">

@@ -14,6 +14,7 @@ using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Accounts;
+using SocialWorker.Api.Features.Prompts;
 using SocialWorker.Api.Infrastructure.Llm;
 using SocialWorker.Api.Infrastructure.Auth;
 using SocialWorker.Api.Infrastructure.Search;
@@ -175,5 +176,6 @@ app.MapProvidersEndpoints();
 app.MapSourcesEndpoints();
 app.MapMediaEndpoints();
 app.MapPublishingEndpoints();
+app.MapBrandVoicePromptsEndpoints();
 
 app.Run();

@@ -85,6 +85,29 @@ export function MarkdownEditor() {
     return () => clearTimeout(timer);
   }, [doc, activeDraftId, saveDraftContent, isLocked]);
 
+  useEffect(() => {
+    const handleInsert = (e: Event) => {
+      const textToInsert = (e as CustomEvent<string>).detail;
+      const view = viewRef.current;
+      if (view) {
+        const state = view.state;
+        const selection = state.selection.main;
+        view.dispatch({
+          changes: { from: selection.from, to: selection.to, insert: textToInsert },
+          selection: { anchor: selection.from + textToInsert.length }
+        });
+        setDoc(view.state.doc.toString());
+        view.focus();
+      } else {
+        const separator = doc ? "\n\n" : "";
+        setDoc(`${doc}${separator}${textToInsert}`);
+      }
+    };
+
+    window.addEventListener("editor-insert", handleInsert);
+    return () => window.removeEventListener("editor-insert", handleInsert);
+  }, [doc, setDoc]);
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     if (!isLocked) setIsDragging(true);

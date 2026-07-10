@@ -90,6 +90,9 @@ public sealed class ChatSessionLoader
 
         var mediaAssets = await db.MediaAssets.Where(m => m.DraftId == draft.Id).ToListAsync(ct);
 
+        var defaultBrandVoice = await db.BrandVoicePrompts
+            .FirstOrDefaultAsync(b => b.UserId == userId && b.IsDefault, ct);
+
         if (draft.Title == "Untitled" && messages.Count > 0)
         {
             await _titleGenerator.TryGenerateDraftTitleAsync(db, draft, messages, credentials, ct);
@@ -101,6 +104,7 @@ public sealed class ChatSessionLoader
             capabilities,
             draft,
             editorContent,
-            mediaAssets);
+            mediaAssets,
+            defaultBrandVoice?.Body);
     }
 }

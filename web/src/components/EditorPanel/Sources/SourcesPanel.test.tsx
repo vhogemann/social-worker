@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { SourcesPanel } from "./SourcesPanel";
-import { useDraftStore } from "../../store/draftStore";
-import { useEditorStore } from "../../store/editorStore";
-import * as draftsApi from "../../api/drafts";
+import { useDraftStore } from "../../../store/draftStore";
+import { useEditorStore } from "../../../store/editorStore";
+import * as draftsApi from "../../../api/drafts";
 
-vi.mock("../../api/drafts", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../api/drafts")>();
+vi.mock("../../../api/drafts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../api/drafts")>();
   return {
     ...actual,
     fetchSourceDetail: vi.fn(),

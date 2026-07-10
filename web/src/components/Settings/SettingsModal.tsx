@@ -4,6 +4,7 @@ import { AccountTab } from "./AccountTab";
 import { UsersTab } from "./UsersTab";
 import { ProvidersTab } from "./ProvidersTab";
 import { ConnectionsTab } from "./ConnectionsTab";
+import { BrandVoicesTab } from "./BrandVoicesTab";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -13,7 +14,7 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const [activeTab, setActiveTab] = useState<"account" | "connections" | "users" | "providers">("account");
+  const [activeTab, setActiveTab] = useState<"account" | "connections" | "brandVoices" | "users" | "providers">("account");
 
   if (!isOpen) return null;
 
@@ -45,6 +46,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 }`}
               >
                 connections
+              </button>
+              <button
+                onClick={() => setActiveTab("brandVoices")}
+                className={`w-full text-left px-3 py-1.5 rounded text-sm font-mono uppercase tracking-wider transition-colors ${
+                  activeTab === "brandVoices"
+                    ? "bg-border/60 text-accent font-medium"
+                    : "text-muted hover:text-foreground hover:bg-border/20"
+                }`}
+              >
+                brand voices
               </button>
               {user?.role === "Admin" && (
                 <button
@@ -95,7 +106,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="flex-1 flex flex-col h-full overflow-hidden">
           <div className="px-6 py-4 border-b border-border flex items-center justify-between">
             <h2 className="text-sm font-mono uppercase tracking-wider text-foreground">
-              {activeTab === "account" ? "account settings" : activeTab === "connections" ? "social connections" : activeTab === "users" ? "user accounts management" : "llm provider configuration"}
+              {activeTab === "account" ? "account settings" : activeTab === "connections" ? "social connections" : activeTab === "brandVoices" ? "brand voice style prompts" : activeTab === "users" ? "user accounts management" : "llm provider configuration"}
             </h2>
             <button
               onClick={onClose}
@@ -107,6 +118,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           <div className="flex-1 p-6 overflow-y-auto min-h-0">
             {activeTab === "account" && <AccountTab />}
             {activeTab === "connections" && <ConnectionsTab />}
+            {activeTab === "brandVoices" && <BrandVoicesTab />}
             {activeTab === "users" && user?.role === "Admin" && <UsersTab />}
             {activeTab === "providers" && user?.role === "Admin" && <ProvidersTab />}
           </div>

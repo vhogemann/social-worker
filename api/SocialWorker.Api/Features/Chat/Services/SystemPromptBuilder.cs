@@ -41,7 +41,7 @@ public sealed class SystemPromptBuilder
         return defaultPrompt;
     }
 
-    public string Build(string? customSystemPrompt, string editorContent, List<MediaAsset> mediaAssets, bool supportsVision)
+    public string Build(string? customSystemPrompt, string editorContent, List<MediaAsset> mediaAssets, bool supportsVision, string? brandVoiceBody)
     {
         var sb = new StringBuilder();
 
@@ -50,6 +50,16 @@ public sealed class SystemPromptBuilder
             : GetBasePrompt();
 
         sb.Append(basePrompt);
+
+        if (!string.IsNullOrWhiteSpace(brandVoiceBody))
+        {
+            sb.AppendLine();
+            sb.AppendLine();
+            sb.AppendLine("--- WRITING STYLE / BRAND VOICE ---");
+            sb.AppendLine("You MUST follow this brand voice and writing style guidelines when creating or updating any social media content:");
+            sb.AppendLine(brandVoiceBody);
+            sb.AppendLine("--- BRAND VOICE END ---");
+        }
 
         sb.AppendLine();
         sb.AppendLine();

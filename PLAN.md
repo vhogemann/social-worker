@@ -274,7 +274,7 @@ With that done, the remaining v1 items are:
 6. Bluesky publisher (app-password flow) end-to-end
 7. Stubs for Twitter/LinkedIn/Facebook/Instagram
 8. Caddy + mkcert local HTTPS + `scripts/bootstrap.sh`
-9. Brand voice prompts CRUD
+9. Brand voice prompts CRUD — **In Progress** (see [BRAND_VOICE_PROMPTS.md](./docs/BRAND_VOICE_PROMPTS.md))
 
 ### v1 step 1 & 2: Database + persistent draft sessions
 

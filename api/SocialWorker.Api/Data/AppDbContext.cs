@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Post> Posts => Set<Post>();
+    public DbSet<BrandVoicePrompt> BrandVoicePrompts => Set<BrandVoicePrompt>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -148,6 +149,17 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.PlatformThreadId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.PlatformThreadId, x.SegmentIndex }).IsUnique();
+        });
+
+        modelBuilder.Entity<BrandVoicePrompt>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(150);
+            e.Property(x => x.Body).HasColumnType("text");
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
