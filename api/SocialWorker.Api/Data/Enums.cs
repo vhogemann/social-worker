@@ -21,3 +21,12 @@ public enum SourceKind
     File,
     YouTube
 }
+
+public enum SocialPlatform
+{
+    Bluesky,
+    Twitter,
+    LinkedIn,
+    Facebook,
+    Instagram
+}

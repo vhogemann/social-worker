@@ -65,7 +65,7 @@ Domains after bootstrap:
 - [x] Brand voice prompts — CRUD library, default prompt injection into system prompt
 - [x] Platform limits validation — Bluesky 300-grapheme limit, image/YouTube conflict checks
 
-### LLM tools (13 active)
+### LLM tools (14 active)
 | Tool | What it does |
 |---|---|
 | `replace_editor_content` | Replaces full draft markdown |
@@ -80,6 +80,7 @@ Domains after bootstrap:
 | `add_image_source` | Downloads image from URL, stores as MediaAsset |
 | `publish` | Publishes platform thread (Bluesky working) |
 | `render_code_blocks` | Renders ``` fences as syntax-highlighted PNG images |
+| `generate_platform_variants` | LLM-driven multi-platform content adaptation |
 
 ### Frontend features
 - [x] Chat panel — SSE streaming, tool call rendering, stage-transition accept buttons
@@ -118,7 +119,7 @@ Domains after bootstrap:
 - [ ] Sources library + YouTube transcripts. Tracked: `docs/SOURCES_LIBRARY_AND_TRANSCRIPTS.md`
 
 ### Near-term (v1)
-- [ ] Platform variant generation — On-demand multi-platform adaptation. Tracked: `docs/PLATFORM_VARIANTS.md`
+- [x] Platform variant generation — On-demand multi-platform adaptation. Tracked: `docs/PLATFORM_VARIANTS.md`
 - [ ] Thread reply/expansion (append to a published Bluesky thread, view replies)
 
 ### Platform publishers (stubs)
@@ -150,5 +151,5 @@ Domains after bootstrap:
 | `docs/BRAND_VOICE_PROMPTS.md` | Done |
 | `docs/SEARCH_TOOL.md` | Done |
 | `docs/REFACTORING_PLAN.md` | Ongoing |
-| `docs/PLATFORM_VARIANTS.md` | v1 Plan — on-demand multi-platform adaptation |
+| `docs/PLATFORM_VARIANTS.md` | v1 — Done (Phases 1-7 complete) |
 | `docs/SOURCES_LIBRARY_AND_TRANSCRIPTS.md` | v2 Plan — global source search + YouTube transcripts |

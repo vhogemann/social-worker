@@ -31,7 +31,7 @@ public static class DraftsEndpoint
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            var result = await draftsService.CreateDraftAsync(userId.Value, req.Title, req.Content, ct);
+            var result = await draftsService.CreateDraftAsync(userId.Value, req.Title, req.Content, req.TargetPlatform, ct);
             return Results.Created($"/api/drafts/{result.Id}", result);
         });
 
@@ -150,7 +150,7 @@ public static class DraftsEndpoint
     }
 }
 
-public sealed record CreateDraftRequest(string? Title, string? Content);
+public sealed record CreateDraftRequest(string? Title, string? Content, string? TargetPlatform = null);
 
 public sealed record UpdateDraftRequest(
     string? Title,

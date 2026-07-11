@@ -28,6 +28,8 @@ describe("SourcesPanel", () => {
           title: "Test Draft",
           content: "Draft content",
           status: "Draft",
+          targetPlatform: "Bluesky",
+          canonicalDraftId: null,
           createdAt: "2026-07-10",
           updatedAt: "2026-07-10",
           chatHistory: "[]",

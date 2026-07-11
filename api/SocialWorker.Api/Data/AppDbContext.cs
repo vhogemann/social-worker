@@ -52,10 +52,16 @@ public class AppDbContext : DbContext
             e.Property(x => x.Title).HasMaxLength(200);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50);
             e.Property(x => x.Content).HasColumnType("text");
+            e.Property(x => x.TargetPlatform).HasConversion<string>().HasMaxLength(50);
             e.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.CanonicalDraft)
+                .WithMany(x => x.Variants)
+                .HasForeignKey(x => x.CanonicalDraftId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => x.CanonicalDraftId);
         });
 
         modelBuilder.Entity<ThreadSegment>(e =>

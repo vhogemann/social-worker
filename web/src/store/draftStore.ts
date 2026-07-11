@@ -9,7 +9,7 @@ interface DraftStore {
   sources: SourceDto[];
   loading: boolean;
   loadDrafts: () => Promise<void>;
-  createDraft: (title?: string, content?: string) => Promise<DraftDto>;
+  createDraft: (title?: string, content?: string, targetPlatform?: string) => Promise<DraftDto>;
   switchDraft: (id: string) => Promise<DraftDto>;
   updateDraftTitle: (id: string, title: string) => Promise<void>;
   saveDraftContent: (id: string, content: string) => Promise<void>;
@@ -51,8 +51,8 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     }
   },
 
-  createDraft: async (title, content) => {
-    const draft = await createDraft(title, content);
+  createDraft: async (title, content, targetPlatform) => {
+    const draft = await createDraft(title, content, targetPlatform);
     set((s) => ({ drafts: [draft, ...s.drafts], activeDraftId: draft.id }));
     return draft;
   },

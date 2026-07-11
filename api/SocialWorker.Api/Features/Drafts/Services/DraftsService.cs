@@ -41,6 +41,8 @@ public sealed record DraftDto(
     string Title,
     string Status,
     string? Content,
+    string? TargetPlatform,
+    Guid? CanonicalDraftId,
     List<PlatformThreadDto> Threads,
     List<MediaAssetMiniDto> MediaAssets,
     string? ChatHistory,
@@ -99,6 +101,8 @@ public sealed class DraftsService
             d.Title,
             d.Status.ToString(),
             d.Content,
+            d.TargetPlatform?.ToString(),
+            d.CanonicalDraftId,
             threads.Where(t => t.DraftId == d.Id)
                 .Select(t => new PlatformThreadDto(
                     t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
@@ -117,21 +121,29 @@ public sealed class DraftsService
         )).ToList();
     }
 
-    public async Task<DraftDto> CreateDraftAsync(Guid userId, string? title, string? content, CancellationToken ct)
+    public async Task<DraftDto> CreateDraftAsync(Guid userId, string? title, string? content, string? targetPlatform, CancellationToken ct)
     {
+        SocialPlatform? platform = null;
+        if (!string.IsNullOrWhiteSpace(targetPlatform) && Enum.TryParse<SocialPlatform>(targetPlatform, true, out var parsed))
+        {
+            platform = parsed;
+        }
+
         var draft = new Draft
         {
             Title = string.IsNullOrWhiteSpace(title) ? "Untitled" : title,
             Content = content,
-            UserId = userId
+            UserId = userId,
+            TargetPlatform = platform ?? SocialPlatform.Bluesky
         };
         _db.Drafts.Add(draft);
         await _db.SaveChangesAsync(ct);
 
+        var platformName = draft.TargetPlatform?.ToString() ?? "Bluesky";
         var thread = new PlatformThread
         {
             DraftId = draft.Id,
-            Platform = "Bluesky",
+            Platform = platformName,
             Stage = PlatformThreadStage.Draft,
             Content = content
         };
@@ -149,6 +161,8 @@ public sealed class DraftsService
             draft.Title,
             draft.Status.ToString(),
             draft.Content,
+            draft.TargetPlatform?.ToString(),
+            draft.CanonicalDraftId,
             new List<PlatformThreadDto> { new(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>()) },
             new List<MediaAssetMiniDto>(),
             draft.ChatHistory,
@@ -175,6 +189,8 @@ public sealed class DraftsService
             draft.Title,
             draft.Status.ToString(),
             draft.Content,
+            draft.TargetPlatform?.ToString(),
+            draft.CanonicalDraftId,
             threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
                 posts.Where(p => p.PlatformThreadId == t.Id)
                      .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
@@ -266,6 +282,8 @@ public sealed class DraftsService
             draft.Title,
             draft.Status.ToString(),
             draft.Content,
+            draft.TargetPlatform?.ToString(),
+            draft.CanonicalDraftId,
             threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
                 posts.Where(p => p.PlatformThreadId == t.Id)
                      .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))

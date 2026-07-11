@@ -10,6 +10,10 @@ public class Draft
     public string? Content { get; set; }
     public Guid UserId { get; set; }
     public AppUser User { get; set; } = null!;
+    public SocialPlatform? TargetPlatform { get; set; }
+    public Guid? CanonicalDraftId { get; set; }
+    public Draft? CanonicalDraft { get; set; }
+    public ICollection<Draft> Variants { get; set; } = new List<Draft>();
     public ICollection<ThreadSegment> Segments { get; set; } = new List<ThreadSegment>();
     public ICollection<PlatformThread> Threads { get; set; } = new List<PlatformThread>();
     public ICollection<Source> Sources { get; set; } = new List<Source>();

@@ -55,6 +55,8 @@ export interface DraftDto {
   title: string;
   status: string;
   content: string | null;
+  targetPlatform: string | null;
+  canonicalDraftId: string | null;
   threads: PlatformThreadDto[];
   sources?: SourceDto[];
   mediaAssets?: MediaAssetDto[];
@@ -71,10 +73,10 @@ export async function fetchDrafts(): Promise<DraftDto[]> {
   return res.json();
 }
 
-export async function createDraft(title?: string, content?: string): Promise<DraftDto> {
+export async function createDraft(title?: string, content?: string, targetPlatform?: string): Promise<DraftDto> {
   const res = await apiFetch("/api/drafts", {
     method: "POST",
-    body: JSON.stringify({ title, content }),
+    body: JSON.stringify({ title, content, targetPlatform }),
   });
   if (!res.ok) throw new Error(`createDraft failed: ${res.status}`);
   return res.json();
@@ -224,5 +226,26 @@ export async function deleteMediaAsset(id: string): Promise<{ success: boolean }
     method: "DELETE",
   });
   if (!res.ok) throw new Error(`deleteMediaAsset failed: ${res.status}`);
+  return res.json();
+}
+
+export async function generateVariants(draftId: string, platforms: string[]): Promise<{ canonical: DraftDto; variants: DraftDto[] }> {
+  const res = await apiFetch(`/api/drafts/${draftId}/generate-variants`, {
+    method: "POST",
+    body: JSON.stringify({ platforms }),
+  });
+  if (!res.ok) throw new Error(`generateVariants failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchDraftFamily(draftId: string): Promise<{ canonical: DraftDto; variants: DraftDto[] }> {
+  const res = await apiFetch(`/api/drafts/${draftId}/family`);
+  if (!res.ok) throw new Error(`fetchDraftFamily failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchVariants(draftId: string): Promise<DraftDto[]> {
+  const res = await apiFetch(`/api/drafts/${draftId}/variants`);
+  if (!res.ok) throw new Error(`fetchVariants failed: ${res.status}`);
   return res.json();
 }
