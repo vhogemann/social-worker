@@ -1,4 +1,6 @@
 import React from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faPlay } from "@fortawesome/free-solid-svg-icons";
 import { extractVideoId } from "./utils";
 
 interface YouTubeSectionProps {
@@ -28,9 +30,7 @@ export const YouTubeSection: React.FC<YouTubeSectionProps> = ({ youtubeUrls }) =
                 className="w-full h-full object-cover opacity-90 group-hover/yt:scale-105 transition duration-300"
               />
               <div className="absolute h-12 w-12 rounded-full bg-red-600/90 flex items-center justify-center shadow-lg group-hover/yt:bg-red-600 group-hover/yt:scale-110 transition duration-150">
-                <svg className="w-6 h-6 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+                <FontAwesomeIcon icon={faPlay} className="w-6 h-6 text-white ml-0.5" />
               </div>
             </div>
             <div className="p-3 border-t border-zinc-200 dark:border-zinc-800">

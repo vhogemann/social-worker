@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faPlus, faTrashCan, faBoxArchive, faPenToSquare, faArrowRotateLeft, faLink, faGear } from "@fortawesome/free-solid-svg-icons";
+import { faBluesky, faXTwitter, faLinkedin, faFacebook, faInstagram } from "@fortawesome/free-brands-svg-icons";
 import { useDraftStore } from "../../store/draftStore";
 import { useEditorStore } from "../../store/editorStore";
 import { saveCurrentChat, restoreChat, clearChat } from "../../api/chat";
@@ -11,6 +14,14 @@ const PLATFORM_BADGE_COLORS: Record<string, string> = {
   LinkedIn: "bg-blue-700/15 text-blue-800 dark:text-blue-300",
   Facebook: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
   Instagram: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
+};
+
+const PLATFORM_ICONS: Record<string, any> = {
+  Bluesky: faBluesky,
+  Twitter: faXTwitter,
+  LinkedIn: faLinkedin,
+  Facebook: faFacebook,
+  Instagram: faInstagram,
 };
 
 export function DraftList() {
@@ -108,9 +119,10 @@ export function DraftList() {
         {!showArchived && (
           <button
             onClick={() => setCreateModalOpen(true)}
-            className="text-xs font-mono text-accent hover:opacity-80"
+            className="text-xs font-mono text-accent hover:opacity-80 flex items-center gap-1"
           >
-            + new
+            <FontAwesomeIcon icon={faPlus} className="w-3 h-3" />
+            new
           </button>
         )}
       </div>
@@ -159,7 +171,8 @@ export function DraftList() {
                       <div className="flex items-center gap-1 mt-0.5">
                         <span className="text-xs font-mono text-muted lowercase">{d.status}</span>
                         {d.targetPlatform && (
-                          <span className={`text-[10px] px-1 py-0.5 rounded font-sans font-medium ${PLATFORM_BADGE_COLORS[d.targetPlatform] || "text-muted"}`}>
+                          <span className={`inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-sans font-medium ${PLATFORM_BADGE_COLORS[d.targetPlatform] || "text-muted"}`}>
+                            {PLATFORM_ICONS[d.targetPlatform] && <FontAwesomeIcon icon={PLATFORM_ICONS[d.targetPlatform]} className="w-3 h-3" />}
                             {d.targetPlatform}
                           </span>
                         )}
@@ -174,34 +187,22 @@ export function DraftList() {
                     {d.status === "Archived" ? (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); unarchiveDraft(d.id); }} title="Restore Draft" className="text-muted hover:text-foreground">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                            <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.012-.013c-.026-.027-.049-.056-.07-.086l-2.01-2.68A.75.75 0 0 1 4.62 10.2l2.01 2.68a3.5 3.5 0 0 0 5.61-1.39.75.75 0 0 1 1.458.261ZM3 9a6 6 0 0 1 10.9-3.4l.01.01c.026.028.05.057.072.088l2.01 2.68a.75.75 0 1 1-1.2.9l-2.01-2.68A4.5 4.5 0 0 0 4.5 9a.75.75 0 0 1-1.5 0Z" clipRule="evenodd" />
-                          </svg>
+                          <FontAwesomeIcon icon={faArrowRotateLeft} className="w-3.5 h-3.5" />
                         </button>
                         <button onClick={(e) => { e.stopPropagation(); handleDelete(d.id); }} title="Delete Draft" className="text-red-400 hover:text-red-300">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                            <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM7.5 3.75A1.25 1.25 0 0 1 8.75 2.5h2.5A1.25 1.25 0 0 1 12.5 3.75v.44c-.76-.053-1.524-.09-2.292-.109A17.962 17.962 0 0 0 8.75 4.13v-.38Z" clipRule="evenodd" />
-                          </svg>
+                          <FontAwesomeIcon icon={faTrashCan} className="w-3.5 h-3.5" />
                         </button>
                       </>
                     ) : (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); startEditTitle(d.id, d.title); }} title="Rename Draft" className="text-muted hover:text-foreground">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                            <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.313.313-.679.56-1.081.727l-3.155 1.262A.5.5 0 0 1 5.83 14.17a.5.5 0 0 1-.397-.253ZM16.082 3.92a.621.621 0 0 0-.878-.002L8.52 10.602c-.156.156-.34.28-.541.363l-1.848.74.74-1.848c.083-.201.207-.385.363-.541l6.685-6.685a.621.621 0 0 0-.002-.878v.878Z" />
-                            <path d="M15 15h.01a.75.75 0 1 1 0 1.5H3a.75.75 0 0 1 0-1.5h12Z" />
-                          </svg>
+                          <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5" />
                         </button>
                         <button onClick={(e) => { e.stopPropagation(); archiveDraft(d.id); }} title="Archive Draft" className="text-muted hover:text-foreground">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                            <path d="M2 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3Z" />
-                            <path fillRule="evenodd" d="M3 7.75A.75.75 0 0 1 3.75 7h12.5a.75.75 0 0 1 .75.75v8.5a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 16.25v-8.5Zm5 3a.75.75 0 0 0 0 1.5h4a.75.75 0 0 0 0-1.5H8Z" clipRule="evenodd" />
-                          </svg>
+                          <FontAwesomeIcon icon={faBoxArchive} className="w-3.5 h-3.5" />
                         </button>
                         <button onClick={(e) => { e.stopPropagation(); handleDelete(d.id); }} title="Delete Draft" className="text-red-400 hover:text-red-300">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                            <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM7.5 3.75A1.25 1.25 0 0 1 8.75 2.5h2.5A1.25 1.25 0 0 1 12.5 3.75v.44c-.76-.053-1.524-.09-2.292-.109A17.962 17.962 0 0 0 8.75 4.13v-.38Z" clipRule="evenodd" />
-                          </svg>
+                          <FontAwesomeIcon icon={faTrashCan} className="w-3.5 h-3.5" />
                         </button>
                       </>
                     )}
@@ -225,15 +226,13 @@ export function DraftList() {
                         className="w-full text-left px-3 py-1.5 pr-12 focus:outline-none"
                       >
                         <div className={`flex items-center gap-1 text-sm truncate ${v.id === activeDraftId ? "text-accent" : "text-foreground/70"}`}>
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 shrink-0 text-muted">
-                            <path d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 0 0 1.061 1.06l1.224-1.224a4 4 0 0 0-5.656-5.656l-3 3a4 4 0 0 0 .225 5.865.75.75 0 0 0 .977-1.138 2.5 2.5 0 0 1-.142-3.667l3-3Z" />
-                            <path d="M11.603 7.963a.75.75 0 0 0-.977 1.138 2.5 2.5 0 0 1 .142 3.667l-3 3a2.5 2.5 0 0 1-3.536-3.536l1.225-1.224a.75.75 0 0 0-1.061-1.06l-1.224 1.224a4 4 0 1 0 5.656 5.656l3-3a4 4 0 0 0-.225-5.865Z" />
-                          </svg>
+                          <FontAwesomeIcon icon={faLink} className="w-3 h-3 shrink-0 text-muted" />
                           <span className="truncate">{v.title}</span>
                         </div>
                         <div className="flex items-center gap-1 mt-0.5 ml-4">
                           {v.targetPlatform && (
-                            <span className={`text-[10px] px-1 py-0.5 rounded font-sans font-medium ${PLATFORM_BADGE_COLORS[v.targetPlatform] || "text-muted"}`}>
+                            <span className={`inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-sans font-medium ${PLATFORM_BADGE_COLORS[v.targetPlatform] || "text-muted"}`}>
+                              {PLATFORM_ICONS[v.targetPlatform] && <FontAwesomeIcon icon={PLATFORM_ICONS[v.targetPlatform]} className="w-3 h-3" />}
                               {v.targetPlatform}
                             </span>
                           )}
@@ -256,8 +255,9 @@ export function DraftList() {
       <div className="px-3 py-2 border-t border-border flex items-center justify-between shrink-0">
         <button
           onClick={() => setSettingsOpen(true)}
-          className="text-xs font-mono text-muted hover:text-foreground focus:outline-none"
+          className="text-xs font-mono text-muted hover:text-foreground focus:outline-none flex items-center gap-1"
         >
+          <FontAwesomeIcon icon={faGear} className="w-3 h-3" />
           settings
         </button>
         <button

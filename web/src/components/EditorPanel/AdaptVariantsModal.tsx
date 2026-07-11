@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useDraftStore } from "../../store/draftStore";
+import { generateVariants } from "../../api/drafts";
 
 const PLATFORMS = ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram"];
 
@@ -32,21 +33,7 @@ export function AdaptVariantsModal({ isOpen, onClose, draftId }: Props) {
     setGenerating(true);
     setResult(null);
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(`/api/drafts/${draftId}/generate-variants`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ platforms: selected }),
-      });
-      if (!res.ok) {
-        const err = await res.text();
-        setResult(`Error: ${err}`);
-        return;
-      }
-      const data = await res.json();
+      const data = await generateVariants(draftId, selected);
       const variants = data.variants || [];
       if (variants.length > 0) {
         setResult(`Created ${variants.length} variant(s): ${variants.map((v: any) => `${v.targetPlatform || v.platform}`).join(", ")}`);

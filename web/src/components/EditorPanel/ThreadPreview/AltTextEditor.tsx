@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faArrowRotateLeft } from "@fortawesome/free-solid-svg-icons";
 import { useDraftStore } from "../../../store/draftStore";
 import { isCodeFenceAltText } from "./utils";
 
@@ -59,9 +61,7 @@ export const AltTextEditor: React.FC<AltTextEditorProps> = ({ mediaId, initialAl
           className="px-2 py-1 rounded bg-indigo-600/80 backdrop-blur-sm text-white text-[10px] font-semibold flex items-center gap-1 shadow hover:bg-indigo-600"
           title="Replace image with source code fence"
         >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-          </svg>
+          <FontAwesomeIcon icon={faArrowRotateLeft} className="w-3 h-3" />
           <span>Revert</span>
         </button>
       </div>

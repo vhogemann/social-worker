@@ -1,4 +1,6 @@
 import React from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSpinner, faCode } from "@fortawesome/free-solid-svg-icons";
 import { CodeFence } from "./types";
 
 interface CodeFencesSectionProps {
@@ -31,14 +33,9 @@ export const CodeFencesSection: React.FC<CodeFencesSectionProps> = ({
             }`}
           >
             {isRendering ? (
-              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
+              <FontAwesomeIcon icon={faSpinner} className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-              </svg>
+              <FontAwesomeIcon icon={faCode} className="w-3.5 h-3.5" />
             )}
             <span>{isRendering ? "Rendering…" : `Render ${label} as image`}</span>
           </button>
