@@ -65,7 +65,7 @@ Domains after bootstrap:
 - [x] Brand voice prompts — CRUD library, default prompt injection into system prompt
 - [x] Platform limits validation — Bluesky 300-grapheme limit, image/YouTube conflict checks
 
-### LLM tools (12 active)
+### LLM tools (13 active)
 | Tool | What it does |
 |---|---|
 | `replace_editor_content` | Replaces full draft markdown |
@@ -100,13 +100,25 @@ Domains after bootstrap:
 - [x] `render_code_blocks` chat tool — replaces fences with `![code snippet](media://uuid)` in draft content
 - [x] 38/38 tests passing (including 6 renderer + 6 parser tests)
 
+### Web search (`Infrastructure/Search/` + `Features/Chat/Tools/`)
+- [x] `ISearchEngine` interface with pluggable backends
+- [x] `BraveSearchEngine` (Brave Search API)
+- [x] `SearXngSearchEngine` (local SearXNG container)
+- [x] `WebSearchTool` LLM tool (`web_search`) — searches web, returns formatted results
+- [x] `ImageSearchTool` LLM tool (`image_search`) — image search via SearXNG
+- [x] Configuration: `Search__Provider` (Brave or SearXng), environment-based keys
+- [x] SearXNG container in docker-compose
+- [x] 7 unit tests passing + manual e2e verification
+
 ---
 
 ## What is not yet built
 
-### Near-term
-- [ ] Web search tool integration (SearXNG container is running; `web_search` tool wired but needs end-to-end test). Tracked: `docs/SEARCH_TOOL.md`
-- [ ] Platform variant generation (`generate_platform_variants` tool — adapts canonical thread to per-platform char limits, preview as columns)
+### v2 Goals (Planned)
+- [ ] Sources library + YouTube transcripts. Tracked: `docs/SOURCES_LIBRARY_AND_TRANSCRIPTS.md`
+
+### Near-term (v1)
+- [ ] Platform variant generation — On-demand multi-platform adaptation. Tracked: `docs/PLATFORM_VARIANTS.md`
 - [ ] Thread reply/expansion (append to a published Bluesky thread, view replies)
 
 ### Platform publishers (stubs)
@@ -136,5 +148,7 @@ Domains after bootstrap:
 | `docs/CHAT_HISTORY_PERSISTENCE.md` | Done |
 | `docs/IMAGE_UPLOADS.md` | Done |
 | `docs/BRAND_VOICE_PROMPTS.md` | Done |
-| `docs/SEARCH_TOOL.md` | Planned |
+| `docs/SEARCH_TOOL.md` | Done |
 | `docs/REFACTORING_PLAN.md` | Ongoing |
+| `docs/PLATFORM_VARIANTS.md` | v1 Plan — on-demand multi-platform adaptation |
+| `docs/SOURCES_LIBRARY_AND_TRANSCRIPTS.md` | v2 Plan — global source search + YouTube transcripts |
