@@ -58,6 +58,7 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, st
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var mediaService = scope.ServiceProvider.GetRequiredService<MediaService>();
         var renderer = scope.ServiceProvider.GetRequiredService<CodeImageRenderer>();
+        var draftsService = scope.ServiceProvider.GetRequiredService<DraftsService>();
 
         var draft = await db.Drafts.FirstOrDefaultAsync(
             d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
@@ -89,7 +90,7 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, st
         draft.Content = content;
         draft.UpdatedAt = DateTime.UtcNow;
 
-        await DraftsEndpoint.ReconcileSegmentsAsync(db, draft, content, ct);
+        await draftsService.ReconcileSegmentsAsync(draft, content, ct);
         await db.SaveChangesAsync(ct);
 
         var sb = new StringBuilder();

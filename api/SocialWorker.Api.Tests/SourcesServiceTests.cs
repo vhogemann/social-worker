@@ -18,7 +18,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.Drafts.Add(draft);
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!);
+        var service = new SourcesService(db, null!, null!, null!);
 
         // Access denied (wrong user ID)
         await Assert.ThrowsAsync<KeyNotFoundException>(() => service.GetSourceDetailAsync(Guid.NewGuid(), draft.Id, Guid.NewGuid(), CancellationToken.None));
@@ -48,7 +48,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.Sources.Add(source);
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!);
+        var service = new SourcesService(db, null!, null!, null!);
 
         var result = await service.GetSourceDetailAsync(userId, draft.Id, source.Id, CancellationToken.None);
 
@@ -81,7 +81,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.Sources.Add(source);
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!);
+        var service = new SourcesService(db, null!, null!, null!);
 
         await service.DeleteSourceAsync(userId, draft.Id, source.Id, CancellationToken.None);
 

@@ -58,13 +58,21 @@ Inventory of low-effort improvements, code smells, missing tests, and minor bugs
 
 ### DI / Architecture Smells
 
-- [ ] **`DraftsEndpoint.cs:142` — instantiates `DraftsService` with `null!`** as a static bridge. Fragile DI workaround.
+**Phase 1 — Static Bridges (Items 1-2)**
 
-- [ ] **`DraftsEndpoint.ReconcileSourcesAsync` static bridge** (`SourcesEndpoint.cs:111-124`) — scope-factory workaround.
+- [x] **`DraftsEndpoint.cs:142` — instantiates `DraftsService` with `null!`** as a static bridge. Fragile DI workaround.  
+  *Done: Removed `ReconcileSegmentsAsync` static bridge from `DraftsEndpoint`. `ReplaceEditorContentTool` and `RenderCodeBlocksTool` now resolve `DraftsService` from their existing DI scopes instead. (Pure static delegates `SplitMarkdownIntoSegments` and `AnalyzeSegmentMedia` retained.)*
 
-- [ ] **`DraftsService.TriggerBackgroundSummarization`** — fire-and-forget `Task.Run` with `CancellationToken.None`. No error recovery, no cancellation support. Extract to a background service.
+- [x] **`SourcesEndpoint.ReconcileSourcesAsync` static bridge** (`SourcesEndpoint.cs:111-124`) — scope-factory workaround.  
+  *Done: Removed static bridge. `DraftTests.cs` constructs `SourcesService` directly (same pattern already used in `SourcesServiceTests.cs`).*
 
-- [ ] **`SourcesService.ReconcileSourcesAsync:199`** — fire-and-forget `Task.Run` for background scraping. Silent failure if DB context is disposed.
+**Phase 2 — Background Job Infrastructure (Items 3-4)**
+
+- [x] **`DraftsService.TriggerBackgroundSummarization`** — fire-and-forget `Task.Run` with `CancellationToken.None`. No error recovery, no cancellation support. Extract to a background service.  
+  *Done: Created `Infrastructure/Background/BackgroundJobQueue.cs` (bounded `Channel<Job>` wrapper) + `BackgroundJobHostedService.cs` (sequential `BackgroundService`). Registered in `Program.cs`. `TriggerBackgroundSummarization` now enqueues a job via the queue. The hosted service provides cancellation via `stoppingToken` and error logging via `ILogger`.*
+
+- [x] **`SourcesService.ReconcileSourcesAsync:199`** — fire-and-forget `Task.Run` for background scraping. Silent failure if DB context is disposed.  
+  *Done: Replaced `Task.Run` with the same shared `BackgroundJobQueue` enqueue. Uses the hosted service's cancellation token for graceful shutdown.*
 
 ### Functionality Gaps
 

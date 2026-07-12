@@ -108,21 +108,6 @@ public static class SourcesEndpoint
         }).DisableAntiforgery();
     }
 
-    public static async Task ReconcileSourcesAsync(AppDbContext db, IServiceScopeFactory scopeFactory, Draft draft, string content)
-    {
-        if (scopeFactory == null)
-        {
-            var service = new SourcesService(db, null!, null!);
-            await service.ReconcileSourcesAsync(draft, content);
-        }
-        else
-        {
-            using var scope = scopeFactory.CreateScope();
-            var service = scope.ServiceProvider.GetRequiredService<SourcesService>();
-            await service.ReconcileSourcesAsync(draft, content);
-        }
-    }
-
     private static Guid? GetUserId(ClaimsPrincipal principal)
     {
         var id = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;

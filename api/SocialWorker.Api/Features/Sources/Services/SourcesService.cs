@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Infrastructure.Background;
 
 namespace SocialWorker.Api.Features.Sources;
 
@@ -26,12 +27,14 @@ public sealed class SourcesService
     private readonly AppDbContext _db;
     private readonly WebScraperService _scraper;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly BackgroundJobQueue _queue;
 
-    public SourcesService(AppDbContext db, WebScraperService scraper, IServiceScopeFactory scopeFactory)
+    public SourcesService(AppDbContext db, WebScraperService scraper, IServiceScopeFactory scopeFactory, BackgroundJobQueue queue)
     {
         _db = db;
         _scraper = scraper;
         _scopeFactory = scopeFactory;
+        _queue = queue;
     }
 
     public async Task<List<SourceDto>> GetSourcesForDraftAsync(Guid userId, Guid draftId, CancellationToken ct)
@@ -196,7 +199,7 @@ public sealed class SourcesService
             }
             await _db.SaveChangesAsync();
 
-            _ = Task.Run(async () =>
+            _queue.Enqueue(new BackgroundJobQueue.Job("url-scrape", async ct =>
             {
                 using var scope = _scopeFactory.CreateScope();
                 var scopedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -207,7 +210,7 @@ public sealed class SourcesService
                     try
                     {
                         var (title, contentText, isYouTube) = await scopedScraper.ScrapeUrlAsync(ls.Reference);
-                        var dbSource = await scopedDb.Sources.FindAsync(ls.Id);
+                        var dbSource = await scopedDb.Sources.FindAsync(new object[] { ls.Id }, ct);
                         if (dbSource != null)
                         {
                             dbSource.Title = title;
@@ -217,7 +220,7 @@ public sealed class SourcesService
                     }
                     catch (Exception ex)
                     {
-                        var dbSource = await scopedDb.Sources.FindAsync(ls.Id);
+                        var dbSource = await scopedDb.Sources.FindAsync(new object[] { ls.Id }, ct);
                         if (dbSource != null)
                         {
                             dbSource.Title = $"Failed: {ls.Reference}";
@@ -226,13 +229,13 @@ public sealed class SourcesService
                     }
                 }
 
-                var d = await scopedDb.Drafts.FindAsync(draft.Id);
+                var d = await scopedDb.Drafts.FindAsync(new object[] { draft.Id }, ct);
                 if (d != null)
                 {
                     d.UpdatedAt = DateTime.UtcNow;
                 }
-                await scopedDb.SaveChangesAsync();
-            });
+                await scopedDb.SaveChangesAsync(ct);
+            }));
         }
     }
 

@@ -138,11 +138,6 @@ public static class DraftsEndpoint
 
     public static List<string> SplitMarkdownIntoSegments(string markdown) => DraftsService.SplitMarkdownIntoSegments(markdown);
     public static DraftsService.SegmentMediaAnalysis AnalyzeSegmentMedia(string segmentContent) => DraftsService.AnalyzeSegmentMedia(segmentContent);
-    public static async Task ReconcileSegmentsAsync(AppDbContext db, Draft draft, string markdown, CancellationToken ct = default)
-    {
-        var service = new DraftsService(db, null!, null!, null!);
-        await service.ReconcileSegmentsAsync(draft, markdown, ct);
-    }
 }
 
 public sealed record CreateDraftRequest(string? Title, string? Content, string? TargetPlatform = null);

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Drafts;
+using SocialWorker.Api.Features.Sources;
 using Xunit;
 
 namespace SocialWorker.Api.Tests;
@@ -67,7 +68,7 @@ public sealed class DraftTests : SqliteTestBase
         await _db.SaveChangesAsync();
 
         // 1. Initial reconciliation
-        await DraftsEndpoint.ReconcileSegmentsAsync(_db, draft, draft.Content);
+        await new DraftsService(_db, null!, null!, null!, null!).ReconcileSegmentsAsync(draft, draft.Content);
         await _db.SaveChangesAsync();
 
         var segments = await _db.ThreadSegments
@@ -86,7 +87,7 @@ public sealed class DraftTests : SqliteTestBase
         // 2. Reduce segment count (updates 0, 1; deletes 2)
         var updatedContent = "Updated first\n---\nUpdated second";
         draft.Content = updatedContent;
-        await DraftsEndpoint.ReconcileSegmentsAsync(_db, draft, updatedContent);
+        await new DraftsService(_db, null!, null!, null!, null!).ReconcileSegmentsAsync(draft, updatedContent);
         await _db.SaveChangesAsync();
 
         segments = await _db.ThreadSegments
@@ -101,7 +102,7 @@ public sealed class DraftTests : SqliteTestBase
         // 3. Expand segment count (updates 0, 1; inserts 2, 3)
         var expandedContent = "One\n---\nTwo\n---\nThree\n---\nFour";
         draft.Content = expandedContent;
-        await DraftsEndpoint.ReconcileSegmentsAsync(_db, draft, expandedContent);
+        await new DraftsService(_db, null!, null!, null!, null!).ReconcileSegmentsAsync(draft, expandedContent);
         await _db.SaveChangesAsync();
 
         segments = await _db.ThreadSegments
@@ -188,7 +189,7 @@ public sealed class DraftTests : SqliteTestBase
         var content = $"Check out my doc: [Doc](file://{fileSource.Id})";
         draft.Content = content;
 
-        await SocialWorker.Api.Features.Sources.SourcesEndpoint.ReconcileSourcesAsync(_db, null!, draft, content);
+        await new SourcesService(_db, null!, null!, null!).ReconcileSourcesAsync(draft, content);
 
         var sources = await _db.Sources.Where(s => s.DraftId == draft.Id).ToListAsync();
         Assert.Single(sources);
@@ -197,7 +198,7 @@ public sealed class DraftTests : SqliteTestBase
         var content2 = "No file links anymore!";
         draft.Content = content2;
 
-        await SocialWorker.Api.Features.Sources.SourcesEndpoint.ReconcileSourcesAsync(_db, null!, draft, content2);
+        await new SourcesService(_db, null!, null!, null!).ReconcileSourcesAsync(draft, content2);
 
         sources = await _db.Sources.Where(s => s.DraftId == draft.Id).ToListAsync();
         Assert.Empty(sources);

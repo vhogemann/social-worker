@@ -16,6 +16,7 @@ using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Background;
 using SocialWorker.Api.Infrastructure.Llm;
 
 namespace SocialWorker.Api.Features.Drafts;
@@ -61,17 +62,20 @@ public sealed class DraftsService
     private readonly FileStorageProvider _storage;
     private readonly SourcesService _sourcesService;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly BackgroundJobQueue _queue;
 
     public DraftsService(
         AppDbContext db,
         FileStorageProvider storage,
         SourcesService sourcesService,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        BackgroundJobQueue queue)
     {
         _db = db;
         _storage = storage;
         _sourcesService = sourcesService;
         _scopeFactory = scopeFactory;
+        _queue = queue;
     }
 
     private static DraftDto ToDto(Draft draft, List<PlatformThread> threads, List<Post> posts, List<MediaAsset> media)
@@ -397,115 +401,108 @@ public sealed class DraftsService
 
     private void TriggerBackgroundSummarization(Guid userId, Guid draftId, string chatHistoryJson)
     {
-        Task.Run(async () =>
+        _queue.Enqueue(new BackgroundJobQueue.Job("chat-summary", async ct =>
         {
-            try
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var adapter = scope.ServiceProvider.GetRequiredService<ILlmProviderAdapter>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DraftsService>>();
+            var providerService = scope.ServiceProvider.GetRequiredService<LlmProviderService>();
+
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
+            if (user == null) return;
+
+            var provider = await providerService.GetProviderForUserAsync(db, user);
+            if (provider == null) return;
+
+            var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
+
+            using var doc = JsonDocument.Parse(chatHistoryJson);
+            if (!doc.RootElement.TryGetProperty("messages", out var messagesArray) || messagesArray.ValueKind != JsonValueKind.Array)
             {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                var adapter = scope.ServiceProvider.GetRequiredService<ILlmProviderAdapter>();
-                var logger = scope.ServiceProvider.GetRequiredService<ILogger<DraftsService>>();
-                var providerService = scope.ServiceProvider.GetRequiredService<LlmProviderService>();
+                return;
+            }
 
-                var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
-                if (user == null) return;
+            var totalCount = messagesArray.GetArrayLength();
 
-                var provider = await providerService.GetProviderForUserAsync(db, user);
-                if (provider == null) return;
+            var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId);
+            if (draft == null) return;
 
-                var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
+            if (totalCount - draft.LastSummarizedMessageCount < 20)
+            {
+                return;
+            }
 
-                using var doc = JsonDocument.Parse(chatHistoryJson);
-                if (!doc.RootElement.TryGetProperty("messages", out var messagesArray) || messagesArray.ValueKind != JsonValueKind.Array)
+            logger.LogInformation("Triggering compaction for draft {DraftId}. Total messages: {TotalCount}, Last summarized: {LastSummarized}", draftId, totalCount, draft.LastSummarizedMessageCount);
+
+            int messagesToSummarize = Math.Max(0, totalCount - 5);
+            if (messagesToSummarize <= 0) return;
+
+            var existingSummaryContext = "";
+            if (!string.IsNullOrEmpty(draft.ChatSummary))
+            {
+                existingSummaryContext = $"Existing Summary of earlier conversation:\n{draft.ChatSummary}\n\n";
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Please read this conversation history and provide a concise, structured summary. Focus on key user instructions, preferences, decisions, and outcomes that the assistant should remember. Do not lose context. Keep the summary under 300 words.");
+            sb.AppendLine(existingSummaryContext);
+            sb.AppendLine("New Conversation History:");
+
+            for (int i = 0; i < messagesToSummarize; i++)
+            {
+                var msg = messagesArray[i];
+                var role = msg.TryGetProperty("role", out var r) ? r.GetString() : "unknown";
+
+                var contentText = "";
+                if (msg.TryGetProperty("content", out var contentProp))
                 {
-                    return;
-                }
-
-                var totalCount = messagesArray.GetArrayLength();
-
-                var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId);
-                if (draft == null) return;
-
-                if (totalCount - draft.LastSummarizedMessageCount < 20)
-                {
-                    return;
-                }
-
-                logger.LogInformation("Triggering compaction for draft {DraftId}. Total messages: {TotalCount}, Last summarized: {LastSummarized}", draftId, totalCount, draft.LastSummarizedMessageCount);
-
-                int messagesToSummarize = Math.Max(0, totalCount - 5);
-                if (messagesToSummarize <= 0) return;
-
-                var existingSummaryContext = "";
-                if (!string.IsNullOrEmpty(draft.ChatSummary))
-                {
-                    existingSummaryContext = $"Existing Summary of earlier conversation:\n{draft.ChatSummary}\n\n";
-                }
-
-                var sb = new StringBuilder();
-                sb.AppendLine("Please read this conversation history and provide a concise, structured summary. Focus on key user instructions, preferences, decisions, and outcomes that the assistant should remember. Do not lose context. Keep the summary under 300 words.");
-                sb.AppendLine(existingSummaryContext);
-                sb.AppendLine("New Conversation History:");
-
-                for (int i = 0; i < messagesToSummarize; i++)
-                {
-                    var msg = messagesArray[i];
-                    var role = msg.TryGetProperty("role", out var r) ? r.GetString() : "unknown";
-                    
-                    var contentText = "";
-                    if (msg.TryGetProperty("content", out var contentProp))
+                    if (contentProp.ValueKind == JsonValueKind.String)
                     {
-                        if (contentProp.ValueKind == JsonValueKind.String)
+                        contentText = contentProp.GetString() ?? "";
+                    }
+                    else if (contentProp.ValueKind == JsonValueKind.Array)
+                    {
+                        var parts = new List<string>();
+                        foreach (var part in contentProp.EnumerateArray())
                         {
-                            contentText = contentProp.GetString() ?? "";
-                        }
-                        else if (contentProp.ValueKind == JsonValueKind.Array)
-                        {
-                            var parts = new List<string>();
-                            foreach (var part in contentProp.EnumerateArray())
+                            if (part.TryGetProperty("text", out var t))
                             {
-                                if (part.TryGetProperty("text", out var t))
-                                {
-                                    parts.Add(t.GetString() ?? "");
-                                }
+                                parts.Add(t.GetString() ?? "");
                             }
-                            contentText = string.Join(" ", parts);
                         }
-                    }
-
-                    sb.AppendLine($"{role}: {contentText}");
-                }
-
-                var summarizeRequest = new OpenAiModels.ChatCompletionRequest
-                {
-                    Model = credentials.Model,
-                    Messages = new List<OpenAiModels.OpenAiMessage>
-                    {
-                        new() { Role = "system", Content = "You are a helpful assistant that summarizes chat conversations to keep context tight." },
-                        new() { Role = "user", Content = sb.ToString() }
-                    },
-                    Stream = false
-                };
-
-                var response = await adapter.CompleteAsync(summarizeRequest, credentials, CancellationToken.None);
-                if (response?.Choices != null && response.Choices.Count > 0)
-                {
-                    var newSummary = response.Choices[0].Message.Content?.ToString();
-                    if (!string.IsNullOrEmpty(newSummary))
-                    {
-                        draft.ChatSummary = newSummary;
-                        draft.LastSummarizedMessageCount = messagesToSummarize;
-                        draft.UpdatedAt = DateTime.UtcNow;
-                        await db.SaveChangesAsync();
-                        logger.LogInformation("Compaction completed for draft {DraftId}. New LastSummarizedMessageCount: {LastSummarized}", draftId, messagesToSummarize);
+                        contentText = string.Join(" ", parts);
                     }
                 }
+
+                sb.AppendLine($"{role}: {contentText}");
             }
-            catch (Exception ex)
+
+            var summarizeRequest = new OpenAiModels.ChatCompletionRequest
             {
-                Console.WriteLine($"Error in background summarization: {ex}");
+                Model = credentials.Model,
+                Messages = new List<OpenAiModels.OpenAiMessage>
+                {
+                    new() { Role = "system", Content = "You are a helpful assistant that summarizes chat conversations to keep context tight." },
+                    new() { Role = "user", Content = sb.ToString() }
+                },
+                Stream = false
+            };
+
+            var response = await adapter.CompleteAsync(summarizeRequest, credentials, ct);
+            if (response?.Choices != null && response.Choices.Count > 0)
+            {
+                var newSummary = response.Choices[0].Message.Content?.ToString();
+                if (!string.IsNullOrEmpty(newSummary))
+                {
+                    draft.ChatSummary = newSummary;
+                    draft.LastSummarizedMessageCount = messagesToSummarize;
+                    draft.UpdatedAt = DateTime.UtcNow;
+                    await db.SaveChangesAsync(ct);
+                    logger.LogInformation("Compaction completed for draft {DraftId}. New LastSummarizedMessageCount: {LastSummarized}", draftId, messagesToSummarize);
+                }
             }
-        });
+        }));
     }
 
     public static List<string> SplitMarkdownIntoSegments(string markdown)

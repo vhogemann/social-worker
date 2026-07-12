@@ -19,6 +19,7 @@ using SocialWorker.Api.Features.CodeImages;
 using SocialWorker.Api.Features.PlatformVariants;
 using SocialWorker.Api.Infrastructure.Llm;
 using SocialWorker.Api.Infrastructure.Auth;
+using SocialWorker.Api.Infrastructure.Background;
 using SocialWorker.Api.Infrastructure.Search;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -77,6 +78,8 @@ builder.Services.AddScoped<IPublisher, FacebookPublisher>();
 builder.Services.AddScoped<IPublisher, InstagramPublisher>();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<LlmProviderService>();
+builder.Services.AddSingleton<BackgroundJobQueue>();
+builder.Services.AddHostedService<BackgroundJobHostedService>();
 
 builder.Services.AddDbContextPool<AppDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("Default")));

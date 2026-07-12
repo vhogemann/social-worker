@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Drafts;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
 
@@ -45,6 +46,7 @@ public sealed class ReplaceEditorContentTool : ChatToolBase<ReplaceEditorContent
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var draftsService = scope.ServiceProvider.GetRequiredService<DraftsService>();
 
         var draft = draftId.HasValue
             ? await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
@@ -55,7 +57,7 @@ public sealed class ReplaceEditorContentTool : ChatToolBase<ReplaceEditorContent
         draft.Content = markdown;
         draft.UpdatedAt = DateTime.UtcNow;
 
-        await SocialWorker.Api.Features.Drafts.DraftsEndpoint.ReconcileSegmentsAsync(db, draft, markdown, ct);
+        await draftsService.ReconcileSegmentsAsync(draft, markdown, ct);
         await db.SaveChangesAsync(ct);
 
         return new ReplaceEditorContentResult(true, markdown.Length, markdown);
