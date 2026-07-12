@@ -22,3 +22,8 @@ web/dist/
 # uploads
 uploads/
 !uploads/.gitkeep
+
+# e2e
+e2e/node_modules/
+e2e/reports/
+e2e/screenshots/

@@ -26,7 +26,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("LLM"));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
-builder.Services.AddHttpClient<ILlmProviderAdapter, OpenAiProviderAdapter>();
+builder.Services.AddHttpClient<OpenAiProviderAdapter>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ILlmProviderAdapter>(sp =>
+{
+    var httpContext = sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
+    if (httpContext?.Request.Headers.TryGetValue("X-Demo-Mode", out _) == true)
+    {
+        return new DemoLlmAdapter();
+    }
+    return sp.GetRequiredService<OpenAiProviderAdapter>();
+});
 builder.Services.AddScoped<DraftTitleGenerator>();
 builder.Services.AddScoped<ChatSessionLoader>();
 builder.Services.AddScoped<SystemPromptBuilder>();
@@ -190,5 +200,20 @@ app.MapPublishingEndpoints();
 app.MapBrandVoicePromptsEndpoints();
 app.MapCodeImageEndpoints();
 app.MapPlatformVariantsEndpoints();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapPost("/api/__tests/reset", async (AppDbContext db) =>
+    {
+        db.Posts.RemoveRange(db.Posts);
+        db.PlatformThreads.RemoveRange(db.PlatformThreads);
+        db.ThreadSegments.RemoveRange(db.ThreadSegments);
+        db.Sources.RemoveRange(db.Sources);
+        db.MediaAssets.RemoveRange(db.MediaAssets);
+        db.Drafts.RemoveRange(db.Drafts);
+        await db.SaveChangesAsync();
+        return Results.Ok(new { reset = true });
+    });
+}
 
 app.Run();

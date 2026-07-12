@@ -63,6 +63,24 @@ services:
       - SEARXNG_BASE_URL=http://searxng:8080/
     restart: unless-stopped
 
+  e2e:
+    profiles:
+      - e2e
+    build:
+      context: ./e2e
+      dockerfile: Dockerfile
+    environment:
+      BASE_URL: http://web:80
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: ${Auth__AdminPassword:-changeme}
+    depends_on:
+      api:
+        condition: service_started
+      web:
+        condition: service_started
+    volumes:
+      - ./e2e/reports:/e2e/reports
+
   dotnet:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /src/SocialWorker.Api
