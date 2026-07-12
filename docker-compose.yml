@@ -80,6 +80,8 @@ services:
         condition: service_started
     volumes:
       - ./e2e/reports:/e2e/reports
+      - ./e2e/screenshots:/e2e/screenshots
+      - ./e2e/output:/e2e/output
 
   dotnet:
     image: mcr.microsoft.com/dotnet/sdk:10.0

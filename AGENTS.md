@@ -124,6 +124,26 @@ Concretely for API changes:
 
 This workflow applies to all changes, not just new features. The `dotnet` service is defined under `profiles: [tooling]` and never starts with `docker compose up` — it is only used via `docker compose --profile tooling run --rm`.
 
+## E2E tests
+
+E2E tests live in `e2e/` and use Playwright with Docker. The API runs in Development mode, which activates `DemoLlmAdapter` for deterministic, LLM-free responses.
+
+```bash
+# run the full suite
+docker compose --profile e2e run --rm e2e npx playwright test
+
+# run a single test file
+docker compose --profile e2e run --rm e2e npx playwright test tests/chat.spec.ts
+
+# regenerate the getting-started guide
+docker compose --profile e2e build e2e
+docker compose --profile e2e run --rm e2e npx playwright test tests/generate-getting-started.spec.ts
+cp e2e/output/GETTING_STARTED.md GETTING_STARTED.md
+
+# re-run without rebuilding
+docker compose --profile e2e run --rm e2e npx playwright test
+```
+
 ## Out of scope for v1
 
 - Multi-user / auth.

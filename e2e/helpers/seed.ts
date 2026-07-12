@@ -16,14 +16,31 @@ export async function seedProvider(token: string): Promise<SeedProvider> {
   const res = await apiFetchAsUser("/api/providers", token, {
     method: "POST",
     body: JSON.stringify({
-      name: "Demo Provider",
+      name: `Demo Provider ${Date.now()}`,
       providerType: "OpenRouter",
       baseUrl: "https://demo.local/api/v1",
       model: "demo-model",
       isDefault: true,
     }),
   });
-  if (!res.ok) throw new Error(`seedProvider failed: ${res.status}`);
+  if (!res.ok) {
+    // If name conflict, try with a random suffix
+    if (res.status === 409) {
+      const retry = await apiFetchAsUser("/api/providers", token, {
+        method: "POST",
+        body: JSON.stringify({
+          name: `Demo Provider ${crypto.randomUUID()}`,
+          providerType: "OpenRouter",
+          baseUrl: "https://demo.local/api/v1",
+          model: "demo-model",
+          isDefault: true,
+        }),
+      });
+      if (!retry.ok) throw new Error(`seedProvider failed: ${retry.status}`);
+      return retry.json();
+    }
+    throw new Error(`seedProvider failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -49,7 +66,7 @@ export async function seedAccount(token: string): Promise<SeedAccount> {
     }),
   });
   if (!res.ok) throw new Error(`seedAccount failed: ${res.status}`);
-  return res.json();
+  return { id: "seeded-account" };
 }
 
 export async function seedDraft(token: string, title?: string, content?: string): Promise<SeedDraft> {

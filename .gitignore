@@ -27,3 +27,4 @@ uploads/
 e2e/node_modules/
 e2e/reports/
 e2e/screenshots/
+e2e/output/
