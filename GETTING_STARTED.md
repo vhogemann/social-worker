@@ -5,7 +5,6 @@ social-worker is a local-first, Docker-only multi-modal assistant for composing 
 ## Prerequisites
 
 - Docker with Compose v2
-- mkcert (for local HTTPS)
 
 ## Quick Start
 
@@ -13,11 +12,10 @@ social-worker is a local-first, Docker-only multi-modal assistant for composing 
 git clone <repo>
 cd social-worker
 cp .env.example .env
-./scripts/bootstrap.sh
 docker compose up --build
 ```
 
-Then open `https://social-worker.localtest` in your browser.
+Then open `http://localhost:8100` in your browser.
 
 ## App Walkthrough
 

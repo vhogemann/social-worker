@@ -18,35 +18,25 @@ Local-first, Docker-only multi-modal assistant for composing and publishing soci
 | Auth | JWT bearer + opaque refresh tokens, BCrypt passwords |
 | Search | Brave Search API or local SearXNG (configurable) |
 | Images | SkiaSharp (resize, code image rendering) |
-| Local HTTPS | Caddy + mkcert |
 
 ---
 
 ## Running locally
 
 ```bash
-# one-time cert bootstrap (requires mkcert on host)
-./scripts/bootstrap.sh
-
-# CPU
 docker compose up --build
-
-# Linux + NVidia GPU (for Ollama)
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 ```
 
-Domains after bootstrap:
-- `https://social-worker.localtest` — app
-- `https://api.social-worker.localtest` — API
+- `http://localhost:8100` — app
+- `http://localhost:8101` — API
 
 ---
 
 ## What is built and working
 
 ### Core infrastructure
-- [x] Docker Compose stack: `db`, `api`, `web`, `searxng`, `adminer`, `proxy`, `ollama` (profile `local-llm`)
+- [x] Docker Compose stack: `db`, `api`, `web`, `searxng`, `adminer`, `ollama` (profile `local-llm`)
 - [x] EF Core migrations applied automatically on startup
-- [x] Local HTTPS via Caddy + mkcert (`scripts/bootstrap.sh`)
 - [x] JWT auth with refresh tokens; single admin user seeded at startup
 
 ### Data model (all migrated)
@@ -62,7 +52,6 @@ Domains after bootstrap:
 - [x] LLM providers — DB-backed config, per-user preference, connectivity test endpoint
 - [x] Bluesky publishing — app-password flow, images per segment, platform thread lifecycle
 - [x] Platform publisher stubs — Twitter, LinkedIn, Facebook, Instagram (`NotImplemented`)
-- [x] Brand voice prompts — CRUD library, default prompt injection into system prompt
 - [x] Platform limits validation — Bluesky 300-grapheme limit, image/YouTube conflict checks
 
 ### LLM tools (14 active)

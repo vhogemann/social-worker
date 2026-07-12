@@ -86,16 +86,7 @@ e2e:
 
 ## HTTPS / Certs
 
-**95% of tests** use internal `http://web:80` (nginx serves the app internally, same origin proxy to API). No TLS needed inside the Docker network.
-
-**One smoke test** verifies the full TLS path via Caddy at `https://social-worker.localtest`. Mount the mkcert root CA:
-
-```yaml
-volumes:
-  - ./proxy/certs/rootCA.pem:/usr/local/share/ca-certificates/proxy/rootCA.pem:ro
-```
-
-The Playwright image supports `update-ca-certificates` — add an entrypoint script or set `NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/proxy/rootCA.pem`.
+All tests use internal `http://web:80` (nginx serves the app internally, same origin proxy to API). No TLS needed inside the Docker network — the app runs on `http://localhost:8100` on the host.
 
 ## Data Seeding
 

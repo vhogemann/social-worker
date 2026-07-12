@@ -18,30 +18,20 @@ Thread-first: a draft is an ordered thread of segments. Stages are explicit and 
 - **Backend** (`api/`): .NET 10 ASP.NET Core Minimal API + Entity Framework Core + Postgres.
 - **LLM**: `Microsoft.Extensions.AI` + `OpenAI` .NET SDK with configurable `BaseUrl` to support OpenAI, OpenRouter, and Ollama (all OpenAI-compatible).
 - **DB**: Postgres 16. Migrations run automatically via a one-shot `migrator` compose service on `docker compose up`.
-- **Local HTTPS**: Caddy + mkcert. One host-side bootstrap script generates certs.
+- **Stack**: .NET 10, ASP.NET Core Minimal API, EF Core + Postgres 16, Vite + React + TypeScript + Tailwind, SkiaSharp, SearXNG.
+- **Hosting**: Docker Compose only. NGINX serves the frontend and proxies `/api/` to the backend.
 - **v1 auth**: single-user, no auth. Platform tokens stored encrypted in Postgres (AES with env key).
 
 ## Running locally
 
-Everything runs under Docker. Only host prerequisites: Docker (with Compose v2) and `mkcert` (plus `nss`/`firefox` extras only if using Firefox).
+Everything runs under Docker. Only host prerequisite: Docker (with Compose v2).
 
 ```
-# one-time cert bootstrap
-./scripts/bootstrap.sh
-
-# CPU (Mac or Linux without GPU)
-docker compose --profile local-llm up --build
-
-# Linux + NVidia GPU (requires nvidia-container-toolkit on host)
-docker compose --profile local-llm -f docker-compose.yml -f docker-compose.gpu.yml up --build
+docker compose up --build
 ```
 
-Domains (after bootstrap):
-- `https://social-worker.localtest` — app
-- `https://api.social-worker.localtest` — API
-- `https://db.social-worker.localtest` — Adminer
-
-Pull a local model: `docker exec social-worker-ollama ollama pull llama3.1`.
+- `http://localhost:8100` — app
+- `http://localhost:8101` — API
 
 ## Layout
 
@@ -51,7 +41,7 @@ social-worker/
 ├─ docker-compose.gpu.yml          # NVidia override for ollama
 ├─ .env / .env.example
 ├─ scripts/bootstrap.sh            # mkcert cert generation
-├─ proxy/                          # Caddyfile + generated certs (gitignored)
+├─ proxy/                          # Caddyfile + generated certs (gitignored, unused — app runs on localhost:8100)
 ├─ api/                            # .NET 10 Minimal API + EF Core
 │  └─ SocialWorker.Api/
 └─ web/                            # Vite + React + TS + Tailwind
@@ -74,7 +64,7 @@ social-worker/
 - **No emojis** in code or commits.
 - **Mimic existing style** when adding to a file; check neighbors first.
 - **Do not commit** unless explicitly asked.
-- **Secrets**: never commit `.env`, `proxy/certs/`, or any API keys. `.gitignore` must cover these.
+- **Secrets**: never commit `.env`, `proxy/certs/` (if present), or any API keys. `.gitignore` must cover these.
 - **TypeScript types** for API responses are hand-synced in `web/src/api/`. If the API contract changes, update both sides. (OpenAPI codegen is a later option.)
 - **EF migrations**: generate with `dotnet ef migrations add <Name>` inside the `api` container; commit the migration files. The migrator service applies them on `up`.
 - **New platform publishers** implement `IPublisher` in `api/SocialWorker.Api/Features/Publishing/`. `BlueskyPublisher` is the reference; others return `NotImplemented` + an auth URL until implemented.

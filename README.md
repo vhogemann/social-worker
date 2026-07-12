@@ -11,7 +11,6 @@ Designed to support creators with LLM assistance, `social-worker` lets you draft
 - **Frontend**: Vite + React + TypeScript + Tailwind. State management via Zustand, server state synchronization via TanStack React Query, and SSE streaming chat via native `EventSource`.
 - **Backend**: .NET 10 ASP.NET Core Minimal APIs + Entity Framework Core + Postgres 16.
 - **AI Integrations**: Built using `Microsoft.Extensions.AI` and the `OpenAI` .NET SDK, supporting OpenAI, OpenRouter, and Ollama.
-- **Local Proxy & HTTPS**: Caddy + `mkcert` for host-safe domain resolution and SSL termination.
 
 ---
 
@@ -33,40 +32,17 @@ Designed to support creators with LLM assistance, `social-worker` lets you draft
 
 Ensure you have the following installed on your host machine:
 1. **Docker** (with Compose v2+)
-2. **mkcert** (local HTTPS certificate utility)
 
-### 1. Certificate Setup
+### 1. Launch Services
 
-Run the bootstrap script once on the host machine to generate self-signed certs for local domains:
-
-```bash
-./scripts/bootstrap.sh
-```
-
-This creates SSL certificates mapped to:
-- `https://social-worker.localtest` — Web Client Application
-- `https://api.social-worker.localtest` — Backend REST API
-- `https://db.social-worker.localtest` — Database Manager (Adminer)
-
-### 2. Launch Services
-
-Start the development stack under Docker:
+Start the development stack:
 
 ```bash
-# CPU mode (Mac or Linux without GPU)
-docker compose --profile local-llm up --build
-
-# Linux + NVidia GPU mode (requires nvidia-container-toolkit on host)
-docker compose --profile local-llm -f docker-compose.yml -f docker-compose.gpu.yml up --build
+docker compose up --build
 ```
 
-### 3. Initialize Local LLM Model (Optional)
-
-If running a local Ollama model:
-
-```bash
-docker exec social-worker-ollama ollama pull llama3.1
-```
+- **Web App**: `http://localhost:8100`
+- **API**: `http://localhost:8101`
 
 ---
 
