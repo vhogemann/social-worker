@@ -47,14 +47,14 @@ Tracking progress on filling test gaps across the codebase.
 9 of 13 tools have no tests. 4 covered: `WebSearchTool`, `ImageSearchTool`, `AddSourceTool`, `ValidateDraftTool`.
 
 | Tool | Status |
-|---|---|
+|---|---|---|
 | `ReplaceEditorContentTool` | [ ] |
-| `ProposeStageTransitionTool` | [ ] |
-| `ListSourcesTool` | [ ] |
-| `FetchSourceTool` | [ ] |
+| `ProposeStageTransitionTool` | [x] |
+| `ListSourcesTool` | [x] |
+| `FetchSourceTool` | [x] |
 | `ViewImageTool` | [ ] |
 | `PublishPlatformTool` | [ ] |
-| `AddImageSourceTool` | [ ] |
+| `AddImageSourceTool` | [x] |
 | `RenderCodeBlocksTool` | [ ] |
 | `GeneratePlatformVariantsTool` | [ ] |
 
