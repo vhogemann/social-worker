@@ -32,12 +32,12 @@ Tracking progress on filling test gaps across the codebase.
 | File | Lines | Notes | Status |
 |---|---|---|---|---|
 | `CodeImageService.cs` | ~60 | Only Renderer + Parser tested; service layer untested | [x] 1 test: render and store produces media asset |
-| `WebScraperService.cs` | ~220 | URL scraping, YouTube metadata, readability extraction | [ ] |
+| `WebScraperService.cs` | ~220 | URL scraping, YouTube metadata, readability extraction | [x] 5 tests: empty URL, https prepend, content extraction, noise removal, YouTube detection |
 | `SourceExtractor.cs` | ~40 | PDF text extraction, txt/md parsing | [x] 3 tests: txt, md, unsupported extension |
-| `ChatSessionLoader.cs` | ~110 | Session loading, draft creation, brand voice resolution | [ ] |
+| `ChatSessionLoader.cs` | ~110 | Session loading, draft creation, brand voice resolution | [x] 8 tests: inactive user, no provider, new draft, editor content, existing draft, deleted draft, content update, brand voice |
 | `DraftTitleGenerator.cs` | ~50 | LLM-based title generation from chat | [x] 2 tests: no messages, empty message (no-throw) |
 | `ChatStreamWriter.cs` | ~100 | SSE message formatting | [x] 8 tests: message id, text delta, tool call, empty args, tool result, step finish, isContinued, stream done |
-| `ModelCapabilityProbe.cs` | ~180 | Capability probing for OpenAI, OpenRouter, Ollama | [ ] |
+| `ModelCapabilityProbe.cs` | ~180 | Capability probing for OpenAI, OpenRouter, Ollama | [x] 8 tests: OpenAI vision heuristics, non-vision, o1, caching, unknown provider, OpenRouter fallback, Ollama fallback |
 | `CryptoHelper.cs` | ~50 | AES encryption/decryption round-trip | [x] 5 tests: round-trip, empty in/out, different output per call, wrong key throws |
 
 ---
