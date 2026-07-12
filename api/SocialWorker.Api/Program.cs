@@ -211,6 +211,9 @@ if (app.Environment.IsDevelopment())
         db.Sources.RemoveRange(db.Sources);
         db.MediaAssets.RemoveRange(db.MediaAssets);
         db.Drafts.RemoveRange(db.Drafts);
+        db.Accounts.RemoveRange(db.Accounts);
+        db.BrandVoicePrompts.RemoveRange(db.BrandVoicePrompts);
+        db.LlmProviders.RemoveRange(db.LlmProviders);
         await db.SaveChangesAsync();
         return Results.Ok(new { reset = true });
     });
