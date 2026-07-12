@@ -48,15 +48,15 @@ Tracking progress on filling test gaps across the codebase.
 
 | Tool | Status |
 |---|---|---|
-| `ReplaceEditorContentTool` | [ ] |
+| `ReplaceEditorContentTool` | [x] |
 | `ProposeStageTransitionTool` | [x] |
 | `ListSourcesTool` | [x] |
 | `FetchSourceTool` | [x] |
-| `ViewImageTool` | [ ] |
-| `PublishPlatformTool` | [ ] |
+| `ViewImageTool` | [x] |
+| `PublishPlatformTool` | [x] |
 | `AddImageSourceTool` | [x] |
-| `RenderCodeBlocksTool` | [ ] |
-| `GeneratePlatformVariantsTool` | [ ] |
+| `RenderCodeBlocksTool` | [x] |
+| `GeneratePlatformVariantsTool` | [x] |
 
 ---
 
