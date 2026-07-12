@@ -83,6 +83,16 @@ services:
       - ./e2e/screenshots:/e2e/screenshots
       - ./e2e/output:/e2e/output
 
+  web-test:
+    image: node:22-alpine
+    working_dir: /app
+    entrypoint: ["npx"]
+    command: ["vitest", "run"]
+    volumes:
+      - ./web:/app
+    profiles:
+      - tooling
+
   dotnet:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /src/SocialWorker.Api

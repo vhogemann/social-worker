@@ -62,11 +62,65 @@ Tracking progress on filling test gaps across the codebase.
 
 ## Frontend (web/)
 
-Currently only 1 test file (`SourcesPanel.test.tsx`, 2 tests). No test framework is mandated yet — this section is tracked for when Vitest + Testing Library are introduced.
+Framework: Vitest + Testing Library + jsdom (already configured). Run via `docker compose exec web npm run test` or `docker compose run --rm web npm run test`.
 
-- Stores (zustand): authStore, chatStore, draftStore, editorStore
-- API layer: accounts, auth, brandVoices, chat, client, drafts, providers
-- Components: ChatPanel, DraftList, EditorPanel, MarkdownEditor, Thread preview tree (12 files), Settings tree (6 files), Login, AuthGuard
+### Priority order
+
+### P0 — Core stores and API layer (isolated, no DOM)
+
+| Module | Files | What to test | Status |
+|---|---|---|---|
+| `authStore` | `store/authStore.ts` | login, logout, initialize, setTokens, token persistence to localStorage, error handling | [x] |
+| `draftStore` | `store/draftStore.ts` | create, load, switch, save, archive, delete, updateTitle, upload, publish, variants | [x] |
+| `editorStore` | `store/editorStore.ts` | setDoc, applyExternal, insertAtCursor, version tracking | [x] |
+| `chatStore` | `store/chatStore.ts` | send message, receive stream, tool call rendering, stage transitions | [x] |
+| `api/client` | `api/client.ts` | apiFetch, auth header injection, error handling, token refresh | [x] |
+| `api/auth` | `api/auth.ts` | login, refresh, logout, getMe, changePassword, user CRUD | [x] |
+| `api/drafts` | `api/drafts.ts` | CRUD, publish, upload, renderCodeImage, variants | [x] |
+| `api/providers` | `api/providers.ts` | CRUD, test connection | [x] |
+| `api/accounts` | `api/accounts.ts` | CRUD | [x] |
+| `api/brandVoices` | `api/brandVoices.ts` | CRUD | [x] |
+
+### P1 — Leaf components (few dependencies)
+
+| Component | File(s) | Approach | Status |
+|---|---|---|---|
+| `LoginPage` | `Login/LoginPage.tsx` | Render with store mocked, test form submit, validation, error display | [ ] |
+| `AuthGuard` | `Login/AuthGuard.tsx` | Test redirect to login when unauthenticated, render children when authenticated | [ ] |
+| `Settings/AccountTab` | `Settings/AccountTab.tsx` | Password change form, validation | [ ] |
+| `Settings/ConnectionsTab` | `Settings/ConnectionsTab.tsx` | List accounts, add/remove connection | [ ] |
+| `Settings/ProvidersTab` | `Settings/ProvidersTab.tsx` | List providers, add/edit/delete, test connection | [ ] |
+| `Settings/BrandVoicesTab` | `Settings/BrandVoicesTab.tsx` | List voices, add/edit/delete, set default | [ ] |
+| `Settings/UsersTab` | `Settings/UsersTab.tsx` | List users, create, reset password (admin) | [ ] |
+| `DraftList/CreateDraftModal` | `DraftList/CreateDraftModal.tsx` | Form submit, platform selection, validation | [ ] |
+
+### P2 — Composite components (need store mocking)
+
+| Component | File(s) | Approach | Status |
+|---|---|---|---|
+| `ChatPanel` / `Thread` | `ChatPanel/` | Render with mocked SSE stream, test message rendering, tool call UI, approve button | [ ] |
+| `DraftList` | `DraftList/DraftList.tsx` | List, archive, delete, rename, navigate | [ ] |
+| `MarkdownEditor` | `EditorPanel/MarkdownEditor.tsx` | CodeMirror mount, content change, drag-and-drop, paste upload | [ ] |
+| `EditorPanel` | `EditorPanel/EditorPanel.tsx` | Mode toggle, publish button, adapt button, SourcesPanel integration | [ ] |
+| `SourcesPanel` | `EditorPanel/Sources/SourcesPanel.tsx` | Already has 2 tests — expand, preview source | [x] |
+| `SourceItem` | `EditorPanel/Sources/SourceItem.tsx` | Source display, delete | [ ] |
+| `MediaAssetItem` | `EditorPanel/Sources/MediaAssetItem.tsx` | Media display, alt text, delete | [ ] |
+| `SourcePreviewModal` | `EditorPanel/Sources/SourcePreviewModal.tsx` | Content display, loading, error | [ ] |
+| `ThreadPreview` | `EditorPanel/ThreadPreview/` (12 files) | Segment cards, media preview, alt-text editor, copy, YouTube embeds, link cards | [ ] |
+| `AdaptVariantsModal` | `EditorPanel/AdaptVariantsModal.tsx` | Platform selection, generate, progress, results | [ ] |
+
+### Running frontend tests
+
+```bash
+# run all frontend tests
+docker compose exec web npm run test
+
+# run with watch mode
+docker compose exec web npm run test -- --watch
+
+# if web service isn't running
+docker compose run --rm web npm run test
+```
 
 ---
 
