@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Prompts;
 
@@ -19,11 +20,11 @@ public static class BrandVoicePromptsEndpoint
 
         group.MapGet("/", async (AppDbContext db, ClaimsPrincipal user) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdStr, out var userId)) return Results.Unauthorized();
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
 
             var prompts = await db.BrandVoicePrompts
-                .Where(p => p.UserId == userId)
+                .Where(p => p.UserId == userId.Value)
                 .OrderByDescending(p => p.CreatedAt)
                 .Select(p => new BrandVoicePromptDto(p.Id, p.Name, p.Body, p.IsDefault, p.CreatedAt, p.UpdatedAt))
                 .ToListAsync();
@@ -33,11 +34,11 @@ public static class BrandVoicePromptsEndpoint
 
         group.MapGet("/{id:guid}", async (Guid id, AppDbContext db, ClaimsPrincipal user) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdStr, out var userId)) return Results.Unauthorized();
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
 
             var prompt = await db.BrandVoicePrompts
-                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId.Value);
 
             if (prompt == null) return Results.NotFound("Brand voice prompt not found.");
 
@@ -46,8 +47,8 @@ public static class BrandVoicePromptsEndpoint
 
         group.MapPost("/", async (BrandVoicePromptRequest req, AppDbContext db, ClaimsPrincipal user) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdStr, out var userId)) return Results.Unauthorized();
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
 
             if (string.IsNullOrWhiteSpace(req.Name)) return Results.BadRequest("Name is required.");
             if (string.IsNullOrWhiteSpace(req.Body)) return Results.BadRequest("Prompt body is required.");
@@ -55,7 +56,7 @@ public static class BrandVoicePromptsEndpoint
             if (req.IsDefault)
             {
                 var defaults = await db.BrandVoicePrompts
-                    .Where(p => p.UserId == userId && p.IsDefault)
+                    .Where(p => p.UserId == userId.Value && p.IsDefault)
                     .ToListAsync();
                 foreach (var d in defaults)
                 {
@@ -66,7 +67,7 @@ public static class BrandVoicePromptsEndpoint
 
             var prompt = new BrandVoicePrompt
             {
-                UserId = userId,
+                UserId = userId.Value,
                 Name = req.Name,
                 Body = req.Body,
                 IsDefault = req.IsDefault
@@ -80,21 +81,21 @@ public static class BrandVoicePromptsEndpoint
 
         group.MapPut("/{id:guid}", async (Guid id, BrandVoicePromptRequest req, AppDbContext db, ClaimsPrincipal user) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdStr, out var userId)) return Results.Unauthorized();
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
 
             if (string.IsNullOrWhiteSpace(req.Name)) return Results.BadRequest("Name is required.");
             if (string.IsNullOrWhiteSpace(req.Body)) return Results.BadRequest("Prompt body is required.");
 
             var prompt = await db.BrandVoicePrompts
-                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId.Value);
 
             if (prompt == null) return Results.NotFound("Brand voice prompt not found.");
 
             if (req.IsDefault && !prompt.IsDefault)
             {
                 var defaults = await db.BrandVoicePrompts
-                    .Where(p => p.UserId == userId && p.IsDefault && p.Id != id)
+                    .Where(p => p.UserId == userId.Value && p.IsDefault && p.Id != id)
                     .ToListAsync();
                 foreach (var d in defaults)
                 {
@@ -114,11 +115,11 @@ public static class BrandVoicePromptsEndpoint
 
         group.MapDelete("/{id:guid}", async (Guid id, AppDbContext db, ClaimsPrincipal user) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdStr, out var userId)) return Results.Unauthorized();
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
 
             var prompt = await db.BrandVoicePrompts
-                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId.Value);
 
             if (prompt != null)
             {

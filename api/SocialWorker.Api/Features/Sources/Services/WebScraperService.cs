@@ -79,6 +79,7 @@ public sealed class WebScraperService
         }
         catch
         {
+            Console.Error.WriteLine($"Failed to fetch oEmbed metadata for {url}");
         }
 
         if (!string.IsNullOrEmpty(authorUrl))
@@ -132,6 +133,7 @@ public sealed class WebScraperService
             }
             catch
             {
+                Console.Error.WriteLine($"Failed to fetch YouTube RSS feed for {authorUrl}");
             }
         }
 

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Drafts;
 
@@ -19,7 +20,7 @@ public static class DraftsEndpoint
 
         group.MapGet("/", async (ClaimsPrincipal principal, DraftsService draftsService, CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             var drafts = await draftsService.GetDraftsForUserAsync(userId.Value, ct);
@@ -28,7 +29,7 @@ public static class DraftsEndpoint
 
         group.MapPost("/", async (ClaimsPrincipal principal, DraftsService draftsService, CreateDraftRequest req, CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             var result = await draftsService.CreateDraftAsync(userId.Value, req.Title, req.Content, req.TargetPlatform, ct);
@@ -37,7 +38,7 @@ public static class DraftsEndpoint
 
         group.MapGet("/{id:guid}", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             try
@@ -53,7 +54,7 @@ public static class DraftsEndpoint
 
         group.MapPatch("/{id:guid}", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, UpdateDraftRequest req, CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             try
@@ -69,7 +70,7 @@ public static class DraftsEndpoint
 
         group.MapGet("/{id:guid}/threads", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             try
@@ -85,7 +86,7 @@ public static class DraftsEndpoint
 
         group.MapPost("/{id:guid}/threads", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, CreatePlatformThreadRequest req, CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             if (string.IsNullOrWhiteSpace(req.Platform))
@@ -116,7 +117,7 @@ public static class DraftsEndpoint
             UpdatePlatformThreadRequest req,
             CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             try
@@ -141,12 +142,6 @@ public static class DraftsEndpoint
     {
         var service = new DraftsService(db, null!, null!, null!);
         await service.ReconcileSegmentsAsync(draft, markdown, ct);
-    }
-
-    private static Guid? GetUserId(ClaimsPrincipal principal)
-    {
-        var id = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(id, out var parsed) ? parsed : null;
     }
 }
 

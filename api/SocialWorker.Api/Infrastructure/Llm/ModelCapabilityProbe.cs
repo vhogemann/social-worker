@@ -142,19 +142,6 @@ public class ModelCapabilityProbe
         return new ModelCapabilities(SupportsVision: false, SupportsTools: false);
     }
 
-    private static bool IsKnownVisionModel(string model)
-    {
-        var m = model.ToLowerInvariant();
-        return m.Contains("llava")
-            || m.Contains("llava-llama")
-            || m.Contains("llava-phi")
-            || m.Contains("moondream")
-            || m.Contains("paligemma")
-            || m.Contains("minicpm-v")
-            || m.Contains("vision")
-            || m.Contains("bakllava");
-    }
-
     private class OpenRouterModelsResponse
     {
         [JsonPropertyName("data")]

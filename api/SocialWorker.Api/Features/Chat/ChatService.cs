@@ -35,6 +35,8 @@ public sealed class ChatService
         _tools = tools;
     }
 
+    private const int MaxContextMessages = 10;
+
     public async IAsyncEnumerable<string> StreamAsync(
         ChatModels.ChatRequest req,
         Guid userId,
@@ -60,7 +62,7 @@ public sealed class ChatService
         };
 
         var messagesToSend = req.Messages;
-        if (messagesToSend.Count > 10)
+        if (messagesToSend.Count > MaxContextMessages)
         {
             messagesToSend = messagesToSend.Skip(messagesToSend.Count - 10).ToList();
         }

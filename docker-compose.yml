@@ -63,5 +63,15 @@ services:
       - SEARXNG_BASE_URL=http://searxng:8080/
     restart: unless-stopped
 
+  dotnet:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /src/SocialWorker.Api
+    entrypoint: ["dotnet"]
+    command: ["--info"]
+    volumes:
+      - ./api:/src
+    profiles:
+      - tooling
+
 volumes:
   pgdata:

@@ -16,15 +16,18 @@ public sealed class ChatSessionLoader
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ModelCapabilityProbe _probe;
     private readonly DraftTitleGenerator _titleGenerator;
+    private readonly LlmProviderService _providerService;
 
     public ChatSessionLoader(
         IServiceScopeFactory scopeFactory,
         ModelCapabilityProbe probe,
-        DraftTitleGenerator titleGenerator)
+        DraftTitleGenerator titleGenerator,
+        LlmProviderService providerService)
     {
         _scopeFactory = scopeFactory;
         _probe = probe;
         _titleGenerator = titleGenerator;
+        _providerService = providerService;
     }
 
     public async Task<ChatSessionContext> LoadAsync(
@@ -40,17 +43,7 @@ public sealed class ChatSessionLoader
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, ct)
             ?? throw new InvalidOperationException("User not found or inactive.");
 
-        LlmProvider? provider = null;
-        if (user.PreferredProviderId.HasValue)
-        {
-            provider = await db.LlmProviders.FirstOrDefaultAsync(p => p.Id == user.PreferredProviderId.Value && p.IsActive, ct);
-        }
-
-        if (provider == null)
-        {
-            provider = await db.LlmProviders.FirstOrDefaultAsync(p => p.IsDefault && p.IsActive, ct);
-        }
-
+        var provider = await _providerService.GetProviderForUserAsync(db, user, ct);
         if (provider == null)
         {
             throw new InvalidOperationException("No active LLM provider found.");

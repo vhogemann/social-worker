@@ -19,10 +19,12 @@ public sealed record GeneratePlatformVariantsArgs(string CanonicalDraftId, List<
 public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatformVariantsArgs, string>
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly LlmProviderService _providerService;
 
-    public GeneratePlatformVariantsTool(IServiceScopeFactory scopeFactory)
+    public GeneratePlatformVariantsTool(IServiceScopeFactory scopeFactory, LlmProviderService providerService)
     {
         _scopeFactory = scopeFactory;
+        _providerService = providerService;
     }
 
     public override string Name => "generate_platform_variants";
@@ -70,12 +72,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
         var errors = new List<string>();
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, ct);
-        LlmProvider? provider = null;
-        if (user?.PreferredProviderId != null)
-        {
-            provider = await db.LlmProviders.FirstOrDefaultAsync(p => p.Id == user.PreferredProviderId && p.IsActive, ct);
-        }
-        provider ??= await db.LlmProviders.FirstOrDefaultAsync(p => p.IsDefault && p.IsActive, ct);
+        var provider = user != null ? await _providerService.GetProviderForUserAsync(db, user, ct) : null;
 
         if (provider == null)
         {

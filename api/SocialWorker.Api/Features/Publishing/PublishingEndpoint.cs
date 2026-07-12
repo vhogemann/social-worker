@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Publishing;
 
@@ -27,8 +28,8 @@ public static class PublishingEndpoint
             Guid threadId,
             CancellationToken ct) =>
         {
-            var userIdStr = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdStr, out var userId)) return Results.Unauthorized();
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
 
             var thread = await db.PlatformThreads
                 .Include(t => t.Draft)

@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
@@ -10,39 +9,21 @@ using Xunit;
 
 namespace SocialWorker.Api.Tests;
 
-public sealed class DraftTests : IDisposable
+public sealed class DraftTests : SqliteTestBase
 {
-    private readonly SqliteConnection _connection;
     private readonly AppDbContext _db;
     private readonly AppUser _user;
 
     public DraftTests()
     {
-        _connection = new SqliteConnection("Filename=:memory:");
-        _connection.Open();
-
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-
-        _db = new AppDbContext(options);
-        _db.Database.EnsureCreated();
-
-        _user = new AppUser
-        {
-            Id = Guid.NewGuid(),
-            Username = "testuser",
-            Email = "test@example.com",
-            PasswordHash = "hash"
-        };
-        _db.Users.Add(_user);
-        _db.SaveChanges();
+        _db = CreateDbContext();
+        _user = CreateSeedUser(_db);
     }
 
-    public void Dispose()
+    protected override void Cleanup()
     {
         _db.Dispose();
-        _connection.Dispose();
+        base.Cleanup();
     }
 
     [Fact]

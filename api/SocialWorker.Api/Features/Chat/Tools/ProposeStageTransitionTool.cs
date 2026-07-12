@@ -12,7 +12,7 @@ public sealed record ProposeStageTransitionResult(bool Success, string Platform,
 public sealed class ProposeStageTransitionTool : ChatToolBase<ProposeStageTransitionArgs, ProposeStageTransitionResult>
 {
     public override string Name => "propose_stage_transition";
-    public override string Description => "Propose transitioning the draft to a new stage (e.g. Sourcing, Refining, Formatting, Sent).";
+    public override string Description => "Propose transitioning the draft to a new stage (e.g. Draft, Sent).";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

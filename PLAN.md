@@ -153,3 +153,4 @@ Domains after bootstrap:
 | `docs/REFACTORING_PLAN.md` | Ongoing |
 | `docs/PLATFORM_VARIANTS.md` | v1 — Done (Phases 1-7 complete) |
 | `docs/SOURCES_LIBRARY_AND_TRANSCRIPTS.md` | v2 Plan — global source search + YouTube transcripts |
+| `docs/TECH_DEBT.md` | Inventory of quick wins, tech debt, and missing tests |

@@ -98,15 +98,31 @@ For Ollama, set `LLM__Provider=Ollama`, `LLM__BaseUrl=http://ollama:11434/v1`, `
 ## Verification
 
 No mandated test framework yet. When adding tests:
-- **API**: xUnit under `api/SocialWorker.Api.Tests/`. Run via `dotnet test` inside the api container.
+- **API**: xUnit under `api/SocialWorker.Api.Tests/`. Run via `dotnet test` inside the dotnet container.
 - **Web**: Vitest if/when added.
 
 **Builds and checks must run inside Docker, not on the host.** Do not invoke `dotnet`, `npm`, `npx`, or `tsc` directly on the host machine. The host may not have the required SDK/runtime versions and the dev environment must match prod. Use the compose images instead:
 
-- API: `docker compose exec api dotnet build` and `docker compose exec api dotnet test` (if tests exist). If the `api` service isn't running, use `docker compose run --rm api dotnet build`.
+- API build: `docker compose --profile tooling run --rm dotnet build`
+- API test: `docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj`
+- API build + test: `docker compose --profile tooling run --rm dotnet build && docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj`
 - Web: `docker compose exec web sh -c "npm run build && npm run typecheck"`. If the `web` service isn't running, use `docker compose run --rm web sh -c "npm run build && npm run typecheck"`. (The web runtime image is nginx-based; for build-only checks use `docker compose build web`.)
-- To generate EF migrations: `docker compose exec api dotnet ef migrations add <Name>` (the `dotnet-ef` tool is installed in the api image).
+- To generate EF migrations: `docker compose --profile tooling run --rm dotnet ef migrations add <Name>` (the `dotnet-ef` tool is installed in the api Dockerfile build stage; for first use in the `dotnet` service run `dotnet tool install --global dotnet-ef` then ensure `PATH="$PATH:/root/.dotnet/tools"`).
 - `docker compose up --build` is the canonical way to build and run everything.
+
+## Change workflow (mandatory)
+
+Before making any changes, establish a baseline by running the build and tests inside Docker. Then make changes, then re-run build and tests to verify. Do not move on to the next step until the build passes and all tests succeed.
+
+Concretely for API changes:
+
+1. `docker compose --profile tooling run --rm dotnet build` — confirm baseline compiles
+2. `docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj` — confirm baseline tests pass
+3. Make the change
+4. `docker compose --profile tooling run --rm dotnet build` — confirm change compiles
+5. `docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj` — confirm tests still pass
+
+This workflow applies to all changes, not just new features. The `dotnet` service is defined under `profiles: [tooling]` and never starts with `docker compose up` — it is only used via `docker compose --profile tooling run --rm`.
 
 ## Out of scope for v1
 

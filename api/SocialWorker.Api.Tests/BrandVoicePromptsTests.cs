@@ -98,11 +98,13 @@ public sealed class BrandVoicePromptsTests : IDisposable
 
         var cache = new MemoryCache(new MemoryCacheOptions());
         var probe = new ModelCapabilityProbe(null!, cache, NullLogger<ModelCapabilityProbe>.Instance);
+        var providerService = new LlmProviderService();
 
         var loader = new ChatSessionLoader(
             scopeFactory,
             probe,
-            null!
+            null!,
+            providerService
         );
 
         var session = await loader.LoadAsync(userId, draft.Id, null, new List<ChatModels.UiMessage>(), CancellationToken.None);

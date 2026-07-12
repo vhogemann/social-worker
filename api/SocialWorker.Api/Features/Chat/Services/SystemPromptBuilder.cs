@@ -64,7 +64,7 @@ public sealed class SystemPromptBuilder
         }
         catch
         {
-            // Fallback
+            Console.Error.WriteLine("Failed to read SYSTEM_PROMPT.md, using default prompt");
         }
 
         return defaultPrompt;

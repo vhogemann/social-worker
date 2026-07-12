@@ -76,6 +76,7 @@ builder.Services.AddScoped<IPublisher, LinkedInPublisher>();
 builder.Services.AddScoped<IPublisher, FacebookPublisher>();
 builder.Services.AddScoped<IPublisher, InstagramPublisher>();
 builder.Services.AddMemoryCache();
+builder.Services.AddScoped<LlmProviderService>();
 
 builder.Services.AddDbContextPool<AppDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("Default")));

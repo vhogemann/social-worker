@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Drafts;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
 
@@ -19,7 +20,6 @@ public sealed record ValidateDraftArgs(string? Content);
 public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, string>
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private static readonly Regex MediaRegex = new(@"!\[(.*?)\]\(media://([0-9a-fA-F\-]{36})\)", RegexOptions.Compiled);
 
     public ValidateDraftTool(IServiceScopeFactory scopeFactory)
     {
@@ -88,7 +88,7 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, string>
             var segment = segments[i];
             sb.AppendLine($"#### Post {i + 1}:");
 
-            var imageMatches = MediaRegex.Matches(segment);
+            var imageMatches = SharedPatterns.MediaRegex.Matches(segment);
             int imageCount = imageMatches.Count;
             var missingAltImages = new List<string>();
 
@@ -112,7 +112,7 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, string>
             bool hasYouTube = segment.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
                               segment.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
 
-            var cleanedText = MediaRegex.Replace(segment, "").Trim();
+            var cleanedText = SharedPatterns.MediaRegex.Replace(segment, "").Trim();
             int charCount = cleanedText.Length;
 
             sb.AppendLine($"- **Character Count**: {charCount} characters (max 300)");

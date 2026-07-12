@@ -99,7 +99,7 @@ export async function createUser(req: Record<string, string>): Promise<UserDto> 
   return res.json();
 }
 
-export async function updateUser(id: string, req: Record<string, any>): Promise<UserDto> {
+export async function updateUser(id: string, req: Partial<Pick<UserDto, 'username' | 'email' | 'role' | 'isActive' | 'preferredProviderId'>>): Promise<UserDto> {
   const res = await apiFetch(`/api/users/${id}`, {
     method: "PATCH",
     body: JSON.stringify(req)

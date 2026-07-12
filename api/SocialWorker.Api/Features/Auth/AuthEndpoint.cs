@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Auth;
 
@@ -44,8 +45,8 @@ public static class AuthEndpoint
 
         group.MapGet("/me", async (ClaimsPrincipal principal, AppDbContext db) =>
         {
-            var userIdStr = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            var userId = principal.GetUserId();
+            if (userId is null)
             {
                 return Results.Unauthorized();
             }

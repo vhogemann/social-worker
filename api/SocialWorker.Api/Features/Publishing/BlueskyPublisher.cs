@@ -15,6 +15,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Security;
 
 namespace SocialWorker.Api.Features.Publishing;
@@ -25,7 +26,6 @@ public class BlueskyPublisher : IPublisher
     private readonly AppDbContext _db;
     private readonly FileStorageProvider _storage;
     private readonly string _encryptionKey;
-    private static readonly Regex MediaRegex = new(@"!\[(.*?)\]\(media://([0-9a-fA-F\-]{36})\)", RegexOptions.Compiled);
 
     public string Platform => "Bluesky";
 
@@ -94,7 +94,7 @@ public class BlueskyPublisher : IPublisher
                 }
 
                 var imagesList = new JsonArray();
-                var matches = MediaRegex.Matches(text);
+                var matches = SharedPatterns.MediaRegex.Matches(text);
                 
                 foreach (Match match in matches)
                 {
@@ -131,7 +131,7 @@ public class BlueskyPublisher : IPublisher
                 }
 
                 // Remove the image markdown tags from the text before posting
-                text = MediaRegex.Replace(text, "").Trim();
+                text = SharedPatterns.MediaRegex.Replace(text, "").Trim();
 
                 var postRecord = new JsonObject
                 {

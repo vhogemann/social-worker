@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using SocialWorker.Api.Data;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.PlatformVariants;
 
@@ -23,7 +24,7 @@ public static class PlatformVariantsEndpoint
             GenerateVariantsRequest req,
             CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             if (req.Platforms == null || req.Platforms.Count == 0)
@@ -52,7 +53,7 @@ public static class PlatformVariantsEndpoint
             Guid draftId,
             CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             try
@@ -72,7 +73,7 @@ public static class PlatformVariantsEndpoint
             Guid draftId,
             CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             try
@@ -93,7 +94,7 @@ public static class PlatformVariantsEndpoint
             string platform,
             CancellationToken ct) =>
         {
-            var userId = GetUserId(principal);
+            var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             var result = await variantService.GetVariantAsync(userId.Value, canonicalDraftId, platform, ct);
@@ -103,9 +104,4 @@ public static class PlatformVariantsEndpoint
         });
     }
 
-    private static Guid? GetUserId(ClaimsPrincipal principal)
-    {
-        var id = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(id, out var parsed) ? parsed : null;
     }
-}

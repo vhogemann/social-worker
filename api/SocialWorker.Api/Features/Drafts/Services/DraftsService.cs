@@ -15,6 +15,7 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Sources;
+using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Llm;
 
 namespace SocialWorker.Api.Features.Drafts;
@@ -54,7 +55,6 @@ public sealed record DraftDto(
 
 public sealed class DraftsService
 {
-    private static readonly Regex MediaRegex = new(@"!\[.*?\]\(media://([0-9a-fA-F\-]{36})\)", RegexOptions.Compiled);
     private static readonly Regex YouTubeEmbedRegex = new(@"!\[.*?\]\((https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+|https?://youtu\.be/[\w-]+)\)", RegexOptions.Compiled);
 
     private readonly AppDbContext _db;
@@ -72,6 +72,31 @@ public sealed class DraftsService
         _storage = storage;
         _sourcesService = sourcesService;
         _scopeFactory = scopeFactory;
+    }
+
+    private static DraftDto ToDto(Draft draft, List<PlatformThread> threads, List<Post> posts, List<MediaAsset> media)
+    {
+        return new DraftDto(
+            draft.Id,
+            draft.Title,
+            draft.Status.ToString(),
+            draft.Content,
+            draft.TargetPlatform?.ToString(),
+            draft.CanonicalDraftId,
+            threads.Select(t => new PlatformThreadDto(
+                t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
+                posts.Where(p => p.PlatformThreadId == t.Id)
+                     .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
+                     .ToList()))
+                .ToList(),
+            media.Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt))
+                .ToList(),
+            draft.ChatHistory,
+            draft.ChatSummary,
+            draft.LastSummarizedMessageCount,
+            draft.CreatedAt,
+            draft.UpdatedAt
+        );
     }
 
     public async Task<List<DraftDto>> GetDraftsForUserAsync(Guid userId, CancellationToken ct)
@@ -96,29 +121,14 @@ public sealed class DraftsService
             .Where(p => threadIds.Contains(p.PlatformThreadId))
             .ToListAsync(ct);
 
-        return drafts.Select(d => new DraftDto(
-            d.Id,
-            d.Title,
-            d.Status.ToString(),
-            d.Content,
-            d.TargetPlatform?.ToString(),
-            d.CanonicalDraftId,
-            threads.Where(t => t.DraftId == d.Id)
-                .Select(t => new PlatformThreadDto(
-                    t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
-                    posts.Where(p => p.PlatformThreadId == t.Id)
-                         .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
-                         .ToList()))
-                .ToList(),
-            media.Where(m => m.DraftId == d.Id)
-                .Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt))
-                .ToList(),
-            d.ChatHistory,
-            d.ChatSummary,
-            d.LastSummarizedMessageCount,
-            d.CreatedAt,
-            d.UpdatedAt
-        )).ToList();
+        return drafts.Select(d =>
+        {
+            var draftThreads = threads.Where(t => t.DraftId == d.Id).ToList();
+            var threadIds = draftThreads.Select(t => t.Id).ToList();
+            var draftPosts = posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToList();
+            var draftMedia = media.Where(m => m.DraftId == d.Id).ToList();
+            return ToDto(d, draftThreads, draftPosts, draftMedia);
+        }).ToList();
     }
 
     public async Task<DraftDto> CreateDraftAsync(Guid userId, string? title, string? content, string? targetPlatform, CancellationToken ct)
@@ -156,21 +166,7 @@ public sealed class DraftsService
         await _sourcesService.ReconcileSourcesAsync(draft, content ?? "");
         await _db.SaveChangesAsync(ct);
 
-        return new DraftDto(
-            draft.Id,
-            draft.Title,
-            draft.Status.ToString(),
-            draft.Content,
-            draft.TargetPlatform?.ToString(),
-            draft.CanonicalDraftId,
-            new List<PlatformThreadDto> { new(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>()) },
-            new List<MediaAssetMiniDto>(),
-            draft.ChatHistory,
-            draft.ChatSummary,
-            draft.LastSummarizedMessageCount,
-            draft.CreatedAt,
-            draft.UpdatedAt
-        );
+        return ToDto(draft, new List<PlatformThread> { thread }, new List<Post>(), new List<MediaAsset>());
     }
 
     public async Task<DraftDto> GetDraftByIdAsync(Guid userId, Guid id, CancellationToken ct)
@@ -184,24 +180,7 @@ public sealed class DraftsService
         var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
 
-        return new DraftDto(
-            draft.Id,
-            draft.Title,
-            draft.Status.ToString(),
-            draft.Content,
-            draft.TargetPlatform?.ToString(),
-            draft.CanonicalDraftId,
-            threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
-                posts.Where(p => p.PlatformThreadId == t.Id)
-                     .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
-                     .ToList())).ToList(),
-            media.Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt)).ToList(),
-            draft.ChatHistory,
-            draft.ChatSummary,
-            draft.LastSummarizedMessageCount,
-            draft.CreatedAt,
-            draft.UpdatedAt
-        );
+        return ToDto(draft, threads, posts, media);
     }
 
     public async Task<DraftDto> UpdateDraftAsync(
@@ -277,24 +256,7 @@ public sealed class DraftsService
         var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
 
-        return new DraftDto(
-            draft.Id,
-            draft.Title,
-            draft.Status.ToString(),
-            draft.Content,
-            draft.TargetPlatform?.ToString(),
-            draft.CanonicalDraftId,
-            threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
-                posts.Where(p => p.PlatformThreadId == t.Id)
-                     .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
-                     .ToList())).ToList(),
-            media.Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt)).ToList(),
-            draft.ChatHistory,
-            draft.ChatSummary,
-            draft.LastSummarizedMessageCount,
-            draft.CreatedAt,
-            draft.UpdatedAt
-        );
+        return ToDto(draft, threads, posts, media);
     }
 
     public async Task<List<PlatformThreadDto>> GetPlatformThreadsForDraftAsync(Guid userId, Guid id, CancellationToken ct)
@@ -443,21 +405,12 @@ public sealed class DraftsService
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var adapter = scope.ServiceProvider.GetRequiredService<ILlmProviderAdapter>();
                 var logger = scope.ServiceProvider.GetRequiredService<ILogger<DraftsService>>();
+                var providerService = scope.ServiceProvider.GetRequiredService<LlmProviderService>();
 
                 var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
                 if (user == null) return;
 
-                LlmProvider? provider = null;
-                if (user.PreferredProviderId.HasValue)
-                {
-                    provider = await db.LlmProviders.FirstOrDefaultAsync(p => p.Id == user.PreferredProviderId.Value && p.IsActive);
-                }
-
-                if (provider == null)
-                {
-                    provider = await db.LlmProviders.FirstOrDefaultAsync(p => p.IsDefault && p.IsActive);
-                }
-
+                var provider = await providerService.GetProviderForUserAsync(db, user);
                 if (provider == null) return;
 
                 var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
@@ -588,8 +541,8 @@ public sealed class DraftsService
 
     public static SegmentMediaAnalysis AnalyzeSegmentMedia(string segmentContent)
     {
-        var imageIds = MediaRegex.Matches(segmentContent)
-            .Select(m => Guid.TryParse(m.Groups[1].Value, out var guid) ? guid : Guid.Empty)
+        var imageIds = SharedPatterns.MediaRegex.Matches(segmentContent)
+            .Select(m => Guid.TryParse(m.Groups[2].Value, out var guid) ? guid : Guid.Empty)
             .Where(g => g != Guid.Empty)
             .Distinct()
             .ToArray();

@@ -135,10 +135,21 @@ export async function patchPlatformThread(
   return res.json();
 }
 
+export interface PublishResult {
+  success: boolean;
+  errorMessage?: string;
+  authUrl?: string;
+  posts: {
+    segmentIndex: number;
+    remoteId: string;
+    url: string;
+  }[];
+}
+
 export async function publishPlatformThread(
   draftId: string,
   threadId: string
-): Promise<any> {
+): Promise<PublishResult> {
   const res = await apiFetch(`/api/drafts/${draftId}/threads/${threadId}/publish`, {
     method: "POST",
   });

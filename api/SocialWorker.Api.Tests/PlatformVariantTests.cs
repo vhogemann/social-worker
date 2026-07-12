@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
@@ -8,9 +7,8 @@ using SocialWorker.Api.Features.Sources;
 
 namespace SocialWorker.Api.Tests;
 
-public sealed class PlatformVariantTests : IDisposable
+public sealed class PlatformVariantTests : SqliteTestBase
 {
-    private readonly SqliteConnection _connection;
     private readonly AppDbContext _db;
     private readonly DraftsService _draftsService;
     private readonly PlatformVariantService _variantService;
@@ -18,35 +16,18 @@ public sealed class PlatformVariantTests : IDisposable
 
     public PlatformVariantTests()
     {
-        _connection = new SqliteConnection("Filename=:memory:");
-        _connection.Open();
-
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-
-        _db = new AppDbContext(options);
-        _db.Database.EnsureCreated();
-
-        _user = new AppUser
-        {
-            Id = Guid.NewGuid(),
-            Username = "testuser",
-            Email = "test@example.com",
-            PasswordHash = "hash"
-        };
-        _db.Users.Add(_user);
-        _db.SaveChanges();
+        _db = CreateDbContext();
+        _user = CreateSeedUser(_db);
 
         var sourcesService = new SourcesService(_db, null!, null!);
         _draftsService = new DraftsService(_db, null!, sourcesService, null!);
         _variantService = new PlatformVariantService(_db, _draftsService);
     }
 
-    public void Dispose()
+    protected override void Cleanup()
     {
         _db.Dispose();
-        _connection.Dispose();
+        base.Cleanup();
     }
 
     [Fact]

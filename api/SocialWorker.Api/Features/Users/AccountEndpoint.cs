@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Users;
 
@@ -25,8 +26,8 @@ public static class AccountEndpoint
                 return Results.BadRequest("Current password and new password are required.");
             }
 
-            var userIdStr = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            var userId = principal.GetUserId();
+            if (userId is null)
             {
                 return Results.Unauthorized();
             }
@@ -51,8 +52,8 @@ public static class AccountEndpoint
 
         group.MapPatch("/provider", async (UpdatePreferredProviderRequest req, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
         {
-            var userIdStr = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            var userId = principal.GetUserId();
+            if (userId is null)
             {
                 return Results.Unauthorized();
             }

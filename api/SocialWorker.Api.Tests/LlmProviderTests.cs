@@ -1,40 +1,15 @@
-using System;
-using System.Threading.Tasks;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
-using Xunit;
 
 namespace SocialWorker.Api.Tests;
 
-public sealed class LlmProviderTests : IDisposable
+public sealed class LlmProviderTests : SqliteTestBase
 {
-    private readonly SqliteConnection _connection;
-    private readonly DbContextOptions<AppDbContext> _options;
-
-    public LlmProviderTests()
-    {
-        _connection = new SqliteConnection("Filename=:memory:");
-        _connection.Open();
-
-        _options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-
-        using var db = new AppDbContext(_options);
-        db.Database.EnsureCreated();
-    }
-
-    public void Dispose()
-    {
-        _connection.Dispose();
-    }
-
     [Fact]
     public async Task Can_Insert_And_Retrieve_LlmProvider()
     {
-        using var db = new AppDbContext(_options);
+        using var db = new AppDbContext(Options);
 
         var provider = new LlmProvider
         {
@@ -65,7 +40,7 @@ public sealed class LlmProviderTests : IDisposable
     [Fact]
     public async Task AppUser_Can_Have_PreferredProvider()
     {
-        using var db = new AppDbContext(_options);
+        using var db = new AppDbContext(Options);
 
         var provider = new LlmProvider
         {
@@ -107,7 +82,7 @@ public sealed class LlmProviderTests : IDisposable
     [Fact]
     public async Task Deleting_LlmProvider_Sets_PreferredProviderId_To_Null()
     {
-        using var db = new AppDbContext(_options);
+        using var db = new AppDbContext(Options);
 
         var provider = new LlmProvider
         {

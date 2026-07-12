@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text;
 using SocialWorker.Api.Features.Chat;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Chat;
 
@@ -10,8 +11,8 @@ public static class ChatEndpoint
     {
         app.MapPost("/api/chat", async (HttpContext ctx, ChatService svc, CancellationToken ct) =>
         {
-            var userIdStr = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            var userId = ctx.User.GetUserId();
+            if (userId is null)
             {
                 ctx.Response.StatusCode = 401;
                 return;
@@ -43,7 +44,7 @@ public static class ChatEndpoint
             await ctx.Response.StartAsync(ct);
 
             await using var writer = ctx.Response.Body;
-            await foreach (var line in svc.StreamAsync(req, userId, ct))
+            await foreach (var line in svc.StreamAsync(req, userId.Value, ct))
             {
                 var bytes = Encoding.UTF8.GetBytes(line);
                 await writer.WriteAsync(bytes, ct);

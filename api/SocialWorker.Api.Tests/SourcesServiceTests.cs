@@ -1,44 +1,16 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Sources;
-using Xunit;
 
 namespace SocialWorker.Api.Tests;
 
-public sealed class SourcesServiceTests : IDisposable
+public sealed class SourcesServiceTests : SqliteTestBase
 {
-    private readonly SqliteConnection _connection;
-    private readonly DbContextOptions<AppDbContext> _options;
-
-    public SourcesServiceTests()
-    {
-        _connection = new SqliteConnection("Filename=:memory:");
-        _connection.Open();
-
-        _options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-
-        using var db = new AppDbContext(_options);
-        db.Database.EnsureCreated();
-    }
-
-    public void Dispose()
-    {
-        _connection.Dispose();
-    }
-
     [Fact]
     public async Task GetSourceDetailAsync_Throws_For_AccessDenied_Or_NotFound()
     {
-        using var db = new AppDbContext(_options);
+        using var db = new AppDbContext(Options);
         var userId = Guid.NewGuid();
         var user = new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" };
         db.Users.Add(user);
@@ -58,7 +30,7 @@ public sealed class SourcesServiceTests : IDisposable
     [Fact]
     public async Task GetSourceDetailAsync_Returns_DetailDto_Successfully()
     {
-        using var db = new AppDbContext(_options);
+        using var db = new AppDbContext(Options);
         var userId = Guid.NewGuid();
         var user = new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" };
         db.Users.Add(user);
@@ -92,7 +64,7 @@ public sealed class SourcesServiceTests : IDisposable
     [Fact]
     public async Task DeleteSourceAsync_Deletes_Source_Successfully()
     {
-        using var db = new AppDbContext(_options);
+        using var db = new AppDbContext(Options);
         var userId = Guid.NewGuid();
         var user = new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" };
         db.Users.Add(user);

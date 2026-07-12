@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Infrastructure.Security;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Accounts;
 
@@ -21,11 +22,11 @@ public static class AccountsEndpoint
 
         group.MapGet("/", async (AppDbContext db, ClaimsPrincipal user) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdStr, out var userId)) return Results.Unauthorized();
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
 
             var accounts = await db.Accounts
-                .Where(a => a.UserId == userId)
+                .Where(a => a.UserId == userId.Value)
                 .Select(a => new
                 {
                     a.Id,
@@ -42,8 +43,8 @@ public static class AccountsEndpoint
 
         group.MapPost("/", async (AccountRequest req, AppDbContext db, ClaimsPrincipal user, IConfiguration config) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdStr, out var userId)) return Results.Unauthorized();
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
 
             var encryptionKey = config["Auth:DbEncryptionKey"];
             if (string.IsNullOrEmpty(encryptionKey))
@@ -52,7 +53,7 @@ public static class AccountsEndpoint
             }
 
             var existing = await db.Accounts
-                .FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == req.Platform);
+                .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == req.Platform);
 
             if (existing != null)
             {
@@ -65,7 +66,7 @@ public static class AccountsEndpoint
             {
                 var account = new Account
                 {
-                    UserId = userId,
+                    UserId = userId.Value,
                     Platform = req.Platform,
                     Handle = req.Handle,
                     CredentialsEncrypted = CryptoHelper.EncryptString(req.AppPassword, encryptionKey),
@@ -80,10 +81,10 @@ public static class AccountsEndpoint
 
         group.MapDelete("/{id:guid}", async (Guid id, AppDbContext db, ClaimsPrincipal user) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!Guid.TryParse(userIdStr, out var userId)) return Results.Unauthorized();
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
 
-            var account = await db.Accounts.FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId);
+            var account = await db.Accounts.FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId.Value);
             if (account != null)
             {
                 db.Accounts.Remove(account);

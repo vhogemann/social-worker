@@ -34,13 +34,13 @@ public sealed class FileStorageProvider
         var fullPath = GetFullPath(relativePath);
         if (File.Exists(fullPath))
         {
-            try { File.Delete(fullPath); } catch {}
+            try { File.Delete(fullPath); } catch { Console.Error.WriteLine($"Failed to delete file: {fullPath}"); }
         }
 
         var dir = Path.GetDirectoryName(fullPath);
         if (dir != null && Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any())
         {
-            try { Directory.Delete(dir); } catch {}
+            try { Directory.Delete(dir); } catch { Console.Error.WriteLine($"Failed to delete empty directory: {dir}"); }
         }
     }
 }
