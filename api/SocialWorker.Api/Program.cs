@@ -27,11 +27,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("LLM"));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
 builder.Services.AddHttpClient<OpenAiProviderAdapter>();
-builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ILlmProviderAdapter>(sp =>
 {
-    var httpContext = sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
-    if (httpContext?.Request.Headers.TryGetValue("X-Demo-Mode", out _) == true)
+    if (builder.Environment.IsDevelopment())
     {
         return new DemoLlmAdapter();
     }
@@ -211,9 +209,6 @@ if (app.Environment.IsDevelopment())
         db.Sources.RemoveRange(db.Sources);
         db.MediaAssets.RemoveRange(db.MediaAssets);
         db.Drafts.RemoveRange(db.Drafts);
-        db.Accounts.RemoveRange(db.Accounts);
-        db.BrandVoicePrompts.RemoveRange(db.BrandVoicePrompts);
-        db.LlmProviders.RemoveRange(db.LlmProviders);
         await db.SaveChangesAsync();
         return Results.Ok(new { reset = true });
     });

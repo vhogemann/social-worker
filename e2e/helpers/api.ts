@@ -7,7 +7,6 @@ export async function apiFetch(path: string, options?: RequestInit): Promise<Res
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "X-Demo-Mode": "true",
       ...(options?.headers ?? {}),
     },
   });

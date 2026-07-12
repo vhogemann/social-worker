@@ -11,9 +11,6 @@ export default defineConfig({
     baseURL: process.env.BASE_URL ?? "http://web:80",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    extraHTTPHeaders: {
-      "X-Demo-Mode": "true",
-    },
   },
   projects: [
     {
