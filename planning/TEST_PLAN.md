@@ -85,14 +85,14 @@ Framework: Vitest + Testing Library + jsdom (already configured). Run via `docke
 
 | Component | File(s) | Approach | Status |
 |---|---|---|---|
-| `LoginPage` | `Login/LoginPage.tsx` | Render with store mocked, test form submit, validation, error display | [ ] |
-| `AuthGuard` | `Login/AuthGuard.tsx` | Test redirect to login when unauthenticated, render children when authenticated | [ ] |
-| `Settings/AccountTab` | `Settings/AccountTab.tsx` | Password change form, validation | [ ] |
-| `Settings/ConnectionsTab` | `Settings/ConnectionsTab.tsx` | List accounts, add/remove connection | [ ] |
-| `Settings/ProvidersTab` | `Settings/ProvidersTab.tsx` | List providers, add/edit/delete, test connection | [ ] |
-| `Settings/BrandVoicesTab` | `Settings/BrandVoicesTab.tsx` | List voices, add/edit/delete, set default | [ ] |
-| `Settings/UsersTab` | `Settings/UsersTab.tsx` | List users, create, reset password (admin) | [ ] |
-| `DraftList/CreateDraftModal` | `DraftList/CreateDraftModal.tsx` | Form submit, platform selection, validation | [ ] |
+| `LoginPage` | `Login/LoginPage.tsx` | Render with store mocked, test form submit, validation, error display | [x] |
+| `AuthGuard` | `Login/AuthGuard.tsx` | Test redirect to login when unauthenticated, render children when authenticated | [x] |
+| `Settings/AccountTab` | `Settings/AccountTab.tsx` | Password change form, validation | [x] |
+| `Settings/ConnectionsTab` | `Settings/ConnectionsTab.tsx` | List accounts, add/remove connection | [x] |
+| `Settings/ProvidersTab` | `Settings/ProvidersTab.tsx` | List providers, add/edit/delete, test connection | [x] |
+| `Settings/BrandVoicesTab` | `Settings/BrandVoicesTab.tsx` | List voices, add/edit/delete, set default | [x] |
+| `Settings/UsersTab` | `Settings/UsersTab.tsx` | List users, create, reset password (admin) | [x] |
+| `DraftList/CreateDraftModal` | `DraftList/CreateDraftModal.tsx` | Form submit, platform selection, validation | [x] |
 
 ### P2 — Composite components (need store mocking)
 
