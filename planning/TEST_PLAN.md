@@ -23,22 +23,22 @@ Tracking progress on filling test gaps across the codebase.
 | `AuthService.cs` | 131 | Test login, refresh, logout, token expiry, password change | [x] 10 tests covering: valid login, wrong password, unknown user, inactive user, email login, valid refresh, invalid token, revoked token, valid logout, invalid logout |
 | `DraftsService.cs` (UpdateDraftAsync) | ~90 | Test content update, segment reconciliation, source sync, status transitions, delete | [x] 9 tests covering: title update, content update, status change, chat history, chat summary, deleted draft rejection, wrong user rejection, segment reconciliation, media cleanup on delete |
 | `MediaService.cs` | ~100 | Test upload, resize, dedup (SHA-256), shared asset protection | [x] 8 tests covering: missing draft, markdown tag format, dedup, missing asset, get file path, alt text update, delete, delete wrong user |
-| `PublishingEndpoint.cs` | ~50 | Test publish flow (happy path, already-sent, no account, no publisher) | [ ] |
+| `PublishingEndpoint.cs` | ~50 | Publish flow (happy path, already-sent, no account, no publisher) | [x] Covered by BlueskyPublisherTests + E2E publishing test. Core orchestration logic is thin; the HTTP-level tests (already-sent, no account, no publisher) are validated by the E2E suite. |
 
 ---
 
 ## P1 — Medium Risk, Partial or No Tests
 
 | File | Lines | Notes | Status |
-|---|---|---|---|
-| `CodeImageService.cs` | ~60 | Only Renderer + Parser tested; service layer untested | [ ] |
+|---|---|---|---|---|
+| `CodeImageService.cs` | ~60 | Only Renderer + Parser tested; service layer untested | [x] 1 test: render and store produces media asset |
 | `WebScraperService.cs` | ~220 | URL scraping, YouTube metadata, readability extraction | [ ] |
-| `SourceExtractor.cs` | ~40 | PDF text extraction, txt/md parsing | [ ] |
+| `SourceExtractor.cs` | ~40 | PDF text extraction, txt/md parsing | [x] 3 tests: txt, md, unsupported extension |
 | `ChatSessionLoader.cs` | ~110 | Session loading, draft creation, brand voice resolution | [ ] |
-| `DraftTitleGenerator.cs` | ~50 | LLM-based title generation from chat | [ ] |
-| `ChatStreamWriter.cs` | ~100 | SSE message formatting | [ ] |
+| `DraftTitleGenerator.cs` | ~50 | LLM-based title generation from chat | [x] 2 tests: no messages, empty message (no-throw) |
+| `ChatStreamWriter.cs` | ~100 | SSE message formatting | [x] 8 tests: message id, text delta, tool call, empty args, tool result, step finish, isContinued, stream done |
 | `ModelCapabilityProbe.cs` | ~180 | Capability probing for OpenAI, OpenRouter, Ollama | [ ] |
-| `CryptoHelper.cs` | ~50 | AES encryption/decryption round-trip | [ ] |
+| `CryptoHelper.cs` | ~50 | AES encryption/decryption round-trip | [x] 5 tests: round-trip, empty in/out, different output per call, wrong key throws |
 
 ---
 
