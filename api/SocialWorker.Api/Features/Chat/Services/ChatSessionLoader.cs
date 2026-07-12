@@ -11,7 +11,7 @@ using SocialWorker.Api.Infrastructure.Llm;
 
 namespace SocialWorker.Api.Features.Chat;
 
-public sealed class ChatSessionLoader
+public class ChatSessionLoader
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ModelCapabilityProbe _probe;
@@ -30,7 +30,7 @@ public sealed class ChatSessionLoader
         _providerService = providerService;
     }
 
-    public async Task<ChatSessionContext> LoadAsync(
+    public virtual async Task<ChatSessionContext> LoadAsync(
         Guid userId,
         Guid? draftId,
         string? editorContentRequest,
