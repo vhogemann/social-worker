@@ -75,5 +75,5 @@ All builds, migration generations, and unit tests must be executed inside Docker
 
 ## Status
 
-![Tests](https://img.shields.io/badge/tests-98%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-146%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-not%20yet%20configured-lightgrey)
