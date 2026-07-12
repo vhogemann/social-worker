@@ -76,7 +76,7 @@ Inventory of low-effort improvements, code smells, missing tests, and minor bugs
 
 ### Functionality Gaps
 
-- [ ] **`BraveSearchEngine` doesn't implement `SearchImagesAsync`** — image search silently returns empty when using Brave provider.
+- [x] **`BraveSearchEngine` doesn't implement `SearchImagesAsync`** — image search silently returns empty when using Brave provider. *(Fixed: extracted shared internal method, added `SearchImagesAsync` that queries Brave's images endpoint and extracts thumbnail URLs)*
 
 ### Future
 

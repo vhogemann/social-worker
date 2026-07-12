@@ -143,3 +143,4 @@ docker compose up --build
 | `planning/PLATFORM_VARIANTS.md` | v1 — Done (Phases 1-7 complete) |
 | `planning/SOURCES_LIBRARY_AND_TRANSCRIPTS.md` | v2 Plan — global source search + YouTube transcripts |
 | `planning/TECH_DEBT.md` | Inventory of quick wins, tech debt, and missing tests |
+| `planning/TEST_PLAN.md` | Test coverage plan — P0/P1/P2 priorities and progress |
