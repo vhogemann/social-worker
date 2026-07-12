@@ -50,11 +50,11 @@ Inventory of low-effort improvements, code smells, missing tests, and minor bugs
 
 - [x] **`GetUserId(ClaimsPrincipal)` duplicated across 7 endpoint files.** Extract to an extension method on `ClaimsPrincipal`. *(Done: `ClaimsPrincipalExtensions.GetUserId()` added to `Infrastructure/`, replaced 15 inline call sites in 7 files)*
 
-- [ ] **LlmProvider lookup logic duplicated 3x** (`ChatSessionLoader.cs:43`, `DraftsService.cs:450`, `GeneratePlatformVariantsTool.cs:72`). Extract to a shared service.
+- [x] **LlmProvider lookup logic duplicated 3x** (`ChatSessionLoader.cs:43`, `DraftsService.cs:450`, `GeneratePlatformVariantsTool.cs:72`). Extract to a shared service. *(Done: `LlmProviderService.GetProviderForUserAsync()` added to `Infrastructure/Llm/`, registered in DI, 3 call sites updated)*
 
-- [ ] **Media regex pattern duplicated 3x** (`BlueskyPublisher.cs:28`, `DraftsService.cs:57`, `ValidateDraftTool.cs:22`). Extract to a shared constant.
+- [x] **Media regex pattern duplicated 3x** (`BlueskyPublisher.cs:28`, `DraftsService.cs:57`, `ValidateDraftTool.cs:22`). Extract to a shared constant. *(Done: `SharedPatterns.MediaRegex` added to `Infrastructure/`, all 3 sites use it; note: DraftsService regex was slightly different (no alt-text capture group), unified to the capturing variant and group index adjusted from 1→2)*
 
-- [ ] **Sqlite test setup duplicated ~12 lines across every test class.** Extract to a test base class or fixture.
+- [x] **Sqlite test setup duplicated ~12 lines across every test class.** Extract to a test base class or fixture. *(Done: `SqliteTestBase` abstract class with `CreateDbContext()`, `CreateSeedUser()`, and `Cleanup()` virtual method; `DraftTests`, `PlatformVariantTests`, `SourcesServiceTests`, `LlmProviderTests` updated)*
 
 ### DI / Architecture Smells
 
