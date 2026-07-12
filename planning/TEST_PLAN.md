@@ -21,7 +21,7 @@ Tracking progress on filling test gaps across the codebase.
 | `BlueskyPublisher.cs` | 201 | Mock HTTP handler, test auth flow, image upload, reply threading | [x] 5 tests covering: missing key, decryption failure, auth failure, single segment, multi-segment |
 | `ChatService.cs` | 254 | Test SSE streaming pipeline, tool execution, multi-round, error handling | [x] 5 tests covering: message id, text deltas, tool execution, unknown tool, max rounds |
 | `AuthService.cs` | 131 | Test login, refresh, logout, token expiry, password change | [x] 10 tests covering: valid login, wrong password, unknown user, inactive user, email login, valid refresh, invalid token, revoked token, valid logout, invalid logout |
-| `DraftsService.cs` (UpdateDraftAsync) | ~90 | Test content update, segment reconciliation, source sync, status transitions, delete | [ ] |
+| `DraftsService.cs` (UpdateDraftAsync) | ~90 | Test content update, segment reconciliation, source sync, status transitions, delete | [x] 9 tests covering: title update, content update, status change, chat history, chat summary, deleted draft rejection, wrong user rejection, segment reconciliation, media cleanup on delete |
 | `MediaService.cs` | ~100 | Test upload, resize, dedup (SHA-256), shared asset protection | [ ] |
 | `PublishingEndpoint.cs` | ~50 | Test publish flow (happy path, already-sent, no account, no publisher) | [ ] |
 
