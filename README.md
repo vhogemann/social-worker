@@ -70,3 +70,10 @@ All builds, migration generations, and unit tests must be executed inside Docker
 - **Frontend Build**: `docker compose exec web sh -c "npm run build && npm run typecheck"`
 - **Unit Tests**: `docker compose exec api dotnet test`
 - **EF Core Migrations**: `docker compose exec api dotnet ef migrations add <MigrationName>`
+
+---
+
+## Status
+
+![Tests](https://img.shields.io/badge/tests-98%20passing-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-not%20yet%20configured-lightgrey)
