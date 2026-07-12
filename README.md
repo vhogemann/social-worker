@@ -79,7 +79,7 @@ social-worker/
 ├── .env.example                    # Template environment file
 ├── AGENTS.md                       # Agent guidelines and specifications
 ├── PLAN.md                         # Detailed project roadmap and index
-├── docs/                           # Implementation plans and design assets
+├── planning/                      # Implementation plans and design assets
 ├── api/                            # Backend C# .NET Minimal API
 └── web/                            # Frontend Vite React Single Page App
 ```

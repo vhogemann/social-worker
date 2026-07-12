@@ -78,6 +78,10 @@ Inventory of low-effort improvements, code smells, missing tests, and minor bugs
 
 - [ ] **`BraveSearchEngine` doesn't implement `SearchImagesAsync`** — image search silently returns empty when using Brave provider.
 
+### Future
+
+- [ ] **DB-backed background job queue** — Replace the in-memory `Channel<Job>` with a `PendingJob` table. The `BackgroundJobQueue` would write to and read from the DB directly, giving durability across restarts and removing the bounded channel's drop behavior. Requires a `PendingJob` entity, migration, and rewriting the queue/hosted service to use DB polling. The current `Job` record (which embeds a `Func<CancellationToken, Task>`) would be replaced by a `JobType` discriminator + JSON payload, with the work function reconstructed from the payload on read.
+
 ---
 
 ## Missing Tests (by risk)
@@ -109,4 +113,4 @@ Inventory of low-effort improvements, code smells, missing tests, and minor bugs
 - **Only 1 test file** (`SourcesPanel.test.tsx`, 2 tests) for the entire React frontend
 - **No tests** for: stores, API layer, chat panel, thread preview, editor, draft list, settings, login, auth guard
 - `web/src/test/setup.ts` — only has a single import
-- No e2e tests (`docs/E2E_TESTING.md` exists but unimplemented)
+- No e2e tests (`planning/E2E_TESTING.md` exists but unimplemented)

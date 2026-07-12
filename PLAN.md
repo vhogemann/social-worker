@@ -116,10 +116,10 @@ Domains after bootstrap:
 ## What is not yet built
 
 ### v2 Goals (Planned)
-- [ ] Sources library + YouTube transcripts. Tracked: `docs/SOURCES_LIBRARY_AND_TRANSCRIPTS.md`
+- [ ] Sources library + YouTube transcripts. Tracked: `planning/SOURCES_LIBRARY_AND_TRANSCRIPTS.md`
 
 ### Near-term (v1)
-- [x] Platform variant generation — On-demand multi-platform adaptation. Tracked: `docs/PLATFORM_VARIANTS.md`
+- [x] Platform variant generation — On-demand multi-platform adaptation. Tracked: `planning/PLATFORM_VARIANTS.md`
 - [ ] Thread reply/expansion (append to a published Bluesky thread, view replies)
 
 ### Platform publishers (stubs)
@@ -137,20 +137,20 @@ Domains after bootstrap:
 
 ---
 
-## Implementation plans (docs/)
+## Implementation plans (planning/)
 
 | File | Status |
 |---|---|
-| `docs/MVP.md` | Done — initial stack proof |
-| `docs/AUTHENTICATION.md` | Done |
-| `docs/LLM_PROVIDERS.md` | Done |
-| `docs/THREAD_STAGES.md` | Done |
-| `docs/CHAT_SERVICE_REFACTORING.md` | Done |
-| `docs/CHAT_HISTORY_PERSISTENCE.md` | Done |
-| `docs/IMAGE_UPLOADS.md` | Done |
-| `docs/BRAND_VOICE_PROMPTS.md` | Done |
-| `docs/SEARCH_TOOL.md` | Done |
-| `docs/REFACTORING_PLAN.md` | Ongoing |
-| `docs/PLATFORM_VARIANTS.md` | v1 — Done (Phases 1-7 complete) |
-| `docs/SOURCES_LIBRARY_AND_TRANSCRIPTS.md` | v2 Plan — global source search + YouTube transcripts |
-| `docs/TECH_DEBT.md` | Inventory of quick wins, tech debt, and missing tests |
+| `planning/MVP.md` | Done — initial stack proof |
+| `planning/AUTHENTICATION.md` | Done |
+| `planning/LLM_PROVIDERS.md` | Done |
+| `planning/THREAD_STAGES.md` | Done |
+| `planning/CHAT_SERVICE_REFACTORING.md` | Done |
+| `planning/CHAT_HISTORY_PERSISTENCE.md` | Done |
+| `planning/IMAGE_UPLOADS.md` | Done |
+| `planning/BRAND_VOICE_PROMPTS.md` | Done |
+| `planning/SEARCH_TOOL.md` | Done |
+| `planning/REFACTORING_PLAN.md` | Ongoing |
+| `planning/PLATFORM_VARIANTS.md` | v1 — Done (Phases 1-7 complete) |
+| `planning/SOURCES_LIBRARY_AND_TRANSCRIPTS.md` | v2 Plan — global source search + YouTube transcripts |
+| `planning/TECH_DEBT.md` | Inventory of quick wins, tech debt, and missing tests |

@@ -320,7 +320,7 @@ This enables an admin dashboard (future) for reviewing what the LLM has attempte
 
 **Validation**: `docker compose up --build` starts sandbox. API can call `/execute` with `print("hello")` and get back `{"stdout": "hello\n"}`. Web UI chat can invoke `execute_python` via LLM.
 
-**Already defined in**: `docs/PYTHON_SANDBOX.md`
+**Already defined in**: `planning/PYTHON_SANDBOX.md`
 
 ---
 
@@ -712,6 +712,6 @@ This explicit routing is important for a 4.5B model -- implicit workspace switch
 
 ## Links
 
-- Sandbox foundation: `docs/PYTHON_SANDBOX.md`
-- Telegram bridge: `docs/TELEGRAM_INTEGRATION.md`
-- Main plan tracker: `docs/PLAN.md`
+- Sandbox foundation: `planning/PYTHON_SANDBOX.md`
+- Telegram bridge: `planning/TELEGRAM_INTEGRATION.md`
+- Main plan tracker: `planning/PLAN.md`
