@@ -124,6 +124,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.BaseUrl).HasMaxLength(500);
             e.Property(x => x.ApiKey).HasMaxLength(500);
             e.Property(x => x.Model).HasMaxLength(200);
+            e.Property(x => x.ContextWindowTokens);
             e.HasIndex(x => x.Name).IsUnique();
         });
 

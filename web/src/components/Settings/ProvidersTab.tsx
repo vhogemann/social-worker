@@ -20,6 +20,7 @@ export function ProvidersTab() {
   const [baseUrl, setBaseUrl] = useState("https://openrouter.ai/api/v1");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
+  const [contextWindowTokens, setContextWindowTokens] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -69,11 +70,13 @@ export function ProvidersTab() {
         providerType,
         baseUrl: baseUrl.trim(),
         apiKey: providerType === "Ollama" ? "" : apiKey.trim(),
-        model: model.trim()
+        model: model.trim(),
+        contextWindowTokens: contextWindowTokens.trim() ? Number(contextWindowTokens.trim()) : undefined
       });
 
       if (res.success) {
-        setTestResult({ success: true, message: "Connection successful!" });
+        const contextMsg = res.contextWindowTokens ? ` Inferred context window: ${res.contextWindowTokens.toLocaleString()} tokens.` : "";
+        setTestResult({ success: true, message: `Connection successful!${contextMsg}` });
       } else {
         setTestResult({ success: false, message: res.error || "Connection failed." });
       }
@@ -101,6 +104,7 @@ export function ProvidersTab() {
     setProviderType(p.providerType);
     setBaseUrl(p.baseUrl);
     setModel(p.model);
+    setContextWindowTokens(p.contextWindowTokens ? String(p.contextWindowTokens) : "");
     setApiKey("");
     setTestResult(null);
     setError(null);
@@ -111,6 +115,7 @@ export function ProvidersTab() {
     setName("");
     setApiKey("");
     setModel("");
+    setContextWindowTokens("");
     if (providerType === "Ollama") {
       setBaseUrl("http://ollama:11434/v1");
     } else {
@@ -137,7 +142,8 @@ export function ProvidersTab() {
           providerType,
           baseUrl: baseUrl.trim(),
           apiKey: providerType === "Ollama" ? "" : (apiKey.trim() || undefined),
-          model: model.trim()
+          model: model.trim(),
+          contextWindowTokens: contextWindowTokens.trim() ? Number(contextWindowTokens.trim()) : undefined
         });
         setEditingId(null);
       } else {
@@ -146,7 +152,8 @@ export function ProvidersTab() {
           providerType,
           baseUrl: baseUrl.trim(),
           apiKey: providerType === "Ollama" ? "" : apiKey.trim(),
-          model: model.trim()
+          model: model.trim(),
+          contextWindowTokens: contextWindowTokens.trim() ? Number(contextWindowTokens.trim()) : undefined
         });
       }
 
@@ -154,6 +161,7 @@ export function ProvidersTab() {
       setName("");
       setApiKey("");
       setModel("");
+      setContextWindowTokens("");
       if (providerType === "Ollama") {
         setBaseUrl("http://ollama:11434/v1");
       } else {
@@ -235,6 +243,7 @@ export function ProvidersTab() {
                   <div>Type: <span className="text-foreground">{p.providerType}</span></div>
                   <div className="truncate max-w-lg">Base URL: <span className="text-foreground">{p.baseUrl}</span></div>
                   <div>Model: <span className="text-foreground">{p.model}</span></div>
+                  <div>Context Window: <span className="text-foreground">{p.contextWindowTokens ? p.contextWindowTokens.toLocaleString() : "unknown"}</span></div>
                   <div>Key Configured: <span className="text-foreground">{p.apiKeySet ? "Yes" : "No"}</span></div>
                   <div className="flex gap-2.5 mt-1">
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono uppercase tracking-wider ${p.supportsVision ? 'bg-indigo-950/30 text-indigo-400 border border-indigo-900/30' : 'bg-zinc-950/30 text-zinc-500 border border-zinc-900/30'}`}>
@@ -346,6 +355,21 @@ export function ProvidersTab() {
                 ))}
               </datalist>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1">
+              Context Window Tokens Override
+            </label>
+            <input
+              type="number"
+              value={contextWindowTokens}
+              onChange={(e) => setContextWindowTokens(e.target.value)}
+              disabled={loading}
+              placeholder="Leave blank to infer"
+              min="1"
+              className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
+            />
           </div>
 
           <div>

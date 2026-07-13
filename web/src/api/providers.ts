@@ -7,6 +7,7 @@ export interface LlmProviderDto {
   baseUrl: string;
   apiKeySet: boolean;
   model: string;
+  contextWindowTokens?: number | null;
   isDefault: boolean;
   isActive: boolean;
   supportsVision: boolean;
@@ -19,6 +20,7 @@ export interface CreateProviderRequest {
   baseUrl: string;
   apiKey: string;
   model: string;
+  contextWindowTokens?: number | null;
 }
 
 export interface UpdateProviderRequest {
@@ -27,6 +29,7 @@ export interface UpdateProviderRequest {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  contextWindowTokens?: number | null;
   isDefault?: boolean;
   isActive?: boolean;
 }
@@ -92,11 +95,13 @@ export interface TestProviderRequest {
   baseUrl: string;
   apiKey: string;
   model: string;
+  contextWindowTokens?: number | null;
 }
 
 export interface TestProviderResponse {
   success: boolean;
   error?: string | null;
+  contextWindowTokens?: number | null;
 }
 
 export async function testProvider(req: TestProviderRequest): Promise<TestProviderResponse> {

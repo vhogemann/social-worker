@@ -43,6 +43,7 @@ public class ProvidersService
                 p.BaseUrl,
                 !string.IsNullOrEmpty(p.ApiKey),
                 p.Model,
+                p.ContextWindowTokens ?? caps.ContextWindowTokens,
                 p.IsDefault,
                 p.IsActive,
                 caps.SupportsVision,
@@ -83,16 +84,18 @@ public class ProvidersService
             BaseUrl = req.BaseUrl,
             ApiKey = req.ApiKey ?? "",
             Model = req.Model,
+            ContextWindowTokens = req.ContextWindowTokens,
             IsDefault = isFirst,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
+        var caps = await _probe.GetCapabilitiesAsync(provider);
+        provider.ContextWindowTokens ??= caps.ContextWindowTokens;
+
         _db.LlmProviders.Add(provider);
         await _db.SaveChangesAsync(ct);
-
-        var caps = await _probe.GetCapabilitiesAsync(provider);
 
         return (new ProviderModels.LlmProviderDto(
             provider.Id,
@@ -101,6 +104,7 @@ public class ProvidersService
             provider.BaseUrl,
             !string.IsNullOrEmpty(provider.ApiKey),
             provider.Model,
+            provider.ContextWindowTokens,
             provider.IsDefault,
             provider.IsActive,
             caps.SupportsVision,
@@ -150,6 +154,11 @@ public class ProvidersService
             provider.Model = req.Model;
         }
 
+        if (req.ContextWindowTokens.HasValue)
+        {
+            provider.ContextWindowTokens = req.ContextWindowTokens.Value;
+        }
+
         if (req.IsActive.HasValue)
         {
             if (!req.IsActive.Value && provider.IsDefault)
@@ -176,10 +185,14 @@ public class ProvidersService
             }
         }
 
+        var caps = await _probe.GetCapabilitiesAsync(provider);
+        if (!req.ContextWindowTokens.HasValue && (req.ProviderType != null || req.BaseUrl != null || req.Model != null))
+        {
+            provider.ContextWindowTokens = caps.ContextWindowTokens;
+        }
+
         provider.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
-
-        var caps = await _probe.GetCapabilitiesAsync(provider);
 
         return (new ProviderModels.LlmProviderDto(
             provider.Id,
@@ -188,6 +201,7 @@ public class ProvidersService
             provider.BaseUrl,
             !string.IsNullOrEmpty(provider.ApiKey),
             provider.Model,
+            provider.ContextWindowTokens,
             provider.IsDefault,
             provider.IsActive,
             caps.SupportsVision,
@@ -218,7 +232,7 @@ public class ProvidersService
     {
         if (string.IsNullOrWhiteSpace(req.BaseUrl) || string.IsNullOrWhiteSpace(req.Model) || string.IsNullOrWhiteSpace(req.ProviderType))
         {
-            return new ProviderModels.TestProviderResponse(false, "BaseUrl, Model, and ProviderType are required.");
+            return new ProviderModels.TestProviderResponse(false, "BaseUrl, Model, and ProviderType are required.", null);
         }
 
         try
@@ -251,17 +265,26 @@ public class ProvidersService
             var response = await _http.SendAsync(request, cts.Token);
             if (response.IsSuccessStatusCode)
             {
-                return new ProviderModels.TestProviderResponse(true, null);
+                var tempProvider = new LlmProvider
+                {
+                    ProviderType = req.ProviderType,
+                    BaseUrl = req.BaseUrl,
+                    ApiKey = req.ApiKey,
+                    Model = req.Model,
+                    ContextWindowTokens = req.ContextWindowTokens
+                };
+                var caps = await _probe.GetCapabilitiesAsync(tempProvider);
+                return new ProviderModels.TestProviderResponse(true, null, req.ContextWindowTokens ?? caps.ContextWindowTokens);
             }
 
             var errorContent = await response.Content.ReadAsStringAsync(ct);
             var displayError = $"Status {response.StatusCode}: {errorContent}";
             if (displayError.Length > 200) displayError = displayError[..200] + "...";
-            return new ProviderModels.TestProviderResponse(false, displayError);
+            return new ProviderModels.TestProviderResponse(false, displayError, null);
         }
         catch (Exception ex)
         {
-            return new ProviderModels.TestProviderResponse(false, ex.Message);
+            return new ProviderModels.TestProviderResponse(false, ex.Message, null);
         }
     }
 

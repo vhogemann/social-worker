@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -424,18 +425,40 @@ public sealed class DraftsService
             }
 
             var totalCount = messagesArray.GetArrayLength();
+            var totalTokens = messagesArray.EnumerateArray().Sum(ChatContextWindowPolicy.EstimateStoredMessageTokens);
 
             var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId);
             if (draft == null) return;
 
-            if (totalCount - draft.LastSummarizedMessageCount < 20)
+            var contextWindow = provider.ContextWindowTokens.GetValueOrDefault() > 0
+                ? provider.ContextWindowTokens!.Value
+                : ChatContextWindowPolicy.ResolveContextWindowTokens(provider.Model);
+            var targetTailTokenBudget = Math.Clamp(contextWindow / 4, 1200, 12 * 1024);
+            var shouldCompact = totalCount >= 20 || totalTokens > targetTailTokenBudget * 2;
+            if (!shouldCompact)
             {
                 return;
             }
 
-            logger.LogInformation("Triggering compaction for draft {DraftId}. Total messages: {TotalCount}, Last summarized: {LastSummarized}", draftId, totalCount, draft.LastSummarizedMessageCount);
+            logger.LogInformation("Triggering compaction for draft {DraftId}. Total messages: {TotalCount}, estimated tokens: {TotalTokens}, target tail token budget: {TailBudget}", draftId, totalCount, totalTokens, targetTailTokenBudget);
 
-            int messagesToSummarize = Math.Max(0, totalCount - 5);
+            var tailMessages = new List<JsonElement>();
+            var tailTokens = 0;
+            for (var i = totalCount - 1; i >= 0; i--)
+            {
+                var message = messagesArray[i];
+                var messageTokens = ChatContextWindowPolicy.EstimateStoredMessageTokens(message);
+                if (tailMessages.Count > 0 && tailTokens + messageTokens > targetTailTokenBudget)
+                {
+                    break;
+                }
+
+                tailMessages.Add(message);
+                tailTokens += messageTokens;
+            }
+
+            tailMessages.Reverse();
+            int messagesToSummarize = Math.Max(0, totalCount - tailMessages.Count);
             if (messagesToSummarize <= 0) return;
 
             var existingSummaryContext = "";
@@ -495,11 +518,28 @@ public sealed class DraftsService
                 var newSummary = response.Choices[0].Message.Content?.ToString();
                 if (!string.IsNullOrEmpty(newSummary))
                 {
+                    var historyNode = JsonNode.Parse(chatHistoryJson)?.AsObject();
+                    var messageNodes = new JsonArray();
+                    foreach (var message in tailMessages)
+                    {
+                        var cloned = JsonNode.Parse(message.GetRawText());
+                        if (cloned != null)
+                        {
+                            messageNodes.Add(cloned);
+                        }
+                    }
+
+                    if (historyNode != null)
+                    {
+                        historyNode["messages"] = messageNodes;
+                        draft.ChatHistory = historyNode.ToJsonString();
+                    }
+
                     draft.ChatSummary = newSummary;
-                    draft.LastSummarizedMessageCount = messagesToSummarize;
+                    draft.LastSummarizedMessageCount = 0;
                     draft.UpdatedAt = DateTime.UtcNow;
                     await db.SaveChangesAsync(ct);
-                    logger.LogInformation("Compaction completed for draft {DraftId}. New LastSummarizedMessageCount: {LastSummarized}", draftId, messagesToSummarize);
+                    logger.LogInformation("Compaction completed for draft {DraftId}. Summary covers {SummarizedCount} messages, raw history trimmed to {TailCount} messages.", draftId, messagesToSummarize, tailMessages.Count);
                 }
             }
         }));

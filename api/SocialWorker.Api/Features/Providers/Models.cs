@@ -11,6 +11,7 @@ public static class ProviderModels
         string BaseUrl,
         bool ApiKeySet,
         string Model,
+        int? ContextWindowTokens,
         bool IsDefault,
         bool IsActive,
         bool SupportsVision,
@@ -22,7 +23,8 @@ public static class ProviderModels
         string ProviderType,
         string BaseUrl,
         string ApiKey,
-        string Model
+        string Model,
+        int? ContextWindowTokens
     );
 
     public sealed record UpdateProviderRequest(
@@ -31,6 +33,7 @@ public static class ProviderModels
         string? BaseUrl,
         string? ApiKey,
         string? Model,
+        int? ContextWindowTokens,
         bool? IsDefault,
         bool? IsActive
     );
@@ -46,11 +49,13 @@ public static class ProviderModels
         string ProviderType,
         string BaseUrl,
         string ApiKey,
-        string Model
+        string Model,
+        int? ContextWindowTokens
     );
 
     public sealed record TestProviderResponse(
         bool Success,
-        string? Error
+        string? Error,
+        int? ContextWindowTokens
     );
 }

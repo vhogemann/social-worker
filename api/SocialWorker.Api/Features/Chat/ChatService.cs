@@ -35,8 +35,6 @@ public sealed class ChatService
         _tools = tools;
     }
 
-    private const int MaxContextMessages = 10;
-
     public async IAsyncEnumerable<string> StreamAsync(
         ChatModels.ChatRequest req,
         Guid userId,
@@ -56,23 +54,6 @@ public sealed class ChatService
             finalSystemPrompt += $"\n\nContext summary of the conversation so far:\n{session.Draft.ChatSummary}";
         }
 
-        var convo = new List<OpenAiModels.OpenAiMessage>
-        {
-            new() { Role = "system", Content = finalSystemPrompt }
-        };
-
-        var messagesToSend = req.Messages;
-        if (messagesToSend.Count > MaxContextMessages)
-        {
-            messagesToSend = messagesToSend.Skip(messagesToSend.Count - 10).ToList();
-        }
-
-        foreach (var m in messagesToSend)
-        {
-            var text = string.Join("\n", m.Content.Where(p => p.Type == "text").Select(p => p.Text ?? ""));
-            convo.Add(new OpenAiModels.OpenAiMessage { Role = m.Role, Content = text });
-        }
-
         var tools = _tools
             .Where(t => !t.RequiresVision || session.Capabilities.SupportsVision)
             .Select(t => new OpenAiModels.OpenAiTool
@@ -85,6 +66,27 @@ public sealed class ChatService
                 }
             })
             .ToList();
+
+        var historyBudget = ChatContextWindowPolicy.CalculateHistoryBudgetTokens(session.Provider.ContextWindowTokens, session.Credentials.Model, finalSystemPrompt, tools);
+        var messagesToSend = ChatContextWindowPolicy.SelectRecentMessages(req.Messages, historyBudget);
+
+        _log.LogInformation(
+            "Chat context selection for model {Model}: total messages={TotalMessages}, selected messages={SelectedMessages}, estimated history budget tokens={HistoryBudget}",
+            session.Credentials.Model,
+            req.Messages.Count,
+            messagesToSend.Count,
+            historyBudget);
+
+        var convo = new List<OpenAiModels.OpenAiMessage>
+        {
+            new() { Role = "system", Content = finalSystemPrompt }
+        };
+
+        foreach (var m in messagesToSend)
+        {
+            var text = string.Join("\n", m.Content.Where(p => p.Type == "text").Select(p => p.Text ?? ""));
+            convo.Add(new OpenAiModels.OpenAiMessage { Role = m.Role, Content = text });
+        }
 
         var payload = new OpenAiModels.ChatCompletionRequest
         {

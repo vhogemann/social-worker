@@ -1,15 +1,20 @@
 using System;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Infrastructure.Background;
+using SocialWorker.Api.Infrastructure.Llm;
 using Xunit;
 
 namespace SocialWorker.Api.Tests;
@@ -191,6 +196,83 @@ public sealed class DraftsServiceTests : SqliteTestBase
         var deleted = await db.Drafts.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.Id == draft.Id);
         Assert.Null(deleted);
     }
+
+    [Fact]
+    public async Task UpdateDraftAsync_CompactsChatHistoryInBackground()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+
+        var queue = new BackgroundJobQueue();
+        var adapter = new SummaryAdapter("Condensed summary of the earlier conversation.");
+        var (service, user, draft) = await CreateSummarizationServiceAsync(db, queue, adapter, model: "llama3.1");
+
+        var messages = Enumerable.Range(0, 40)
+            .Select(i => new
+            {
+                role = i % 2 == 0 ? "user" : "assistant",
+                content = $"Message {i} {new string('x', 1200)}"
+            })
+            .ToList();
+
+        var historyJson = JsonSerializer.Serialize(new { messages });
+
+        await service.UpdateDraftAsync(user.Id, draft.Id, null, null, null, historyJson, null, null, CancellationToken.None);
+
+        var job = await queue.ReadAsync(CancellationToken.None);
+        await job.Work(CancellationToken.None);
+
+        var reloaded = await db.Drafts.FirstAsync(d => d.Id == draft.Id);
+        Assert.Equal("Condensed summary of the earlier conversation.", reloaded.ChatSummary);
+        Assert.Equal(0, reloaded.LastSummarizedMessageCount);
+
+        using var compactedDoc = JsonDocument.Parse(reloaded.ChatHistory!);
+        var compactedMessages = compactedDoc.RootElement.GetProperty("messages");
+        Assert.True(compactedMessages.GetArrayLength() < messages.Count);
+    }
+
+    private static async Task<(DraftsService Service, AppUser User, Draft Draft)> CreateSummarizationServiceAsync(AppDbContext db, BackgroundJobQueue queue, ILlmProviderAdapter adapter, string model = "gpt-4o-mini")
+    {
+        var user = new AppUser
+        {
+            Id = Guid.NewGuid(),
+            Username = "summaryuser",
+            Email = "summary@example.com",
+            PasswordHash = "hash",
+            IsActive = true
+        };
+        db.Users.Add(user);
+
+        var provider = new LlmProvider
+        {
+            Id = Guid.NewGuid(),
+            Name = "default",
+            ProviderType = "OpenAI",
+            BaseUrl = "https://test.local/v1",
+            ApiKey = "test-key",
+            Model = model,
+            IsDefault = true,
+            IsActive = true
+        };
+        db.LlmProviders.Add(provider);
+
+        var draft = new Draft
+        {
+            Id = Guid.NewGuid(),
+            Title = "Summary Draft",
+            Content = "Initial content",
+            UserId = user.Id,
+            Status = DraftStatus.Editing
+        };
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var sourcesService = new SourcesService(db, null!, null!, null!);
+        var storage = new FileStorageProvider();
+        var scopeFactory = new SummaryScopeFactory(db, adapter);
+        var draftsService = new DraftsService(db, storage, sourcesService, scopeFactory, queue);
+        return (draftsService, user, draft);
+    }
 }
 
 /// <summary>
@@ -229,5 +311,66 @@ public sealed class MockScopeFactory : IServiceScopeFactory
             if (serviceType == typeof(WebScraperService)) return null;
             return null;
         }
+    }
+}
+
+public sealed class SummaryScopeFactory : IServiceScopeFactory
+{
+    private readonly IServiceProvider _provider;
+
+    public SummaryScopeFactory(AppDbContext db, ILlmProviderAdapter adapter)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(db);
+        services.AddSingleton(adapter);
+        services.AddSingleton<ILlmProviderAdapter>(adapter);
+        services.AddSingleton<ILogger<DraftsService>>(NullLogger<DraftsService>.Instance);
+        services.AddSingleton<LlmProviderService>();
+        _provider = services.BuildServiceProvider();
+    }
+
+    public IServiceScope CreateScope() => new Scope(_provider);
+
+    private sealed class Scope : IServiceScope
+    {
+        public Scope(IServiceProvider provider) => ServiceProvider = provider;
+        public IServiceProvider ServiceProvider { get; }
+        public void Dispose() { }
+    }
+}
+
+public sealed class SummaryAdapter : ILlmProviderAdapter
+{
+    private readonly string _summary;
+
+    public SummaryAdapter(string summary)
+    {
+        _summary = summary;
+    }
+
+    public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        yield return new OpenAiModels.StreamChunk
+        {
+            Choices = new() { new OpenAiModels.StreamChoice { Delta = new OpenAiModels.StreamDelta(), FinishReason = "stop" } }
+        };
+    }
+
+    public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+    {
+        return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse
+        {
+            Choices = new()
+            {
+                new OpenAiModels.ChatCompletionChoice
+                {
+                    Message = new OpenAiModels.ChatCompletionMessage
+                    {
+                        Role = "assistant",
+                        Content = _summary
+                    }
+                }
+            }
+        });
     }
 }

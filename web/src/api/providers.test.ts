@@ -22,6 +22,7 @@ const makeProvider = (id = "p1") => ({
   baseUrl: "https://openrouter.ai/api/v1",
   apiKeySet: true,
   model: "claude-3-5-sonnet",
+  contextWindowTokens: 131072,
   isDefault: true,
   isActive: true,
   supportsVision: true,
@@ -76,6 +77,7 @@ describe("providers API", () => {
         baseUrl: "https://openrouter.ai/api/v1",
         apiKey: "key",
         model: "claude-3-5-sonnet",
+        contextWindowTokens: undefined,
       });
       expect(result.id).toBe("p2");
     });
@@ -128,6 +130,7 @@ describe("providers API", () => {
         baseUrl: "https://openrouter.ai/api/v1",
         apiKey: "key",
         model: "claude-3-5-sonnet",
+        contextWindowTokens: undefined,
       });
       expect(result.success).toBe(true);
     });
@@ -136,7 +139,7 @@ describe("providers API", () => {
       mockApiFetch.mockResolvedValueOnce(
         new Response(JSON.stringify({ error: "Invalid API key" }), { status: 400 })
       );
-      await expect(testProvider({ providerType: "x", baseUrl: "x", apiKey: "x", model: "x" })).rejects.toThrow("Invalid API key");
+      await expect(testProvider({ providerType: "x", baseUrl: "x", apiKey: "x", model: "x", contextWindowTokens: undefined })).rejects.toThrow("Invalid API key");
     });
   });
 });

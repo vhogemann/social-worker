@@ -10,6 +10,7 @@ public class LlmProvider
     public string BaseUrl { get; set; } = "";
     public string ApiKey { get; set; } = "";
     public string Model { get; set; } = "";
+    public int? ContextWindowTokens { get; set; }
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

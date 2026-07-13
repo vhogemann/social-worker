@@ -25,6 +25,7 @@ const makeProvider = (id = "p1") => ({
   baseUrl: "https://openrouter.ai/api/v1",
   apiKeySet: true,
   model: "claude-3-5-sonnet",
+  contextWindowTokens: 131072,
   isDefault: true,
   isActive: true,
   supportsVision: true,
@@ -83,14 +84,14 @@ describe("ProvidersTab", () => {
   });
 
   it("shows success message when test connection succeeds", async () => {
-    mockTestProvider.mockResolvedValueOnce({ success: true, error: null });
+    mockTestProvider.mockResolvedValueOnce({ success: true, error: null, contextWindowTokens: 131072 });
     render(<ProvidersTab />);
     await screen.findByRole("button", { name: /test connection/i });
 
     await userEvent.type(screen.getByPlaceholderText("e.g. anthropic/claude-3.5-sonnet"), "claude-3-5-sonnet");
     fireEvent.click(screen.getByRole("button", { name: /test connection/i }));
 
-    expect(await screen.findByText("Connection successful!")).toBeInTheDocument();
+    expect(await screen.findByText(/Connection successful!/)).toBeInTheDocument();
   });
 
   it("shows failure message when test connection fails", async () => {

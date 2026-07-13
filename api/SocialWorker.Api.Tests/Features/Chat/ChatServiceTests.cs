@@ -31,7 +31,9 @@ public sealed class ChatServiceTests
     private static ChatSessionLoader CreateMockSessionLoader(
         string editorContent = "",
         string? brandVoice = null,
-        bool supportsVision = false)
+        bool supportsVision = false,
+        string model = "test-model",
+        string? draftSummary = null)
     {
         var provider = new LlmProvider
         {
@@ -40,7 +42,7 @@ public sealed class ChatServiceTests
             ProviderType = "OpenAI",
             BaseUrl = "https://test.local/v1",
             ApiKey = "test-key",
-            Model = "test-model",
+            Model = model,
             IsDefault = true,
             IsActive = true
         };
@@ -50,10 +52,11 @@ public sealed class ChatServiceTests
             Id = Guid.NewGuid(),
             Title = "Test Draft",
             Content = editorContent,
-            UserId = Guid.NewGuid()
+            UserId = Guid.NewGuid(),
+            ChatSummary = draftSummary
         };
 
-        var capabilities = new ModelCapabilities(supportsVision, true);
+        var capabilities = new ModelCapabilities(supportsVision, true, 8192);
         var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
 
         return new FakeSessionLoader(new ChatSessionContext(
@@ -94,6 +97,22 @@ public sealed class ChatServiceTests
                     }
                 }
             }
+        };
+    }
+
+    private static ChatModels.ChatRequest MakeRequest(List<string> messages, Guid? draftId = null)
+    {
+        return new ChatModels.ChatRequest
+        {
+            DraftId = draftId,
+            Messages = messages.Select(message => new ChatModels.UiMessage
+            {
+                Role = "user",
+                Content = new List<ChatModels.UiPart>
+                {
+                    new() { Type = "text", Text = message }
+                }
+            }).ToList()
         };
     }
 
@@ -188,6 +207,33 @@ public sealed class ChatServiceTests
         Assert.EndsWith("}\n", lines[^1]);
     }
 
+    [Fact]
+    public async Task StreamAsync_SelectsMoreMessages_ForLargerContextModels()
+    {
+        var messages = Enumerable.Range(0, 40)
+            .Select(i => $"Message {i}: {new string('x', 700)}")
+            .ToList();
+
+        var smallAdapter = new CapturingTextOnlyAdapter();
+        var smallService = CreateService(
+            sessionLoader: CreateMockSessionLoader(model: "llama3.1"),
+            adapter: smallAdapter);
+
+        var largeAdapter = new CapturingTextOnlyAdapter();
+        var largeService = CreateService(
+            sessionLoader: CreateMockSessionLoader(model: "gemma4-e2b-32k"),
+            adapter: largeAdapter);
+
+        await CollectStream(smallService, MakeRequest(messages));
+        await CollectStream(largeService, MakeRequest(messages));
+
+        var smallCount = smallAdapter.CapturedRequest!.Messages.Count(m => m.Role != "system");
+        var largeCount = largeAdapter.CapturedRequest!.Messages.Count(m => m.Role != "system");
+
+        Assert.True(largeCount > smallCount);
+        Assert.True(smallCount >= 1);
+    }
+
     /// <summary>
     /// An adapter that returns only text, no tool calls.
     /// </summary>
@@ -236,6 +282,62 @@ public sealed class ChatServiceTests
                         {
                             Role = "assistant",
                             Content = "Mock response"
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    private sealed class CapturingTextOnlyAdapter : ILlmProviderAdapter
+    {
+        public OpenAiModels.ChatCompletionRequest? CapturedRequest { get; private set; }
+
+        public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
+            OpenAiModels.ChatCompletionRequest request,
+            LlmCredentials credentials,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            CapturedRequest = request;
+            yield return new OpenAiModels.StreamChunk
+            {
+                Choices = new List<OpenAiModels.StreamChoice>
+                {
+                    new()
+                    {
+                        Delta = new OpenAiModels.StreamDelta
+                        {
+                            Content = "ok"
+                        }
+                    }
+                }
+            };
+            yield return new OpenAiModels.StreamChunk
+            {
+                Choices = new List<OpenAiModels.StreamChoice>
+                {
+                    new()
+                    {
+                        Delta = new OpenAiModels.StreamDelta(),
+                        FinishReason = "stop"
+                    }
+                }
+            };
+        }
+
+        public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+        {
+            CapturedRequest = request;
+            return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse
+            {
+                Choices = new List<OpenAiModels.ChatCompletionChoice>
+                {
+                    new()
+                    {
+                        Message = new OpenAiModels.ChatCompletionMessage
+                        {
+                            Role = "assistant",
+                            Content = "ok"
                         }
                     }
                 }

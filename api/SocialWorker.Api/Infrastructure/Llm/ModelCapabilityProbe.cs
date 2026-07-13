@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Chat;
 
 namespace SocialWorker.Api.Infrastructure.Llm;
 
@@ -52,7 +54,7 @@ public class ModelCapabilityProbe
                                  model.StartsWith("o3", StringComparison.OrdinalIgnoreCase) ||
                                  model.StartsWith("o4", StringComparison.OrdinalIgnoreCase);
 
-            return new ModelCapabilities(SupportsVision: supportsVision, SupportsTools: true);
+            return new ModelCapabilities(SupportsVision: supportsVision, SupportsTools: true, ContextWindowTokens: FallbackContextWindowTokens(type, model));
         }
 
         if (string.Equals(type, "OpenRouter", StringComparison.OrdinalIgnoreCase))
@@ -77,7 +79,10 @@ public class ModelCapabilityProbe
                         {
                             var inputModalities = found.Architecture.InputModalities;
                             var supportsVision = inputModalities != null && Array.Exists(inputModalities, val => string.Equals(val, "image", StringComparison.OrdinalIgnoreCase));
-                            return new ModelCapabilities(SupportsVision: supportsVision, SupportsTools: true);
+                            return new ModelCapabilities(
+                                SupportsVision: supportsVision,
+                                SupportsTools: true,
+                                ContextWindowTokens: found.ContextLength ?? FallbackContextWindowTokens(type, model));
                         }
                     }
                 }
@@ -86,7 +91,10 @@ public class ModelCapabilityProbe
             {
             }
 
-            return new ModelCapabilities(SupportsVision: model.Contains("vision", StringComparison.OrdinalIgnoreCase) || model.Contains("claude-3", StringComparison.OrdinalIgnoreCase) || model.Contains("gpt-4", StringComparison.OrdinalIgnoreCase), SupportsTools: true);
+            return new ModelCapabilities(
+                SupportsVision: model.Contains("vision", StringComparison.OrdinalIgnoreCase) || model.Contains("claude-3", StringComparison.OrdinalIgnoreCase) || model.Contains("gpt-4", StringComparison.OrdinalIgnoreCase),
+                SupportsTools: true,
+                ContextWindowTokens: FallbackContextWindowTokens(type, model));
         }
 
         if (string.Equals(type, "Ollama", StringComparison.OrdinalIgnoreCase))
@@ -110,12 +118,18 @@ public class ModelCapabilityProbe
                     {
                         var supportsVision = Array.Exists(result.Capabilities, val => string.Equals(val, "vision", StringComparison.OrdinalIgnoreCase));
                         var supportsTools = Array.Exists(result.Capabilities, val => string.Equals(val, "tools", StringComparison.OrdinalIgnoreCase));
-                        return new ModelCapabilities(SupportsVision: supportsVision, SupportsTools: supportsTools);
+                        return new ModelCapabilities(
+                            SupportsVision: supportsVision,
+                            SupportsTools: supportsTools,
+                            ContextWindowTokens: InferOllamaContextWindow(result.ModelInfo) ?? FallbackContextWindowTokens(type, model));
                     }
                     if (result?.Details?.Families != null)
                     {
                         var supportsVision = Array.Exists(result.Details.Families, val => string.Equals(val, "clip", StringComparison.OrdinalIgnoreCase));
-                        return new ModelCapabilities(SupportsVision: supportsVision, SupportsTools: true);
+                        return new ModelCapabilities(
+                            SupportsVision: supportsVision,
+                            SupportsTools: true,
+                            ContextWindowTokens: InferOllamaContextWindow(result.ModelInfo) ?? FallbackContextWindowTokens(type, model));
                     }
                 }
                 else
@@ -136,10 +150,35 @@ public class ModelCapabilityProbe
                 && !model.Contains("gemma", StringComparison.OrdinalIgnoreCase)
                 && !model.Contains("mistral", StringComparison.OrdinalIgnoreCase)
                 && !model.Contains("llama", StringComparison.OrdinalIgnoreCase);
-            return new ModelCapabilities(SupportsVision: fallbackVision, SupportsTools: true);
+            return new ModelCapabilities(SupportsVision: fallbackVision, SupportsTools: true, ContextWindowTokens: FallbackContextWindowTokens(type, model));
         }
 
-        return new ModelCapabilities(SupportsVision: false, SupportsTools: false);
+        return new ModelCapabilities(SupportsVision: false, SupportsTools: false, ContextWindowTokens: FallbackContextWindowTokens(type, model));
+    }
+
+    private static int FallbackContextWindowTokens(string providerType, string model)
+    {
+        return ChatContextWindowPolicy.ResolveContextWindowTokens(model);
+    }
+
+    private static int? InferOllamaContextWindow(Dictionary<string, JsonElement>? modelInfo)
+    {
+        if (modelInfo == null) return null;
+
+        foreach (var kvp in modelInfo)
+        {
+            if (!kvp.Key.Contains("context_length", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (kvp.Value.ValueKind == JsonValueKind.Number && kvp.Value.TryGetInt32(out var value))
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private class OpenRouterModelsResponse
@@ -152,6 +191,9 @@ public class ModelCapabilityProbe
     {
         [JsonPropertyName("id")]
         public string Id { get; set; } = "";
+
+        [JsonPropertyName("context_length")]
+        public int? ContextLength { get; set; }
 
         [JsonPropertyName("architecture")]
         public OpenRouterArchitecture? Architecture { get; set; }
@@ -170,6 +212,9 @@ public class ModelCapabilityProbe
 
         [JsonPropertyName("details")]
         public OllamaDetails? Details { get; set; }
+
+        [JsonPropertyName("model_info")]
+        public Dictionary<string, JsonElement>? ModelInfo { get; set; }
     }
 
     private class OllamaDetails

@@ -23,6 +23,7 @@ public sealed class ModelCapabilityProbeTests
         var caps = await probe.GetCapabilitiesAsync(provider);
         Assert.True(caps.SupportsVision);
         Assert.True(caps.SupportsTools);
+        Assert.True(caps.ContextWindowTokens > 0);
     }
 
     [Fact]
@@ -82,6 +83,7 @@ public sealed class ModelCapabilityProbeTests
         var caps = await probe.GetCapabilitiesAsync(provider);
         // Falls back to heuristics since HTTP won't respond
         Assert.True(caps.SupportsVision);
+        Assert.True(caps.ContextWindowTokens > 0);
     }
 
     [Fact]
