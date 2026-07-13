@@ -66,6 +66,7 @@ social-worker/
 - **Do not commit** unless explicitly asked.
 - **Secrets**: never commit `.env`, `proxy/certs/` (if present), or any API keys. `.gitignore` must cover these.
 - **TypeScript types** for API responses are hand-synced in `web/src/api/`. If the API contract changes, update both sides. (OpenAPI codegen is a later option.)
+- **Frontend testability**: build components with a forward look toward testing. Stable anchors such as `data-testid`, explicit labels, and other durable selectors are allowed when they improve e2e/unit test readability and robustness.
 - **EF migrations**: generate with `dotnet ef migrations add <Name>` inside the `api` container; commit the migration files. The migrator service applies them on `up`.
 - **New platform publishers** implement `IPublisher` in `api/SocialWorker.Api/Features/Publishing/`. `BlueskyPublisher` is the reference; others return `NotImplemented` + an auth URL until implemented.
 - **Stage transitions** are server-enforced: the model calls `set_stage`, but the server only applies it after the UI records user approval. `publish` is rejected unless `Stage=Ready` and the target platform's variant is confirmed.

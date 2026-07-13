@@ -18,8 +18,8 @@ export const SourcePreviewModal: React.FC<SourcePreviewModalProps> = ({ item, on
   const showOpenLink = isSource && (item.source.kind === "Url" || item.source.kind === "YouTube");
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-panel border border-border w-full max-w-2xl h-[500px] rounded-2xl shadow-2xl overflow-hidden flex flex-col font-sans">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" data-testid="source-preview-modal-overlay">
+      <div className="bg-panel border border-border w-full max-w-2xl h-[500px] rounded-2xl shadow-2xl overflow-hidden flex flex-col font-sans" data-testid="source-preview-modal">
         <div className="px-6 py-4 border-b border-border/60 flex items-center justify-between">
           <div className="min-w-0 flex-1 pr-4">
             <div className="flex items-center gap-3">

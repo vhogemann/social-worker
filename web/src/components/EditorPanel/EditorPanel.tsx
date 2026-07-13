@@ -42,7 +42,7 @@ export function EditorPanel() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-panel overflow-hidden">
+    <div className="h-full flex flex-col bg-panel overflow-hidden" data-testid="editor-panel">
       <div className="px-3 py-2 border-b border-border flex items-center justify-between text-xs font-mono text-muted uppercase tracking-wider select-none">
         <span className="flex items-center gap-2">
           editor
@@ -94,7 +94,7 @@ export function EditorPanel() {
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" data-testid={mode === "edit" ? "editor-panel-edit-mode" : "editor-panel-preview-mode"}>
         {mode === "edit" ? <MarkdownEditor /> : <ThreadPreview content={doc} />}
       </div>
       <SourcesPanel />

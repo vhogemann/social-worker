@@ -19,8 +19,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in font-sans">
-      <div className="bg-panel border border-border w-full max-w-4xl h-[600px] rounded-lg shadow-2xl overflow-hidden flex">
+    <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in font-sans" data-testid="settings-modal-overlay">
+      <div className="bg-panel border border-border w-full max-w-4xl h-[600px] rounded-lg shadow-2xl overflow-hidden flex" data-testid="settings-modal">
         <div className="w-56 bg-bg/40 border-r border-border p-4 flex flex-col justify-between select-none">
           <div className="space-y-4">
             <div className="px-2 text-xs font-mono uppercase tracking-wider text-muted mb-6">

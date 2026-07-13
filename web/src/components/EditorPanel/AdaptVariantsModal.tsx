@@ -49,8 +49,8 @@ export function AdaptVariantsModal({ isOpen, onClose, draftId }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-panel border border-border rounded-lg shadow-xl w-96 max-w-full mx-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-testid="adapt-variants-modal-overlay">
+      <div className="bg-panel border border-border rounded-lg shadow-xl w-96 max-w-full mx-3" data-testid="adapt-variants-modal">
         <div className="px-4 py-3 border-b border-border">
           <h2 className="text-sm font-semibold text-foreground">Adapt to Other Platforms</h2>
           <p className="text-xs text-muted mt-0.5">

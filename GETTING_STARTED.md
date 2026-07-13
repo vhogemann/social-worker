@@ -19,34 +19,34 @@ Then open `http://localhost:8100` in your browser.
 
 ## Quick Tour
 
-1. **Login**: Sign in with your admin credentials to open your workspace.
-2. **Draft List**: Use the drafts sidebar to open an existing draft or create a new one with the + button.
-3. **Editor**: Write thread content in the markdown editor. Separate posts with `---` on its own line.
+1. **Workspace Overview**: After signing in, you land in the main workspace with drafts, editor, preview controls, and chat side by side.
+2. **Create Draft Modal**: Use the drafts sidebar to create a new draft and choose the target platform up front.
+3. **Editor**: Write thread content in the markdown editor. Separate posts with `---` on its own line and keep refining in place.
 4. **Chat Assistant**: Use chat to ask for rewrites, improvements, and idea generation based on your current draft.
-5. **Sources**: Open Sources to add URLs or files that the assistant can use as references.
+5. **Source Preview**: Open Sources to attach reference material, then preview extracted contents without leaving the editor.
 6. **Adapt Modal**: Click Adapt to generate platform-specific variants of your thread content.
-7. **Publish Controls**: Close the Adapt modal and review publishing controls in the editor toolbar.
-8. **Settings**: Open Settings to configure LLM providers, connected accounts, and brand voice prompts.
+7. **Preview Mode**: Switch to Preview mode to inspect how the thread will read as a sequence of social posts before publishing.
+8. **Settings**: Open Settings to manage providers, connected accounts, and brand voice configuration from one place.
 
 ## Step-by-Step Walkthrough
 
-### Step 1: Login
+### Step 1: Workspace Overview
 
-Sign in with your admin credentials to open your workspace.
+After signing in, you land in the main workspace with drafts, editor, preview controls, and chat side by side.
 
 ![01-login](docs/getting-started/01-login.png)
 
 
-### Step 2: Draft List
+### Step 2: Create Draft Modal
 
-Use the drafts sidebar to open an existing draft or create a new one with the + button.
+Use the drafts sidebar to create a new draft and choose the target platform up front.
 
 ![02-draft-list](docs/getting-started/02-draft-list.png)
 
 
 ### Step 3: Editor
 
-Write thread content in the markdown editor. Separate posts with `---` on its own line.
+Write thread content in the markdown editor. Separate posts with `---` on its own line and keep refining in place.
 
 ![03-editor](docs/getting-started/03-editor.png)
 
@@ -58,9 +58,9 @@ Use chat to ask for rewrites, improvements, and idea generation based on your cu
 ![04-chat](docs/getting-started/04-chat.png)
 
 
-### Step 5: Sources
+### Step 5: Source Preview
 
-Open Sources to add URLs or files that the assistant can use as references.
+Open Sources to attach reference material, then preview extracted contents without leaving the editor.
 
 ![05-sources](docs/getting-started/05-sources.png)
 
@@ -72,16 +72,16 @@ Click Adapt to generate platform-specific variants of your thread content.
 ![06-adapt-modal](docs/getting-started/06-adapt-modal.png)
 
 
-### Step 7: Publish Controls
+### Step 7: Preview Mode
 
-Close the Adapt modal and review publishing controls in the editor toolbar.
+Switch to Preview mode to inspect how the thread will read as a sequence of social posts before publishing.
 
 ![07-publish](docs/getting-started/07-publish.png)
 
 
 ### Step 8: Settings
 
-Open Settings to configure LLM providers, connected accounts, and brand voice prompts.
+Open Settings to manage providers, connected accounts, and brand voice configuration from one place.
 
 ![08-settings](docs/getting-started/08-settings.png)
 

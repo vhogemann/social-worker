@@ -166,7 +166,7 @@ export function Thread() {
   }, [isRunning, loadDrafts, activeDraftId, loadSources]);
 
   return (
-    <ThreadPrimitive.Root className="flex flex-col h-full bg-panel">
+    <ThreadPrimitive.Root className="flex flex-col h-full bg-panel" data-testid="chat-panel">
       <div className="px-4 py-2 border-b border-border text-xs font-mono text-muted uppercase tracking-wider">
         chat
       </div>

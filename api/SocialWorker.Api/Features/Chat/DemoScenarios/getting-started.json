@@ -1,0 +1,16 @@
+{
+  "steps": [
+    {
+      "matchContains": "review my draft and suggest improvements",
+      "response": "Nice draft structure. For this walkthrough, notice how chat can analyze your content and suggest edits without leaving the editor."
+    },
+    {
+      "matchContains": "adapt",
+      "response": "Adapt can generate platform-specific variants from your canonical draft in one flow."
+    },
+    {
+      "matchContains": "settings",
+      "response": "Settings is where you manage providers, account connections, and brand voice defaults."
+    }
+  ]
+}

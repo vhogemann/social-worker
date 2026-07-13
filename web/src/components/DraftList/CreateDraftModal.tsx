@@ -34,8 +34,8 @@ export function CreateDraftModal({ isOpen, onClose, onCreate }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-panel border border-border rounded-lg shadow-xl w-96 max-w-full mx-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-testid="create-draft-modal-overlay">
+      <div className="bg-panel border border-border rounded-lg shadow-xl w-96 max-w-full mx-3" data-testid="create-draft-modal">
         <div className="px-4 py-3 border-b border-border">
           <h2 className="text-sm font-semibold text-foreground">Create New Draft</h2>
         </div>

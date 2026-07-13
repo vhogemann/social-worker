@@ -24,7 +24,7 @@ export const ThreadPreview: React.FC<ThreadPreviewProps> = ({ content }) => {
   const blueskyThread = activeDraft?.threads?.find(t => t.platform === "Bluesky");
 
   return (
-    <div className="space-y-0 relative max-w-xl mx-auto py-6 px-4">
+    <div className="space-y-0 relative max-w-xl mx-auto py-6 px-4" data-testid="thread-preview">
       {segments.map((segment, index) => {
         const post = blueskyThread?.posts?.find(p => p.segmentIndex === index);
         return (

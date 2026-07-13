@@ -37,6 +37,7 @@ services:
       Search__Provider: ${Search__Provider:-SearXng}
       Search__BraveApiKey: ${Search__BraveApiKey:-}
       Search__SearXngBaseUrl: http://searxng:8080
+      DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-}
     depends_on:
       db:
         condition: service_healthy
@@ -73,6 +74,7 @@ services:
       BASE_URL: http://web:80
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: ${Auth__AdminPassword:-changeme}
+      DEMO_LLM_PROFILE: getting-started
     depends_on:
       api:
         condition: service_started
