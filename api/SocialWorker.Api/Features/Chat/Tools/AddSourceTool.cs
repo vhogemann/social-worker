@@ -35,7 +35,7 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, string>
             },
             "reference": {
               "type": "string",
-              "description": "The URL, video link, or file reference."
+                            "description": "The URL, video link, or file reference. For Url and YouTube kinds this must be an absolute HTTP or HTTPS URL."
             },
             "title": {
               "type": "string",
@@ -62,6 +62,17 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, string>
             return $"Error: Invalid source kind '{args.Kind}'. Must be one of Url, YouTube, File.";
         }
 
+        var reference = args.Reference?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(reference))
+        {
+            return "Error: Source reference is required.";
+        }
+
+        if ((kind == SourceKind.Url || kind == SourceKind.YouTube) && !TryValidateAbsoluteHttpUrl(reference, out var referenceError))
+        {
+            return $"Error: {referenceError} Pass the exact absolute URL, including https://.";
+        }
+
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var scraper = scope.ServiceProvider.GetRequiredService<WebScraperService>();
@@ -72,27 +83,32 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, string>
             return "Error: Draft not found or access denied.";
         }
 
-        var sourceTitle = args.Title ?? args.Reference;
+        var sourceTitle = args.Title ?? reference;
         var sourceContent = args.Content;
 
         if ((kind == SourceKind.Url || kind == SourceKind.YouTube) && string.IsNullOrEmpty(sourceContent))
         {
-            try
+            var scrape = await scraper.ScrapeUrlAsync(reference);
+            if (!scrape.Success)
             {
-                var (scrapedTitle, scrapedContent, isYouTube) = await scraper.ScrapeUrlAsync(args.Reference);
-                if (string.IsNullOrEmpty(args.Title))
-                {
-                    sourceTitle = scrapedTitle;
-                }
-                sourceContent = scrapedContent;
-                if (isYouTube)
-                {
-                    kind = SourceKind.YouTube;
-                }
+                return $"Error: Failed to add source because the URL could not be scraped. {scrape.Error}";
             }
-            catch (Exception ex)
+
+            if (!string.IsNullOrEmpty(args.Kind) && kind == SourceKind.YouTube && !scrape.IsYouTube)
             {
-                sourceContent = $"Error scraping URL: {ex.Message}";
+                return "Error: The provided reference is not recognized as a YouTube URL.";
+            }
+
+            if (string.IsNullOrEmpty(args.Title))
+            {
+                sourceTitle = scrape.Title;
+            }
+
+            sourceContent = scrape.Content;
+            reference = scrape.FinalUrl;
+            if (scrape.IsYouTube)
+            {
+                kind = SourceKind.YouTube;
             }
         }
 
@@ -100,7 +116,7 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, string>
         {
             DraftId = draftId.Value,
             Kind = kind,
-            Reference = args.Reference,
+            Reference = reference,
             Title = sourceTitle,
             Content = sourceContent
         };
@@ -110,6 +126,30 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, string>
         draft.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
 
-        return $"Successfully added source '{source.Title}' ({source.Kind}) with ID {source.Id}.";
+        return $"Successfully added source '{source.Title}' ({source.Kind}) with ID {source.Id}. Use list_sources or fetch_source to inspect it before drafting from it.";
+    }
+
+    private static bool TryValidateAbsoluteHttpUrl(string reference, out string error)
+    {
+        error = string.Empty;
+        if (!Uri.TryCreate(reference, UriKind.Absolute, out var uri))
+        {
+            error = "Source URLs must be absolute HTTP or HTTPS URLs.";
+            return false;
+        }
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            error = "Source URLs must use http:// or https://.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(uri.Host))
+        {
+            error = "Source URLs must include a valid host.";
+            return false;
+        }
+
+        return true;
     }
 }

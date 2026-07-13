@@ -207,25 +207,24 @@ public sealed class SourcesService
 
                 foreach (var ls in loadingSources)
                 {
-                    try
+                    var scrape = await scopedScraper.ScrapeUrlAsync(ls.Reference);
+                    var dbSource = await scopedDb.Sources.FindAsync(new object[] { ls.Id }, ct);
+                    if (dbSource == null)
                     {
-                        var (title, contentText, isYouTube) = await scopedScraper.ScrapeUrlAsync(ls.Reference);
-                        var dbSource = await scopedDb.Sources.FindAsync(new object[] { ls.Id }, ct);
-                        if (dbSource != null)
-                        {
-                            dbSource.Title = title;
-                            dbSource.Content = contentText;
-                            dbSource.Kind = isYouTube ? SourceKind.YouTube : SourceKind.Url;
-                        }
+                        continue;
                     }
-                    catch (Exception ex)
+
+                    if (scrape.Success)
                     {
-                        var dbSource = await scopedDb.Sources.FindAsync(new object[] { ls.Id }, ct);
-                        if (dbSource != null)
-                        {
-                            dbSource.Title = $"Failed: {ls.Reference}";
-                            dbSource.Content = $"Error fetching link: {ex.Message}";
-                        }
+                        dbSource.Reference = scrape.FinalUrl;
+                        dbSource.Title = scrape.Title;
+                        dbSource.Content = scrape.Content;
+                        dbSource.Kind = scrape.IsYouTube ? SourceKind.YouTube : SourceKind.Url;
+                    }
+                    else
+                    {
+                        dbSource.Title = $"Failed: {ls.Reference}";
+                        dbSource.Content = $"Error fetching link: {scrape.Error}";
                     }
                 }
 

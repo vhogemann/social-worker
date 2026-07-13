@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using SocialWorker.Api.Features.Chat.Tools;
@@ -39,17 +40,19 @@ public sealed class WebSearchToolTests
         var results = new List<SearchResult>
         {
             new("Result 1", "https://example.com/1", "This is description 1"),
-            new("Result 2", "https://example.com/2", "This is description 2")
+            new("Result 2", "https://example.com/2", "This is description 2"),
+            new("Bad Result", "/relative/path", "Should be filtered")
         };
         var engine = new MockSearchEngine { ExpectedQuery = "real query", ResultsToReturn = results };
         var tool = new WebSearchTool(engine);
 
         var result = await tool.ExecuteAsync(new WebSearchArgs("real query"), Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
-        Assert.Contains("Web search results for: 'real query':", result);
-        Assert.Contains("- **Result 1**", result);
-        Assert.Contains("URL: https://example.com/1", result);
-        Assert.Contains("Snippet: This is description 1", result);
-        Assert.Contains("- **Result 2**", result);
+        using var doc = JsonDocument.Parse(result);
+        var root = doc.RootElement;
+        Assert.Equal("real query", root.GetProperty("query").GetString());
+        Assert.Equal(2, root.GetProperty("results").GetArrayLength());
+        Assert.Equal("https://example.com/1", root.GetProperty("results")[0].GetProperty("url").GetString());
+        Assert.Equal("https://example.com/2", root.GetProperty("results")[1].GetProperty("url").GetString());
     }
 }

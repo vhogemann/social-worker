@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -46,15 +47,45 @@ public sealed class WebSearchTool : ChatToolBase<WebSearchArgs, string>
             return "No search results found.";
         }
 
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"Web search results for: '{args.Query}':\n");
+        var normalized = new List<object>();
+        var rank = 1;
         foreach (var r in results)
         {
-            sb.AppendLine($"- **{r.Title}**");
-            sb.AppendLine($"  URL: {r.Url}");
-            sb.AppendLine($"  Snippet: {r.Snippet}\n");
+            if (!Uri.TryCreate(r.Url, UriKind.Absolute, out var uri))
+            {
+                continue;
+            }
+
+            if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            {
+                continue;
+            }
+
+            normalized.Add(new
+            {
+                rank = rank++,
+                title = r.Title,
+                url = uri.ToString(),
+                snippet = r.Snippet
+            });
         }
 
-        return sb.ToString().Trim();
+        if (normalized.Count == 0)
+        {
+            return "No valid absolute search result URLs found.";
+        }
+
+        var payload = new
+        {
+            query = args.Query,
+            usageNotes = new[]
+            {
+                "Use the exact absolute URL from a result's url field when calling add_source.",
+                "Do not pass relative paths, hostnames without scheme, or snippet text to add_source."
+            },
+            results = normalized
+        };
+
+        return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
     }
 }

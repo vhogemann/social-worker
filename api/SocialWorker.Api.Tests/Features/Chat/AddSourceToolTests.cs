@@ -76,4 +76,54 @@ public sealed class AddSourceToolTests : IDisposable
         Assert.Equal("Page Title", inserted.Title);
         Assert.Contains("Extracted Body Content", inserted.Content ?? "");
     }
+
+    [Fact]
+    public async Task ExecuteAsync_Returns_Error_For_Relative_Url_And_Does_Not_Insert_Source()
+    {
+        using var db = new AppDbContext(_options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "My Draft", Status = DraftStatus.Editing };
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var client = new HttpClient(new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
+        var scraper = new WebScraperService(client);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(db);
+        services.AddSingleton(scraper);
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+
+        var tool = new AddSourceTool(scopeFactory);
+        var result = await tool.ExecuteAsync(new AddSourceArgs("Url", "/relative/path", null, null), draft.Id, userId, CancellationToken.None);
+
+        Assert.StartsWith("Error:", result);
+        Assert.Empty(await db.Sources.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Returns_Error_When_Scrape_Fails_And_Does_Not_Insert_Source()
+    {
+        using var db = new AppDbContext(_options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "My Draft", Status = DraftStatus.Editing };
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var client = new HttpClient(new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)));
+        var scraper = new WebScraperService(client);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(db);
+        services.AddSingleton(scraper);
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+
+        var tool = new AddSourceTool(scopeFactory);
+        var result = await tool.ExecuteAsync(new AddSourceArgs("Url", "https://example.com/missing", null, null), draft.Id, userId, CancellationToken.None);
+
+        Assert.StartsWith("Error:", result);
+        Assert.Empty(await db.Sources.ToListAsync());
+    }
 }

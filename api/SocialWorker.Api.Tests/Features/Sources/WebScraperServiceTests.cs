@@ -15,10 +15,11 @@ public sealed class WebScraperServiceTests
         var client = new HttpClient(handler);
         var scraper = new WebScraperService(client);
 
-        var (title, content, isYouTube) = await scraper.ScrapeUrlAsync("");
+        var result = await scraper.ScrapeUrlAsync("");
 
-        Assert.Equal("Empty URL", title);
-        Assert.False(isYouTube);
+        Assert.Equal("Empty URL", result.Title);
+        Assert.False(result.IsYouTube);
+        Assert.False(result.Success);
     }
 
     [Fact]
@@ -35,11 +36,12 @@ public sealed class WebScraperServiceTests
         var client = new HttpClient(handler);
         var scraper = new WebScraperService(client);
 
-        var (title, content, isYouTube) = await scraper.ScrapeUrlAsync("example.com");
+        var result = await scraper.ScrapeUrlAsync("example.com");
 
-        Assert.Equal("Test", title);
-        Assert.Contains("Hello", content);
-        Assert.False(isYouTube);
+        Assert.Equal("Test", result.Title);
+        Assert.Contains("Hello", result.Content);
+        Assert.False(result.IsYouTube);
+        Assert.True(result.Success);
     }
 
     [Fact]
@@ -63,12 +65,12 @@ public sealed class WebScraperServiceTests
         var client = new HttpClient(handler);
         var scraper = new WebScraperService(client);
 
-        var (title, content, isYouTube) = await scraper.ScrapeUrlAsync("https://example.com");
+        var result = await scraper.ScrapeUrlAsync("https://example.com");
 
-        Assert.Equal("My Page", title);
-        Assert.Contains("Welcome", content);
-        Assert.Contains("This is the first paragraph.", content);
-        Assert.False(isYouTube);
+        Assert.Equal("My Page", result.Title);
+        Assert.Contains("Welcome", result.Content);
+        Assert.Contains("This is the first paragraph.", result.Content);
+        Assert.False(result.IsYouTube);
     }
 
     [Fact]
@@ -93,11 +95,11 @@ public sealed class WebScraperServiceTests
         var client = new HttpClient(handler);
         var scraper = new WebScraperService(client);
 
-        var (_, content, _) = await scraper.ScrapeUrlAsync("https://example.com");
+        var result = await scraper.ScrapeUrlAsync("https://example.com");
 
-        Assert.Contains("Actual content", content);
-        Assert.DoesNotContain("alert", content);
-        Assert.DoesNotContain("nav stuff", content);
+        Assert.Contains("Actual content", result.Content);
+        Assert.DoesNotContain("alert", result.Content);
+        Assert.DoesNotContain("nav stuff", result.Content);
     }
 
     [Fact]
@@ -121,9 +123,22 @@ public sealed class WebScraperServiceTests
         var client = new HttpClient(handler);
         var scraper = new WebScraperService(client);
 
-        var (title, _, isYouTube) = await scraper.ScrapeUrlAsync("https://youtube.com/watch?v=dQw4w9WgXcQ");
+        var result = await scraper.ScrapeUrlAsync("https://youtube.com/watch?v=dQw4w9WgXcQ");
 
-        Assert.True(isYouTube);
-        Assert.Contains("Test Video", title);
+        Assert.True(result.IsYouTube);
+        Assert.Contains("Test Video", result.Title);
+    }
+
+    [Fact]
+    public async Task ScrapeUrlAsync_ReturnsFailure_For_HttpError()
+    {
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        var client = new HttpClient(handler);
+        var scraper = new WebScraperService(client);
+
+        var result = await scraper.ScrapeUrlAsync("https://example.com/missing");
+
+        Assert.False(result.Success);
+        Assert.Contains("HTTP 404", result.Error);
     }
 }

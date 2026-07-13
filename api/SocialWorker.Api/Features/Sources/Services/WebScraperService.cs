@@ -8,6 +8,18 @@ using HtmlAgilityPack;
 
 namespace SocialWorker.Api.Features.Sources;
 
+public sealed record WebScrapeResult(
+    string RequestedUrl,
+    string FinalUrl,
+    string Title,
+    string Content,
+    bool IsYouTube,
+    bool HasUsableContent,
+    string? Error)
+{
+    public bool Success => string.IsNullOrWhiteSpace(Error);
+}
+
 public sealed class WebScraperService
 {
     private readonly HttpClient _client;
@@ -17,32 +29,101 @@ public sealed class WebScraperService
         _client = client;
     }
 
-    public async Task<(string Title, string Content, bool IsYouTube)> ScrapeUrlAsync(string url)
+    public async Task<WebScrapeResult> ScrapeUrlAsync(string url)
     {
+        var requestedUrl = url?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(url))
         {
-            return ("Empty URL", "", false);
+            return new WebScrapeResult(requestedUrl, requestedUrl, "Empty URL", "", false, false, "URL is empty.");
         }
 
-        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        if (!TryNormalizeUrl(url, out var normalizedUrl, out var error))
         {
-            url = "https://" + url;
+            return new WebScrapeResult(requestedUrl, requestedUrl, requestedUrl, "", false, false, error);
         }
 
-        if (IsYouTubeUrl(url))
+        if (IsYouTubeUrl(normalizedUrl))
         {
-            var (title, contentText) = await FetchYouTubeMetadataAsync(url);
-            return (title, contentText, true);
+            var (title, contentText) = await FetchYouTubeMetadataAsync(normalizedUrl);
+            return new WebScrapeResult(
+                requestedUrl,
+                normalizedUrl,
+                title,
+                contentText,
+                true,
+                !string.IsNullOrWhiteSpace(contentText),
+                null);
         }
-        else
+
+        try
         {
             _client.DefaultRequestHeaders.UserAgent.Clear();
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-            var html = await _client.GetStringAsync(url);
-            var (title, text) = ExtractUrlContent(html, url);
-            return (title, text, false);
+
+            using var response = await _client.GetAsync(normalizedUrl);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new WebScrapeResult(
+                    requestedUrl,
+                    normalizedUrl,
+                    normalizedUrl,
+                    "",
+                    false,
+                    false,
+                    $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
+            }
+
+            var html = await response.Content.ReadAsStringAsync();
+            var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? normalizedUrl;
+            var (title, text) = ExtractUrlContent(html, finalUrl);
+            var hasUsableContent = !string.IsNullOrWhiteSpace(text);
+
+            return new WebScrapeResult(
+                requestedUrl,
+                finalUrl,
+                title,
+                text,
+                false,
+                hasUsableContent,
+                hasUsableContent ? null : "The page was fetched but no usable text content was extracted.");
         }
+        catch (Exception ex)
+        {
+            return new WebScrapeResult(requestedUrl, normalizedUrl, normalizedUrl, "", false, false, ex.Message);
+        }
+    }
+
+    private static bool TryNormalizeUrl(string input, out string normalizedUrl, out string error)
+    {
+        normalizedUrl = input.Trim();
+        error = "";
+
+        if (!normalizedUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !normalizedUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedUrl = "https://" + normalizedUrl;
+        }
+
+        if (!Uri.TryCreate(normalizedUrl, UriKind.Absolute, out var uri))
+        {
+            error = "The URL could not be parsed as an absolute HTTP or HTTPS URL.";
+            return false;
+        }
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            error = "Only HTTP and HTTPS URLs are supported.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(uri.Host))
+        {
+            error = "The URL must include a valid host.";
+            return false;
+        }
+
+        normalizedUrl = uri.ToString();
+        return true;
     }
 
     private static bool IsYouTubeUrl(string url)
