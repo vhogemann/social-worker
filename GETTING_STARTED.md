@@ -1,6 +1,6 @@
 # Getting Started with social-worker
 
-social-worker is a local-first, Docker-only multi-modal assistant for composing and publishing social media threads.
+social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads.
 
 ## Prerequisites
 
@@ -17,82 +17,73 @@ docker compose up --build
 
 Then open `http://localhost:8100` in your browser.
 
-## App Walkthrough
+## Quick Tour
 
-### 1. Login
+1. **Login**: Sign in with your admin credentials to open your workspace.
+2. **Draft List**: Use the drafts sidebar to open an existing draft or create a new one with the + button.
+3. **Editor**: Write thread content in the markdown editor. Separate posts with `---` on its own line.
+4. **Chat Assistant**: Use chat to ask for rewrites, improvements, and idea generation based on your current draft.
+5. **Sources**: Open Sources to add URLs or files that the assistant can use as references.
+6. **Adapt Modal**: Click Adapt to generate platform-specific variants of your thread content.
+7. **Publish Controls**: Close the Adapt modal and review publishing controls in the editor toolbar.
+8. **Settings**: Open Settings to configure LLM providers, connected accounts, and brand voice prompts.
 
-### 1. Sign in with your admin credentials
-
-### 2. The sidebar shows all your drafts
-
-### 3. The markdown editor uses CodeMirror 6 with Vim keybindings
-
-### 4. The chat panel lets you collaborate with an AI assistant
-
-### 5. Add reference sources to your draft
-
-### 6. Click 'Adapt' to generate platform-specific versions of your draft
-
-### 7. When your draft is ready, click Publish
-
-### 8. Open Settings to configure LLM providers (OpenAI, OpenRouter, Ollama), connect social media accounts, and manage brand voice prompts
-
----
+## Step-by-Step Walkthrough
 
 ### Step 1: Login
 
-Sign in with your admin credentials. The app uses JWT authentication with refresh tokens.
+Sign in with your admin credentials to open your workspace.
 
-![01-login](e2e/screenshots/01-login.png)
+![01-login](docs/getting-started/01-login.png)
 
 
 ### Step 2: Draft List
 
-The sidebar shows all your drafts. Click a draft to open it in the editor. Use the + button to create new drafts.
+Use the drafts sidebar to open an existing draft or create a new one with the + button.
 
-![02-draft-list](e2e/screenshots/02-draft-list.png)
+![02-draft-list](docs/getting-started/02-draft-list.png)
 
 
 ### Step 3: Editor
 
-The markdown editor uses CodeMirror 6 with Vim keybindings. Write your thread content here. Use `---` on its own line to separate thread segments.
+Write thread content in the markdown editor. Separate posts with `---` on its own line.
 
-![03-editor](e2e/screenshots/03-editor.png)
+![03-editor](docs/getting-started/03-editor.png)
 
 
-### Step 4: Chat
+### Step 4: Chat Assistant
 
-The chat panel lets you collaborate with an AI assistant. Ask for improvements, rewrites, or new ideas. The assistant can read your draft and suggest changes.
+Use chat to ask for rewrites, improvements, and idea generation based on your current draft.
 
-![04-chat](e2e/screenshots/04-chat.png)
+![04-chat](docs/getting-started/04-chat.png)
 
 
 ### Step 5: Sources
 
-Add reference sources to your draft. Paste URLs or upload files, and the assistant can reference them when generating content.
+Open Sources to add URLs or files that the assistant can use as references.
 
-![05-sources](e2e/screenshots/05-sources.png)
+![05-sources](docs/getting-started/05-sources.png)
 
 
 ### Step 6: Adapt Modal
 
-Click 'Adapt' to generate platform-specific versions of your draft. The assistant tailors content for each platform's constraints (character limits, tone, format).
+Click Adapt to generate platform-specific variants of your thread content.
 
-![06-adapt-modal](e2e/screenshots/06-adapt-modal.png)
+![06-adapt-modal](docs/getting-started/06-adapt-modal.png)
 
 
-### Step 7: Publish
+### Step 7: Publish Controls
 
-When your draft is ready, click Publish. The app posts to your connected Bluesky account. Publishing to Twitter, LinkedIn, Facebook, and Instagram is coming soon.
+Close the Adapt modal and review publishing controls in the editor toolbar.
 
-![07-publish](e2e/screenshots/07-publish.png)
+![07-publish](docs/getting-started/07-publish.png)
 
 
 ### Step 8: Settings
 
-Open Settings to configure LLM providers (OpenAI, OpenRouter, Ollama), connect social media accounts, and manage brand voice prompts.
+Open Settings to configure LLM providers, connected accounts, and brand voice prompts.
 
-![08-settings](e2e/screenshots/08-settings.png)
+![08-settings](docs/getting-started/08-settings.png)
 
 
 ## Running E2E Tests
@@ -107,10 +98,8 @@ docker compose --profile e2e run --rm e2e npx playwright test tests/generate-get
 
 ## Regenerating This Guide
 
-Run the `generate-getting-started` test after any UI changes that affect the screenshots:
+Run the helper script to regenerate both this markdown file and the committed screenshots:
 
 ```bash
-docker compose --profile e2e build e2e
-docker compose --profile e2e run --rm e2e npx playwright test tests/generate-getting-started.spec.ts
-cp e2e/output/GETTING_STARTED.md GETTING_STARTED.md
+./scripts/regenerate-getting-started.sh
 ```

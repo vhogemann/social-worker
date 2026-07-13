@@ -83,6 +83,8 @@ docker compose up --build
 - **Web App**: `http://localhost:8100`
 - **API**: `http://localhost:8101`
 
+For a UI walkthrough with screenshots, see [GETTING_STARTED.md](GETTING_STARTED.md).
+
 ### 2. Run Only (Prebuilt Images, No Local Build)
 
 If you just want to run the app and not develop it locally, use the prebuilt images:
@@ -142,6 +144,11 @@ All builds, migration generations, and unit tests must be executed inside Docker
 - **Frontend Build**: `docker compose exec web sh -c "npm run build && npm run typecheck"`
 - **Unit Tests**: `docker compose exec api dotnet test`
 - **EF Core Migrations**: `docker compose exec api dotnet ef migrations add <MigrationName>`
+
+## Documentation
+
+- **Getting Started Guide**: [GETTING_STARTED.md](GETTING_STARTED.md)
+- **Regenerate Guide + Screenshots**: `./scripts/regenerate-getting-started.sh`
 
 ---
 
