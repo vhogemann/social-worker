@@ -26,10 +26,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("LLM"));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
+builder.Services.Configure<ChatOptions>(builder.Configuration.GetSection(ChatOptions.SectionName));
 builder.Services.AddHttpClient<OpenAiProviderAdapter>();
 builder.Services.AddScoped<ILlmProviderAdapter>(sp =>
 {
-    if (builder.Environment.IsDevelopment())
+    var demoProfile = Environment.GetEnvironmentVariable("DEMO_LLM_PROFILE");
+    if (!string.IsNullOrWhiteSpace(demoProfile))
     {
         return new DemoLlmAdapter();
     }
@@ -51,6 +53,7 @@ builder.Services.AddScoped<DraftsService>();
 builder.Services.AddScoped<PlatformVariantService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ProvidersService>();
+builder.Services.AddSingleton<PlatformContentPolicy>();
 builder.Services.AddScoped<IChatTool, ReplaceEditorContentTool>();
 builder.Services.AddScoped<IChatTool, ProposeStageTransitionTool>();
 builder.Services.AddScoped<IChatTool, ListSourcesTool>();
@@ -63,6 +66,7 @@ builder.Services.AddScoped<IChatTool, ValidateDraftTool>();
 builder.Services.AddScoped<IChatTool, AddImageSourceTool>();
 builder.Services.AddScoped<IChatTool, ImageSearchTool>();
 builder.Services.AddScoped<IChatTool, RenderCodeBlocksTool>();
+builder.Services.AddScoped<IChatTool, FormatValidatePlatformContentTool>();
 builder.Services.AddScoped<IChatTool, GeneratePlatformVariantsTool>();
 builder.Services.AddSingleton<CodeImageRenderer>();
 builder.Services.AddScoped<CodeImageService>();
@@ -126,6 +130,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
+    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"LlmProviders\" ADD COLUMN IF NOT EXISTS \"ContextWindowTokens\" integer;");
 
     var authOpts = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AuthOptions>>().Value;
     var adminUser = await db.Users.FirstOrDefaultAsync(u => u.Username == "admin");

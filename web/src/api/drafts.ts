@@ -179,6 +179,23 @@ export async function deleteSource(draftId: string, sourceId: string): Promise<v
   if (!res.ok) throw new Error(`deleteSource failed: ${res.status}`);
 }
 
+export async function importSourceFromUrl(
+  draftId: string,
+  url: string,
+  title?: string,
+  content?: string
+): Promise<{ sourceId: string; reference: string; title: string | null; kind: string }> {
+  const res = await apiFetch(`/api/drafts/${draftId}/sources/import-url`, {
+    method: "POST",
+    body: JSON.stringify({ url, title, content }),
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => `${res.status}`);
+    throw new Error(msg || `importSourceFromUrl failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function uploadFile(draftId: string, file: File): Promise<{ sourceId: string; markdownLink: string }> {
   const formData = new FormData();
   formData.append("file", file);
@@ -203,6 +220,24 @@ export async function uploadMedia(draftId: string, file: File): Promise<{ id: st
     const msg = await res.text().catch(() => `${res.status}`);
     throw new Error(msg || `uploadMedia failed: ${res.status}`);
   }
+  return res.json();
+}
+
+export async function importMediaFromUrl(
+  draftId: string,
+  url: string,
+  altText?: string
+): Promise<{ id: string; markdownTag: string }> {
+  const res = await apiFetch(`/api/drafts/${draftId}/media/import-url`, {
+    method: "POST",
+    body: JSON.stringify({ url, altText }),
+  });
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => `${res.status}`);
+    throw new Error(msg || `importMediaFromUrl failed: ${res.status}`);
+  }
+
   return res.json();
 }
 

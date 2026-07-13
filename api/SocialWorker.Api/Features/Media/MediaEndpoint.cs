@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SocialWorker.Api.Features.Media;
 
@@ -56,6 +57,60 @@ public static class MediaEndpoint
                 return Results.BadRequest($"Failed to upload image: {ex.Message}");
             }
         }).RequireAuthorization().DisableAntiforgery();
+
+        app.MapPost("/api/drafts/{draftId:guid}/media/import-url", async (
+            ClaimsPrincipal principal,
+            IServiceScopeFactory scopeFactory,
+            MediaService mediaService,
+            Guid draftId,
+            ImportMediaFromUrlRequest req,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            if (req is null || string.IsNullOrWhiteSpace(req.Url))
+            {
+                return Results.BadRequest("A valid image URL is required.");
+            }
+
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var factory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+                using var client = factory.CreateClient();
+
+                var result = await mediaService.ImportMediaFromUrlAsync(
+                    userId.Value,
+                    draftId,
+                    req.Url,
+                    client,
+                    ct,
+                    req.AltText);
+
+                return Results.Ok(new
+                {
+                    id = result.Id,
+                    markdownTag = result.MarkdownTag
+                });
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest($"Failed to import image: {ex.Message}");
+            }
+        }).RequireAuthorization();
 
         app.MapGet("/api/media/{id:guid}", async (MediaService mediaService, Guid id, CancellationToken ct) =>
         {
@@ -143,3 +198,4 @@ public static class MediaEndpoint
 }
 
 public sealed record UpdateMediaRequest(string? AltText);
+public sealed record ImportMediaFromUrlRequest(string Url, string? AltText);

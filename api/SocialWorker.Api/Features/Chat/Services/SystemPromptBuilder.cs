@@ -9,6 +9,7 @@ public sealed class SystemPromptBuilder
     private static string GetBasePrompt()
     {
         const string defaultPrompt = "You are a helpful assistant that helps the user draft social media threads. "
+                    + "If the user asks you to write, rewrite, edit, improve, or apply changes to content, you MUST call replace_editor_content with the full markdown in that same turn. Do not only provide suggestions. "
           + "When the user asks you to write or update content, call replace_editor_content with the full markdown. "
           + "Use --- on its own line to separate thread segments (each segment is one post).\n"
           + "You have access to reference sources (attached files or URLs detected in the draft). "

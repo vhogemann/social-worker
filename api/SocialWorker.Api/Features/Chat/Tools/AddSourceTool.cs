@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
-using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Sources;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
@@ -74,59 +73,37 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, string>
         }
 
         using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var scraper = scope.ServiceProvider.GetRequiredService<WebScraperService>();
+        var sourcesService = scope.ServiceProvider.GetRequiredService<SourcesService>();
 
-        var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
-        if (draft == null)
+        try
         {
-            return "Error: Draft not found or access denied.";
-        }
+            var result = await sourcesService.AddUrlSourceAsync(
+                userId,
+                draftId.Value,
+                reference,
+                args.Title,
+                args.Content,
+                ct);
 
-        var sourceTitle = args.Title ?? reference;
-        var sourceContent = args.Content;
-
-        if ((kind == SourceKind.Url || kind == SourceKind.YouTube) && string.IsNullOrEmpty(sourceContent))
-        {
-            var scrape = await scraper.ScrapeUrlAsync(reference);
-            if (!scrape.Success)
-            {
-                return $"Error: Failed to add source because the URL could not be scraped. {scrape.Error}";
-            }
-
-            if (!string.IsNullOrEmpty(args.Kind) && kind == SourceKind.YouTube && !scrape.IsYouTube)
+            if (kind == SourceKind.YouTube && !string.Equals(result.Kind, "YouTube", StringComparison.OrdinalIgnoreCase))
             {
                 return "Error: The provided reference is not recognized as a YouTube URL.";
             }
 
-            if (string.IsNullOrEmpty(args.Title))
-            {
-                sourceTitle = scrape.Title;
-            }
-
-            sourceContent = scrape.Content;
-            reference = scrape.FinalUrl;
-            if (scrape.IsYouTube)
-            {
-                kind = SourceKind.YouTube;
-            }
+            return $"Successfully added source '{result.Title}' ({result.Kind}) with ID {result.SourceId}. Use list_sources or fetch_source to inspect it before drafting from it.";
         }
-
-        var source = new Source
+        catch (KeyNotFoundException)
         {
-            DraftId = draftId.Value,
-            Kind = kind,
-            Reference = reference,
-            Title = sourceTitle,
-            Content = sourceContent
-        };
-
-        db.Sources.Add(source);
-        draft.Status = DraftStatus.Editing;
-        draft.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(ct);
-
-        return $"Successfully added source '{source.Title}' ({source.Kind}) with ID {source.Id}. Use list_sources or fetch_source to inspect it before drafting from it.";
+            return "Error: Draft not found or access denied.";
+        }
+        catch (ArgumentException ex)
+        {
+            return $"Error: {ex.Message} Pass the exact absolute URL, including https://.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            return $"Error: Failed to add source because the URL could not be scraped. {ex.Message}";
+        }
     }
 
     private static bool TryValidateAbsoluteHttpUrl(string reference, out string error)

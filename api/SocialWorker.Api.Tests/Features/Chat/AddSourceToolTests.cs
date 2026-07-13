@@ -10,6 +10,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Sources;
+using SocialWorker.Api.Infrastructure.Background;
 using Xunit;
 
 namespace SocialWorker.Api.Tests;
@@ -59,6 +60,8 @@ public sealed class AddSourceToolTests : IDisposable
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddSingleton(db);
         serviceCollection.AddSingleton(scraper);
+        serviceCollection.AddSingleton<BackgroundJobQueue>();
+        serviceCollection.AddSingleton<SourcesService>();
         var serviceProvider = serviceCollection.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
@@ -93,6 +96,8 @@ public sealed class AddSourceToolTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(db);
         services.AddSingleton(scraper);
+        services.AddSingleton<BackgroundJobQueue>();
+        services.AddSingleton<SourcesService>();
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         var tool = new AddSourceTool(scopeFactory);
@@ -118,6 +123,8 @@ public sealed class AddSourceToolTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(db);
         services.AddSingleton(scraper);
+        services.AddSingleton<BackgroundJobQueue>();
+        services.AddSingleton<SourcesService>();
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         var tool = new AddSourceTool(scopeFactory);

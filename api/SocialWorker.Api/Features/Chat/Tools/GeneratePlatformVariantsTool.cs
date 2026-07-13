@@ -20,11 +20,13 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly LlmProviderService _providerService;
+    private readonly PlatformContentPolicy _platformContentPolicy;
 
-    public GeneratePlatformVariantsTool(IServiceScopeFactory scopeFactory, LlmProviderService providerService)
+    public GeneratePlatformVariantsTool(IServiceScopeFactory scopeFactory, LlmProviderService providerService, PlatformContentPolicy platformContentPolicy)
     {
         _scopeFactory = scopeFactory;
         _providerService = providerService;
+        _platformContentPolicy = platformContentPolicy;
     }
 
     public override string Name => "generate_platform_variants";
@@ -105,9 +107,9 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
                 continue;
             }
 
-            var platformRules = GetPlatformRules(platform);
+            var platformRules = _platformContentPolicy.GetAdaptationRules(targetPlatform);
             var prompt = new StringBuilder();
-            prompt.AppendLine($"You are adapting content from {sourcePlatform} to {platform}.");
+            prompt.AppendLine($"You are adapting content from {sourcePlatform} to {targetPlatform}.");
             prompt.AppendLine($"\n{platformRules}");
             prompt.AppendLine($"\nOriginal content ({sourcePlatform}):");
             prompt.AppendLine(canonical.Content ?? "");
@@ -141,6 +143,15 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
                 continue;
             }
 
+            var policyResult = _platformContentPolicy.Evaluate(targetPlatform, adaptedContent, normalizeFormatting: true);
+            if (!policyResult.IsValid)
+            {
+                errors.Add($"{platform}: validation failed - {string.Join(" | ", policyResult.Errors)}");
+                continue;
+            }
+
+            adaptedContent = policyResult.NormalizedContent;
+
             var variant = new Draft
             {
                 Title = $"{canonical.Title} ({platform})",
@@ -166,7 +177,14 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
             await draftService.ReconcileSegmentsAsync(variant, adaptedContent, ct);
             await db.SaveChangesAsync(ct);
 
-            createdVariants.Add($"{platform} (ID: {variant.Id})");
+            if (policyResult.Warnings.Count > 0)
+            {
+                createdVariants.Add($"{platform} (ID: {variant.Id}, warnings: {string.Join(" | ", policyResult.Warnings)})");
+            }
+            else
+            {
+                createdVariants.Add($"{platform} (ID: {variant.Id})");
+            }
         }
 
         canonical.UpdatedAt = DateTime.UtcNow;
@@ -185,43 +203,4 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
         return result.Length > 0 ? result.ToString().Trim() : "No variants were created.";
     }
 
-    private static string GetPlatformRules(string platform)
-    {
-        return platform.ToLowerInvariant() switch
-        {
-            "twitter" => """
-Twitter rules:
-- 280 characters per post maximum, 2-3 posts typical
-- Punchy, conversational tone
-- Break into short posts, each standalone
-- Use hashtags sparingly (max 2)
-- Reply threads: connect posts logically
-""",
-            "linkedin" => """
-LinkedIn rules:
-- ~3000 characters per post, 1-2 posts
-- Professional tone
-- Single long-form post or 2-part series
-- Emojis used strategically
-- Call-to-action at end
-""",
-            "instagram" => """
-Instagram rules:
-- 2200 character caption limit, visual-first
-- Lifestyle/visual tone, relatable
-- Shorter sentences, more emojis
-- Hashtags at end (5-10)
-- Focus on visual story
-""",
-            "facebook" => """
-Facebook rules:
-- No hard character limit, conversational
-- Friendly, engaging tone
-- Slightly longer form than Twitter
-- Multi-generational audience (simpler language)
-- Emojis welcome, moderate use
-""",
-            _ => ""
-        };
-    }
 }

@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Infrastructure.Llm;
@@ -16,7 +18,8 @@ public sealed class ChatServiceTests
     private static ChatService CreateService(
         ChatSessionLoader? sessionLoader = null,
         IEnumerable<IChatTool>? tools = null,
-        ILlmProviderAdapter? adapter = null)
+        ILlmProviderAdapter? adapter = null,
+        ChatOptions? chatOptions = null)
     {
         var loader = sessionLoader ?? CreateMockSessionLoader();
         var promptBuilder = new SystemPromptBuilder();
@@ -24,8 +27,9 @@ public sealed class ChatServiceTests
         var llmAdapter = adapter ?? new DemoLlmAdapter();
         var log = NullLogger<ChatService>.Instance;
         var toolList = tools ?? new List<IChatTool>();
+        var options = Options.Create(chatOptions ?? new ChatOptions());
 
-        return new ChatService(loader, promptBuilder, writer, llmAdapter, log, toolList);
+        return new ChatService(loader, promptBuilder, writer, llmAdapter, log, toolList, options);
     }
 
     private static ChatSessionLoader CreateMockSessionLoader(
@@ -234,6 +238,104 @@ public sealed class ChatServiceTests
         Assert.True(smallCount >= 1);
     }
 
+    [Fact]
+    public async Task StreamAsync_SlashHelp_ReturnsCuratedSlashCommands()
+    {
+        var tool = new StubTool("validate_draft");
+        var adapter = new CapturingTextOnlyAdapter();
+        var service = CreateService(tools: new IChatTool[] { tool }, adapter: adapter);
+
+        var lines = await CollectStream(service, MakeRequest("/help"));
+        var text = ExtractText(lines);
+
+        Assert.Contains("Available slash commands", text);
+        Assert.Contains("/validate", text);
+        Assert.Contains("/search <query>", text);
+        Assert.DoesNotContain("/tool", text);
+        Assert.Null(adapter.CapturedRequest);
+    }
+
+    [Fact]
+    public async Task StreamAsync_SlashValidate_ExecutesValidateToolDirectly()
+    {
+        var tool = new StubTool("validate_draft");
+        var adapter = new CapturingTextOnlyAdapter();
+        var service = CreateService(tools: new IChatTool[] { tool }, adapter: adapter);
+
+        var lines = await CollectStream(service, MakeRequest("/validate"));
+        var text = ExtractText(lines);
+
+        Assert.True(tool.WasExecuted);
+        Assert.Contains("result", text);
+        Assert.Null(adapter.CapturedRequest);
+    }
+
+    [Fact]
+    public async Task StreamAsync_SlashSearch_ExecutesWebSearchToolDirectly()
+    {
+        var tool = new StubTool("web_search");
+        var service = CreateService(tools: new IChatTool[] { tool }, adapter: new CapturingTextOnlyAdapter());
+
+        var lines = await CollectStream(service, MakeRequest("/search latest searxng docker image"));
+        var text = ExtractText(lines);
+
+        Assert.True(tool.WasExecuted);
+        Assert.Contains("result", text);
+    }
+
+    [Fact]
+    public async Task StreamAsync_SlashSearchImage_ExecutesImageSearchToolDirectly()
+    {
+        var tool = new StubTool("image_search");
+        var service = CreateService(tools: new IChatTool[] { tool }, adapter: new CapturingTextOnlyAdapter());
+
+        var lines = await CollectStream(service, MakeRequest("/search-image tropical fruit"));
+        var text = ExtractText(lines);
+
+        Assert.True(tool.WasExecuted);
+        Assert.Contains("result", text);
+    }
+
+    [Fact]
+    public async Task StreamAsync_EditIntent_Retries_And_Enforces_ReplaceEditorTool()
+    {
+        var replaceTool = new StubTool("replace_editor_content");
+        var validateTool = new StubTool("validate_draft");
+        var adapter = new EditIntentRetryAdapter();
+        var service = CreateService(
+            tools: new IChatTool[] { replaceTool, validateTool },
+            adapter: adapter);
+
+        await CollectStream(service, MakeRequest("Please rewrite this draft to be punchier."));
+
+        Assert.True(replaceTool.WasExecuted);
+        Assert.True(adapter.CallCount >= 2);
+    }
+
+    [Fact]
+    public async Task StreamAsync_EditIntent_DoesNotRetry_WhenStrictEnforcementDisabled()
+    {
+        var replaceTool = new StubTool("replace_editor_content");
+        var adapter = new CapturingTextOnlyAdapter();
+        var service = CreateService(
+            tools: new IChatTool[] { replaceTool },
+            adapter: adapter,
+            chatOptions: new ChatOptions { StrictEditorUpdateEnforcement = false });
+
+        await CollectStream(service, MakeRequest("Please rewrite this draft to be punchier."));
+
+        Assert.False(replaceTool.WasExecuted);
+        Assert.NotNull(adapter.CapturedRequest);
+    }
+
+    private static string ExtractText(List<string> lines)
+    {
+        var chunks = lines
+            .Where(l => l.StartsWith("0:"))
+            .Select(l => JsonSerializer.Deserialize<string>(l[2..]) ?? string.Empty);
+        return string.Concat(chunks);
+    }
+
     /// <summary>
     /// An adapter that returns only text, no tool calls.
     /// </summary>
@@ -328,6 +430,107 @@ public sealed class ChatServiceTests
         public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
         {
             CapturedRequest = request;
+            return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse
+            {
+                Choices = new List<OpenAiModels.ChatCompletionChoice>
+                {
+                    new()
+                    {
+                        Message = new OpenAiModels.ChatCompletionMessage
+                        {
+                            Role = "assistant",
+                            Content = "ok"
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    private sealed class EditIntentRetryAdapter : ILlmProviderAdapter
+    {
+        public int CallCount { get; private set; }
+
+        public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
+            OpenAiModels.ChatCompletionRequest request,
+            LlmCredentials credentials,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            CallCount++;
+            var hasEnforcementMessage = request.Messages.Any(m =>
+                string.Equals(m.Role, "system", StringComparison.OrdinalIgnoreCase) &&
+                m.Content?.ToString()?.Contains("EDITOR-UPDATE ENFORCEMENT", StringComparison.OrdinalIgnoreCase) == true);
+
+            if (!hasEnforcementMessage)
+            {
+                yield return new OpenAiModels.StreamChunk
+                {
+                    Choices = new List<OpenAiModels.StreamChoice>
+                    {
+                        new()
+                        {
+                            Delta = new OpenAiModels.StreamDelta
+                            {
+                                Content = "Here are suggestions to improve your draft."
+                            }
+                        }
+                    }
+                };
+                yield return new OpenAiModels.StreamChunk
+                {
+                    Choices = new List<OpenAiModels.StreamChoice>
+                    {
+                        new()
+                        {
+                            Delta = new OpenAiModels.StreamDelta(),
+                            FinishReason = "stop"
+                        }
+                    }
+                };
+                yield break;
+            }
+
+            yield return new OpenAiModels.StreamChunk
+            {
+                Choices = new List<OpenAiModels.StreamChoice>
+                {
+                    new()
+                    {
+                        Delta = new OpenAiModels.StreamDelta
+                        {
+                            ToolCalls = new List<OpenAiModels.StreamToolCall>
+                            {
+                                new()
+                                {
+                                    Index = 0,
+                                    Id = "retry_replace_tool",
+                                    Type = "function",
+                                    Function = new OpenAiModels.StreamToolCallFunction
+                                    {
+                                        Name = "replace_editor_content",
+                                        Arguments = "{\"markdown\":\"Updated content\"}"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            yield return new OpenAiModels.StreamChunk
+            {
+                Choices = new List<OpenAiModels.StreamChoice>
+                {
+                    new()
+                    {
+                        Delta = new OpenAiModels.StreamDelta(),
+                        FinishReason = "tool_calls"
+                    }
+                }
+            };
+        }
+
+        public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+        {
             return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse
             {
                 Choices = new List<OpenAiModels.ChatCompletionChoice>

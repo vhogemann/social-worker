@@ -106,6 +106,53 @@ public static class SourcesEndpoint
                 return Results.BadRequest($"Failed to process file attachment: {ex.Message}");
             }
         }).DisableAntiforgery();
+
+        group.MapPost("/sources/import-url", async (
+            ClaimsPrincipal principal,
+            SourcesService sourcesService,
+            Guid draftId,
+            ImportSourceFromUrlRequest req,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            if (req is null || string.IsNullOrWhiteSpace(req.Url))
+            {
+                return Results.BadRequest("A valid source URL is required.");
+            }
+
+            try
+            {
+                var result = await sourcesService.AddUrlSourceAsync(
+                    userId.Value,
+                    draftId,
+                    req.Url,
+                    req.Title,
+                    req.Content,
+                    ct);
+
+                return Results.Ok(new
+                {
+                    sourceId = result.SourceId,
+                    result.Reference,
+                    result.Title,
+                    result.Kind
+                });
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
+        });
     }
 
     private static Guid? GetUserId(ClaimsPrincipal principal)
@@ -114,3 +161,5 @@ public static class SourcesEndpoint
         return Guid.TryParse(id, out var parsed) ? parsed : null;
     }
 }
+
+public sealed record ImportSourceFromUrlRequest(string Url, string? Title, string? Content);

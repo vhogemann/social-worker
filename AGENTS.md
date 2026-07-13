@@ -117,22 +117,41 @@ This workflow applies to all changes, not just new features. The `dotnet` servic
 
 ## E2E tests
 
-E2E tests live in `e2e/` and use Playwright with Docker. The API runs in Development mode, which activates `DemoLlmAdapter` for deterministic, LLM-free responses.
+E2E tests live in `e2e/` and use Playwright with Docker.
+
+Use the dedicated e2e compose stack so tests do not collide with the main dev stack on ports 8100/8101. The e2e stack publishes web/api on 8200/8201.
+
+For deterministic, LLM-free responses in e2e, run with `DEMO_LLM_PROFILE=getting-started` so the API uses the `DemoLlmAdapter` scenario profile.
+
+Important: keep this variable scoped to e2e commands only. Do not leave `DEMO_LLM_PROFILE` set globally in your shell when doing normal local development.
+
+Preferred helper:
+
+```bash
+# run full suite with isolated stack lifecycle
+./scripts/run-e2e.sh
+
+# run a single test file
+./scripts/run-e2e.sh tests/chat.spec.ts
+
+# keep stack up for debugging
+./scripts/run-e2e.sh --keep-up tests/chat.spec.ts
+```
 
 ```bash
 # run the full suite
-docker compose --profile e2e run --rm e2e npx playwright test
+DEMO_LLM_PROFILE=getting-started docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test
 
 # run a single test file
-docker compose --profile e2e run --rm e2e npx playwright test tests/chat.spec.ts
+DEMO_LLM_PROFILE=getting-started docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test tests/chat.spec.ts
 
 # regenerate the getting-started guide
-docker compose --profile e2e build e2e
-docker compose --profile e2e run --rm e2e npx playwright test tests/generate-getting-started.spec.ts
+docker compose -f docker-compose.e2e.yml build e2e
+DEMO_LLM_PROFILE=getting-started docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test tests/generate-getting-started.spec.ts
 cp e2e/output/GETTING_STARTED.md GETTING_STARTED.md
 
 # re-run without rebuilding
-docker compose --profile e2e run --rm e2e npx playwright test
+DEMO_LLM_PROFILE=getting-started docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test
 ```
 
 ## Out of scope for v1

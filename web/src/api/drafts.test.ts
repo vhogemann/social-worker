@@ -11,6 +11,7 @@ import {
   fetchSources,
   fetchSourceDetail,
   deleteSource,
+  importSourceFromUrl,
   uploadFile,
   uploadMedia,
   renderCodeImage,
@@ -171,6 +172,31 @@ describe("drafts API", () => {
     it("throws on failure", async () => {
       mockApiFetch.mockResolvedValueOnce(new Response("{}", { status: 404 }));
       await expect(deleteSource("d1", "s1")).rejects.toThrow("deleteSource failed");
+    });
+  });
+
+  describe("importSourceFromUrl", () => {
+    it("returns imported source payload", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            sourceId: "s2",
+            reference: "https://example.com/article",
+            title: "Example",
+            kind: "Url",
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await importSourceFromUrl("d1", "https://example.com/article", "Example");
+      expect(result.sourceId).toBe("s2");
+      expect(result.kind).toBe("Url");
+    });
+
+    it("throws with server message on failure", async () => {
+      mockApiFetch.mockResolvedValueOnce(new Response("Invalid URL", { status: 400 }));
+      await expect(importSourceFromUrl("d1", "not-a-url")).rejects.toThrow("Invalid URL");
     });
   });
 

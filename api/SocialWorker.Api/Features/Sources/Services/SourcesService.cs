@@ -18,6 +18,7 @@ public sealed record SourceDto(Guid Id, Guid DraftId, string Kind, string Refere
 public sealed record SourceDetailDto(Guid Id, Guid DraftId, string Kind, string Reference, string? Title, string? Content, DateTime AddedAt);
 
 public sealed record AddFileSourceResult(Guid SourceId, string Reference);
+public sealed record AddUrlSourceResult(Guid SourceId, string Reference, string? Title, string Kind);
 
 public sealed class SourcesService
 {
@@ -254,5 +255,87 @@ public sealed class SourcesService
 
         _db.Sources.Remove(source);
         await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<AddUrlSourceResult> AddUrlSourceAsync(
+        Guid userId,
+        Guid draftId,
+        string reference,
+        string? title,
+        string? content,
+        CancellationToken ct)
+    {
+        var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
+            ?? throw new KeyNotFoundException("Draft not found or access denied.");
+
+        var normalizedReference = reference?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalizedReference))
+        {
+            throw new ArgumentException("Source reference is required.", nameof(reference));
+        }
+
+        if (!TryValidateAbsoluteHttpUrl(normalizedReference, out var urlError))
+        {
+            throw new ArgumentException(urlError, nameof(reference));
+        }
+
+        var sourceKind = SourceKind.Url;
+        var sourceTitle = title;
+        var sourceContent = content;
+
+        if (string.IsNullOrWhiteSpace(sourceContent))
+        {
+            var scrape = await _scraper.ScrapeUrlAsync(normalizedReference);
+            if (!scrape.Success)
+            {
+                throw new InvalidOperationException($"Failed to scrape URL. {scrape.Error}");
+            }
+
+            normalizedReference = scrape.FinalUrl;
+            sourceTitle ??= scrape.Title;
+            sourceContent = scrape.Content;
+            sourceKind = scrape.IsYouTube ? SourceKind.YouTube : SourceKind.Url;
+        }
+
+        var source = new Source
+        {
+            DraftId = draftId,
+            Kind = sourceKind,
+            Reference = normalizedReference,
+            Title = sourceTitle ?? normalizedReference,
+            Content = sourceContent,
+            AddedAt = DateTime.UtcNow
+        };
+
+        _db.Sources.Add(source);
+        draft.Status = DraftStatus.Editing;
+        draft.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        return new AddUrlSourceResult(source.Id, source.Reference, source.Title, source.Kind.ToString());
+    }
+
+    private static bool TryValidateAbsoluteHttpUrl(string reference, out string error)
+    {
+        error = string.Empty;
+        if (!Uri.TryCreate(reference, UriKind.Absolute, out var uri))
+        {
+            error = "Source URLs must be absolute HTTP or HTTPS URLs.";
+            return false;
+        }
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            error = "Source URLs must use http:// or https://.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(uri.Host))
+        {
+            error = "Source URLs must include a valid host.";
+            return false;
+        }
+
+        return true;
     }
 }

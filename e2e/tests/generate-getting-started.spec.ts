@@ -190,10 +190,10 @@ ${s.description}
 
 \`\`\`bash
 # Run the full E2E suite
-docker compose --profile e2e run --rm e2e npx playwright test
+docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test
 
 # Generate this guide
-docker compose --profile e2e run --rm e2e npx playwright test tests/generate-getting-started.spec.ts
+docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test tests/generate-getting-started.spec.ts
 \`\`\`
 
 ## Regenerating This Guide

@@ -83,6 +83,44 @@ docker compose up --build
 - **Web App**: `http://localhost:8100`
 - **API**: `http://localhost:8101`
 
+### 1.1 Run E2E Stack Separately (No Port Collisions)
+
+E2E now has a dedicated stack file that runs on separate host ports:
+
+```bash
+docker compose -f docker-compose.e2e.yml up -d --build
+```
+
+- **E2E Web App**: `http://localhost:8200`
+- **E2E API**: `http://localhost:8201`
+
+One-command e2e runner:
+
+```bash
+./scripts/run-e2e.sh
+```
+
+Examples:
+
+```bash
+# Single test file
+./scripts/run-e2e.sh tests/chat.spec.ts
+
+# Keep stack up for debugging after run
+./scripts/run-e2e.sh --keep-up tests/chat.spec.ts
+
+# Build images first
+./scripts/run-e2e.sh --build
+```
+
+Safer update flow for running containers:
+
+```bash
+./scripts/redeploy.sh
+```
+
+This performs `docker compose down --remove-orphans` followed by `docker compose up -d --build`.
+
 For a UI walkthrough with screenshots, see [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ### 2. Run Only (Prebuilt Images, No Local Build)
@@ -112,6 +150,12 @@ Helper equivalent:
 ./scripts/run-app.sh --pull
 ```
 
+Safer update flow for the app-image stack:
+
+```bash
+./scripts/redeploy.sh --app --pull
+```
+
 - **Web App**: `http://localhost:8100`
 - **API**: `http://localhost:8101`
 
@@ -126,6 +170,7 @@ social-worker/
 ├── docker-compose.gpu.yml          # GPU resource reservation overrides
 ├── scripts/
 │   └── run-app.sh                  # One-command runtime launcher with preflight checks
+│   └── redeploy.sh                 # Safer down/up redeploy helper for dev and app stacks
 ├── .env.example                    # Template environment file
 ├── AGENTS.md                       # Agent guidelines and specifications
 ├── PLAN.md                         # Detailed project roadmap and index

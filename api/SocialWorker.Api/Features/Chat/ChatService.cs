@@ -3,21 +3,29 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace SocialWorker.Api.Features.Chat;
 
 public sealed class ChatService
 {
+    private static readonly Regex HtmlTagRegex = new("<[^>]+>", RegexOptions.Compiled);
+    private static readonly Regex EditorUpdateIntentRegex = new(
+        @"\b(write|rewrite|re-write|edit|update|improve|polish|refine|fix|revise|shorten|expand|draft|compose|create|generate|rework|apply\s+(these|the)\s+changes)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private readonly ChatSessionLoader _sessionLoader;
     private readonly SystemPromptBuilder _promptBuilder;
     private readonly ChatStreamWriter _writer;
     private readonly ILlmProviderAdapter _adapter;
     private readonly ILogger<ChatService> _log;
     private readonly IEnumerable<IChatTool> _tools;
+    private readonly ChatOptions _chatOptions;
 
     public ChatService(
         ChatSessionLoader sessionLoader,
@@ -25,7 +33,8 @@ public sealed class ChatService
         ChatStreamWriter writer,
         ILlmProviderAdapter adapter,
         ILogger<ChatService> log,
-        IEnumerable<IChatTool> tools)
+        IEnumerable<IChatTool> tools,
+        IOptions<ChatOptions> chatOptions)
     {
         _sessionLoader = sessionLoader;
         _promptBuilder = promptBuilder;
@@ -33,6 +42,7 @@ public sealed class ChatService
         _adapter = adapter;
         _log = log;
         _tools = tools;
+        _chatOptions = chatOptions.Value;
     }
 
     public async IAsyncEnumerable<string> StreamAsync(
@@ -67,6 +77,8 @@ public sealed class ChatService
             })
             .ToList();
 
+        var commandText = ExtractLatestUserText(req.Messages);
+
         var historyBudget = ChatContextWindowPolicy.CalculateHistoryBudgetTokens(session.Provider.ContextWindowTokens, session.Credentials.Model, finalSystemPrompt, tools);
         var messagesToSend = ChatContextWindowPolicy.SelectRecentMessages(req.Messages, historyBudget);
 
@@ -98,6 +110,19 @@ public sealed class ChatService
 
         yield return _writer.MessageId();
 
+        if (TryParseSlashCommand(commandText, out var slashCommand, out var slashArgs))
+        {
+            var slashOutput = await ExecuteSlashCommandAsync(slashCommand, slashArgs, req.DraftId, userId, tools, ct);
+            yield return _writer.TextDelta(slashOutput);
+            yield return _writer.StepFinish("stop", false);
+            yield return _writer.StreamDone();
+            yield break;
+        }
+
+        var requiresEditorUpdate = _chatOptions.StrictEditorUpdateEnforcement && RequiresEditorUpdateTool(commandText);
+        var editorEnforcementRetried = false;
+        var sawReplaceEditorToolCallOverall = false;
+
         const int maxRounds = 3;
         for (var round = 0; round < maxRounds; round++)
         {
@@ -105,6 +130,22 @@ public sealed class ChatService
             await foreach (var line in ProcessRoundAsync(roundCtx))
             {
                 yield return line;
+            }
+
+            sawReplaceEditorToolCallOverall = sawReplaceEditorToolCallOverall || roundCtx.SawReplaceEditorToolCall;
+
+            if (roundCtx.ShouldStop &&
+                requiresEditorUpdate &&
+                !sawReplaceEditorToolCallOverall &&
+                !editorEnforcementRetried)
+            {
+                editorEnforcementRetried = true;
+                payload.Messages.Add(new OpenAiModels.OpenAiMessage
+                {
+                    Role = "system",
+                    Content = "EDITOR-UPDATE ENFORCEMENT: The user's request requires directly updating draft content. You must call replace_editor_content with the full updated markdown, then call validate_draft. Do not ask for confirmation and do not only describe changes."
+                });
+                continue;
             }
 
             if (roundCtx.ShouldStop)
@@ -167,6 +208,8 @@ public sealed class ChatService
             yield break;
         }
 
+        ctx.SawAnyToolCall = true;
+
         var assistantMsg = new OpenAiModels.OpenAiMessage
         {
             Role = "assistant",
@@ -180,6 +223,11 @@ public sealed class ChatService
 
         foreach (var tc in toolCalls.Values)
         {
+            if (string.Equals(tc.Name, "replace_editor_content", StringComparison.Ordinal))
+            {
+                ctx.SawReplaceEditorToolCall = true;
+            }
+
             _log.LogInformation("LLM requested tool execution: {ToolName} with arguments: {Args}", tc.Name, tc.Arguments);
             yield return _writer.ToolCall(tc.Id, tc.Name, tc.Arguments);
 
@@ -231,6 +279,8 @@ public sealed class ChatService
         public Guid UserId { get; }
         public CancellationToken Ct { get; }
         public bool ShouldStop { get; set; }
+        public bool SawAnyToolCall { get; set; }
+        public bool SawReplaceEditorToolCall { get; set; }
 
         public RoundContext(
             int round,
@@ -249,10 +299,112 @@ public sealed class ChatService
         }
     }
 
+    private static bool RequiresEditorUpdateTool(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        if (text.StartsWith('/'))
+        {
+            return false;
+        }
+
+        return EditorUpdateIntentRegex.IsMatch(text);
+    }
+
     private sealed class AccumulatedToolCall
     {
         public string Id { get; set; } = "";
         public string Name { get; set; } = "";
         public string Arguments { get; set; } = "";
+    }
+
+    private static string ExtractLatestUserText(List<ChatModels.UiMessage> messages)
+    {
+        var latestUser = messages.LastOrDefault(m => string.Equals(m.Role, "user", StringComparison.OrdinalIgnoreCase));
+        if (latestUser == null)
+        {
+            return string.Empty;
+        }
+
+        return string.Join("\n", latestUser.Content.Where(p => p.Type == "text").Select(p => p.Text ?? string.Empty)).Trim();
+    }
+
+    private static bool TryParseSlashCommand(string text, out string command, out string args)
+    {
+        command = string.Empty;
+        args = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(text) || !text.StartsWith('/'))
+        {
+            return false;
+        }
+
+        var trimmed = text.Trim();
+        var firstSpace = trimmed.IndexOf(' ');
+        if (firstSpace < 0)
+        {
+            command = trimmed[1..].ToLowerInvariant();
+            return true;
+        }
+
+        command = trimmed[1..firstSpace].ToLowerInvariant();
+        args = trimmed[(firstSpace + 1)..].Trim();
+        return true;
+    }
+
+    private async Task<string> ExecuteSlashCommandAsync(
+        string command,
+        string args,
+        Guid? draftId,
+        Guid userId,
+        List<OpenAiModels.OpenAiTool> visibleTools,
+        CancellationToken ct)
+    {
+        if (command == "help" || command == "tools")
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Available slash commands:");
+            sb.AppendLine("- /validate");
+            sb.AppendLine("- /search <query>");
+            sb.AppendLine("- /search-image <query>");
+            sb.AppendLine();
+            sb.AppendLine("Use /search and /search-image for explicit query-driven tool execution.");
+            return sb.ToString().Trim();
+        }
+
+        if (command == "validate")
+        {
+            var result = await ExecuteToolAsync("validate_draft", "{}", draftId, userId, ct);
+            return result.Result is string s ? s : JsonSerializer.Serialize(result.Result);
+        }
+
+        if (command == "search")
+        {
+            if (string.IsNullOrWhiteSpace(args))
+            {
+                return "Usage: /search <query>. Example: /search latest Bluesky character limit";
+            }
+
+            var toolArgs = JsonSerializer.Serialize(new { query = args });
+            var result = await ExecuteToolAsync("web_search", toolArgs, draftId, userId, ct);
+            return result.Result is string str ? str : JsonSerializer.Serialize(result.Result);
+        }
+
+        if (command == "search-image" || command == "images")
+        {
+            if (string.IsNullOrWhiteSpace(args))
+            {
+                return "Usage: /search-image <query>. Example: /search-image pineapple product shots";
+            }
+
+            var toolArgs = JsonSerializer.Serialize(new { query = args });
+            var result = await ExecuteToolAsync("image_search", toolArgs, draftId, userId, ct);
+            return result.Result is string str ? str : JsonSerializer.Serialize(result.Result);
+        }
+
+        return "Unknown slash command. Use /help to see available commands.";
     }
 }

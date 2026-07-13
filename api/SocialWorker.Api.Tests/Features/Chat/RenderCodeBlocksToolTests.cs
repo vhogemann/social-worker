@@ -32,7 +32,8 @@ public sealed class GeneratePlatformVariantsToolTests
         var services = new ServiceCollection();
         var sp = services.BuildServiceProvider();
         var providerSvc = new LlmProviderService();
-        var tool = new GeneratePlatformVariantsTool(sp.GetRequiredService<IServiceScopeFactory>(), providerSvc);
+        var policy = new PlatformContentPolicy();
+        var tool = new GeneratePlatformVariantsTool(sp.GetRequiredService<IServiceScopeFactory>(), providerSvc, policy);
 
         var result = await tool.ExecuteAsync(
             new GeneratePlatformVariantsArgs("not-a-guid", new() { "Bluesky" }),

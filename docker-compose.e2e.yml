@@ -1,0 +1,104 @@
+name: social-worker-e2e
+
+services:
+  db-e2e:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: socialworker
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - e2e-net
+
+  searxng-e2e:
+    image: searxng/searxng:latest
+    volumes:
+      - ./searxng:/etc/searxng:ro
+    environment:
+      - SEARXNG_BASE_URL=http://searxng-e2e:8080/
+    restart: unless-stopped
+    networks:
+      - e2e-net
+
+  api-e2e:
+    image: social-worker-api-e2e
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "8201:8080"
+    environment:
+      LLM__BaseUrl: https://openrouter.ai/api/v1
+      LLM__ApiKey: ${LLM__ApiKey}
+      LLM__Model: ${LLM__Model:-anthropic/claude-3.5-sonnet}
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: Host=db-e2e;Database=socialworker;Username=postgres;Password=postgres
+      Auth__JwtSecret: ${Auth__JwtSecret}
+      Auth__AdminPassword: ${Auth__AdminPassword:-changeme}
+      Auth__AccessTokenLifetimeMinutes: ${Auth__AccessTokenLifetimeMinutes:-60}
+      Auth__RefreshTokenLifetimeDays: ${Auth__RefreshTokenLifetimeDays:-7}
+      Auth__DbEncryptionKey: ${Auth__DbEncryptionKey:-}
+      Search__Provider: ${Search__Provider:-SearXng}
+      Search__BraveApiKey: ${Search__BraveApiKey:-}
+      Search__SearXngBaseUrl: http://searxng-e2e:8080
+      DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-getting-started}
+    depends_on:
+      db-e2e:
+        condition: service_healthy
+      searxng-e2e:
+        condition: service_started
+    volumes:
+      - ./uploads:/app/uploads
+      - ./SYSTEM_PROMPT.md:/app/SYSTEM_PROMPT.md:ro
+    restart: unless-stopped
+    networks:
+      e2e-net:
+        aliases:
+          - api
+
+  web-e2e:
+    image: social-worker-web-e2e
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "8200:80"
+    depends_on:
+      - api-e2e
+    restart: unless-stopped
+    networks:
+      - e2e-net
+
+  e2e:
+    image: social-worker-e2e
+    build:
+      context: ./e2e
+      dockerfile: Dockerfile
+    environment:
+      BASE_URL: http://web-e2e:80
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: ${Auth__AdminPassword:-changeme}
+      DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-getting-started}
+    depends_on:
+      api-e2e:
+        condition: service_started
+      web-e2e:
+        condition: service_started
+    volumes:
+      - ./e2e/reports:/e2e/reports
+      - ./e2e/screenshots:/e2e/screenshots
+      - ./e2e/output:/e2e/output
+    networks:
+      - e2e-net
+
+networks:
+  e2e-net:

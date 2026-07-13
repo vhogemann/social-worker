@@ -9,8 +9,8 @@ DOC_IMG_DIR="${REPO_ROOT}/docs/getting-started"
 
 cd "$REPO_ROOT"
 
-docker compose --profile e2e build e2e
-docker compose --profile e2e run --rm e2e npx playwright test tests/generate-getting-started.spec.ts
+docker compose -f docker-compose.e2e.yml build e2e
+docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test tests/generate-getting-started.spec.ts
 
 if [[ ! -f "$OUTPUT_MD" ]]; then
   echo "Expected output markdown not found: $OUTPUT_MD" >&2

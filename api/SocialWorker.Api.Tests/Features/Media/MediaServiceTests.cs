@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -142,5 +144,75 @@ public sealed class MediaServiceTests : SqliteTestBase
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             svc.DeleteMediaAsync(Guid.NewGuid(), uploaded.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ImportMediaFromUrlAsync_Imports_Image_From_Url()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, svc, user, draft) = await CreateAsync(db);
+
+        var client = new HttpClient(new StaticHttpMessageHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(TinyPng)
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+            return response;
+        }));
+
+        var result = await svc.ImportMediaFromUrlAsync(
+            user.Id,
+            draft.Id,
+            "https://images.example.com/pineapple.png",
+            client,
+            CancellationToken.None,
+            "pineapple");
+
+        Assert.StartsWith("![pineapple](media://", result.MarkdownTag);
+        Assert.NotEqual(Guid.Empty, result.Id);
+    }
+
+    [Fact]
+    public async Task ImportMediaFromUrlAsync_Throws_For_NonImage_ContentType()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, svc, user, draft) = await CreateAsync(db);
+
+        var client = new HttpClient(new StaticHttpMessageHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("not an image")
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/html");
+            return response;
+        }));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            svc.ImportMediaFromUrlAsync(
+                user.Id,
+                draft.Id,
+                "https://images.example.com/not-image",
+                client,
+                CancellationToken.None));
+    }
+
+    private sealed class StaticHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> _responder;
+
+        public StaticHttpMessageHandler(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> responder)
+        {
+            _responder = responder;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(_responder(request, cancellationToken));
+        }
     }
 }

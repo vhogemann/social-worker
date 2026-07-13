@@ -1,6 +1,4 @@
 using System;
-using System.IO;
-using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -69,49 +67,14 @@ public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, string
         try
         {
             using var client = httpClientFactory.CreateClient();
-            using var response = await client.GetAsync(args.Url, HttpCompletionOption.ResponseHeadersRead, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                return $"Error downloading image: {response.StatusCode} {response.ReasonPhrase}";
-            }
-
-            var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
-            if (!contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-            {
-                return $"Error: URL content is not an image (Content-Type: '{contentType}').";
-            }
-
-            var fileName = Path.GetFileName(new Uri(args.Url).LocalPath);
-            if (string.IsNullOrWhiteSpace(fileName) || fileName == "/" || !fileName.Contains('.'))
-            {
-                var ext = contentType switch
-                {
-                    "image/png" => ".png",
-                    "image/webp" => ".webp",
-                    "image/gif" => ".gif",
-                    _ => ".jpg"
-                };
-                fileName = $"downloaded_image{ext}";
-            }
-
-            using var responseStream = await response.Content.ReadAsStreamAsync(ct);
-            using var memoryStream = new MemoryStream();
-            await responseStream.CopyToAsync(memoryStream, ct);
-            memoryStream.Position = 0;
-
-            var uploadResult = await mediaService.UploadMediaAsync(
+            var uploadResult = await mediaService.ImportMediaFromUrlAsync(
                 userId,
                 draftId.Value,
-                fileName,
-                contentType,
-                memoryStream,
-                ct
+                args.Url,
+                client,
+                ct,
+                args.AltText
             );
-
-            if (!string.IsNullOrWhiteSpace(args.AltText))
-            {
-                await mediaService.UpdateMediaAltTextAsync(userId, uploadResult.Id, args.AltText, ct);
-            }
 
             var finalTag = !string.IsNullOrWhiteSpace(args.AltText) 
                 ? $"![{args.AltText}](media://{uploadResult.Id})"

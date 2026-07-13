@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -187,5 +188,47 @@ public sealed class MediaService
 
         _db.MediaAssets.Remove(asset);
         await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<UploadMediaResult> ImportMediaFromUrlAsync(
+        Guid userId,
+        Guid draftId,
+        string url,
+        HttpClient httpClient,
+        CancellationToken ct,
+        string? altText = null)
+    {
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            throw new ArgumentException("A valid absolute image URL is required.", nameof(url));
+        }
+
+        using var response = await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Failed to download image: {(int)response.StatusCode} {response.ReasonPhrase}");
+        }
+
+        var mimeType = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+        if (!mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"URL content is not an image (Content-Type: '{mimeType}').");
+        }
+
+        var fileName = Path.GetFileName(uri.LocalPath);
+        if (string.IsNullOrWhiteSpace(fileName) || fileName == "/" || !fileName.Contains('.'))
+        {
+            var ext = mimeType switch
+            {
+                "image/png" => ".png",
+                "image/webp" => ".webp",
+                "image/gif" => ".gif",
+                _ => ".jpg"
+            };
+            fileName = $"downloaded_image{ext}";
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        return await UploadMediaAsync(userId, draftId, fileName, mimeType, stream, ct, altText);
     }
 }
