@@ -113,4 +113,4 @@ Inventory of low-effort improvements, code smells, missing tests, and minor bugs
 - **Only 1 test file** (`SourcesPanel.test.tsx`, 2 tests) for the entire React frontend
 - **No tests** for: stores, API layer, chat panel, thread preview, editor, draft list, settings, login, auth guard
 - `web/src/test/setup.ts` — only has a single import
-- No e2e tests (`planning/E2E_TESTING.md` exists but unimplemented)
+- No e2e tests (`planning/future/E2E_TESTING.md` exists as reference strategy, but coverage work is still incomplete)
