@@ -8,7 +8,8 @@ Designed to support creators with LLM assistance, `social-worker` lets you draft
 
 ### Repository
 
-[![CI Workflow](https://img.shields.io/github/actions/workflow/status/vhogemann/social-worker/ci.yml?branch=main&label=CI&logo=githubactions)](https://github.com/vhogemann/social-worker/actions/workflows/ci.yml)
+[![API CI Workflow](https://img.shields.io/github/actions/workflow/status/vhogemann/social-worker/api-ci.yml?branch=main&label=API%20CI&logo=githubactions)](https://github.com/vhogemann/social-worker/actions/workflows/api-ci.yml)
+[![Web CI Workflow](https://img.shields.io/github/actions/workflow/status/vhogemann/social-worker/web-ci.yml?branch=main&label=Web%20CI&logo=githubactions)](https://github.com/vhogemann/social-worker/actions/workflows/web-ci.yml)
 [![Release Workflow](https://img.shields.io/github/actions/workflow/status/vhogemann/social-worker/release.yml?label=release&logo=githubactions)](https://github.com/vhogemann/social-worker/actions/workflows/release.yml)
 [![GitHub Stars](https://img.shields.io/github/stars/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/forks)

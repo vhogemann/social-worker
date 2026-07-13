@@ -1,0 +1,26 @@
+name: Web CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  web-build-test:
+    name: Web Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build web image in Docker
+        run: docker compose build web
+
+      - name: Run web tests in Docker
+        run: docker compose --profile tooling run --rm web-test
