@@ -4,6 +4,44 @@ A local-first, Docker-only multi-modal assistant for composing and publishing so
 
 Designed to support creators with LLM assistance, `social-worker` lets you draft threads, attach sources and media, adapt variants to multiple platforms, and publish. Version 1 ships with end-to-end publishing support for Bluesky, with stubs ready for Twitter, LinkedIn, Facebook, and Instagram.
 
+## Badges
+
+### Repository
+
+[![CI Workflow](https://img.shields.io/github/actions/workflow/status/vhogemann/social-worker/ci.yml?branch=main&label=CI&logo=githubactions)](https://github.com/vhogemann/social-worker/actions/workflows/ci.yml)
+[![Release Workflow](https://img.shields.io/github/actions/workflow/status/vhogemann/social-worker/release.yml?label=release&logo=githubactions)](https://github.com/vhogemann/social-worker/actions/workflows/release.yml)
+[![GitHub Stars](https://img.shields.io/github/stars/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/forks)
+[![GitHub Watchers](https://img.shields.io/github/watchers/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/watchers)
+[![GitHub Issues](https://img.shields.io/github/issues/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/issues)
+[![GitHub Closed Issues](https://img.shields.io/github/issues-closed/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/issues?q=is%3Aissue%20is%3Aclosed)
+[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/pulls)
+[![GitHub Closed Pull Requests](https://img.shields.io/github/issues-pr-closed/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/pulls?q=is%3Apr%20is%3Aclosed)
+[![GitHub Discussions](https://img.shields.io/github/discussions/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/discussions)
+[![GitHub License](https://img.shields.io/github/license/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/blob/main/LICENSE)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/commits/main)
+[![GitHub Commit Activity (Total)](https://img.shields.io/github/commit-activity/t/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/graphs/commit-activity)
+[![GitHub Commit Activity (Monthly)](https://img.shields.io/github/commit-activity/m/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/graphs/commit-activity)
+[![GitHub Repo Size](https://img.shields.io/github/repo-size/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker)
+[![GitHub Code Size](https://img.shields.io/github/languages/code-size/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker)
+[![GitHub Language Count](https://img.shields.io/github/languages/count/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker)
+[![GitHub Top Language](https://img.shields.io/github/languages/top/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker)
+[![GitHub Contributors](https://img.shields.io/github/contributors/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/graphs/contributors)
+[![GitHub Repo Created](https://img.shields.io/github/created-at/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker)
+[![GitHub Release](https://img.shields.io/github/v/release/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/releases)
+[![GitHub Release Date](https://img.shields.io/github/release-date/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/releases)
+[![GitHub Downloads (All Releases)](https://img.shields.io/github/downloads/vhogemann/social-worker/total?logo=github)](https://github.com/vhogemann/social-worker/releases)
+[![GitHub Downloads (Latest)](https://img.shields.io/github/downloads/vhogemann/social-worker/latest/total?logo=github)](https://github.com/vhogemann/social-worker/releases/latest)
+[![GitHub Milestones](https://img.shields.io/github/milestones/all/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/milestones)
+[![GitHub Open Milestones](https://img.shields.io/github/milestones/open/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/milestones?state=open)
+[![GitHub Closed Milestones](https://img.shields.io/github/milestones/closed/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/milestones?state=closed)
+
+### Maintainer
+
+[![GitHub Followers](https://img.shields.io/github/followers/vhogemann?logo=github)](https://github.com/vhogemann?tab=followers)
+[![GitHub User Stars](https://img.shields.io/github/stars/vhogemann?style=social)](https://github.com/vhogemann?tab=stars)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/vhogemann?logo=github)](https://github.com/sponsors/vhogemann)
+
 ---
 
 ## Technical Stack
@@ -73,7 +111,3 @@ All builds, migration generations, and unit tests must be executed inside Docker
 
 ---
 
-## Status
-
-![Tests](https://img.shields.io/badge/tests-146%20passing-brightgreen)
-![Coverage](https://img.shields.io/badge/coverage-not%20yet%20configured-lightgrey)

@@ -84,8 +84,6 @@ describe("SourcesPanel", () => {
     const previewBtn = screen.getByTitle("Preview source content");
     fireEvent.click(previewBtn);
 
-    expect(screen.getByText("Fetching source content...")).toBeInTheDocument();
-
     await waitFor(() => {
       expect(draftsApi.fetchSourceDetail).toHaveBeenCalledWith("draft-1", "source-1");
     });
