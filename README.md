@@ -83,6 +83,36 @@ docker compose up --build
 - **Web App**: `http://localhost:8100`
 - **API**: `http://localhost:8101`
 
+### 2. Run Only (Prebuilt Images, No Local Build)
+
+If you just want to run the app and not develop it locally, use the prebuilt images:
+
+```bash
+docker compose -f docker-compose.app.yml up -d
+```
+
+Or use the helper launcher with env preflight checks:
+
+```bash
+./scripts/run-app.sh
+```
+
+To force-refresh to the latest published images:
+
+```bash
+docker compose -f docker-compose.app.yml pull
+docker compose -f docker-compose.app.yml up -d
+```
+
+Helper equivalent:
+
+```bash
+./scripts/run-app.sh --pull
+```
+
+- **Web App**: `http://localhost:8100`
+- **API**: `http://localhost:8101`
+
 ---
 
 ## Workspace Layout
@@ -90,7 +120,10 @@ docker compose up --build
 ```
 social-worker/
 ├── docker-compose.yml              # Base Docker Compose stack definition
+├── docker-compose.app.yml          # Runtime-only stack using published GHCR images
 ├── docker-compose.gpu.yml          # GPU resource reservation overrides
+├── scripts/
+│   └── run-app.sh                  # One-command runtime launcher with preflight checks
 ├── .env.example                    # Template environment file
 ├── AGENTS.md                       # Agent guidelines and specifications
 ├── PLAN.md                         # Detailed project roadmap and index

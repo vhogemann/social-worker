@@ -1,0 +1,63 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: socialworker
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    image: ${SW_API_IMAGE:-ghcr.io/vhogemann/social-worker-api:latest}
+    ports:
+      - "8101:8080"
+    environment:
+      LLM__BaseUrl: ${LLM__BaseUrl:-https://openrouter.ai/api/v1}
+      LLM__ApiKey: ${LLM__ApiKey}
+      LLM__Model: ${LLM__Model:-anthropic/claude-3.5-sonnet}
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: Host=db;Database=socialworker;Username=postgres;Password=postgres
+      Auth__JwtSecret: ${Auth__JwtSecret}
+      Auth__AdminPassword: ${Auth__AdminPassword:-changeme}
+      Auth__AccessTokenLifetimeMinutes: ${Auth__AccessTokenLifetimeMinutes:-60}
+      Auth__RefreshTokenLifetimeDays: ${Auth__RefreshTokenLifetimeDays:-7}
+      Auth__DbEncryptionKey: ${Auth__DbEncryptionKey:-}
+      Search__Provider: ${Search__Provider:-SearXng}
+      Search__BraveApiKey: ${Search__BraveApiKey:-}
+      Search__SearXngBaseUrl: http://searxng:8080
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+    restart: unless-stopped
+
+  web:
+    image: ${SW_WEB_IMAGE:-ghcr.io/vhogemann/social-worker-web:latest}
+    ports:
+      - "8100:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:latest
+    volumes:
+      - ./searxng:/etc/searxng:ro
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads_data:
