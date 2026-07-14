@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,16 +49,11 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, object>
         var publishers = scope.ServiceProvider.GetServices<IPublisher>();
 
         var thread = await db.PlatformThreads
-            .FirstOrDefaultAsync(t => t.DraftId == draftId && string.Equals(t.Platform, platform, StringComparison.OrdinalIgnoreCase), ct);
+            .FirstOrDefaultAsync(t => t.DraftId == draftId && t.Platform.ToLower() == platform.ToLower(), ct);
 
         if (thread == null)
         {
             return new { error = $"No platform thread found for platform '{platform}' in this draft." };
-        }
-
-        if (thread.Stage == PlatformThreadStage.Sent)
-        {
-            return new { error = $"Cannot publish. The thread for '{platform}' has already been 'Sent'." };
         }
 
         var account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == platform, ct);
@@ -76,6 +72,10 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, object>
 
         if (result.Success)
         {
+            // Clear any previous posts from this platform thread (in case of republication)
+            var oldPosts = await db.Posts.Where(p => p.PlatformThreadId == thread.Id).ToListAsync(ct);
+            db.Posts.RemoveRange(oldPosts);
+            
             foreach (var publishedPost in result.Posts)
             {
                 var post = new Post

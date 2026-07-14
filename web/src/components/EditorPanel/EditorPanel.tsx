@@ -86,10 +86,10 @@ export function EditorPanel() {
           {primaryThread && (
             <button
               onClick={handlePublish}
-              disabled={isPublishing || isSent}
+              disabled={isPublishing}
               className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md text-xs font-semibold uppercase tracking-wider transition-colors"
             >
-              {isPublishing ? "Publishing..." : isSent ? "Sent" : "Publish"}
+              {isPublishing ? "Publishing..." : isSent ? "Resend" : "Publish"}
             </button>
           )}
         </div>

@@ -37,11 +37,6 @@ public static class PublishingEndpoint
 
             if (thread == null) return Results.NotFound();
 
-            if (thread.Stage == PlatformThreadStage.Sent)
-            {
-                return Results.BadRequest("Thread has already been sent.");
-            }
-
             var account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == thread.Platform, ct);
             if (account == null)
             {

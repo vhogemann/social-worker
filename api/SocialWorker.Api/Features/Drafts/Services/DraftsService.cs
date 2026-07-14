@@ -213,6 +213,13 @@ public sealed class DraftsService
             draft.Content = content;
             await ReconcileSegmentsAsync(draft, content, ct);
             await _sourcesService.ReconcileSourcesAsync(draft, content);
+            
+            // Sync content to all platform threads for this draft
+            var platformThreads = await _db.PlatformThreads.Where(t => t.DraftId == id).ToListAsync(ct);
+            foreach (var thread in platformThreads)
+            {
+                thread.Content = content;
+            }
         }
 
         if (statusStr is not null && Enum.TryParse<DraftStatus>(statusStr, true, out var status))
@@ -339,21 +346,6 @@ public sealed class DraftsService
 
         if (stageStr is not null && Enum.TryParse<PlatformThreadStage>(stageStr, true, out var stage))
         {
-            if (stage == PlatformThreadStage.Sent)
-            {
-                if (string.Equals(thread.Platform, "Bluesky", StringComparison.OrdinalIgnoreCase))
-                {
-                    var segments = SplitMarkdownIntoSegments(thread.Content ?? "");
-                    foreach (var segment in segments)
-                    {
-                        var analysis = AnalyzeSegmentMedia(segment);
-                        if (analysis.HasConflict)
-                        {
-                            throw new InvalidOperationException("Bluesky segment contains both images and a YouTube embed. Only images OR one YouTube embed is allowed per post.");
-                        }
-                    }
-                }
-            }
             thread.Stage = stage;
         }
 
