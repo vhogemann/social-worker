@@ -1,5 +1,24 @@
 # v2 Plan: Sources Library + YouTube Transcripts
 
+## Progress Update (2026-07-14)
+
+### Completed
+
+- `DraftSource` junction model implemented and wired through API/service queries.
+- Source library search and cross-draft linking endpoints implemented.
+- Python transcriber service integrated via Docker Compose (`transcriber` service).
+- YouTube transcript extraction queued asynchronously from API background jobs.
+- Transcript status polling endpoint implemented and used by web UI.
+- Retry transcription endpoint implemented (`POST /api/sources/{sourceId}/retry-transcription`).
+- Source UI now supports retrying failed YouTube transcriptions.
+- Source preview UX improved for YouTube with tabbed interface (`Video` / `Transcript`) to avoid squeezed transcript view.
+- Deterministic local Whisper integration test added in transcriber (`transcriber/tests/test_whisper_local_integration.py`).
+
+### Notes
+
+- External YouTube access remains intermittently network-dependent (connection refused / 429 can still occur).
+- Library-first transcript retrieval + retry flow now provides better resilience and recovery path from UI.
+
 ## Overview
 
 Build a global, searchable sources library using Postgres FTS (full-text search), enable source reuse across drafts via `DraftSource` junction table, and automatically extract YouTube transcripts via a separate Python microservice (yt-dlp + Whisper + configurable summarization).

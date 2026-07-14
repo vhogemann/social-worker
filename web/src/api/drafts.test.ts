@@ -10,8 +10,12 @@ import {
   publishPlatformThread,
   fetchSources,
   fetchSourceDetail,
+  fetchSourceStatus,
+  retrySourceTranscription,
   deleteSource,
   importSourceFromUrl,
+  linkSourceToDraft,
+  searchSources,
   uploadFile,
   uploadMedia,
   renderCodeImage,
@@ -163,6 +167,75 @@ describe("drafts API", () => {
     });
   });
 
+  describe("searchSources", () => {
+    it("returns source library search results", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "s1",
+                kind: "Url",
+                reference: "https://example.com",
+                title: "Example",
+                summary: "Summary",
+                transcriptStatus: "Complete",
+                youtubeVideoId: null,
+                addedAt: "2026-01-01",
+              },
+            ],
+            total: 1,
+            page: 1,
+            pageSize: 20,
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await searchSources("example");
+      expect(result.items[0].id).toBe("s1");
+      expect(result.total).toBe(1);
+    });
+  });
+
+  describe("fetchSourceStatus", () => {
+    it("returns source status payload", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            sourceId: "s1",
+            transcriptStatus: "Processing",
+            summary: "Summary",
+            youtubeVideoId: "abc123xyz09",
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await fetchSourceStatus("s1");
+      expect(result.transcriptStatus).toBe("Processing");
+    });
+  });
+
+  describe("retrySourceTranscription", () => {
+    it("returns source status payload after retry enqueue", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            sourceId: "s1",
+            transcriptStatus: "Pending",
+            summary: null,
+            youtubeVideoId: "abc123xyz09",
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await retrySourceTranscription("s1");
+      expect(result.transcriptStatus).toBe("Pending");
+    });
+  });
+
   describe("deleteSource", () => {
     it("resolves on success", async () => {
       mockApiFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
@@ -197,6 +270,31 @@ describe("drafts API", () => {
     it("throws with server message on failure", async () => {
       mockApiFetch.mockResolvedValueOnce(new Response("Invalid URL", { status: 400 }));
       await expect(importSourceFromUrl("d1", "not-a-url")).rejects.toThrow("Invalid URL");
+    });
+  });
+
+  describe("linkSourceToDraft", () => {
+    it("returns linked source dto", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "s1",
+            draftId: "d1",
+            kind: "Url",
+            reference: "https://example.com",
+            title: "Example",
+            summary: "Summary",
+            transcriptStatus: "Complete",
+            youtubeVideoId: null,
+            addedAt: "2026-01-01",
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await linkSourceToDraft("d1", "s1");
+      expect(result.id).toBe("s1");
+      expect(result.draftId).toBe("d1");
     });
   });
 

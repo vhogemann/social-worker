@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<LlmProvider> LlmProviders => Set<LlmProvider>();
     public DbSet<PlatformThread> PlatformThreads => Set<PlatformThread>();
     public DbSet<Source> Sources => Set<Source>();
+    public DbSet<DraftSource> DraftSources => Set<DraftSource>();
     public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Post> Posts => Set<Post>();
@@ -95,11 +96,25 @@ public class AppDbContext : DbContext
             e.Property(x => x.Reference).HasMaxLength(500);
             e.Property(x => x.Title).HasMaxLength(200);
             e.Property(x => x.Content).HasColumnType("text");
+            e.Property(x => x.Summary).HasColumnType("text");
+            e.Property(x => x.TranscriptStatus).HasConversion<string>().HasMaxLength(50);
+            e.Property(x => x.TranscriptPath).HasMaxLength(500);
+            e.Property(x => x.YoutubeVideoId).HasMaxLength(11);
             e.Property(x => x.Sha256).HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<DraftSource>(e =>
+        {
+            e.HasKey(x => new { x.DraftId, x.SourceId });
             e.HasOne(x => x.Draft)
-                .WithMany(d => d.Sources)
+                .WithMany(d => d.DraftSources)
                 .HasForeignKey(x => x.DraftId)
                 .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source)
+                .WithMany(s => s.DraftSources)
+                .HasForeignKey(x => x.SourceId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.DraftId, x.SourceId }).IsUnique();
         });
 
         modelBuilder.Entity<MediaAsset>(e =>

@@ -16,7 +16,7 @@ public class Draft
     public ICollection<Draft> Variants { get; set; } = new List<Draft>();
     public ICollection<ThreadSegment> Segments { get; set; } = new List<ThreadSegment>();
     public ICollection<PlatformThread> Threads { get; set; } = new List<PlatformThread>();
-    public ICollection<Source> Sources { get; set; } = new List<Source>();
+    public ICollection<DraftSource> DraftSources { get; set; } = new List<DraftSource>();
     public ICollection<MediaAsset> MediaAssets { get; set; } = new List<MediaAsset>();
     public string? ChatHistory { get; set; }
     public string? ChatSummary { get; set; }

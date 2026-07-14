@@ -17,6 +17,71 @@ public static class SourcesEndpoint
 {
     public static void MapSourcesEndpoints(this WebApplication app)
     {
+        app.MapGet("/api/sources", async (
+            ClaimsPrincipal principal,
+            SourcesService sourcesService,
+            string? query,
+            int? page,
+            int? pageSize,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            var result = await sourcesService.SearchSourcesAsync(
+                userId.Value,
+                query ?? string.Empty,
+                page ?? 1,
+                pageSize ?? 20,
+                ct);
+
+            return Results.Ok(result);
+        }).RequireAuthorization();
+
+        app.MapGet("/api/sources/{sourceId:guid}/status", async (
+            ClaimsPrincipal principal,
+            SourcesService sourcesService,
+            Guid sourceId,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            try
+            {
+                var result = await sourcesService.GetSourceStatusAsync(userId.Value, sourceId, ct);
+                return Results.Ok(result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
+        }).RequireAuthorization();
+
+        app.MapPost("/api/sources/{sourceId:guid}/retry-transcription", async (
+            ClaimsPrincipal principal,
+            SourcesService sourcesService,
+            Guid sourceId,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            try
+            {
+                var result = await sourcesService.RetrySourceTranscriptAsync(userId.Value, sourceId, ct);
+                return Results.Ok(result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
+        }).RequireAuthorization();
+
         var group = app.MapGroup("/api/drafts/{draftId:guid}").RequireAuthorization();
 
         group.MapGet("/sources", async (ClaimsPrincipal principal, SourcesService sourcesService, Guid draftId, CancellationToken ct) =>
@@ -151,6 +216,27 @@ public static class SourcesEndpoint
             catch (InvalidOperationException ex)
             {
                 return Results.BadRequest(ex.Message);
+            }
+        });
+
+        group.MapPost("/sources/{sourceId:guid}/link", async (
+            ClaimsPrincipal principal,
+            SourcesService sourcesService,
+            Guid draftId,
+            Guid sourceId,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            try
+            {
+                var result = await sourcesService.LinkSourceAsync(userId.Value, sourceId, draftId, ct);
+                return Results.Ok(result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
             }
         });
     }

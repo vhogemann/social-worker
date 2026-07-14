@@ -22,8 +22,12 @@ public sealed class ListSourcesToolTests : SqliteTestBase
         db.Users.Add(user);
         var draft = new Draft { Id = Guid.NewGuid(), Title = "T", Content = "C", UserId = user.Id };
         db.Drafts.Add(draft);
-        db.Sources.Add(new Source { DraftId = draft.Id, Kind = SourceKind.Url, Reference = "https://example.com", Title = "Example" });
-        db.Sources.Add(new Source { DraftId = draft.Id, Kind = SourceKind.Url, Reference = "https://test.com", Title = "Test" });
+        var source1 = new Source { Id = Guid.NewGuid(), Kind = SourceKind.Url, Reference = "https://example.com", Title = "Example" };
+        var source2 = new Source { Id = Guid.NewGuid(), Kind = SourceKind.Url, Reference = "https://test.com", Title = "Test" };
+        db.Sources.AddRange(source1, source2);
+        db.DraftSources.AddRange(
+            new DraftSource { DraftId = draft.Id, SourceId = source1.Id },
+            new DraftSource { DraftId = draft.Id, SourceId = source2.Id });
         await db.SaveChangesAsync();
 
         var services = new ServiceCollection();

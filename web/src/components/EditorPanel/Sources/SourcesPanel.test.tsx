@@ -11,7 +11,11 @@ vi.mock("../../../api/drafts", async (importOriginal) => {
   return {
     ...actual,
     fetchSourceDetail: vi.fn(),
+    fetchSourceStatus: vi.fn(),
+    retrySourceTranscription: vi.fn(),
     deleteSource: vi.fn(),
+    searchSources: vi.fn(),
+    linkSourceToDraft: vi.fn(),
     fetchSources: vi.fn().mockResolvedValue([])
   };
 });
@@ -19,6 +23,13 @@ vi.mock("../../../api/drafts", async (importOriginal) => {
 describe("SourcesPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    vi.mocked(draftsApi.fetchSourceStatus).mockResolvedValue({
+      sourceId: "source-1",
+      transcriptStatus: "Complete",
+      summary: "Short summary",
+      youtubeVideoId: null,
+    });
     
     useDraftStore.setState({
       activeDraftId: "draft-1",
@@ -46,6 +57,9 @@ describe("SourcesPanel", () => {
           kind: "Url",
           reference: "https://example.com",
           title: "Example Website",
+          summary: "Short summary",
+          transcriptStatus: "Complete",
+          youtubeVideoId: null,
           addedAt: "2026-07-10"
         }
       ]
@@ -71,6 +85,9 @@ describe("SourcesPanel", () => {
       reference: "https://example.com",
       title: "Example Website",
       content: "This is the fetched site content",
+      summary: "Short summary",
+      transcriptStatus: "Complete",
+      youtubeVideoId: null,
       addedAt: "2026-07-10"
     };
 
@@ -90,6 +107,161 @@ describe("SourcesPanel", () => {
 
     await waitFor(() => {
       expect(screen.getByText("This is the fetched site content")).toBeInTheDocument();
+    });
+  });
+
+  it("searches the source library and links a result to the active draft", async () => {
+    vi.mocked(draftsApi.searchSources).mockResolvedValueOnce({
+      items: [
+        {
+          id: "source-2",
+          kind: "Url",
+          reference: "https://reusable.example.com",
+          title: "Reusable Source",
+          summary: "Shared summary",
+          transcriptStatus: "Complete",
+          youtubeVideoId: null,
+          addedAt: "2026-07-10",
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    });
+    vi.mocked(draftsApi.linkSourceToDraft).mockResolvedValueOnce({
+      id: "source-2",
+      draftId: "draft-1",
+      kind: "Url",
+      reference: "https://reusable.example.com",
+      title: "Reusable Source",
+      summary: "Shared summary",
+      transcriptStatus: "Complete",
+      youtubeVideoId: null,
+      addedAt: "2026-07-10",
+    });
+
+    render(<SourcesPanel />);
+
+    fireEvent.click(screen.getByText(/Sources & Images/));
+    fireEvent.change(screen.getByPlaceholderText(/Find reusable sources across drafts/i), {
+      target: { value: "reusable" },
+    });
+    fireEvent.click(screen.getByText("Search"));
+
+    await waitFor(() => {
+      expect(draftsApi.searchSources).toHaveBeenCalledWith("reusable");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Reusable Source")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Link"));
+
+    await waitFor(() => {
+      expect(draftsApi.linkSourceToDraft).toHaveBeenCalledWith("draft-1", "source-2");
+    });
+  });
+
+  it("retries transcription for a failed YouTube source from the preview modal", async () => {
+    useDraftStore.setState({
+      sources: [
+        {
+          id: "source-yt-1",
+          draftId: "draft-1",
+          kind: "YouTube",
+          reference: "https://www.youtube.com/watch?v=abc123xyz09",
+          title: "Example Video",
+          summary: "Previous failure",
+          transcriptStatus: "Failed",
+          youtubeVideoId: "abc123xyz09",
+          addedAt: "2026-07-10",
+        },
+      ],
+    });
+
+    vi.mocked(draftsApi.fetchSourceDetail).mockResolvedValueOnce({
+      id: "source-yt-1",
+      draftId: "draft-1",
+      kind: "YouTube",
+      reference: "https://www.youtube.com/watch?v=abc123xyz09",
+      title: "Example Video",
+      content: "",
+      summary: "Previous failure",
+      transcriptStatus: "Failed",
+      youtubeVideoId: "abc123xyz09",
+      addedAt: "2026-07-10",
+    });
+
+    vi.mocked(draftsApi.retrySourceTranscription).mockResolvedValueOnce({
+      sourceId: "source-yt-1",
+      transcriptStatus: "Pending",
+      summary: null,
+      youtubeVideoId: "abc123xyz09",
+    });
+
+    render(<SourcesPanel />);
+
+    fireEvent.click(screen.getByText(/Sources & Images/));
+    fireEvent.click(screen.getByTitle("Preview source content"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Retry Transcription")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Retry Transcription"));
+
+    await waitFor(() => {
+      expect(draftsApi.retrySourceTranscription).toHaveBeenCalledWith("source-yt-1");
+    });
+  });
+
+  it("shows tabbed YouTube preview and switches to transcript tab", async () => {
+    useDraftStore.setState({
+      sources: [
+        {
+          id: "source-yt-2",
+          draftId: "draft-1",
+          kind: "YouTube",
+          reference: "https://www.youtube.com/watch?v=abc123xyz09",
+          title: "Tabbed Video",
+          summary: null,
+          transcriptStatus: "Complete",
+          youtubeVideoId: "abc123xyz09",
+          addedAt: "2026-07-10",
+        },
+      ],
+    });
+
+    vi.mocked(draftsApi.fetchSourceDetail).mockResolvedValueOnce({
+      id: "source-yt-2",
+      draftId: "draft-1",
+      kind: "YouTube",
+      reference: "https://www.youtube.com/watch?v=abc123xyz09",
+      title: "Tabbed Video",
+      content: "Transcript content in tab",
+      summary: null,
+      transcriptStatus: "Complete",
+      youtubeVideoId: "abc123xyz09",
+      addedAt: "2026-07-10",
+    });
+
+    render(<SourcesPanel />);
+
+    fireEvent.click(screen.getByText(/Sources & Images/));
+    fireEvent.click(screen.getByTitle("Preview source content"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Video")).toBeInTheDocument();
+      expect(screen.getByText("Transcript")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Transcript content in tab")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Transcript"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Transcript content in tab")).toBeInTheDocument();
     });
   });
 });

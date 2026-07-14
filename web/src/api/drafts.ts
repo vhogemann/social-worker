@@ -24,6 +24,9 @@ export interface SourceDto {
   kind: string;
   reference: string;
   title: string | null;
+  summary?: string | null;
+  transcriptStatus?: string;
+  youtubeVideoId?: string | null;
   addedAt: string;
 }
 
@@ -34,7 +37,35 @@ export interface SourceDetailDto {
   reference: string;
   title: string | null;
   content: string | null;
+  summary?: string | null;
+  transcriptStatus?: string;
+  youtubeVideoId?: string | null;
   addedAt: string;
+}
+
+export interface SourceSearchItemDto {
+  id: string;
+  kind: string;
+  reference: string;
+  title: string | null;
+  summary: string | null;
+  transcriptStatus: string;
+  youtubeVideoId: string | null;
+  addedAt: string;
+}
+
+export interface SourceSearchResultDto {
+  items: SourceSearchItemDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface SourceStatusDto {
+  sourceId: string;
+  transcriptStatus: string;
+  summary: string | null;
+  youtubeVideoId: string | null;
 }
 
 export interface MediaAssetDto {
@@ -169,6 +200,35 @@ export async function fetchSources(draftId: string): Promise<SourceDto[]> {
 export async function fetchSourceDetail(draftId: string, sourceId: string): Promise<SourceDetailDto> {
   const res = await apiFetch(`/api/drafts/${draftId}/sources/${sourceId}`);
   if (!res.ok) throw new Error(`fetchSourceDetail failed: ${res.status}`);
+  return res.json();
+}
+
+export async function searchSources(query: string, page = 1, pageSize = 20): Promise<SourceSearchResultDto> {
+  const params = new URLSearchParams({ query, page: `${page}`, pageSize: `${pageSize}` });
+  const res = await apiFetch(`/api/sources?${params.toString()}`);
+  if (!res.ok) throw new Error(`searchSources failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchSourceStatus(sourceId: string): Promise<SourceStatusDto> {
+  const res = await apiFetch(`/api/sources/${sourceId}/status`);
+  if (!res.ok) throw new Error(`fetchSourceStatus failed: ${res.status}`);
+  return res.json();
+}
+
+export async function retrySourceTranscription(sourceId: string): Promise<SourceStatusDto> {
+  const res = await apiFetch(`/api/sources/${sourceId}/retry-transcription`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`retrySourceTranscription failed: ${res.status}`);
+  return res.json();
+}
+
+export async function linkSourceToDraft(draftId: string, sourceId: string): Promise<SourceDto> {
+  const res = await apiFetch(`/api/drafts/${draftId}/sources/${sourceId}/link`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`linkSourceToDraft failed: ${res.status}`);
   return res.json();
 }
 

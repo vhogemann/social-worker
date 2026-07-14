@@ -72,7 +72,7 @@ public sealed class AddSourceToolTests : IDisposable
 
         Assert.Contains("Successfully added source", response);
 
-        var inserted = await db.Sources.FirstOrDefaultAsync(s => s.DraftId == draft.Id);
+        var inserted = await db.Sources.FirstOrDefaultAsync(s => s.DraftSources.Any(ds => ds.DraftId == draft.Id));
         Assert.NotNull(inserted);
         Assert.Equal(SourceKind.Url, inserted.Kind);
         Assert.Equal("https://example.com/testpage", inserted.Reference);

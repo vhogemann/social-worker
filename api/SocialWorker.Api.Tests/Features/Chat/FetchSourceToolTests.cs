@@ -22,8 +22,9 @@ public sealed class FetchSourceToolTests : SqliteTestBase
         db.Users.Add(user);
         var draft = new Draft { Id = Guid.NewGuid(), Title = "T", Content = "C", UserId = user.Id };
         db.Drafts.Add(draft);
-        var source = new Source { Id = Guid.NewGuid(), DraftId = draft.Id, Kind = SourceKind.Url, Reference = "https://example.com", Title = "Ex", Content = "Source content here" };
+        var source = new Source { Id = Guid.NewGuid(), Kind = SourceKind.Url, Reference = "https://example.com", Title = "Ex", Content = "Source content here" };
         db.Sources.Add(source);
+        db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id });
         await db.SaveChangesAsync();
 
         var services = new ServiceCollection();

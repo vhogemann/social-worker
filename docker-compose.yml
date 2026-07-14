@@ -37,12 +37,18 @@ services:
       Search__Provider: ${Search__Provider:-SearXng}
       Search__BraveApiKey: ${Search__BraveApiKey:-}
       Search__SearXngBaseUrl: http://searxng:8080
+      Transcriber__BaseUrl: http://transcriber:8000
+      Transcriber__TimeoutSeconds: ${TRANSCRIBER__TimeoutSeconds:-1800}
+      Transcriber__TranscriptsPath: /app/transcripts
       DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-}
     depends_on:
       db:
         condition: service_healthy
+      transcriber:
+        condition: service_started
     volumes:
       - ./uploads:/app/uploads
+      - ./transcripts:/app/transcripts
       - ./SYSTEM_PROMPT.md:/app/SYSTEM_PROMPT.md:ro
     restart: unless-stopped
 
@@ -62,6 +68,27 @@ services:
       - ./searxng:/etc/searxng:ro
     environment:
       - SEARXNG_BASE_URL=http://searxng:8080/
+    restart: unless-stopped
+
+  transcriber:
+    build:
+      context: ./transcriber
+      dockerfile: Dockerfile
+      args:
+        WHISPER_MODEL: ${TRANSCRIBER__WhisperModel:-base}
+    ports:
+      - "8102:8000"
+    environment:
+      TRANSCRIPTS_DIR: /transcripts
+      WHISPER_MODEL: ${TRANSCRIBER__WhisperModel:-base}
+      SUMMARY_ENGINE: ${TRANSCRIBER__SummaryEngine:-disabled}
+      SUMMARY_URL: ${TRANSCRIBER__SummaryUrl:-}
+      SUMMARY_MODEL: ${TRANSCRIBER__SummaryModel:-}
+      SUMMARY_API_KEY: ${TRANSCRIBER__SummaryApiKey:-}
+      SUMMARY_MAX_CHARS: ${TRANSCRIBER__SummaryMaxChars:-12000}
+    volumes:
+      - ./transcripts:/transcripts
+      - whisper-cache:/root/.cache/whisper
     restart: unless-stopped
 
   e2e:
@@ -107,3 +134,4 @@ services:
 
 volumes:
   pgdata:
+  whisper-cache:

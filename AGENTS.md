@@ -105,6 +105,13 @@ No mandated test framework yet. When adding tests:
 
 Before making any changes, establish a baseline by running the build and tests inside Docker. Then make changes, then re-run build and tests to verify. Do not move on to the next step until the build passes and all tests succeed.
 
+Definition of done:
+
+- It is not done just because unit tests or image builds pass.
+- Before declaring work complete, rebuild the affected container images and start the relevant services with Docker Compose.
+- Confirm the containers actually come up cleanly and that startup-time failures (migration issues, missing native libraries, misconfigured env vars, bad runtime wiring) are resolved.
+- For stack-affecting changes, `docker compose up --build` or the project redeploy helper is required as the final verification step.
+
 Concretely for API changes:
 
 1. `docker compose --profile tooling run --rm dotnet build` — confirm baseline compiles

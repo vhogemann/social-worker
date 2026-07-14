@@ -16,6 +16,14 @@ type SlashItem = {
   metadata?: { command?: string };
 };
 
+type ThreadMessageView = {
+  role?: string;
+  content?: ReadonlyArray<{
+    type?: string;
+    text?: string;
+  }>;
+};
+
 function getSlashQuery(text: string): string | null {
   if (!text.startsWith("/")) {
     return null;
@@ -26,7 +34,7 @@ function getSlashQuery(text: string): string | null {
 
 export function ThreadComposer() {
   const isRunning = useThread((state) => state.isRunning);
-  const messages = useThread((state) => state.messages as Array<{ role?: string; content?: Array<{ type?: string; text?: string }> }>);
+  const messages = useThread((state) => state.messages as ReadonlyArray<ThreadMessageView>);
   const composerText = useComposer((state) => state.text);
   const composerRuntime = useComposerRuntime();
   const activeDraftId = useDraftStore((s) => s.activeDraftId);

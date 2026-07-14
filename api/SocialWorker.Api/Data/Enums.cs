@@ -22,6 +22,14 @@ public enum SourceKind
     YouTube
 }
 
+public enum TranscriptStatus
+{
+    Pending,
+    Processing,
+    Complete,
+    Failed
+}
+
 public enum SocialPlatform
 {
     Bluesky,

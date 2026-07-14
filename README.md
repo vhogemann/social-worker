@@ -82,6 +82,9 @@ docker compose up --build
 
 - **Web App**: `http://localhost:8100`
 - **API**: `http://localhost:8101`
+- **Transcriber (Whisper)**: `http://localhost:8102`
+
+The transcriber service runs a local Whisper model inside Docker and stores transcript artifacts in `./transcripts/`.
 
 ### 1.1 Run E2E Stack Separately (No Port Collisions)
 
@@ -168,6 +171,8 @@ social-worker/
 ├── docker-compose.yml              # Base Docker Compose stack definition
 ├── docker-compose.app.yml          # Runtime-only stack using published GHCR images
 ├── docker-compose.gpu.yml          # GPU resource reservation overrides
+├── transcriber/                    # Python FastAPI transcript service (yt-dlp + Whisper)
+├── transcripts/                    # Local transcript artifacts (gitignored except .gitkeep)
 ├── scripts/
 │   └── run-app.sh                  # One-command runtime launcher with preflight checks
 │   └── redeploy.sh                 # Safer down/up redeploy helper for dev and app stacks

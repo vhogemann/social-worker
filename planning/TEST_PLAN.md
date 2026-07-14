@@ -105,7 +105,7 @@ Framework: Vitest + Testing Library + jsdom (already configured). Run via `docke
 | `SourcesPanel` | `EditorPanel/Sources/SourcesPanel.tsx` | Already has 2 tests — expand, preview source | [x] |
 | `SourceItem` | `EditorPanel/Sources/SourceItem.tsx` | Source display, delete | [ ] |
 | `MediaAssetItem` | `EditorPanel/Sources/MediaAssetItem.tsx` | Media display, alt text, delete | [ ] |
-| `SourcePreviewModal` | `EditorPanel/Sources/SourcePreviewModal.tsx` | Content display, loading, error | [ ] |
+| `SourcePreviewModal` | `EditorPanel/Sources/SourcePreviewModal.tsx` | Covered through `SourcesPanel` integration tests (preview render, retry action, YouTube video/transcript tab switching) | [x] |
 | `ThreadPreview` | `EditorPanel/ThreadPreview/` (12 files) | Segment cards, media preview, alt-text editor, copy, YouTube embeds, link cards | [ ] |
 | `AdaptVariantsModal` | `EditorPanel/AdaptVariantsModal.tsx` | Platform selection, generate, progress, results | [ ] |
 

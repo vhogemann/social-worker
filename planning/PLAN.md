@@ -16,6 +16,10 @@ This file is the single source of truth for roadmap status and planning links.
 - Chat SSE streaming and tool execution
 - Markdown editor, thread preview, draft CRUD, stage flow
 - Sources, media upload, image/code rendering
+- Source library search and cross-draft source linking
+- YouTube transcript extraction via local transcriber service (Docker)
+- Transcript status polling + retry action in UI
+- Tabbed YouTube source preview (Video / Transcript)
 - Platform variants and Bluesky publishing
 - Auth, providers, brand voice prompts, settings UI
 

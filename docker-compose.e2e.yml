@@ -50,20 +50,49 @@ services:
       Search__Provider: ${Search__Provider:-SearXng}
       Search__BraveApiKey: ${Search__BraveApiKey:-}
       Search__SearXngBaseUrl: http://searxng-e2e:8080
+      Transcriber__BaseUrl: http://transcriber-e2e:8000
+      Transcriber__TimeoutSeconds: ${TRANSCRIBER__TimeoutSeconds:-1800}
+      Transcriber__TranscriptsPath: /app/transcripts
       DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-getting-started}
     depends_on:
       db-e2e:
         condition: service_healthy
       searxng-e2e:
         condition: service_started
+      transcriber-e2e:
+        condition: service_started
     volumes:
       - ./uploads:/app/uploads
+      - ./transcripts:/app/transcripts
       - ./SYSTEM_PROMPT.md:/app/SYSTEM_PROMPT.md:ro
     restart: unless-stopped
     networks:
       e2e-net:
         aliases:
           - api
+
+  transcriber-e2e:
+    image: social-worker-transcriber-e2e
+    build:
+      context: ./transcriber
+      dockerfile: Dockerfile
+      args:
+        WHISPER_MODEL: ${TRANSCRIBER__WhisperModel:-base}
+    environment:
+      TRANSCRIPTS_DIR: /transcripts
+      WHISPER_MODEL: ${TRANSCRIBER__WhisperModel:-base}
+      SUMMARY_ENGINE: ${TRANSCRIBER__SummaryEngine:-disabled}
+      SUMMARY_URL: ${TRANSCRIBER__SummaryUrl:-}
+      SUMMARY_MODEL: ${TRANSCRIBER__SummaryModel:-}
+      SUMMARY_API_KEY: ${TRANSCRIBER__SummaryApiKey:-}
+      SUMMARY_MAX_CHARS: ${TRANSCRIBER__SummaryMaxChars:-12000}
+    volumes:
+      - ./transcripts:/transcripts
+    restart: unless-stopped
+    networks:
+      e2e-net:
+        aliases:
+          - transcriber
 
   web-e2e:
     image: social-worker-web-e2e

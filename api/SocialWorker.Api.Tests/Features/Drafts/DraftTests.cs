@@ -177,13 +177,13 @@ public sealed class DraftTests : SqliteTestBase
         var fileSource = new Source
         {
             Id = Guid.NewGuid(),
-            DraftId = draft.Id,
             Kind = SourceKind.File,
             Reference = "document.pdf",
             Title = "document.pdf",
             Content = "Extracted PDF content"
         };
         _db.Sources.Add(fileSource);
+        _db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = fileSource.Id });
         await _db.SaveChangesAsync();
 
         var content = $"Check out my doc: [Doc](file://{fileSource.Id})";
@@ -191,7 +191,7 @@ public sealed class DraftTests : SqliteTestBase
 
         await new SourcesService(_db, null!, null!, null!).ReconcileSourcesAsync(draft, content);
 
-        var sources = await _db.Sources.Where(s => s.DraftId == draft.Id).ToListAsync();
+        var sources = await _db.Sources.Where(s => s.DraftSources.Any(ds => ds.DraftId == draft.Id)).ToListAsync();
         Assert.Single(sources);
         Assert.Equal(fileSource.Id, sources[0].Id);
 
@@ -200,7 +200,7 @@ public sealed class DraftTests : SqliteTestBase
 
         await new SourcesService(_db, null!, null!, null!).ReconcileSourcesAsync(draft, content2);
 
-        sources = await _db.Sources.Where(s => s.DraftId == draft.Id).ToListAsync();
+        sources = await _db.Sources.Where(s => s.DraftSources.Any(ds => ds.DraftId == draft.Id)).ToListAsync();
         Assert.Empty(sources);
     }
 

@@ -27,6 +27,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("LLM"));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
 builder.Services.Configure<ChatOptions>(builder.Configuration.GetSection(ChatOptions.SectionName));
+builder.Services.Configure<TranscriberOptions>(builder.Configuration.GetSection(TranscriberOptions.SectionName));
 builder.Services.AddHttpClient<OpenAiProviderAdapter>();
 builder.Services.AddScoped<ILlmProviderAdapter>(sp =>
 {
@@ -45,6 +46,12 @@ builder.Services.AddScoped<ChatService>();
 builder.Services.AddHttpClient<ModelCapabilityProbe>();
 builder.Services.AddScoped<SourceExtractor>();
 builder.Services.AddHttpClient<WebScraperService>();
+builder.Services.AddHttpClient<ITranscriptExtractionService, TranscriptExtractionService>((sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TranscriberOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+});
 builder.Services.AddScoped<SourcesService>();
 builder.Services.AddSingleton<ImageResizer>();
 builder.Services.AddSingleton<FileStorageProvider>();
@@ -211,6 +218,7 @@ if (app.Environment.IsDevelopment())
         db.Posts.RemoveRange(db.Posts);
         db.PlatformThreads.RemoveRange(db.PlatformThreads);
         db.ThreadSegments.RemoveRange(db.ThreadSegments);
+        db.DraftSources.RemoveRange(db.DraftSources);
         db.Sources.RemoveRange(db.Sources);
         db.MediaAssets.RemoveRange(db.MediaAssets);
         db.Drafts.RemoveRange(db.Drafts);

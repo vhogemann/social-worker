@@ -65,7 +65,8 @@ public sealed class FetchSourceTool : ChatToolBase<FetchSourceArgs, FetchSourceR
             throw new InvalidOperationException($"Source {sourceId} not found");
         }
 
-        var owned = await db.Drafts.AnyAsync(d => d.Id == source.DraftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+        var owned = await db.DraftSources
+            .AnyAsync(ds => ds.SourceId == source.Id && ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted, ct);
         if (!owned)
         {
             throw new UnauthorizedAccessException("Access denied to target source");

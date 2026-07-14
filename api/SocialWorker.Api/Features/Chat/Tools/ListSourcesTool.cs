@@ -50,7 +50,7 @@ public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, List<ListSou
         }
 
         var sources = await db.Sources
-            .Where(s => s.DraftId == activeDraftId.Value)
+            .Where(s => s.DraftSources.Any(ds => ds.DraftId == activeDraftId.Value))
             .Select(s => new ListSourcesResultItem(s.Id, s.Kind.ToString(), s.Reference, s.Title))
             .ToListAsync(ct);
 

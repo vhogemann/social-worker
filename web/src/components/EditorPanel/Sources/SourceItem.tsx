@@ -53,6 +53,11 @@ export const SourceItem: React.FC<SourceItemProps> = ({
             <span className="text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 truncate leading-tight">
               {source.title || source.reference}
             </span>
+            {source.transcriptStatus ? (
+              <span className="rounded-full border border-zinc-200 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                {source.transcriptStatus}
+              </span>
+            ) : null}
             {source.title === "Fetching..." && (
               <div className="w-2.5 h-2.5 border border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin shrink-0" />
             )}

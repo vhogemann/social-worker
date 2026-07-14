@@ -13,9 +13,42 @@ using SocialWorker.Api.Infrastructure.Background;
 
 namespace SocialWorker.Api.Features.Sources;
 
-public sealed record SourceDto(Guid Id, Guid DraftId, string Kind, string Reference, string? Title, DateTime AddedAt);
+public sealed record SourceDto(
+    Guid Id,
+    Guid DraftId,
+    string Kind,
+    string Reference,
+    string? Title,
+    string? Summary,
+    string TranscriptStatus,
+    string? YoutubeVideoId,
+    DateTime AddedAt);
 
-public sealed record SourceDetailDto(Guid Id, Guid DraftId, string Kind, string Reference, string? Title, string? Content, DateTime AddedAt);
+public sealed record SourceDetailDto(
+    Guid Id,
+    Guid DraftId,
+    string Kind,
+    string Reference,
+    string? Title,
+    string? Content,
+    string? Summary,
+    string TranscriptStatus,
+    string? YoutubeVideoId,
+    DateTime AddedAt);
+
+public sealed record SourceSearchItemDto(
+    Guid Id,
+    string Kind,
+    string Reference,
+    string? Title,
+    string? Summary,
+    string TranscriptStatus,
+    string? YoutubeVideoId,
+    DateTime AddedAt);
+
+public sealed record SourceSearchResultDto(List<SourceSearchItemDto> Items, int Total, int Page, int PageSize);
+
+public sealed record SourceStatusDto(Guid SourceId, string TranscriptStatus, string? Summary, string? YoutubeVideoId);
 
 public sealed record AddFileSourceResult(Guid SourceId, string Reference);
 public sealed record AddUrlSourceResult(Guid SourceId, string Reference, string? Title, string Kind);
@@ -47,8 +80,17 @@ public sealed class SourcesService
         }
 
         return await _db.Sources
-            .Where(s => s.DraftId == draftId)
-            .Select(s => new SourceDto(s.Id, s.DraftId, s.Kind.ToString(), s.Reference, s.Title, s.AddedAt))
+            .Where(s => s.DraftSources.Any(ds => ds.DraftId == draftId))
+            .Select(s => new SourceDto(
+                s.Id,
+                draftId,
+                s.Kind.ToString(),
+                s.Reference,
+                s.Title,
+                s.Summary,
+                s.TranscriptStatus.ToString(),
+                s.YoutubeVideoId,
+                s.AddedAt))
             .ToListAsync(ct);
     }
 
@@ -60,13 +102,154 @@ public sealed class SourcesService
             throw new KeyNotFoundException("Draft not found or access denied.");
         }
 
-        var source = await _db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId && s.DraftId == draftId, ct);
+        var source = await _db.Sources
+            .FirstOrDefaultAsync(s => s.Id == sourceId && s.DraftSources.Any(ds => ds.DraftId == draftId), ct);
         if (source == null)
         {
             throw new KeyNotFoundException("Source not found.");
         }
 
-        return new SourceDetailDto(source.Id, source.DraftId, source.Kind.ToString(), source.Reference, source.Title, source.Content, source.AddedAt);
+        return new SourceDetailDto(
+            source.Id,
+            draftId,
+            source.Kind.ToString(),
+            source.Reference,
+            source.Title,
+            source.Content,
+            source.Summary,
+            source.TranscriptStatus.ToString(),
+            source.YoutubeVideoId,
+            source.AddedAt);
+    }
+
+    public async Task<SourceSearchResultDto> SearchSourcesAsync(Guid userId, string query, int page, int pageSize, CancellationToken ct)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var normalizedQuery = query?.Trim() ?? string.Empty;
+
+        var accessibleSources = _db.Sources
+            .Where(s => s.DraftSources.Any(ds => ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted));
+
+        if (!string.IsNullOrWhiteSpace(normalizedQuery))
+        {
+            if (_db.Database.IsNpgsql())
+            {
+                var like = $"%{normalizedQuery}%";
+                accessibleSources = accessibleSources.Where(s =>
+                    EF.Functions.ILike(s.Reference, like) ||
+                    (s.Title != null && EF.Functions.ILike(s.Title, like)) ||
+                    (s.Content != null && EF.Functions.ILike(s.Content, like)) ||
+                    (s.Summary != null && EF.Functions.ILike(s.Summary, like)));
+            }
+            else
+            {
+                var lowered = normalizedQuery.ToLower();
+                accessibleSources = accessibleSources.Where(s =>
+                    s.Reference.ToLower().Contains(lowered) ||
+                    (s.Title != null && s.Title.ToLower().Contains(lowered)) ||
+                    (s.Content != null && s.Content.ToLower().Contains(lowered)) ||
+                    (s.Summary != null && s.Summary.ToLower().Contains(lowered)));
+            }
+        }
+
+        var total = await accessibleSources.Select(s => s.Id).Distinct().CountAsync(ct);
+
+        var items = await accessibleSources
+            .OrderByDescending(s => s.AddedAt)
+            .Select(s => new SourceSearchItemDto(
+                s.Id,
+                s.Kind.ToString(),
+                s.Reference,
+                s.Title,
+                s.Summary,
+                s.TranscriptStatus.ToString(),
+                s.YoutubeVideoId,
+                s.AddedAt))
+            .Distinct()
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return new SourceSearchResultDto(items, total, page, pageSize);
+    }
+
+    public async Task<SourceDto> LinkSourceAsync(Guid userId, Guid sourceId, Guid draftId, CancellationToken ct)
+    {
+        var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
+            ?? throw new KeyNotFoundException("Draft not found or access denied.");
+
+        var source = await _db.Sources.FirstOrDefaultAsync(s =>
+            s.Id == sourceId &&
+            s.DraftSources.Any(ds => ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted), ct)
+            ?? throw new KeyNotFoundException("Source not found or access denied.");
+
+        var exists = await _db.DraftSources.AnyAsync(ds => ds.DraftId == draftId && ds.SourceId == sourceId, ct);
+        if (!exists)
+        {
+            _db.DraftSources.Add(new DraftSource
+            {
+                DraftId = draftId,
+                SourceId = sourceId,
+                LinkedAt = DateTime.UtcNow
+            });
+            draft.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+        }
+
+        return new SourceDto(
+            source.Id,
+            draftId,
+            source.Kind.ToString(),
+            source.Reference,
+            source.Title,
+            source.Summary,
+            source.TranscriptStatus.ToString(),
+            source.YoutubeVideoId,
+            source.AddedAt);
+    }
+
+    public async Task<SourceStatusDto> GetSourceStatusAsync(Guid userId, Guid sourceId, CancellationToken ct)
+    {
+        var source = await _db.Sources.FirstOrDefaultAsync(s =>
+            s.Id == sourceId &&
+            s.DraftSources.Any(ds => ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted), ct)
+            ?? throw new KeyNotFoundException("Source not found or access denied.");
+
+        return new SourceStatusDto(source.Id, source.TranscriptStatus.ToString(), source.Summary, source.YoutubeVideoId);
+    }
+
+    public async Task<SourceStatusDto> RetrySourceTranscriptAsync(Guid userId, Guid sourceId, CancellationToken ct)
+    {
+        var source = await _db.Sources.FirstOrDefaultAsync(s =>
+            s.Id == sourceId &&
+            s.DraftSources.Any(ds => ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted), ct)
+            ?? throw new KeyNotFoundException("Source not found or access denied.");
+
+        if (source.Kind != SourceKind.YouTube)
+        {
+            throw new InvalidOperationException("Only YouTube sources support transcription retry.");
+        }
+
+        var draftId = await _db.DraftSources
+            .Where(ds => ds.SourceId == sourceId && ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted)
+            .OrderByDescending(ds => ds.LinkedAt)
+            .Select(ds => (Guid?)ds.DraftId)
+            .FirstOrDefaultAsync(ct);
+
+        if (!draftId.HasValue)
+        {
+            throw new KeyNotFoundException("No accessible draft link found for source.");
+        }
+
+        source.TranscriptStatus = TranscriptStatus.Pending;
+        source.Summary = null;
+        await _db.SaveChangesAsync(ct);
+
+        QueueTranscriptExtraction(source.Id, draftId.Value);
+
+        return new SourceStatusDto(source.Id, source.TranscriptStatus.ToString(), source.Summary, source.YoutubeVideoId);
     }
 
     public async Task<AddFileSourceResult> AddFileSourceAsync(
@@ -93,22 +276,20 @@ public sealed class SourcesService
         var existing = await _db.Sources.FirstOrDefaultAsync(s => s.Sha256 == shaHashStr, ct);
         if (existing != null)
         {
-            var source = new Source
+            var hasLink = await _db.DraftSources.AnyAsync(ds => ds.DraftId == draftId && ds.SourceId == existing.Id, ct);
+            if (!hasLink)
             {
-                DraftId = draftId,
-                Kind = SourceKind.File,
-                Reference = fileName,
-                Title = existing.Title ?? fileName,
-                Content = existing.Content,
-                Sha256 = shaHashStr,
-                AddedAt = DateTime.UtcNow
-            };
-
-            _db.Sources.Add(source);
+                _db.DraftSources.Add(new DraftSource
+                {
+                    DraftId = draftId,
+                    SourceId = existing.Id,
+                    LinkedAt = DateTime.UtcNow
+                });
+            }
             draft.Status = DraftStatus.Editing;
             await _db.SaveChangesAsync(ct);
 
-            return new AddFileSourceResult(source.Id, source.Reference);
+            return new AddFileSourceResult(existing.Id, existing.Reference);
         }
 
         string extractedText;
@@ -129,7 +310,6 @@ public sealed class SourcesService
 
         var newSource = new Source
         {
-            DraftId = draftId,
             Kind = SourceKind.File,
             Reference = fileName,
             Title = fileName,
@@ -139,6 +319,12 @@ public sealed class SourcesService
         };
 
         _db.Sources.Add(newSource);
+        _db.DraftSources.Add(new DraftSource
+        {
+            Draft = draft,
+            Source = newSource,
+            LinkedAt = DateTime.UtcNow
+        });
         draft.Status = DraftStatus.Editing;
         await _db.SaveChangesAsync(ct);
 
@@ -160,7 +346,11 @@ public sealed class SourcesService
             .ToList();
 
         var existing = await _db.Sources
-            .Where(s => s.DraftId == draft.Id)
+            .Where(s => s.DraftSources.Any(ds => ds.DraftId == draft.Id))
+            .ToListAsync();
+
+        var draftLinks = await _db.DraftSources
+            .Where(ds => ds.DraftId == draft.Id)
             .ToListAsync();
 
         bool changed = false;
@@ -168,7 +358,18 @@ public sealed class SourcesService
         {
             if (src.Kind == SourceKind.File && !fileIds.Contains(src.Id))
             {
-                _db.Sources.Remove(src);
+                var link = draftLinks.FirstOrDefault(ds => ds.SourceId == src.Id);
+                if (link != null)
+                {
+                    _db.DraftSources.Remove(link);
+                    changed = true;
+
+                    var hasOtherLinks = await _db.DraftSources.AnyAsync(ds => ds.SourceId == src.Id && ds.DraftId != draft.Id);
+                    if (!hasOtherLinks)
+                    {
+                        _db.Sources.Remove(src);
+                    }
+                }
                 changed = true;
             }
         }
@@ -189,13 +390,18 @@ public sealed class SourcesService
 
                 var source = new Source
                 {
-                    DraftId = draft.Id,
                     Kind = isYouTube ? SourceKind.YouTube : SourceKind.Url,
                     Reference = url,
                     Title = "Fetching...",
                     Content = null
                 };
                 _db.Sources.Add(source);
+                _db.DraftSources.Add(new DraftSource
+                {
+                    DraftId = draft.Id,
+                    Source = source,
+                    LinkedAt = DateTime.UtcNow
+                });
                 loadingSources.Add(source);
             }
             await _db.SaveChangesAsync();
@@ -247,13 +453,24 @@ public sealed class SourcesService
             throw new KeyNotFoundException("Draft not found or access denied.");
         }
 
-        var source = await _db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId && s.DraftId == draftId, ct);
-        if (source == null)
+        var link = await _db.DraftSources.FirstOrDefaultAsync(ds => ds.DraftId == draftId && ds.SourceId == sourceId, ct);
+        if (link == null)
         {
             throw new KeyNotFoundException("Source not found.");
         }
 
-        _db.Sources.Remove(source);
+        _db.DraftSources.Remove(link);
+
+        var hasOtherLinks = await _db.DraftSources.AnyAsync(ds => ds.SourceId == sourceId && ds.DraftId != draftId, ct);
+        if (!hasOtherLinks)
+        {
+            var source = await _db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+            if (source != null)
+            {
+                _db.Sources.Remove(source);
+            }
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 
@@ -299,20 +516,86 @@ public sealed class SourcesService
 
         var source = new Source
         {
-            DraftId = draftId,
             Kind = sourceKind,
             Reference = normalizedReference,
             Title = sourceTitle ?? normalizedReference,
             Content = sourceContent,
+            YoutubeVideoId = TryExtractYouTubeVideoId(normalizedReference),
             AddedAt = DateTime.UtcNow
         };
 
         _db.Sources.Add(source);
+        _db.DraftSources.Add(new DraftSource
+        {
+            Draft = draft,
+            Source = source,
+            LinkedAt = DateTime.UtcNow
+        });
         draft.Status = DraftStatus.Editing;
         draft.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
+        if (sourceKind == SourceKind.YouTube)
+        {
+            QueueTranscriptExtraction(source.Id, draft.Id);
+        }
+
         return new AddUrlSourceResult(source.Id, source.Reference, source.Title, source.Kind.ToString());
+    }
+
+    private void QueueTranscriptExtraction(Guid sourceId, Guid draftId)
+    {
+        _queue.Enqueue(new BackgroundJobQueue.Job("youtube-transcript", async ct =>
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var scopedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var transcriber = scope.ServiceProvider.GetRequiredService<ITranscriptExtractionService>();
+
+            var source = await scopedDb.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+            if (source == null)
+            {
+                return;
+            }
+
+            source.TranscriptStatus = TranscriptStatus.Processing;
+            await scopedDb.SaveChangesAsync(ct);
+
+            try
+            {
+                var result = await transcriber.ExtractAsync(source.Reference, $"{source.Id}.json", ct);
+                if (!result.Success || string.IsNullOrWhiteSpace(result.TranscriptPath))
+                {
+                    source.TranscriptStatus = TranscriptStatus.Failed;
+                    source.Summary = result.Error;
+                    await scopedDb.SaveChangesAsync(ct);
+                    return;
+                }
+
+                source.TranscriptPath = result.TranscriptPath;
+
+                var transcript = await transcriber.ReadTranscriptAsync(result.TranscriptPath, ct);
+                if (transcript?.Transcript is { Length: > 0 } text)
+                {
+                    source.Content = text;
+                }
+
+                source.TranscriptStatus = TranscriptStatus.Complete;
+
+                var draft = await scopedDb.Drafts.FindAsync(new object[] { draftId }, ct);
+                if (draft != null)
+                {
+                    draft.UpdatedAt = DateTime.UtcNow;
+                }
+
+                await scopedDb.SaveChangesAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                source.TranscriptStatus = TranscriptStatus.Failed;
+                source.Summary = ex.Message;
+                await scopedDb.SaveChangesAsync(ct);
+            }
+        }));
     }
 
     private static bool TryValidateAbsoluteHttpUrl(string reference, out string error)
@@ -337,5 +620,36 @@ public sealed class SourcesService
         }
 
         return true;
+    }
+
+    private static string? TryExtractYouTubeVideoId(string reference)
+    {
+        if (!Uri.TryCreate(reference, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        if (uri.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
+        {
+            var id = uri.AbsolutePath.Trim('/');
+            return string.IsNullOrWhiteSpace(id) ? null : id;
+        }
+
+        if (!uri.Host.Contains("youtube.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var query = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in query)
+        {
+            var pieces = part.Split('=', 2);
+            if (pieces.Length == 2 && string.Equals(pieces[0], "v", StringComparison.OrdinalIgnoreCase))
+            {
+                return Uri.UnescapeDataString(pieces[1]);
+            }
+        }
+
+        return null;
     }
 }

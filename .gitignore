@@ -23,6 +23,10 @@ web/dist/
 uploads/
 !uploads/.gitkeep
 
+# transcripts
+transcripts/
+!transcripts/.gitkeep
+
 # e2e
 e2e/node_modules/
 e2e/reports/
