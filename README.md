@@ -80,6 +80,12 @@ Start the development stack:
 docker compose up --build
 ```
 
+If you have an NVIDIA GPU and want Whisper hardware acceleration in the transcriber:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+```
+
 - **Web App**: `http://localhost:8100`
 - **API**: `http://localhost:8101`
 - **Transcriber (Whisper)**: `http://localhost:8102`
@@ -92,6 +98,12 @@ E2E now has a dedicated stack file that runs on separate host ports:
 
 ```bash
 docker compose -f docker-compose.e2e.yml up -d --build
+```
+
+To run e2e with transcriber GPU acceleration:
+
+```bash
+docker compose -f docker-compose.e2e.yml -f docker-compose.e2e.gpu.yml up -d --build
 ```
 
 - **E2E Web App**: `http://localhost:8200`

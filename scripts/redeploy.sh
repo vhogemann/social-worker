@@ -3,6 +3,7 @@ set -euo pipefail
 
 mode="dev"
 pull_images="false"
+use_gpu="false"
 
 for arg in "$@"; do
   case "$arg" in
@@ -12,11 +13,15 @@ for arg in "$@"; do
     --pull)
       pull_images="true"
       ;;
+    --gpu)
+      use_gpu="true"
+      ;;
     -h|--help)
-      echo "Usage: ./scripts/redeploy.sh [--app] [--pull]"
+      echo "Usage: ./scripts/redeploy.sh [--app] [--pull] [--gpu]"
       echo
       echo "  --app   Redeploy docker-compose.app.yml (published images)"
       echo "  --pull  Pull latest images before startup"
+      echo "  --gpu   Enable GPU override for transcriber in dev mode"
       exit 0
       ;;
     *)
@@ -27,8 +32,15 @@ for arg in "$@"; do
   esac
 done
 
+if [[ "$mode" == "app" && "$use_gpu" == "true" ]]; then
+  echo "--gpu is only supported in dev mode (docker-compose.yml)." >&2
+  exit 1
+fi
+
 if [[ "$mode" == "app" ]]; then
   compose=(docker compose -f docker-compose.app.yml)
+elif [[ "$use_gpu" == "true" ]]; then
+  compose=(docker compose -f docker-compose.yml -f docker-compose.gpu.yml)
 else
   compose=(docker compose)
 fi

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+import torch
 import whisper
 import yt_dlp
 from fastapi import FastAPI, HTTPException
@@ -135,7 +136,8 @@ def extract_transcript(request: ExtractTranscriptRequest) -> ExtractTranscriptRe
 
             try:
                 model = _get_model()
-                result = model.transcribe(str(audio_path), fp16=False, language=request.language, verbose=False)
+                use_fp16 = torch.cuda.is_available()
+                result = model.transcribe(str(audio_path), fp16=use_fp16, language=request.language, verbose=False)
             except Exception as whisper_error:
                 source_errors.append(f"whisper failed: {whisper_error}")
                 raise RuntimeError(_join_source_errors(source_errors))
