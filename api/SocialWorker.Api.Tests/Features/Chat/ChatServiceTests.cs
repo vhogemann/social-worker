@@ -353,6 +353,81 @@ public sealed class ChatServiceTests
         Assert.Contains(sourceB, fetchTool.FetchedIds);
     }
 
+    [Fact]
+    public async Task StreamAsync_ImageRequest_BlocksReplaceUntilImageIsImportedAndInspected()
+    {
+        var addImageTool = new StubTool("add_image_source");
+        var viewImageTool = new StubTool("view_image");
+        var replaceTool = new StubTool("replace_editor_content");
+        var adapter = new ImageEnforcementAdapter();
+
+        var service = CreateService(
+            tools: new IChatTool[] { addImageTool, viewImageTool, replaceTool },
+            adapter: adapter);
+
+        var lines = await CollectStream(
+            service,
+            MakeRequest("Find an image, inspect it, then embed it in the draft."));
+
+        Assert.True(lines.Any(l => l.StartsWith("a:") && l.Contains("add_image_source", StringComparison.Ordinal)));
+        Assert.True(lines.Any(l => l.StartsWith("a:") && l.Contains("view_image", StringComparison.Ordinal)));
+        Assert.True(addImageTool.WasExecuted);
+        Assert.True(viewImageTool.WasExecuted);
+        Assert.True(replaceTool.WasExecuted);
+    }
+
+    [Fact]
+    public async Task StreamAsync_MixedSourceAndImageRequest_EnforcesBothGatesBeforeReplace()
+    {
+        var sourceA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var sourceB = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+
+        var listTool = new ListSourcesStubTool(sourceA, sourceB);
+        var fetchTool = new FetchSourceStubTool();
+        var addImageTool = new StubTool("add_image_source");
+        var viewImageTool = new StubTool("view_image");
+        var replaceTool = new StubTool("replace_editor_content");
+        var adapter = new MixedSourceImageEnforcementAdapter(sourceA, sourceB);
+
+        var service = CreateService(
+            tools: new IChatTool[] { listTool, fetchTool, addImageTool, viewImageTool, replaceTool },
+            adapter: adapter);
+
+        var lines = await CollectStream(
+            service,
+            MakeRequest("List all sources, fetch_source for each, pick and inspect an image, then embed it in updated content."));
+
+        Assert.True(lines.Any(l => l.StartsWith("a:") && l.Contains("missingSourceIds", StringComparison.Ordinal)));
+        Assert.True(addImageTool.WasExecuted);
+        Assert.True(viewImageTool.WasExecuted);
+        Assert.Contains(sourceA, fetchTool.FetchedIds);
+        Assert.Contains(sourceB, fetchTool.FetchedIds);
+        Assert.True(replaceTool.WasExecuted);
+    }
+
+    [Fact]
+    public async Task StreamAsync_PlaceholderValidationFailure_DrivesSecondReplaceWithConcreteValues()
+    {
+        var replaceTool = new CapturingReplaceTool();
+        var validateTool = new PlaceholderAwareValidateTool();
+        var adapter = new PlaceholderRecoveryAdapter();
+
+        var service = CreateService(
+            tools: new IChatTool[] { replaceTool, validateTool },
+            adapter: adapter);
+
+        await CollectStream(
+            service,
+            MakeRequest("Draft a thread with one image and one source URL."));
+
+        Assert.Equal(2, replaceTool.Markdowns.Count);
+        Assert.Equal(2, validateTool.ValidationCalls);
+        Assert.Contains("media://guid", replaceTool.Markdowns[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("https://example.com", replaceTool.Markdowns[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("media://guid", replaceTool.Markdowns[1], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("https://example.com", replaceTool.Markdowns[1], StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string ExtractText(List<string> lines)
     {
         var chunks = lines
@@ -742,6 +817,363 @@ public sealed class ChatServiceTests
         }
     }
 
+    private sealed class ImageEnforcementAdapter : ILlmProviderAdapter
+    {
+        private int _callCount;
+
+        public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
+            OpenAiModels.ChatCompletionRequest request,
+            LlmCredentials credentials,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            _callCount++;
+
+            if (_callCount == 1)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "img_replace_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Draft with placeholder\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            if (_callCount == 2)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "img_add_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "add_image_source",
+                            Arguments = "{\"url\":\"https://example.com/image.jpg\",\"altText\":\"test\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 1,
+                        Id = "img_replace_2",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Draft with imported image\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            if (_callCount == 3)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "img_view_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "view_image",
+                            Arguments = "{\"id\":\"media://11111111-1111-1111-1111-111111111111\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 1,
+                        Id = "img_replace_3",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Final draft with inspected image\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            yield return BuildTextDoneChunk();
+        }
+
+        public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+        {
+            return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse());
+        }
+    }
+
+    private sealed class MixedSourceImageEnforcementAdapter : ILlmProviderAdapter
+    {
+        private readonly Guid _sourceA;
+        private readonly Guid _sourceB;
+        private int _callCount;
+
+        public MixedSourceImageEnforcementAdapter(Guid sourceA, Guid sourceB)
+        {
+            _sourceA = sourceA;
+            _sourceB = sourceB;
+        }
+
+        public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
+            OpenAiModels.ChatCompletionRequest request,
+            LlmCredentials credentials,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            _callCount++;
+
+            if (_callCount == 1)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "mix_list",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "list_sources",
+                            Arguments = "{}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 1,
+                        Id = "mix_fetch_a",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "fetch_source",
+                            Arguments = "{\"id\":\"" + _sourceA + "\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 2,
+                        Id = "mix_add",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "add_image_source",
+                            Arguments = "{\"url\":\"https://example.com/image.jpg\",\"altText\":\"test\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 3,
+                        Id = "mix_view",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "view_image",
+                            Arguments = "{\"id\":\"media://11111111-1111-1111-1111-111111111111\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 4,
+                        Id = "mix_replace_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"replace before all sources fetched\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            if (_callCount == 2)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "mix_fetch_b",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "fetch_source",
+                            Arguments = "{\"id\":\"" + _sourceB + "\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 1,
+                        Id = "mix_replace_2",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"final replace after source+image gates\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            yield return BuildTextDoneChunk();
+        }
+
+        public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+        {
+            return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse());
+        }
+    }
+
+    private sealed class PlaceholderRecoveryAdapter : ILlmProviderAdapter
+    {
+        private int _callCount;
+
+        public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
+            OpenAiModels.ChatCompletionRequest request,
+            LlmCredentials credentials,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            _callCount++;
+
+            if (_callCount == 1)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "ph_replace_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Post A\\n\\n---\\n![alt](media://guid)\\nSee https://example.com/source\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 1,
+                        Id = "ph_validate_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "validate_draft",
+                            Arguments = "{\"content\":\"Post A\\n\\n---\\n![alt](media://guid)\\nSee https://example.com/source\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            if (_callCount == 2)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "ph_replace_2",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Post A\\n\\n---\\n![alt](media://123e4567-e89b-12d3-a456-426614174000)\\nSee https://example.org/source\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 1,
+                        Id = "ph_validate_2",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "validate_draft",
+                            Arguments = "{\"content\":\"Post A\\n\\n---\\n![alt](media://123e4567-e89b-12d3-a456-426614174000)\\nSee https://example.org/source\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            yield return BuildTextDoneChunk();
+        }
+
+        public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+        {
+            return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse());
+        }
+    }
+
+    private static OpenAiModels.StreamChunk BuildToolCallsChunk(List<OpenAiModels.StreamToolCall> toolCalls)
+    {
+        return new OpenAiModels.StreamChunk
+        {
+            Choices = new List<OpenAiModels.StreamChoice>
+            {
+                new()
+                {
+                    Delta = new OpenAiModels.StreamDelta
+                    {
+                        ToolCalls = toolCalls
+                    }
+                }
+            }
+        };
+    }
+
+    private static OpenAiModels.StreamChunk BuildToolCallFinishChunk()
+    {
+        return new OpenAiModels.StreamChunk
+        {
+            Choices = new List<OpenAiModels.StreamChoice>
+            {
+                new()
+                {
+                    Delta = new OpenAiModels.StreamDelta(),
+                    FinishReason = "tool_calls"
+                }
+            }
+        };
+    }
+
+    private static OpenAiModels.StreamChunk BuildTextDoneChunk()
+    {
+        return new OpenAiModels.StreamChunk
+        {
+            Choices = new List<OpenAiModels.StreamChoice>
+            {
+                new()
+                {
+                    Delta = new OpenAiModels.StreamDelta
+                    {
+                        Content = "done"
+                    },
+                    FinishReason = "stop"
+                }
+            }
+        };
+    }
+
     /// <summary>
     /// A stub tool that records execution.
     /// </summary>
@@ -815,6 +1247,51 @@ public sealed class ChatServiceTests
             FetchedIds.Add(id);
             var result = new FetchSourceResult(id, "Url", "https://example.com", "title", "content");
             return Task.FromResult(new ToolExecutionResult(result));
+        }
+    }
+
+    private sealed class CapturingReplaceTool : IChatTool
+    {
+        public string Name => "replace_editor_content";
+        public string Description => "Capture replace payloads";
+        public bool RequiresVision => false;
+        public JsonElement Parameters { get; } = JsonDocument.Parse("{}").RootElement.Clone();
+        public List<string> Markdowns { get; } = new();
+
+        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, Guid? draftId, Guid userId, CancellationToken ct)
+        {
+            using var doc = JsonDocument.Parse(argumentsJson);
+            var markdown = doc.RootElement.TryGetProperty("markdown", out var m)
+                ? m.GetString() ?? string.Empty
+                : string.Empty;
+            Markdowns.Add(markdown);
+            return Task.FromResult(new ToolExecutionResult(new { Success = true, Length = markdown.Length }));
+        }
+    }
+
+    private sealed class PlaceholderAwareValidateTool : IChatTool
+    {
+        public string Name => "validate_draft";
+        public string Description => "Detect placeholders in provided content";
+        public bool RequiresVision => false;
+        public JsonElement Parameters { get; } = JsonDocument.Parse("{}").RootElement.Clone();
+        public int ValidationCalls { get; private set; }
+
+        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, Guid? draftId, Guid userId, CancellationToken ct)
+        {
+            ValidationCalls++;
+            using var doc = JsonDocument.Parse(argumentsJson);
+            var content = doc.RootElement.TryGetProperty("content", out var c)
+                ? c.GetString() ?? string.Empty
+                : string.Empty;
+
+            if (content.Contains("media://guid", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("https://example.com", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult(new ToolExecutionResult("❌ Placeholder media/url detected"));
+            }
+
+            return Task.FromResult(new ToolExecutionResult("✅ Valid"));
         }
     }
 }
