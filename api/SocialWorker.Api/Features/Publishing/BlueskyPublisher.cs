@@ -133,6 +133,68 @@ public class BlueskyPublisher : IPublisher
                 // Remove the image markdown tags from the text before posting
                 text = SharedPatterns.MediaRegex.Replace(text, "").Trim();
 
+                // Detect YouTube markdown embed and build app.bsky.embed.external
+                JsonObject? externalEmbed = null;
+                var ytMatch = SharedPatterns.YoutubeMarkdownRegex.Match(text);
+                if (ytMatch.Success)
+                {
+                    var ytTitle = ytMatch.Groups[1].Value;
+                    var ytUrl = ytMatch.Groups[2].Value;
+                    text = SharedPatterns.YoutubeMarkdownRegex.Replace(text, "").Trim();
+
+                    var externalNode = new JsonObject
+                    {
+                        ["uri"] = ytUrl,
+                        ["title"] = string.IsNullOrEmpty(ytTitle) ? ytUrl : ytTitle,
+                        ["description"] = ""
+                    };
+
+                    try
+                    {
+                        var oEmbedUrl = $"https://www.youtube.com/oembed?url={Uri.EscapeDataString(ytUrl)}&format=json";
+                        var oEmbedRes = await _http.GetAsync(oEmbedUrl, ct);
+                        if (oEmbedRes.IsSuccessStatusCode)
+                        {
+                            var oEmbed = await oEmbedRes.Content.ReadFromJsonAsync<JsonNode>(cancellationToken: ct);
+                            var oEmbedTitle = oEmbed?["title"]?.GetValue<string>();
+                            var thumbUrl = oEmbed?["thumbnail_url"]?.GetValue<string>();
+
+                            if (!string.IsNullOrEmpty(oEmbedTitle))
+                                externalNode["title"] = oEmbedTitle;
+
+                            if (!string.IsNullOrEmpty(thumbUrl))
+                            {
+                                var thumbRes = await _http.GetAsync(thumbUrl, ct);
+                                if (thumbRes.IsSuccessStatusCode)
+                                {
+                                    var thumbBytes = await thumbRes.Content.ReadAsByteArrayAsync(ct);
+                                    var mimeType = thumbRes.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+                                    using var thumbContent = new ByteArrayContent(thumbBytes);
+                                    thumbContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
+                                    var blobRes = await _http.PostAsync("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", thumbContent, ct);
+                                    if (blobRes.IsSuccessStatusCode)
+                                    {
+                                        var blobData = await blobRes.Content.ReadFromJsonAsync<JsonNode>(cancellationToken: ct);
+                                        var blob = blobData?["blob"];
+                                        if (blob != null)
+                                            externalNode["thumb"] = blob.DeepClone();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // oEmbed fetch failed — post with URL and title only, no thumbnail
+                    }
+
+                    externalEmbed = new JsonObject
+                    {
+                        ["$type"] = "app.bsky.embed.external",
+                        ["external"] = externalNode
+                    };
+                }
+
                 var postRecord = new JsonObject
                 {
                     ["$type"] = "app.bsky.feed.post",
@@ -140,7 +202,11 @@ public class BlueskyPublisher : IPublisher
                     ["createdAt"] = DateTime.UtcNow.ToString("O")
                 };
 
-                if (imagesList.Count > 0)
+                if (externalEmbed != null)
+                {
+                    postRecord["embed"] = externalEmbed;
+                }
+                else if (imagesList.Count > 0)
                 {
                     postRecord["embed"] = new JsonObject
                     {

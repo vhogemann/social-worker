@@ -158,4 +158,99 @@ public sealed class BlueskyPublisherTests : SqliteTestBase
         Assert.Equal(3, result.Posts.Count);
         Assert.Equal(3, createRecordCalls);
     }
+
+    [Fact]
+    public async Task PublishAsync_YouTubeMarkdown_BuildsExternalEmbed()
+    {
+        using var db = CreateFreshDb(Options);
+        string? capturedRecordBody = null;
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+            {
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            }
+            else if (req.RequestUri?.Host == "www.youtube.com" && req.RequestUri.PathAndQuery.StartsWith("/oembed", StringComparison.Ordinal))
+            {
+                resp.Content = new StringContent(JsonSerializer.Serialize(new
+                {
+                    title = "AI Bubble Deep Dive",
+                    thumbnail_url = "https://i.ytimg.com/vi/syJ7kjXfJ-U/hqdefault.jpg"
+                }));
+            }
+            else if (req.RequestUri?.Host == "i.ytimg.com")
+            {
+                resp.Content = new ByteArrayContent(new byte[] { 0xFF, 0xD8, 0xFF });
+                resp.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+            }
+            else if (IsPath(req, "uploadBlob"))
+            {
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { blob = new { cid = "thumb-cid", mimeType = "image/jpeg" } }));
+            }
+            else if (IsPath(req, "createRecord"))
+            {
+                capturedRecordBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = "at://did:plc:test/app.bsky.feed.post/abc", cid = "post-cid" }));
+            }
+        });
+
+        var content = "![AI Bubble Deep Dive](https://www.youtube.com/watch?v=syJ7kjXfJ-U)\n\nThe AI investment bubble is real. Here are the key facts. #AIEconomics";
+        var result = await publisher.PublishAsync(new PlatformThread { Content = content }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.Single(result.Posts);
+        Assert.NotNull(capturedRecordBody);
+
+        using var doc = JsonDocument.Parse(capturedRecordBody!);
+        var record = doc.RootElement.GetProperty("record");
+        var embed = record.GetProperty("embed");
+        Assert.Equal("app.bsky.embed.external", embed.GetProperty("$type").GetString());
+        var external = embed.GetProperty("external");
+        Assert.Equal("https://www.youtube.com/watch?v=syJ7kjXfJ-U", external.GetProperty("uri").GetString());
+        Assert.Equal("AI Bubble Deep Dive", external.GetProperty("title").GetString());
+        Assert.True(external.TryGetProperty("thumb", out _));
+
+        var postText = record.GetProperty("text").GetString() ?? "";
+        Assert.DoesNotContain("![", postText);
+    }
+
+    [Fact]
+    public async Task PublishAsync_YouTubeMarkdown_SucceedsWithoutThumbnail_WhenOEmbedFails()
+    {
+        using var db = CreateFreshDb(Options);
+        string? capturedRecordBody = null;
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+            {
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            }
+            else if (req.RequestUri?.Host == "www.youtube.com")
+            {
+                resp.StatusCode = System.Net.HttpStatusCode.NotFound;
+            }
+            else if (IsPath(req, "createRecord"))
+            {
+                capturedRecordBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = "at://did:plc:test/app.bsky.feed.post/abc", cid = "post-cid" }));
+            }
+        });
+
+        var content = "![Watch this](https://www.youtube.com/watch?v=syJ7kjXfJ-U)\n\nSome text.";
+        var result = await publisher.PublishAsync(new PlatformThread { Content = content }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRecordBody);
+
+        using var doc = JsonDocument.Parse(capturedRecordBody!);
+        var record = doc.RootElement.GetProperty("record");
+        var embed = record.GetProperty("embed");
+        Assert.Equal("app.bsky.embed.external", embed.GetProperty("$type").GetString());
+        var external = embed.GetProperty("external");
+        Assert.Equal("https://www.youtube.com/watch?v=syJ7kjXfJ-U", external.GetProperty("uri").GetString());
+        Assert.Equal("Watch this", external.GetProperty("title").GetString());
+        Assert.False(external.TryGetProperty("thumb", out _));
+    }
 }
