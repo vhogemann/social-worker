@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -22,6 +23,9 @@ namespace SocialWorker.Api.Features.Publishing;
 
 public class BlueskyPublisher : IPublisher
 {
+    private static readonly Regex HashtagRegex = new(@"#([a-zA-Z][a-zA-Z0-9_]*)", RegexOptions.Compiled);
+    private static readonly Regex UrlRegex = new(@"https?://[^\s\]>""']+", RegexOptions.Compiled);
+
     private readonly HttpClient _http;
     private readonly AppDbContext _db;
     private readonly FileStorageProvider _storage;
@@ -202,6 +206,14 @@ public class BlueskyPublisher : IPublisher
                     ["createdAt"] = DateTime.UtcNow.ToString("O")
                 };
 
+                var facets = BuildFacets(text);
+                if (facets.Count > 0)
+                {
+                    var facetsArray = new JsonArray();
+                    foreach (var f in facets) facetsArray.Add(f);
+                    postRecord["facets"] = facetsArray;
+                }
+
                 if (externalEmbed != null)
                 {
                     postRecord["embed"] = externalEmbed;
@@ -263,5 +275,40 @@ public class BlueskyPublisher : IPublisher
         {
             return new PublishResult { Success = false, ErrorMessage = ex.Message };
         }
+    }
+
+    private static List<JsonObject> BuildFacets(string text)
+    {
+        var facets = new List<JsonObject>();
+
+        foreach (Match m in HashtagRegex.Matches(text))
+        {
+            var byteStart = Encoding.UTF8.GetByteCount(text, 0, m.Index);
+            var byteEnd = byteStart + Encoding.UTF8.GetByteCount(text, m.Index, m.Length);
+            facets.Add(new JsonObject
+            {
+                ["index"] = new JsonObject { ["byteStart"] = byteStart, ["byteEnd"] = byteEnd },
+                ["features"] = new JsonArray
+                {
+                    new JsonObject { ["$type"] = "app.bsky.richtext.facet#tag", ["tag"] = m.Groups[1].Value }
+                }
+            });
+        }
+
+        foreach (Match m in UrlRegex.Matches(text))
+        {
+            var byteStart = Encoding.UTF8.GetByteCount(text, 0, m.Index);
+            var byteEnd = byteStart + Encoding.UTF8.GetByteCount(text, m.Index, m.Length);
+            facets.Add(new JsonObject
+            {
+                ["index"] = new JsonObject { ["byteStart"] = byteStart, ["byteEnd"] = byteEnd },
+                ["features"] = new JsonArray
+                {
+                    new JsonObject { ["$type"] = "app.bsky.richtext.facet#link", ["uri"] = m.Value }
+                }
+            });
+        }
+
+        return facets;
     }
 }

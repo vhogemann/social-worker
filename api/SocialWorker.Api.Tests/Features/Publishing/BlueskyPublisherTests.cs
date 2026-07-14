@@ -253,4 +253,40 @@ public sealed class BlueskyPublisherTests : SqliteTestBase
         Assert.Equal("Watch this", external.GetProperty("title").GetString());
         Assert.False(external.TryGetProperty("thumb", out _));
     }
+
+    [Fact]
+    public async Task PublishAsync_BuildsFacets_ForHashtagsAndUrls()
+    {
+        using var db = CreateFreshDb(Options);
+        string? capturedRecordBody = null;
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            else if (IsPath(req, "createRecord"))
+            {
+                capturedRecordBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = "at://did:plc:test/app.bsky.feed.post/abc", cid = "post-cid" }));
+            }
+        });
+
+        var content = "AI is changing everything. Check https://example.com for more. #AI #Tech";
+        var result = await publisher.PublishAsync(new PlatformThread { Content = content }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRecordBody);
+
+        using var doc = JsonDocument.Parse(capturedRecordBody!);
+        var record = doc.RootElement.GetProperty("record");
+        var facets = record.GetProperty("facets");
+        Assert.True(facets.GetArrayLength() >= 3);
+
+        var types = facets.EnumerateArray()
+            .SelectMany(f => f.GetProperty("features").EnumerateArray())
+            .Select(f => f.GetProperty("$type").GetString())
+            .ToList();
+        Assert.Contains("app.bsky.richtext.facet#tag", types);
+        Assert.Contains("app.bsky.richtext.facet#link", types);
+    }
 }
