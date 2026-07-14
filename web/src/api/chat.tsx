@@ -63,7 +63,7 @@ function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
 
     if (previousDraftId && previousDraftId !== activeDraftId) {
       saveCurrentChat(previousDraftId);
-      if (isRunning) {
+      if (runtimeRef?.thread.getState().isRunning) {
         runtime.thread.cancelRun();
       }
     }
@@ -80,7 +80,7 @@ function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
     }
 
     prevDraftIdRef.current = activeDraftId;
-  }, [activeDraftId, isRunning, runtime]);
+  }, [activeDraftId, runtime]);
 
   useEffect(() => {
     if (!prevIsRunningRef.current && isRunning) {
