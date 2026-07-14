@@ -7,11 +7,6 @@ import { useChatStore } from "../store/chatStore";
 
 import { useAuthStore } from "../store/authStore";
 
-const SYSTEM_PROMPT =
-  "You are a helpful assistant that helps the user draft social media threads. " +
-  "When the user asks you to write or update content, call replace_editor_content with the full markdown. " +
-  "Use --- on its own line to separate thread segments (each segment is one post).";
-
 export function useChatRuntime() {
   const editorDoc = useEditorStore((s) => s.doc);
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
@@ -22,7 +17,6 @@ export function useChatRuntime() {
       return (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>;
     },
     body: {
-      system: SYSTEM_PROMPT,
       editor: editorDoc,
       draftId: activeDraftId,
     },

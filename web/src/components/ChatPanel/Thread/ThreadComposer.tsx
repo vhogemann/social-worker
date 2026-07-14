@@ -8,6 +8,7 @@ import {
 import { useDraftStore } from "../../../store/draftStore";
 import { slashAdapter } from "./ThreadSlashCommands";
 import { navigatePromptHistory } from "./ThreadComposerHistory";
+import { CHAT_UI_TEXT } from "../../../config/chatUiText";
 
 type SlashItem = {
   id: string;
@@ -127,14 +128,14 @@ export function ThreadComposer() {
       {isRunning && (
         <div className="absolute bottom-20 left-4 flex items-center gap-2 text-xs font-mono text-muted">
           <span className="inline-block w-3 h-3 border-2 border-muted border-t-accent rounded-full animate-spin-slow" />
-          assistant is thinking...
+          {CHAT_UI_TEXT.thinking}
         </div>
       )}
 
       {showSlashPopover && (
         <div className="absolute bottom-24 left-4 z-20 w-[26rem] max-w-[calc(100%-2rem)] rounded-lg border border-border bg-panel shadow-xl overflow-hidden">
           <div className="px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-muted border-b border-border">
-            slash commands
+            {CHAT_UI_TEXT.slashCommandsTitle}
           </div>
           <div className="p-2 max-h-72 overflow-y-auto">
             {slashItems.map((item, index) => (
@@ -160,7 +161,7 @@ export function ThreadComposer() {
       )}
 
       <ComposerPrimitive.Input
-        placeholder={isLocked ? "Draft is locked..." : "Ask the assistant... (type / for commands)"}
+        placeholder={isLocked ? CHAT_UI_TEXT.composerLockedPlaceholder : CHAT_UI_TEXT.composerPlaceholder}
         disabled={isLocked}
         className="flex-1 resize-none bg-bg border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent disabled:opacity-50"
         rows={2}
@@ -239,7 +240,7 @@ export function ThreadComposer() {
         disabled={isLocked}
         className="bg-accent text-bg px-4 py-2 rounded text-sm font-medium hover:opacity-90 disabled:opacity-40"
       >
-        Send
+        {CHAT_UI_TEXT.sendButton}
       </ComposerPrimitive.Send>
     </ComposerPrimitive.Root>
   );

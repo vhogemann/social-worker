@@ -19,6 +19,12 @@ public sealed record ValidateDraftArgs(string? Content);
 
 public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, string>
 {
+    private static readonly Regex UnsupportedBlueskyMarkdownRegex = new(@"\*\*[^*]+\*\*|__[^_]+__|(?<!\*)\*[^*\n]+\*(?!\*)|(?m)^\s{0,3}#{1,6}\s+", RegexOptions.Compiled);
+    private static readonly Regex TitleLikeOpenerRegex = new(@"(?i)\b(key\s+takeaways|takeaways|summary|overview|highlights)\b", RegexOptions.Compiled);
+    private static readonly Regex PlaceholderLinkTokenRegex = new(@"\[(?=[^\]\n]{0,80}(?i:link|source|youtube|docs))[^\]\n]+\](?!\()", RegexOptions.Compiled);
+    private static readonly Regex PlaceholderMediaTokenRegex = new(@"(?i)media://\s*(guid|\{guid\}|placeholder)", RegexOptions.Compiled);
+    private static readonly Regex PlaceholderUrlRegex = new(@"(?i)https?://(www\.)?example\.com\b", RegexOptions.Compiled);
+
     private readonly IServiceScopeFactory _scopeFactory;
 
     public ValidateDraftTool(IServiceScopeFactory scopeFactory)
@@ -112,6 +118,17 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, string>
             bool hasYouTube = segment.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
                               segment.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
 
+            bool hasUnsupportedMarkdown = UnsupportedBlueskyMarkdownRegex.IsMatch(segment);
+            var firstNonEmptyLine = segment
+                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+                .Select(l => l.Trim())
+                .FirstOrDefault(l => !string.IsNullOrWhiteSpace(l)) ?? string.Empty;
+            bool hasTitleLikeOpener = firstNonEmptyLine.Length > 0 &&
+                                      (firstNonEmptyLine.EndsWith(':') || TitleLikeOpenerRegex.IsMatch(firstNonEmptyLine));
+            bool hasPlaceholderLinks = PlaceholderLinkTokenRegex.IsMatch(segment);
+            bool hasPlaceholderMedia = PlaceholderMediaTokenRegex.IsMatch(segment);
+            bool hasPlaceholderUrls = PlaceholderUrlRegex.IsMatch(segment);
+
             var cleanedText = SharedPatterns.MediaRegex.Replace(segment, "").Trim();
             int charCount = cleanedText.Length;
 
@@ -135,13 +152,43 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, string>
                 hasErrors = true;
             }
 
+            if (hasUnsupportedMarkdown)
+            {
+                sb.AppendLine("- ❌ **Error**: Unsupported markdown styling detected for Bluesky (bold/italic/heading markers). Use plain text formatting.");
+                hasErrors = true;
+            }
+
+            if (hasPlaceholderLinks)
+            {
+                sb.AppendLine("- ❌ **Error**: Placeholder link text detected (e.g., [source link]). Use concrete URLs or valid markdown links.");
+                hasErrors = true;
+            }
+
+            if (hasPlaceholderMedia)
+            {
+                sb.AppendLine("- ❌ **Error**: Placeholder media reference detected (e.g., media://guid). Use a real media://{guid} from add_image_source or render_code_blocks.");
+                hasErrors = true;
+            }
+
+            if (hasPlaceholderUrls)
+            {
+                sb.AppendLine("- ❌ **Error**: Placeholder URL detected (e.g., example.com). Use a concrete source URL.");
+                hasErrors = true;
+            }
+
             if (missingAltImages.Count > 0)
             {
                 sb.AppendLine($"- ⚠️ **Warning**: Missing ALT text on images: {string.Join(", ", missingAltImages)}");
                 hasWarnings = true;
             }
 
-            if (charCount <= 300 && imageCount <= 4 && !(imageCount > 0 && hasYouTube) && missingAltImages.Count == 0)
+            if (hasTitleLikeOpener)
+            {
+                sb.AppendLine("- ⚠️ **Warning**: Title-like opener detected. Prefer a conversational opening line for Bluesky.");
+                hasWarnings = true;
+            }
+
+            if (charCount <= 300 && imageCount <= 4 && !(imageCount > 0 && hasYouTube) && !hasUnsupportedMarkdown && !hasPlaceholderLinks && !hasPlaceholderMedia && !hasPlaceholderUrls && missingAltImages.Count == 0 && !hasTitleLikeOpener)
             {
                 sb.AppendLine("-   **Status**: Valid");
             }

@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SocialWorker.Api.Features.Chat.Tools;
 
 namespace SocialWorker.Api.Features.Chat;
 
@@ -17,6 +18,15 @@ public sealed class ChatService
     private static readonly Regex HtmlTagRegex = new("<[^>]+>", RegexOptions.Compiled);
     private static readonly Regex EditorUpdateIntentRegex = new(
         @"\b(write|rewrite|re-write|edit|update|improve|polish|refine|fix|revise|shorten|expand|draft|compose|create|generate|rework|apply\s+(these|the)\s+changes)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex AllSourcesIntentRegex = new(
+        @"\b(all|every|each)\b.{0,48}\bsources?\b|\bsources?\b.{0,48}\b(all|every|each)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ImageIntentRegex = new(
+        @"\b(image|images|photo|photos|picture|pictures|illustrat(e|ion|ive))\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ImageInspectionIntentRegex = new(
+        @"\b(inspect|inspection|analy[sz]e|review|look\s+at|view)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly ChatSessionLoader _sessionLoader;
@@ -120,19 +130,41 @@ public sealed class ChatService
         }
 
         var requiresEditorUpdate = _chatOptions.StrictEditorUpdateEnforcement && RequiresEditorUpdateTool(commandText);
+        var requiresAllSourcesFetchedBeforeReplace = RequiresAllSourcesFetch(commandText);
+        var requiresImageImportBeforeReplace = RequiresImageAttachmentFlow(commandText);
+        var requiresImageInspectionBeforeReplace = requiresImageImportBeforeReplace && RequiresImageInspection(commandText);
         var editorEnforcementRetried = false;
         var sawReplaceEditorToolCallOverall = false;
+        var sawAddImageSourceOverall = false;
+        var sawViewImageOverall = false;
+        var listedSourceIds = new HashSet<Guid>();
+        var fetchedSourceIds = new HashSet<Guid>();
 
-        const int maxRounds = 3;
+        var maxRounds = Math.Clamp(_chatOptions.MaxToolExecutionRounds, 1, 16);
         for (var round = 0; round < maxRounds; round++)
         {
-            var roundCtx = new RoundContext(round, payload, session, req.DraftId, userId, ct);
+            var roundCtx = new RoundContext(
+                round,
+                payload,
+                session,
+                req.DraftId,
+                userId,
+                ct,
+                requiresAllSourcesFetchedBeforeReplace,
+                listedSourceIds,
+                fetchedSourceIds,
+                requiresImageImportBeforeReplace,
+                requiresImageInspectionBeforeReplace,
+                sawAddImageSourceOverall,
+                sawViewImageOverall);
             await foreach (var line in ProcessRoundAsync(roundCtx))
             {
                 yield return line;
             }
 
             sawReplaceEditorToolCallOverall = sawReplaceEditorToolCallOverall || roundCtx.SawReplaceEditorToolCall;
+            sawAddImageSourceOverall = roundCtx.SawAddImageSource;
+            sawViewImageOverall = roundCtx.SawViewImage;
 
             if (roundCtx.ShouldStop &&
                 requiresEditorUpdate &&
@@ -143,7 +175,7 @@ public sealed class ChatService
                 payload.Messages.Add(new OpenAiModels.OpenAiMessage
                 {
                     Role = "system",
-                    Content = "EDITOR-UPDATE ENFORCEMENT: The user's request requires directly updating draft content. You must call replace_editor_content with the full updated markdown, then call validate_draft. Do not ask for confirmation and do not only describe changes."
+                    Content = ChatPromptCatalog.Current.Chat.EditorUpdateEnforcement
                 });
                 continue;
             }
@@ -231,11 +263,71 @@ public sealed class ChatService
             _log.LogInformation("LLM requested tool execution: {ToolName} with arguments: {Args}", tc.Name, tc.Arguments);
             yield return _writer.ToolCall(tc.Id, tc.Name, tc.Arguments);
 
+            if (ctx.EnforceAllSourcesFetchedBeforeReplace &&
+                string.Equals(tc.Name, "replace_editor_content", StringComparison.Ordinal))
+            {
+                if (!ctx.HasListedSources)
+                {
+                    var mustListResult = new ToolExecutionResult(new
+                    {
+                        error = "Before replace_editor_content, call list_sources and then fetch_source for every listed source ID. list_sources has not been called in this request yet."
+                    });
+                    yield return _writer.ToolResult(tc.Id, mustListResult.Result);
+                    ctx.Payload.Messages.AddRange(mustListResult.ToMessages(tc.Id));
+                    continue;
+                }
+
+                var missingIds = ctx.GetMissingSourceIds();
+                if (missingIds.Count > 0)
+                {
+                    var missingFetchResult = new ToolExecutionResult(new
+                    {
+                        error = "Before replace_editor_content, call fetch_source for every listed source ID.",
+                        missingSourceIds = missingIds.Select(id => id.ToString()).ToArray()
+                    });
+                    yield return _writer.ToolResult(tc.Id, missingFetchResult.Result);
+                    ctx.Payload.Messages.AddRange(missingFetchResult.ToMessages(tc.Id));
+                    continue;
+                }
+            }
+
+            if (string.Equals(tc.Name, "replace_editor_content", StringComparison.Ordinal))
+            {
+                if (ctx.EnforceImageImportBeforeReplace && !ctx.SawAddImageSource)
+                {
+                    var missingImageImport = new ToolExecutionResult(new
+                    {
+                        error = "Before replace_editor_content, call add_image_source with a direct image URL and use the returned media:// tag."
+                    });
+                    yield return _writer.ToolResult(tc.Id, missingImageImport.Result);
+                    ctx.Payload.Messages.AddRange(missingImageImport.ToMessages(tc.Id));
+                    continue;
+                }
+
+                if (ctx.EnforceImageInspectionBeforeReplace && !ctx.SawViewImage)
+                {
+                    var missingImageInspection = new ToolExecutionResult(new
+                    {
+                        error = "Before replace_editor_content, call view_image to inspect at least one selected image."
+                    });
+                    yield return _writer.ToolResult(tc.Id, missingImageInspection.Result);
+                    ctx.Payload.Messages.AddRange(missingImageInspection.ToMessages(tc.Id));
+                    continue;
+                }
+            }
+
             var toolResult = await ExecuteToolAsync(tc.Name, tc.Arguments, ctx.DraftId, ctx.UserId, ctx.Ct);
             _log.LogInformation("Tool {ToolName} execution completed.", tc.Name);
             yield return _writer.ToolResult(tc.Id, toolResult.Result);
 
             ctx.Payload.Messages.AddRange(toolResult.ToMessages(tc.Id));
+
+            RecordImageTrackingState(ctx, tc.Name);
+
+            if (ctx.EnforceAllSourcesFetchedBeforeReplace)
+            {
+                RecordSourceTrackingState(ctx, tc.Name, toolResult.Result);
+            }
         }
 
         yield return _writer.StepFinish("tool-calls", true);
@@ -281,6 +373,19 @@ public sealed class ChatService
         public bool ShouldStop { get; set; }
         public bool SawAnyToolCall { get; set; }
         public bool SawReplaceEditorToolCall { get; set; }
+        public bool EnforceAllSourcesFetchedBeforeReplace { get; }
+        public bool EnforceImageImportBeforeReplace { get; }
+        public bool EnforceImageInspectionBeforeReplace { get; }
+        public HashSet<Guid> ListedSourceIds { get; }
+        public HashSet<Guid> FetchedSourceIds { get; }
+        public bool SawAddImageSource { get; set; }
+        public bool SawViewImage { get; set; }
+        public bool HasListedSources => ListedSourceIds.Count > 0;
+
+        public List<Guid> GetMissingSourceIds()
+        {
+            return ListedSourceIds.Where(id => !FetchedSourceIds.Contains(id)).ToList();
+        }
 
         public RoundContext(
             int round,
@@ -288,7 +393,14 @@ public sealed class ChatService
             ChatSessionContext session,
             Guid? draftId,
             Guid userId,
-            CancellationToken ct)
+            CancellationToken ct,
+            bool enforceAllSourcesFetchedBeforeReplace,
+            HashSet<Guid> listedSourceIds,
+            HashSet<Guid> fetchedSourceIds,
+            bool enforceImageImportBeforeReplace,
+            bool enforceImageInspectionBeforeReplace,
+            bool sawAddImageSource,
+            bool sawViewImage)
         {
             Round = round;
             Payload = payload;
@@ -296,6 +408,13 @@ public sealed class ChatService
             DraftId = draftId;
             UserId = userId;
             Ct = ct;
+            EnforceAllSourcesFetchedBeforeReplace = enforceAllSourcesFetchedBeforeReplace;
+            ListedSourceIds = listedSourceIds;
+            FetchedSourceIds = fetchedSourceIds;
+            EnforceImageImportBeforeReplace = enforceImageImportBeforeReplace;
+            EnforceImageInspectionBeforeReplace = enforceImageInspectionBeforeReplace;
+            SawAddImageSource = sawAddImageSource;
+            SawViewImage = sawViewImage;
         }
     }
 
@@ -312,6 +431,102 @@ public sealed class ChatService
         }
 
         return EditorUpdateIntentRegex.IsMatch(text);
+    }
+
+    private static bool RequiresAllSourcesFetch(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return AllSourcesIntentRegex.IsMatch(text) &&
+               text.Contains("fetch_source", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool RequiresImageAttachmentFlow(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return ImageIntentRegex.IsMatch(text) &&
+               (text.Contains("embed", StringComparison.OrdinalIgnoreCase) ||
+                text.Contains("attach", StringComparison.OrdinalIgnoreCase) ||
+                text.Contains("illustr", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool RequiresImageInspection(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return ImageInspectionIntentRegex.IsMatch(text);
+    }
+
+    private static void RecordImageTrackingState(RoundContext ctx, string toolName)
+    {
+        if (string.Equals(toolName, "add_image_source", StringComparison.Ordinal))
+        {
+            ctx.SawAddImageSource = true;
+        }
+
+        if (string.Equals(toolName, "view_image", StringComparison.Ordinal))
+        {
+            ctx.SawViewImage = true;
+        }
+    }
+
+    private static void RecordSourceTrackingState(RoundContext ctx, string toolName, object toolResult)
+    {
+        if (string.Equals(toolName, "list_sources", StringComparison.Ordinal))
+        {
+            if (toolResult is IEnumerable<ListSourcesResultItem> listed)
+            {
+                ctx.ListedSourceIds.Clear();
+                foreach (var item in listed)
+                {
+                    ctx.ListedSourceIds.Add(item.Id);
+                }
+                return;
+            }
+
+            if (toolResult is JsonElement listJson && listJson.ValueKind == JsonValueKind.Array)
+            {
+                ctx.ListedSourceIds.Clear();
+                foreach (var item in listJson.EnumerateArray())
+                {
+                    if (item.TryGetProperty("id", out var idProp) &&
+                        idProp.ValueKind == JsonValueKind.String &&
+                        Guid.TryParse(idProp.GetString(), out var parsedId))
+                    {
+                        ctx.ListedSourceIds.Add(parsedId);
+                    }
+                }
+            }
+            return;
+        }
+
+        if (string.Equals(toolName, "fetch_source", StringComparison.Ordinal))
+        {
+            if (toolResult is FetchSourceResult fetched)
+            {
+                ctx.FetchedSourceIds.Add(fetched.Id);
+                return;
+            }
+
+            if (toolResult is JsonElement fetchJson &&
+                fetchJson.ValueKind == JsonValueKind.Object &&
+                fetchJson.TryGetProperty("id", out var idProp) &&
+                idProp.ValueKind == JsonValueKind.String &&
+                Guid.TryParse(idProp.GetString(), out var parsedId))
+            {
+                ctx.FetchedSourceIds.Add(parsedId);
+            }
+        }
     }
 
     private sealed class AccumulatedToolCall

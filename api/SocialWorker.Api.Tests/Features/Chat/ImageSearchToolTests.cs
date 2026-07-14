@@ -40,11 +40,12 @@ public sealed class ImageSearchToolTests
         var tool = new ImageSearchTool(mockEngine);
         var response = await tool.ExecuteAsync(new ImageSearchArgs("pineapple"), null, Guid.NewGuid(), CancellationToken.None);
 
-        Assert.Contains("Image search results for: 'pineapple':", response);
-        Assert.Contains("- **Pineapple 1**", response);
+        Assert.Contains("Image search results for: 'pineapple'", response);
+        Assert.Contains("1. Pineapple 1", response);
         Assert.Contains("URL: https://example.com/pineapple1.jpg", response);
         Assert.Contains("Description: A ripe pineapple", response);
-        Assert.Contains("- **Pineapple 2**", response);
+        Assert.Contains("2. Pineapple 2", response);
         Assert.Contains("URL: https://example.com/pineapple2.jpg", response);
+        Assert.Contains("Next step: call add_image_source", response);
     }
 }

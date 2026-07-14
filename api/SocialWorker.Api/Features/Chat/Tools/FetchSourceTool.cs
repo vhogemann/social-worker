@@ -7,12 +7,23 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Sources;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record FetchSourceArgs(string Id);
 
-public sealed record FetchSourceResult(Guid Id, string Kind, string Reference, string? Title, string? Content);
+public sealed record FetchSourceResult(
+    Guid Id,
+    string Kind,
+    string Reference,
+    string? Title,
+    string? Content,
+    string? CanonicalUrl = null,
+    string? CitationLabel = null,
+    string? EmbedKind = null,
+    string? CanonicalEmbedMarkdown = null,
+    string? PlainLinkLine = null);
 
 public sealed class FetchSourceTool : ChatToolBase<FetchSourceArgs, FetchSourceResult>
 {
@@ -72,6 +83,17 @@ public sealed class FetchSourceTool : ChatToolBase<FetchSourceArgs, FetchSourceR
             throw new UnauthorizedAccessException("Access denied to target source");
         }
 
-        return new FetchSourceResult(source.Id, source.Kind.ToString(), source.Reference, source.Title, source.Content);
+        var links = SourceLinkFields.Build(source.Id, source.Kind, source.Reference, source.Title);
+        return new FetchSourceResult(
+            source.Id,
+            source.Kind.ToString(),
+            source.Reference,
+            source.Title,
+            source.Content,
+            links.CanonicalUrl,
+            links.CitationLabel,
+            links.EmbedKind,
+            links.CanonicalEmbedMarkdown,
+            links.PlainLinkLine);
     }
 }

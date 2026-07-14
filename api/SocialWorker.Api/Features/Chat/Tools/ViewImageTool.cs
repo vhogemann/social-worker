@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -11,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SkiaSharp;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Media;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
 
@@ -34,7 +34,7 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
     }
 
     public override string Name => "view_image";
-    public override string Description => "Fetch a specific image by its Guid ID. Returns the image so you can inspect its visual content.";
+    public override string Description => "Fetch a specific image for visual inspection. Supports media://{guid}, file://{guid}, plain guid, or a direct http/https image URL (which will be imported first).";
     public override bool RequiresVision => true;
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
@@ -43,7 +43,7 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
           "properties": {
             "id": {
               "type": "string",
-              "description": "The unique Guid identifier of the image to view."
+              "description": "Image identifier (media://{guid}, file://{guid}, guid) or direct http/https image URL."
             }
           },
           "required": ["id"]
@@ -52,23 +52,50 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
 
     public override async Task<List<ViewImageResultItem>> ExecuteAsync(ViewImageArgs args, Guid? draftId, Guid userId, CancellationToken ct)
     {
-        var imageIdStr = args.Id;
-        if (imageIdStr.StartsWith("media://", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(args.Id))
         {
-            imageIdStr = imageIdStr.Substring("media://".Length);
-        }
-        else if (imageIdStr.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
-        {
-            imageIdStr = imageIdStr.Substring("file://".Length);
+            throw new ArgumentException("Image id is required.");
         }
 
-        if (!Guid.TryParse(imageIdStr, out var imageId))
+        var imageIdStr = args.Id.Trim();
+        var imageId = Guid.Empty;
+        var isHttpUrl = Uri.TryCreate(imageIdStr, UriKind.Absolute, out var imageUri) &&
+                        (string.Equals(imageUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(imageUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
+
+        if (!isHttpUrl)
         {
-            throw new ArgumentException("Invalid Guid ID format");
+            if (imageIdStr.StartsWith("media://", StringComparison.OrdinalIgnoreCase))
+            {
+                imageIdStr = imageIdStr.Substring("media://".Length);
+            }
+            else if (imageIdStr.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                imageIdStr = imageIdStr.Substring("file://".Length);
+            }
+
+            if (!Guid.TryParse(imageIdStr, out imageId))
+            {
+                throw new ArgumentException("Invalid image identifier format. Use media://{guid}, file://{guid}, guid, or a direct http/https image URL.");
+            }
         }
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        if (isHttpUrl)
+        {
+            if (!draftId.HasValue)
+            {
+                throw new ArgumentException("Viewing an image URL requires an active draft context.");
+            }
+
+            var mediaService = scope.ServiceProvider.GetRequiredService<MediaService>();
+            var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+            using var client = httpClientFactory.CreateClient();
+            var importResult = await mediaService.ImportMediaFromUrlAsync(userId, draftId.Value, imageIdStr, client, ct);
+            imageId = importResult.Id;
+        }
 
         var asset = await db.MediaAssets.FirstOrDefaultAsync(m => m.Id == imageId, ct);
         if (asset == null)
@@ -98,7 +125,7 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
         int maxDim = 512;
         int newWidth = codec.Info.Width;
         int newHeight = codec.Info.Height;
-        
+
         if (newWidth > maxDim || newHeight > maxDim)
         {
             double ratio = Math.Min((double)maxDim / newWidth, (double)maxDim / newHeight);
@@ -112,7 +139,7 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
         {
             throw new InvalidDataException("Failed to decode bitmap from stream");
         }
-        using var resized = original.Resize(new SKImageInfo(newWidth, newHeight), SKFilterQuality.Medium);
+        using var resized = original.Resize(new SKImageInfo(newWidth, newHeight), SKFilterQuality.Medium) ?? original;
         using var image = SKImage.FromBitmap(resized);
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 80);
         var bytes = data.ToArray();

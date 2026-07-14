@@ -22,7 +22,12 @@ public sealed record SourceDto(
     string? Summary,
     string TranscriptStatus,
     string? YoutubeVideoId,
-    DateTime AddedAt);
+    DateTime AddedAt,
+    string CanonicalUrl,
+    string CitationLabel,
+    string EmbedKind,
+    string? CanonicalEmbedMarkdown,
+    string PlainLinkLine);
 
 public sealed record SourceDetailDto(
     Guid Id,
@@ -34,7 +39,12 @@ public sealed record SourceDetailDto(
     string? Summary,
     string TranscriptStatus,
     string? YoutubeVideoId,
-    DateTime AddedAt);
+    DateTime AddedAt,
+    string CanonicalUrl,
+    string CitationLabel,
+    string EmbedKind,
+    string? CanonicalEmbedMarkdown,
+    string PlainLinkLine);
 
 public sealed record SourceSearchItemDto(
     Guid Id,
@@ -44,7 +54,12 @@ public sealed record SourceSearchItemDto(
     string? Summary,
     string TranscriptStatus,
     string? YoutubeVideoId,
-    DateTime AddedAt);
+    DateTime AddedAt,
+    string CanonicalUrl,
+    string CitationLabel,
+    string EmbedKind,
+    string? CanonicalEmbedMarkdown,
+    string PlainLinkLine);
 
 public sealed record SourceSearchResultDto(List<SourceSearchItemDto> Items, int Total, int Page, int PageSize);
 
@@ -79,9 +94,14 @@ public sealed class SourcesService
             throw new KeyNotFoundException("Draft not found or access denied.");
         }
 
-        return await _db.Sources
+        var rows = await _db.Sources
             .Where(s => s.DraftSources.Any(ds => ds.DraftId == draftId))
-            .Select(s => new SourceDto(
+            .ToListAsync(ct);
+
+        return rows.Select(s =>
+        {
+            var links = SourceLinkFields.Build(s.Id, s.Kind, s.Reference, s.Title);
+            return new SourceDto(
                 s.Id,
                 draftId,
                 s.Kind.ToString(),
@@ -90,8 +110,13 @@ public sealed class SourcesService
                 s.Summary,
                 s.TranscriptStatus.ToString(),
                 s.YoutubeVideoId,
-                s.AddedAt))
-            .ToListAsync(ct);
+                s.AddedAt,
+                links.CanonicalUrl,
+                links.CitationLabel,
+                links.EmbedKind,
+                links.CanonicalEmbedMarkdown,
+                links.PlainLinkLine);
+        }).ToList();
     }
 
     public async Task<SourceDetailDto> GetSourceDetailAsync(Guid userId, Guid draftId, Guid sourceId, CancellationToken ct)
@@ -109,6 +134,7 @@ public sealed class SourcesService
             throw new KeyNotFoundException("Source not found.");
         }
 
+        var detailLinks = SourceLinkFields.Build(source.Id, source.Kind, source.Reference, source.Title);
         return new SourceDetailDto(
             source.Id,
             draftId,
@@ -119,7 +145,12 @@ public sealed class SourcesService
             source.Summary,
             source.TranscriptStatus.ToString(),
             source.YoutubeVideoId,
-            source.AddedAt);
+            source.AddedAt,
+            detailLinks.CanonicalUrl,
+            detailLinks.CitationLabel,
+            detailLinks.EmbedKind,
+            detailLinks.CanonicalEmbedMarkdown,
+            detailLinks.PlainLinkLine);
     }
 
     public async Task<SourceSearchResultDto> SearchSourcesAsync(Guid userId, string query, int page, int pageSize, CancellationToken ct)
@@ -156,9 +187,28 @@ public sealed class SourcesService
 
         var total = await accessibleSources.Select(s => s.Id).Distinct().CountAsync(ct);
 
-        var items = await accessibleSources
+        var rows = await accessibleSources
             .OrderByDescending(s => s.AddedAt)
-            .Select(s => new SourceSearchItemDto(
+            .Select(s => new
+            {
+                s.Id,
+                s.Kind,
+                s.Reference,
+                s.Title,
+                s.Summary,
+                s.TranscriptStatus,
+                s.YoutubeVideoId,
+                s.AddedAt
+            })
+            .Distinct()
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var items = rows.Select(s =>
+        {
+            var links = SourceLinkFields.Build(s.Id, s.Kind, s.Reference, s.Title);
+            return new SourceSearchItemDto(
                 s.Id,
                 s.Kind.ToString(),
                 s.Reference,
@@ -166,11 +216,13 @@ public sealed class SourcesService
                 s.Summary,
                 s.TranscriptStatus.ToString(),
                 s.YoutubeVideoId,
-                s.AddedAt))
-            .Distinct()
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(ct);
+                s.AddedAt,
+                links.CanonicalUrl,
+                links.CitationLabel,
+                links.EmbedKind,
+                links.CanonicalEmbedMarkdown,
+                links.PlainLinkLine);
+        }).ToList();
 
         return new SourceSearchResultDto(items, total, page, pageSize);
     }
@@ -198,6 +250,7 @@ public sealed class SourcesService
             await _db.SaveChangesAsync(ct);
         }
 
+        var linkFields = SourceLinkFields.Build(source.Id, source.Kind, source.Reference, source.Title);
         return new SourceDto(
             source.Id,
             draftId,
@@ -207,7 +260,12 @@ public sealed class SourcesService
             source.Summary,
             source.TranscriptStatus.ToString(),
             source.YoutubeVideoId,
-            source.AddedAt);
+            source.AddedAt,
+            linkFields.CanonicalUrl,
+            linkFields.CitationLabel,
+            linkFields.EmbedKind,
+            linkFields.CanonicalEmbedMarkdown,
+            linkFields.PlainLinkLine);
     }
 
     public async Task<SourceStatusDto> GetSourceStatusAsync(Guid userId, Guid sourceId, CancellationToken ct)

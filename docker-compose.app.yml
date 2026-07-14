@@ -40,6 +40,7 @@ services:
         condition: service_healthy
     volumes:
       - uploads_data:/app/uploads
+      - api-dataprotection-keys:/root/.aspnet/DataProtection-Keys
     restart: unless-stopped
 
   web:
@@ -61,3 +62,4 @@ services:
 volumes:
   pgdata:
   uploads_data:
+  api-dataprotection-keys:

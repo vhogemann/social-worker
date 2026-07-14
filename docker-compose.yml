@@ -50,6 +50,7 @@ services:
       - ./uploads:/app/uploads
       - ./transcripts:/app/transcripts
       - ./SYSTEM_PROMPT.md:/app/SYSTEM_PROMPT.md:ro
+      - api-dataprotection-keys:/root/.aspnet/DataProtection-Keys
     restart: unless-stopped
 
   web:
@@ -135,3 +136,4 @@ services:
 volumes:
   pgdata:
   whisper-cache:
+  api-dataprotection-keys:

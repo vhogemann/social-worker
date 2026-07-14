@@ -10,6 +10,7 @@ public sealed record ImageSearchArgs(string Query);
 
 public sealed class ImageSearchTool : ChatToolBase<ImageSearchArgs, string>
 {
+    private const int MaxResults = 12;
     private readonly ISearchEngine _searchEngine;
 
     public ImageSearchTool(ISearchEngine searchEngine)
@@ -18,7 +19,7 @@ public sealed class ImageSearchTool : ChatToolBase<ImageSearchArgs, string>
     }
 
     public override string Name => "image_search";
-    public override string Description => "Search the web specifically for images/pictures and return direct image URLs.";
+    public override string Description => "Search the web for images and return compact candidate URLs. For visual inspection, import a candidate via add_image_source first, then call view_image with media://{guid}.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {
@@ -47,17 +48,28 @@ public sealed class ImageSearchTool : ChatToolBase<ImageSearchArgs, string>
         }
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"Image search results for: '{args.Query}':\n");
+        sb.AppendLine($"Image search results for: '{args.Query}' (top {Math.Min(MaxResults, results.Count)}):");
+        sb.AppendLine();
+
+        var count = 0;
         foreach (var r in results)
         {
-            sb.AppendLine($"- **{r.Title}**");
-            sb.AppendLine($"  URL: {r.Url}");
+            count++;
+            if (count > MaxResults)
+            {
+                break;
+            }
+
+            sb.AppendLine($"{count}. {r.Title}");
+            sb.AppendLine($"   URL: {r.Url}");
             if (!string.IsNullOrEmpty(r.Snippet))
             {
-                sb.AppendLine($"  Description: {r.Snippet}");
+                sb.AppendLine($"   Description: {r.Snippet}");
             }
             sb.AppendLine();
         }
+
+        sb.AppendLine("Next step: call add_image_source with one direct image URL, then call view_image with the returned media://{guid}.");
 
         return sb.ToString().Trim();
     }

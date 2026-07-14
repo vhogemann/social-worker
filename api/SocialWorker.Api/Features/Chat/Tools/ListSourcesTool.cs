@@ -8,12 +8,22 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Sources;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record ListSourcesArgs;
 
-public sealed record ListSourcesResultItem(Guid Id, string Kind, string Reference, string? Title);
+public sealed record ListSourcesResultItem(
+    Guid Id,
+    string Kind,
+    string Reference,
+    string? Title,
+    string? CanonicalUrl = null,
+    string? CitationLabel = null,
+    string? EmbedKind = null,
+    string? CanonicalEmbedMarkdown = null,
+    string? PlainLinkLine = null);
 
 public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, List<ListSourcesResultItem>>
 {
@@ -49,10 +59,24 @@ public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, List<ListSou
             return new List<ListSourcesResultItem>();
         }
 
-        var sources = await db.Sources
+        var rows = await db.Sources
             .Where(s => s.DraftSources.Any(ds => ds.DraftId == activeDraftId.Value))
-            .Select(s => new ListSourcesResultItem(s.Id, s.Kind.ToString(), s.Reference, s.Title))
             .ToListAsync(ct);
+
+        var sources = rows.Select(s =>
+        {
+            var links = SourceLinkFields.Build(s.Id, s.Kind, s.Reference, s.Title);
+            return new ListSourcesResultItem(
+                s.Id,
+                s.Kind.ToString(),
+                s.Reference,
+                s.Title,
+                links.CanonicalUrl,
+                links.CitationLabel,
+                links.EmbedKind,
+                links.CanonicalEmbedMarkdown,
+                links.PlainLinkLine);
+        }).ToList();
 
         return sources;
     }

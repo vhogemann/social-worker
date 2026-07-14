@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat;
+using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Infrastructure.Llm;
 using Xunit;
 
@@ -328,6 +329,30 @@ public sealed class ChatServiceTests
         Assert.NotNull(adapter.CapturedRequest);
     }
 
+    [Fact]
+    public async Task StreamAsync_StrictAllSourcesRequest_BlocksReplaceUntilAllListedSourcesAreFetched()
+    {
+        var sourceA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var sourceB = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var listTool = new ListSourcesStubTool(sourceA, sourceB);
+        var fetchTool = new FetchSourceStubTool();
+        var replaceTool = new StubTool("replace_editor_content");
+        var adapter = new AllSourcesEnforcementAdapter(sourceA, sourceB);
+
+        var service = CreateService(
+            tools: new IChatTool[] { listTool, fetchTool, replaceTool },
+            adapter: adapter);
+
+        var lines = await CollectStream(
+            service,
+            MakeRequest("Strict QA: list all sources, fetch_source for every source GUID in this draft, then update content."));
+
+        Assert.True(lines.Any(l => l.StartsWith("a:") && l.Contains("missingSourceIds", StringComparison.Ordinal)));
+        Assert.True(replaceTool.WasExecuted);
+        Assert.Contains(sourceA, fetchTool.FetchedIds);
+        Assert.Contains(sourceB, fetchTool.FetchedIds);
+    }
+
     private static string ExtractText(List<string> lines)
     {
         var chunks = lines
@@ -548,6 +573,175 @@ public sealed class ChatServiceTests
         }
     }
 
+    private sealed class AllSourcesEnforcementAdapter : ILlmProviderAdapter
+    {
+        private readonly Guid _sourceA;
+        private readonly Guid _sourceB;
+        private int _callCount;
+
+        public AllSourcesEnforcementAdapter(Guid sourceA, Guid sourceB)
+        {
+            _sourceA = sourceA;
+            _sourceB = sourceB;
+        }
+
+        public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
+            OpenAiModels.ChatCompletionRequest request,
+            LlmCredentials credentials,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            _callCount++;
+
+            if (_callCount == 1)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "call_list_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "list_sources",
+                            Arguments = "{}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 1,
+                        Id = "call_fetch_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "fetch_source",
+                            Arguments = "{\"id\":\"" + _sourceA + "\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 2,
+                        Id = "call_replace_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Updated content\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            if (_callCount == 2)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "call_fetch_2",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "fetch_source",
+                            Arguments = "{\"id\":\"" + _sourceB + "\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 1,
+                        Id = "call_replace_2",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Updated content after all fetches\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            yield return new OpenAiModels.StreamChunk
+            {
+                Choices = new List<OpenAiModels.StreamChoice>
+                {
+                    new()
+                    {
+                        Delta = new OpenAiModels.StreamDelta
+                        {
+                            Content = "done"
+                        }
+                    }
+                }
+            };
+            yield return new OpenAiModels.StreamChunk
+            {
+                Choices = new List<OpenAiModels.StreamChoice>
+                {
+                    new()
+                    {
+                        Delta = new OpenAiModels.StreamDelta(),
+                        FinishReason = "stop"
+                    }
+                }
+            };
+        }
+
+        public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+        {
+            return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse
+            {
+                Choices = new List<OpenAiModels.ChatCompletionChoice>
+                {
+                    new()
+                    {
+                        Message = new OpenAiModels.ChatCompletionMessage
+                        {
+                            Role = "assistant",
+                            Content = "ok"
+                        }
+                    }
+                }
+            });
+        }
+
+        private static OpenAiModels.StreamChunk BuildToolCallsChunk(List<OpenAiModels.StreamToolCall> toolCalls)
+        {
+            return new OpenAiModels.StreamChunk
+            {
+                Choices = new List<OpenAiModels.StreamChoice>
+                {
+                    new()
+                    {
+                        Delta = new OpenAiModels.StreamDelta
+                        {
+                            ToolCalls = toolCalls
+                        }
+                    }
+                }
+            };
+        }
+
+        private static OpenAiModels.StreamChunk BuildToolCallFinishChunk()
+        {
+            return new OpenAiModels.StreamChunk
+            {
+                Choices = new List<OpenAiModels.StreamChoice>
+                {
+                    new()
+                    {
+                        Delta = new OpenAiModels.StreamDelta(),
+                        FinishReason = "tool_calls"
+                    }
+                }
+            };
+        }
+    }
+
     /// <summary>
     /// A stub tool that records execution.
     /// </summary>
@@ -570,6 +764,57 @@ public sealed class ChatServiceTests
         {
             WasExecuted = true;
             return Task.FromResult(new ToolExecutionResult(new { result = "done" }));
+        }
+    }
+
+    private sealed class ListSourcesStubTool : IChatTool
+    {
+        private readonly Guid _sourceA;
+        private readonly Guid _sourceB;
+
+        public ListSourcesStubTool(Guid sourceA, Guid sourceB)
+        {
+            _sourceA = sourceA;
+            _sourceB = sourceB;
+            Parameters = JsonDocument.Parse("{}").RootElement.Clone();
+        }
+
+        public string Name => "list_sources";
+        public string Description => "Stub list sources";
+        public bool RequiresVision => false;
+        public JsonElement Parameters { get; }
+
+        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, Guid? draftId, Guid userId, CancellationToken ct)
+        {
+            var result = new List<ListSourcesResultItem>
+            {
+                new(_sourceA, "Url", "https://example.com/a", "A"),
+                new(_sourceB, "File", "file://" + _sourceB, "B")
+            };
+            return Task.FromResult(new ToolExecutionResult(result));
+        }
+    }
+
+    private sealed class FetchSourceStubTool : IChatTool
+    {
+        public FetchSourceStubTool()
+        {
+            Parameters = JsonDocument.Parse("{}").RootElement.Clone();
+        }
+
+        public string Name => "fetch_source";
+        public string Description => "Stub fetch source";
+        public bool RequiresVision => false;
+        public JsonElement Parameters { get; }
+        public List<Guid> FetchedIds { get; } = new();
+
+        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, Guid? draftId, Guid userId, CancellationToken ct)
+        {
+            using var doc = JsonDocument.Parse(argumentsJson);
+            var id = Guid.Parse(doc.RootElement.GetProperty("id").GetString()!);
+            FetchedIds.Add(id);
+            var result = new FetchSourceResult(id, "Url", "https://example.com", "title", "content");
+            return Task.FromResult(new ToolExecutionResult(result));
         }
     }
 }

@@ -1,0 +1,13 @@
+chat:
+  system_prompt_path: SYSTEM_PROMPT.md
+  editor_update_enforcement: |
+    EDITOR-UPDATE ENFORCEMENT: The user's request requires directly updating draft content.
+    You must call replace_editor_content with the full updated markdown, then call validate_draft.
+    Do not ask for confirmation and do not only describe changes.
+  vision_enabled_instruction: |
+    You have access to view the attached images using the 'view_image' tool.
+    If the user asks you to describe, analyze, or draft content based on an attached image,
+    or if the image alt text is empty (alt: ""), you MUST call the 'view_image' tool
+    with the image's Guid ID to inspect its visual content before responding.
+  vision_disabled_instruction: |
+    Vision is not available with the current model. You can still reference images by their metadata (filename, dimensions).

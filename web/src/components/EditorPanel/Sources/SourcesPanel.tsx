@@ -175,6 +175,15 @@ export const SourcesPanel: React.FC = () => {
       const markdownLinkRegex = new RegExp(`\\[[^\\]]*\\]\\(${urlEscaped}\\)`, "g");
       const nakedUrlRegex = new RegExp(urlEscaped, "g");
       nextDoc = nextDoc.replace(markdownLinkRegex, "").replace(nakedUrlRegex, "");
+    } else if (source.kind === "YouTube") {
+      const urlEscaped = source.reference.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+      const markdownLinkRegex = new RegExp(`\\[[^\\]]*\\]\\(${urlEscaped}\\)`, "g");
+      const youtubeEmbedRegex = new RegExp(`!\\[[^\\]]*\\]\\(${urlEscaped}\\)`, "g");
+      const nakedUrlRegex = new RegExp(urlEscaped, "g");
+      nextDoc = nextDoc
+        .replace(youtubeEmbedRegex, "")
+        .replace(markdownLinkRegex, "")
+        .replace(nakedUrlRegex, "");
     } else if (source.kind === "File") {
       const fileRefRegex = new RegExp(`\\[[^\\]]*\\]\\(file://${source.id}\\)`, "g");
       nextDoc = nextDoc.replace(fileRefRegex, "");
@@ -194,9 +203,12 @@ export const SourcesPanel: React.FC = () => {
 
   const handleInsertSource = (source: SourceDto) => {
     let markdown = "";
-    if (source.kind === "Url" || source.kind === "YouTube") {
+    if (source.kind === "Url") {
       const displayTitle = source.title && source.title !== "Fetching..." ? source.title : "Link";
       markdown = `[${displayTitle}](${source.reference})`;
+    } else if (source.kind === "YouTube") {
+      const displayTitle = source.title && source.title !== "Fetching..." ? source.title : "Video";
+      markdown = `![${displayTitle}](${source.reference})`;
     } else if (source.kind === "File") {
       markdown = `[${source.title || "File"}](file://${source.id})`;
     }

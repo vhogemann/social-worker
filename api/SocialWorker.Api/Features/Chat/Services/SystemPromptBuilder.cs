@@ -8,6 +8,8 @@ public sealed class SystemPromptBuilder
 {
     private static string GetBasePrompt()
     {
+        var promptConfig = ChatPromptCatalog.Current.Chat;
+
         const string defaultPrompt = "You are a helpful assistant that helps the user draft social media threads. "
                     + "If the user asks you to write, rewrite, edit, improve, or apply changes to content, you MUST call replace_editor_content with the full markdown in that same turn. Do not only provide suggestions. "
           + "When the user asks you to write or update content, call replace_editor_content with the full markdown. "
@@ -16,6 +18,7 @@ public sealed class SystemPromptBuilder
           + "To view the list of available sources, call the 'list_sources' tool. "
           + "To read the actual cached text content of a source, call the 'fetch_source' tool with its Guid ID. "
           + "If the user asks you to summarize, explain, or draft posts based on a link or file attachment, you MUST first call 'list_sources' to locate it, and then call 'fetch_source' with the corresponding ID to read the source text before responding.\n\n"
+          + "Unless the user explicitly confirms ownership/authorship, treat all fetched or attached source content as third-party. Do not describe source material as ours or as user-authored by default; use neutral attribution.\n\n"
           + "You have the 'generate_platform_variants' tool to adapt the draft to other platforms. "
           + "Use it when the user asks to create variants for Twitter, LinkedIn, Facebook, or Instagram. "
           + "The LLM drives the adaptation: you will be prompted per-platform with the rules and content, and your response becomes the variant content.\n\n"
@@ -50,6 +53,9 @@ public sealed class SystemPromptBuilder
         {
             var paths = new[]
             {
+                promptConfig.SystemPromptPath,
+                "/app/" + promptConfig.SystemPromptPath,
+                "../" + promptConfig.SystemPromptPath,
                 "SYSTEM_PROMPT.md",
                 "/app/SYSTEM_PROMPT.md",
                 "../SYSTEM_PROMPT.md"
@@ -107,11 +113,11 @@ public sealed class SystemPromptBuilder
         sb.AppendLine();
         if (supportsVision)
         {
-            sb.Append("You have access to view the attached images using the 'view_image' tool. If the user asks you to describe, analyze, or draft content based on an attached image, or if the image alt text is empty (alt: \"\"), you MUST call the 'view_image' tool with the image's Guid ID to inspect its visual content before responding.");
+            sb.Append(ChatPromptCatalog.Current.Chat.VisionEnabledInstruction);
         }
         else
         {
-            sb.Append("Vision is not available with the current model. You can still reference images by their metadata (filename, dimensions).");
+            sb.Append(ChatPromptCatalog.Current.Chat.VisionDisabledInstruction);
         }
 
         return sb.ToString();
