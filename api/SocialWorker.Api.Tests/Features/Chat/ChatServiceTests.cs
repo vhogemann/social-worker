@@ -428,6 +428,52 @@ public sealed class ChatServiceTests
         Assert.DoesNotContain("https://example.com", replaceTool.Markdowns[1], StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task StreamAsync_FinalizationNudge_LeadsToAssistantFinalTextWithoutExtraToolRound()
+    {
+        var replaceTool = new CapturingReplaceTool();
+        var validateTool = new PlaceholderAwareValidateTool();
+        var adapter = new FinalizationAwareAdapter();
+
+        var service = CreateService(
+            tools: new IChatTool[] { replaceTool, validateTool },
+            adapter: adapter);
+
+        var lines = await CollectStream(
+            service,
+            MakeRequest("Please polish this draft and validate it."));
+
+        var text = ExtractText(lines);
+        Assert.True(adapter.SawFinalizationInstruction);
+        Assert.Equal(2, adapter.CallCount);
+        Assert.Equal(1, replaceTool.Markdowns.Count);
+        Assert.Equal(1, validateTool.ValidationCalls);
+        Assert.Contains("Final response after validation.", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StreamAsync_FinalizationGuard_StopsWhenModelStillRequestsReplaceOrValidate()
+    {
+        var replaceTool = new CapturingReplaceTool();
+        var validateTool = new PlaceholderAwareValidateTool();
+        var adapter = new IgnoringFinalizationAdapter();
+
+        var service = CreateService(
+            tools: new IChatTool[] { replaceTool, validateTool },
+            adapter: adapter);
+
+        var lines = await CollectStream(
+            service,
+            MakeRequest("Please polish this draft and validate it."));
+
+        var text = ExtractText(lines);
+        Assert.True(adapter.SawFinalizationInstruction);
+        Assert.Equal(2, adapter.CallCount);
+        Assert.Equal(2, replaceTool.Markdowns.Count);
+        Assert.Equal(2, validateTool.ValidationCalls);
+        Assert.Contains("Draft updated and validated in the editor.", text, StringComparison.Ordinal);
+    }
+
     private static string ExtractText(List<string> lines)
     {
         var chunks = lines
@@ -1116,6 +1162,166 @@ public sealed class ChatServiceTests
             }
 
             yield return BuildTextDoneChunk();
+        }
+
+        public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+        {
+            return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse());
+        }
+    }
+
+    private sealed class FinalizationAwareAdapter : ILlmProviderAdapter
+    {
+        public int CallCount { get; private set; }
+        public bool SawFinalizationInstruction { get; private set; }
+
+        public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
+            OpenAiModels.ChatCompletionRequest request,
+            LlmCredentials credentials,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            CallCount++;
+
+            if (CallCount == 1)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "fin_replace_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Post 1\\n\\n---\\nPost 2\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 1,
+                        Id = "fin_validate_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "validate_draft",
+                            Arguments = "{\"content\":\"Post 1\\n\\n---\\nPost 2\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            SawFinalizationInstruction = request.Messages.Any(m =>
+                string.Equals(m.Role, "system", StringComparison.OrdinalIgnoreCase) &&
+                m.Content?.ToString()?.Contains("FINALIZATION:", StringComparison.OrdinalIgnoreCase) == true);
+
+            yield return new OpenAiModels.StreamChunk
+            {
+                Choices = new List<OpenAiModels.StreamChoice>
+                {
+                    new()
+                    {
+                        Delta = new OpenAiModels.StreamDelta
+                        {
+                            Content = "Final response after validation."
+                        }
+                    }
+                }
+            };
+            yield return new OpenAiModels.StreamChunk
+            {
+                Choices = new List<OpenAiModels.StreamChoice>
+                {
+                    new()
+                    {
+                        Delta = new OpenAiModels.StreamDelta(),
+                        FinishReason = "stop"
+                    }
+                }
+            };
+        }
+
+        public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+        {
+            return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse());
+        }
+    }
+
+    private sealed class IgnoringFinalizationAdapter : ILlmProviderAdapter
+    {
+        public int CallCount { get; private set; }
+        public bool SawFinalizationInstruction { get; private set; }
+
+        public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
+            OpenAiModels.ChatCompletionRequest request,
+            LlmCredentials credentials,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            CallCount++;
+
+            if (CallCount == 1)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "ign_replace_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Post 1\\n\\n---\\nPost 2\"}"
+                        }
+                    },
+                    new()
+                    {
+                        Index = 1,
+                        Id = "ign_validate_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "validate_draft",
+                            Arguments = "{\"content\":\"Post 1\\n\\n---\\nPost 2\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            SawFinalizationInstruction = request.Messages.Any(m =>
+                string.Equals(m.Role, "system", StringComparison.OrdinalIgnoreCase) &&
+                m.Content?.ToString()?.Contains("FINALIZATION:", StringComparison.OrdinalIgnoreCase) == true);
+
+            yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+            {
+                new()
+                {
+                    Index = 0,
+                    Id = "ign_replace_2",
+                    Type = "function",
+                    Function = new OpenAiModels.StreamToolCallFunction
+                    {
+                        Name = "replace_editor_content",
+                        Arguments = "{\"markdown\":\"Post 1 revised\\n\\n---\\nPost 2 revised\"}"
+                    }
+                },
+                new()
+                {
+                    Index = 1,
+                    Id = "ign_validate_2",
+                    Type = "function",
+                    Function = new OpenAiModels.StreamToolCallFunction
+                    {
+                        Name = "validate_draft",
+                        Arguments = "{\"content\":\"Post 1 revised\\n\\n---\\nPost 2 revised\"}"
+                    }
+                }
+            });
+            yield return BuildToolCallFinishChunk();
         }
 
         public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)

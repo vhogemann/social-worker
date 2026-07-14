@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { ThreadMessageTextPart } from "./ThreadMessageTextPart";
 import { parsePostPreview } from "./ThreadMessagePostPreview";
 import { resolveMediaUri, rewriteMediaUris } from "./ThreadMessageMedia";
 
@@ -55,5 +57,53 @@ describe("parsePostPreview", () => {
 
     expect(parsed).not.toBeNull();
     expect(parsed?.posts).toEqual(["First post body", "Second post body"]);
+  });
+});
+
+describe("ThreadMessageTextPart", () => {
+  it("renders markdown media links with rewritten api urls", () => {
+    render(
+      <ThreadMessageTextPart
+        text={[
+          "Here is an image:",
+          "",
+          "![preview](media://123e4567-e89b-12d3-a456-426614174000)",
+          "",
+          "[open](media://123e4567-e89b-12d3-a456-426614174000)",
+        ].join("\n")}
+      />
+    );
+
+    const img = screen.getByRole("img", { name: "preview" });
+    const link = screen.getByRole("link", { name: "open" });
+
+    expect(img).toHaveAttribute("src", "/api/media/123e4567-e89b-12d3-a456-426614174000");
+    expect(link).toHaveAttribute("href", "/api/media/123e4567-e89b-12d3-a456-426614174000");
+  });
+
+  it("renders post preview cards without intro and trailing commentary", () => {
+    render(
+      <ThreadMessageTextPart
+        text={[
+          "The thread is ready.",
+          "",
+          "Post 1:",
+          "First post body",
+          "",
+          "---",
+          "",
+          "Post 2:",
+          "Second post body",
+          "",
+          "The thread is ready for publication on Bluesky.",
+        ].join("\n")}
+      />
+    );
+
+    expect(screen.getByText("Post 1")).toBeInTheDocument();
+    expect(screen.getByText("Post 2")).toBeInTheDocument();
+    expect(screen.getByText("First post body")).toBeInTheDocument();
+    expect(screen.getByText("Second post body")).toBeInTheDocument();
+    expect(screen.queryByText("The thread is ready for publication on Bluesky.")).not.toBeInTheDocument();
   });
 });

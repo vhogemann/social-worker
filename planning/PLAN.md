@@ -28,6 +28,14 @@ This file is the single source of truth for roadmap status and planning links.
 - v1 is usable for draft composition and Bluesky publishing
 - main near-term work is source reuse, quality, and broader publishing reach
 
+### v1 close-out status (2026-07-14)
+
+- Draft-switch chat race hardened by canceling in-flight runs before thread import/reset
+- Chat convergence guard behavior covered by deterministic `ChatServiceTests`
+- Chat/thread rendering regressions covered for tool activity cards, post-preview hygiene, and media URI rewrites
+- API build/tests, web build/typecheck/tests, and e2e smoke verification pass in Docker
+- Main stack startup verification passes via `docker compose up --build`
+
 ## Roadmap themes
 
 ### 1. Source ingestion and knowledge reuse

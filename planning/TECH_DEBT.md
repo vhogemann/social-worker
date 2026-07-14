@@ -78,6 +78,10 @@ Inventory of low-effort improvements, code smells, missing tests, and minor bugs
 
 - [x] **`BraveSearchEngine` doesn't implement `SearchImagesAsync`** — image search silently returns empty when using Brave provider. *(Fixed: extracted shared internal method, added `SearchImagesAsync` that queries Brave's images endpoint and extracts thumbnail URLs)*
 
+- [x] **`web/src/api/chat.tsx` draft-switch race** — switching/creating drafts while a run is active could surface parent-message consistency errors in UI state. *(Fixed: persist previous draft chat, cancel in-flight run on draft switch, and bind save-on-stop to the originating draft id.)*
+
+- [x] **`scripts/run-e2e.sh` omitted transcriber service** — e2e smoke failed with missing `social-worker-transcriber-e2e` image/container. *(Fixed: include `transcriber-e2e` in build and `up` service list.)*
+
 ### Future
 
 - [ ] **DB-backed background job queue** — Replace the in-memory `Channel<Job>` with a `PendingJob` table. The `BackgroundJobQueue` would write to and read from the DB directly, giving durability across restarts and removing the bounded channel's drop behavior. Requires a `PendingJob` entity, migration, and rewriting the queue/hosted service to use DB polling. The current `Job` record (which embeds a `Func<CancellationToken, Task>`) would be replaced by a `JobType` discriminator + JSON payload, with the work function reconstructed from the payload on read.

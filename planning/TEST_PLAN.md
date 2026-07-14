@@ -98,7 +98,7 @@ Framework: Vitest + Testing Library + jsdom (already configured). Run via `docke
 
 | Component | File(s) | Approach | Status |
 |---|---|---|---|
-| `ChatPanel` / `Thread` | `ChatPanel/` | Render with mocked SSE stream, test message rendering, tool call UI, approve button | [ ] |
+| `ChatPanel` / `Thread` | `ChatPanel/` | Message rendering coverage for post preview parsing, media URI rewriting, and tool activity cards | [x] |
 | `DraftList` | `DraftList/DraftList.tsx` | List, archive, delete, rename, navigate | [ ] |
 | `MarkdownEditor` | `EditorPanel/MarkdownEditor.tsx` | CodeMirror mount, content change, drag-and-drop, paste upload | [ ] |
 | `EditorPanel` | `EditorPanel/EditorPanel.tsx` | Mode toggle, publish button, adapt button, SourcesPanel integration | [ ] |

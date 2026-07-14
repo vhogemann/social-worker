@@ -52,10 +52,10 @@ done
 cd "${REPO_ROOT}"
 
 if [[ ${BUILD} -eq 1 ]]; then
-  docker compose -f "${COMPOSE_FILE}" build api-e2e web-e2e e2e
+  docker compose -f "${COMPOSE_FILE}" build transcriber-e2e api-e2e web-e2e e2e
 fi
 
-docker compose -f "${COMPOSE_FILE}" up -d --no-build db-e2e searxng-e2e api-e2e web-e2e
+docker compose -f "${COMPOSE_FILE}" up -d --no-build db-e2e searxng-e2e transcriber-e2e api-e2e web-e2e
 
 cleanup() {
   if [[ ${KEEP_UP} -eq 0 ]]; then

@@ -54,15 +54,20 @@ function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
   const isRunning = useThread((state) => state.isRunning);
 
-  const isMounted = useRef(false);
-  const prevDraftId = useRef(activeDraftId);
-
-  if (prevDraftId.current !== activeDraftId) {
-    isMounted.current = false;
-    prevDraftId.current = activeDraftId;
-  }
+  const prevDraftIdRef = useRef<string | null>(activeDraftId);
+  const prevIsRunningRef = useRef(isRunning);
+  const runDraftIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const previousDraftId = prevDraftIdRef.current;
+
+    if (previousDraftId && previousDraftId !== activeDraftId) {
+      saveCurrentChat(previousDraftId);
+      if (isRunning) {
+        runtime.thread.cancelRun();
+      }
+    }
+
     if (activeDraftId) {
       const saved = useChatStore.getState().loadMessages(activeDraftId);
       if (saved) {
@@ -73,17 +78,25 @@ function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
     } else {
       runtime.thread.reset();
     }
-  }, [activeDraftId, runtime]);
+
+    prevDraftIdRef.current = activeDraftId;
+  }, [activeDraftId, isRunning, runtime]);
 
   useEffect(() => {
-    if (!isMounted.current) {
-      isMounted.current = true;
-      return;
+    if (!prevIsRunningRef.current && isRunning) {
+      runDraftIdRef.current = activeDraftId;
     }
-    if (activeDraftId) {
-      saveCurrentChat(activeDraftId);
+
+    if (prevIsRunningRef.current && !isRunning) {
+      const runDraftId = runDraftIdRef.current;
+      if (runDraftId) {
+        saveCurrentChat(runDraftId);
+      }
+      runDraftIdRef.current = null;
     }
-  }, [isRunning]);
+
+    prevIsRunningRef.current = isRunning;
+  }, [activeDraftId, isRunning]);
 
   runtimeRef = runtime;
   return null;
