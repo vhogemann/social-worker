@@ -139,6 +139,8 @@ public sealed class ChatService
         var sawViewImageOverall = false;
         var listedSourceIds = new HashSet<Guid>();
         var fetchedSourceIds = new HashSet<Guid>();
+        var hasStableValidatedDraft = false;
+        var finalizationNudgeInjected = false;
 
         var maxRounds = Math.Clamp(_chatOptions.MaxToolExecutionRounds, 1, 16);
         for (var round = 0; round < maxRounds; round++)
@@ -165,6 +167,33 @@ public sealed class ChatService
             sawReplaceEditorToolCallOverall = sawReplaceEditorToolCallOverall || roundCtx.SawReplaceEditorToolCall;
             sawAddImageSourceOverall = roundCtx.SawAddImageSource;
             sawViewImageOverall = roundCtx.SawViewImage;
+
+            if (roundCtx.SawValidateDraftToolCall && !roundCtx.LastValidateHadBlockingErrors && sawReplaceEditorToolCallOverall)
+            {
+                hasStableValidatedDraft = true;
+            }
+
+            if (hasStableValidatedDraft && !finalizationNudgeInjected)
+            {
+                finalizationNudgeInjected = true;
+                payload.Messages.Add(new OpenAiModels.OpenAiMessage
+                {
+                    Role = "system",
+                    Content = "FINALIZATION: The draft is already updated and validated with no blocking errors. Do not call replace_editor_content or validate_draft again unless the user explicitly asks for another revision. Provide a concise final response to the user now."
+                });
+                continue;
+            }
+
+            if (hasStableValidatedDraft &&
+                finalizationNudgeInjected &&
+                roundCtx.CalledToolNames.Any(name =>
+                    string.Equals(name, "replace_editor_content", StringComparison.Ordinal) ||
+                    string.Equals(name, "validate_draft", StringComparison.Ordinal)))
+            {
+                yield return _writer.TextDelta("Draft updated and validated in the editor.");
+                yield return _writer.StepFinish("stop", false);
+                break;
+            }
 
             if (roundCtx.ShouldStop &&
                 requiresEditorUpdate &&
@@ -255,6 +284,8 @@ public sealed class ChatService
 
         foreach (var tc in toolCalls.Values)
         {
+            ctx.CalledToolNames.Add(tc.Name);
+
             if (string.Equals(tc.Name, "replace_editor_content", StringComparison.Ordinal))
             {
                 ctx.SawReplaceEditorToolCall = true;
@@ -322,6 +353,12 @@ public sealed class ChatService
 
             ctx.Payload.Messages.AddRange(toolResult.ToMessages(tc.Id));
 
+            if (string.Equals(tc.Name, "validate_draft", StringComparison.Ordinal))
+            {
+                ctx.SawValidateDraftToolCall = true;
+                ctx.LastValidateHadBlockingErrors = ValidateResultHasBlockingErrors(toolResult.Result);
+            }
+
             RecordImageTrackingState(ctx, tc.Name);
 
             if (ctx.EnforceAllSourcesFetchedBeforeReplace)
@@ -380,6 +417,9 @@ public sealed class ChatService
         public HashSet<Guid> FetchedSourceIds { get; }
         public bool SawAddImageSource { get; set; }
         public bool SawViewImage { get; set; }
+        public bool SawValidateDraftToolCall { get; set; }
+        public bool LastValidateHadBlockingErrors { get; set; }
+        public HashSet<string> CalledToolNames { get; } = new(StringComparer.Ordinal);
         public bool HasListedSources => ListedSourceIds.Count > 0;
 
         public List<Guid> GetMissingSourceIds()
@@ -527,6 +567,38 @@ public sealed class ChatService
                 ctx.FetchedSourceIds.Add(parsedId);
             }
         }
+    }
+
+    private static bool ValidateResultHasBlockingErrors(object toolResult)
+    {
+        if (toolResult is string s)
+        {
+            return s.Contains("validation failed", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("**Error**", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("❌", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (toolResult is JsonElement el)
+        {
+            if (el.ValueKind == JsonValueKind.String)
+            {
+                var text = el.GetString() ?? string.Empty;
+                return text.Contains("validation failed", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("**Error**", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("❌", StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (el.ValueKind == JsonValueKind.Object &&
+                el.TryGetProperty("overallStatus", out var status) &&
+                status.ValueKind == JsonValueKind.String)
+            {
+                var statusText = status.GetString() ?? string.Empty;
+                return statusText.Contains("failed", StringComparison.OrdinalIgnoreCase)
+                    || statusText.Contains("error", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        return false;
     }
 
     private sealed class AccumulatedToolCall

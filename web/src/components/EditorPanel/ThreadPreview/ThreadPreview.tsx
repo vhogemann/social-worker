@@ -1,14 +1,14 @@
 import React from "react";
 import { useDraftStore } from "../../../store/draftStore";
 import { PreviewCard } from "./PreviewCard";
+import { splitIntoSegments } from "./utils";
 
 interface ThreadPreviewProps {
   content: string;
 }
 
 export const ThreadPreview: React.FC<ThreadPreviewProps> = ({ content }) => {
-  const rawSegments = content.split(/\n---\n|\r\n---\r\n|\n---\r\n|\r\n---\n/);
-  const segments = rawSegments.map((s) => s.trim()).filter((s) => s.length > 0);
+  const segments = splitIntoSegments(content);
 
   if (segments.length === 0) {
     return (

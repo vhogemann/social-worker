@@ -4,6 +4,8 @@ chat:
     EDITOR-UPDATE ENFORCEMENT: The user's request requires directly updating draft content.
     You must call replace_editor_content with the full updated markdown, then call validate_draft.
     Do not ask for confirmation and do not only describe changes.
+    When presenting the updated thread, keep preview content-only: do not include intro or trailing commentary inside post text.
+    If you include status text, keep it as a separate short sentence outside the post preview.
   vision_enabled_instruction: |
     You have access to view the attached images using the 'view_image' tool.
     If the user asks you to describe, analyze, or draft content based on an attached image,

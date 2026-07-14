@@ -115,16 +115,15 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
             throw new FileNotFoundException("Image file not found on disk");
         }
 
-        using var stream = File.OpenRead(fullPath);
-        using var codec = SKCodec.Create(stream);
-        if (codec == null)
+        using var original = SKBitmap.Decode(fullPath);
+        if (original == null)
         {
-            throw new InvalidDataException("Failed to decode image");
+            throw new InvalidDataException("Failed to decode bitmap from file");
         }
 
         int maxDim = 512;
-        int newWidth = codec.Info.Width;
-        int newHeight = codec.Info.Height;
+        int newWidth = original.Width;
+        int newHeight = original.Height;
 
         if (newWidth > maxDim || newHeight > maxDim)
         {
@@ -133,12 +132,6 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
             newHeight = (int)(newHeight * ratio);
         }
 
-        stream.Position = 0;
-        using var original = SKBitmap.Decode(stream);
-        if (original == null)
-        {
-            throw new InvalidDataException("Failed to decode bitmap from stream");
-        }
         using var resized = original.Resize(new SKImageInfo(newWidth, newHeight), SKFilterQuality.Medium) ?? original;
         using var image = SKImage.FromBitmap(resized);
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 80);

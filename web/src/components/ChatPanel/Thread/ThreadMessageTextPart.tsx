@@ -1,5 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import { ThreadMessageImageSearchPanel, parseImageSearchResult } from "./ThreadMessageImageSearchPanel";
+import { resolveMediaUri, rewriteMediaUris } from "./ThreadMessageMedia";
+import { parsePostPreview, ThreadMessagePostPreview } from "./ThreadMessagePostPreview";
 import { ThreadMessageSearchResultsPanel, parseWebSearchResults } from "./ThreadMessageSearchResultsPanel";
 
 export function ThreadMessageTextPart({ text }: { text: string }) {
@@ -24,9 +26,33 @@ export function ThreadMessageTextPart({ text }: { text: string }) {
     );
   }
 
+  const parsedPostPreview = parsePostPreview(text);
+
+  if (parsedPostPreview) {
+    return <ThreadMessagePostPreview posts={parsedPostPreview.posts} />;
+  }
+
   return (
     <div className="prose prose-invert prose-sm max-w-none">
-      <ReactMarkdown>{text}</ReactMarkdown>
+      <ReactMarkdown
+        components={{
+          img: ({ src, alt }) => (
+            <img
+              src={resolveMediaUri(src)}
+              alt={alt ?? ""}
+              loading="lazy"
+              className="max-w-full rounded-md border border-border"
+            />
+          ),
+          a: ({ href, children }) => (
+            <a href={resolveMediaUri(href)} target="_blank" rel="noreferrer">
+              {children}
+            </a>
+          ),
+        }}
+      >
+        {rewriteMediaUris(text)}
+      </ReactMarkdown>
     </div>
   );
 }

@@ -116,8 +116,8 @@ services:
   web-test:
     image: node:22-alpine
     working_dir: /app
-    entrypoint: ["npx"]
-    command: ["vitest", "run"]
+    entrypoint: ["sh", "-lc"]
+    command: ["npm install && npm run test"]
     volumes:
       - ./web:/app
     profiles:

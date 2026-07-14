@@ -5,6 +5,14 @@ export const YOUTUBE_REGEX = /!\[(.*?)\]\((https?:\/\/(?:www\.)?youtube\.com\/wa
 export const MD_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
 export const RAW_LINK_REGEX = /(?<!\]\()https?:\/\/[^\s]+(?!\))/g;
 export const CODE_FENCE_REGEX = /```(\w*)\r?\n([\s\S]*?)```/g;
+export const SEGMENT_SEPARATOR_REGEX = /\n---\n|\r\n---\r\n|\n---\r\n|\r\n---\n/;
+
+export function splitIntoSegments(content: string): string[] {
+  return content
+    .split(SEGMENT_SEPARATOR_REGEX)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
 
 export function extractCodeFences(text: string): CodeFence[] {
   const fences: CodeFence[] = [];

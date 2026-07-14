@@ -9,4 +9,11 @@ export { ConflictWarning } from "./ConflictWarning";
 export { AltTextEditor } from "./AltTextEditor";
 
 export type { CodeFence, ParsedSegment } from "./types";
-export { extractCodeFences, isCodeFenceAltText, extractCodeFenceFromAltText, extractVideoId, parseSegment } from "./utils";
+export {
+	extractCodeFences,
+	isCodeFenceAltText,
+	extractCodeFenceFromAltText,
+	extractVideoId,
+	parseSegment,
+	splitIntoSegments,
+} from "./utils";
