@@ -51,7 +51,7 @@ public sealed class CodeImageRendererTests : IDisposable
 
         using var bitmap = SKBitmap.Decode(bytes);
         Assert.NotNull(bitmap);
-        Assert.True(bitmap.Width >= 560);
+        Assert.True(bitmap.Width >= 460);
         Assert.True(bitmap.Height > 100);
     }
 

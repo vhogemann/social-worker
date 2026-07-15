@@ -11,7 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace SocialWorker.Api.Features.Chat;
+namespace SocialWorker.Api.Features.Chat.Adapters;
 
 public sealed class OpenAiProviderAdapter : ILlmProviderAdapter
 {

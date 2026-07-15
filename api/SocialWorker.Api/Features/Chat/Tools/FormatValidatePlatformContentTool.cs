@@ -15,7 +15,20 @@ public sealed record FormatValidatePlatformContentResult(
     string Content,
     string NormalizedContent,
     List<string> Errors,
-    List<string> Warnings);
+  List<string> Warnings) : IChatToolResult
+{
+  public string ToDisplayText()
+  {
+    if (IsValid)
+    {
+      return Warnings.Count == 0
+        ? $"{Platform} validation passed."
+        : $"{Platform} validation passed with warnings: {string.Join(" | ", Warnings)}";
+    }
+
+    return $"{Platform} validation failed: {string.Join(" | ", Errors)}";
+  }
+}
 
 public sealed class FormatValidatePlatformContentTool : ChatToolBase<FormatValidatePlatformContentArgs, FormatValidatePlatformContentResult>
 {

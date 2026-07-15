@@ -13,7 +13,15 @@ namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record ReplaceEditorContentArgs(string Markdown);
 
-public sealed record ReplaceEditorContentResult(bool Success, int Length, string Content);
+public sealed record ReplaceEditorContentResult(bool Success, int Length, string Content) : IChatToolResult
+{
+  public string ToDisplayText()
+  {
+    return Success
+      ? $"Editor content replaced ({Length} chars)."
+      : "Failed to replace editor content.";
+  }
+}
 
 public sealed class ReplaceEditorContentTool : ChatToolBase<ReplaceEditorContentArgs, ReplaceEditorContentResult>
 {

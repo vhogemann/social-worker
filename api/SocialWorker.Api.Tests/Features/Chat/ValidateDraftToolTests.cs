@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat.Tools;
+using SocialWorker.Api.Features.Publishing.Bluesky;
 using Xunit;
 
 namespace SocialWorker.Api.Tests;
@@ -70,17 +71,21 @@ public sealed class ValidateDraftToolTests : IDisposable
         var serviceProvider = serviceCollection.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        var tool = new ValidateDraftTool(scopeFactory);
+        var tool = new ValidateDraftTool(scopeFactory, new BlueskyContentValidator());
         var report = await tool.ExecuteAsync(new ValidateDraftArgs(null), draft.Id, userId, CancellationToken.None);
+        var display = report.ToDisplayText();
 
-        Assert.Contains("### Draft Validation Report", report);
-        Assert.Contains("Post 1:", report);
-        Assert.Contains("**Status**: Valid", report);
-        Assert.Contains("Post 2:", report);
-        Assert.Contains("Exceeds the 300-character limit", report);
-        Assert.Contains("Cannot mix images and YouTube embeds", report);
-        Assert.Contains("Missing ALT text on images: image.png", report);
-        Assert.Contains("Validation failed", report);
+        Assert.Equal(ValidateDraftOverallStatus.Failed, report.OverallStatus);
+        Assert.True(report.HasBlockingErrors);
+        Assert.Equal(2, report.Posts.Count);
+        Assert.Contains("### Draft Validation Report", display);
+        Assert.Contains("Post 1:", display);
+        Assert.Contains("**Status**: Valid", display);
+        Assert.Contains("Post 2:", display);
+        Assert.Contains("Exceeds the 300-character limit", display);
+        Assert.Contains("Cannot mix images and YouTube embeds", display);
+        Assert.Contains("Missing ALT text on images: image.png", display);
+        Assert.Contains("Validation failed", display);
     }
 
     [Fact]
@@ -97,15 +102,19 @@ public sealed class ValidateDraftToolTests : IDisposable
         var serviceProvider = serviceCollection.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        var tool = new ValidateDraftTool(scopeFactory);
+        var tool = new ValidateDraftTool(scopeFactory, new BlueskyContentValidator());
         var explicitContent = "This is segment 1 under 300 chars.\n---\nThis is segment 2 under 300 chars.";
         
         var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), null, userId, CancellationToken.None);
+        var display = report.ToDisplayText();
 
-        Assert.Contains("### Draft Validation Report", report);
-        Assert.Contains("Post 1:", report);
-        Assert.Contains("Post 2:", report);
-        Assert.Contains("**Status**: Valid", report);
-        Assert.Contains("Overall Status**: Valid", report);
+        Assert.Equal(ValidateDraftOverallStatus.Valid, report.OverallStatus);
+        Assert.False(report.HasBlockingErrors);
+        Assert.Equal(2, report.Posts.Count);
+        Assert.Contains("### Draft Validation Report", display);
+        Assert.Contains("Post 1:", display);
+        Assert.Contains("Post 2:", display);
+        Assert.Contains("**Status**: Valid", display);
+        Assert.Contains("Overall Status**: Valid", display);
     }
 }

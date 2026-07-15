@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Features.Drafts;
+using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
@@ -20,6 +21,12 @@ public sealed class PlatformContentPolicy
     private static readonly Regex ItalicAsteriskRegex = new(@"(?<!\*)\*([^*\n]+)\*(?!\*)", RegexOptions.Compiled);
     private static readonly Regex HeadingRegex = new(@"(?m)^\s{0,3}#{1,6}\s+", RegexOptions.Compiled);
     private static readonly Regex UnsupportedMarkdownRegex = new(@"\*\*[^*]+\*\*|__[^_]+__|(?<!\*)\*[^*\n]+\*(?!\*)|(?m)^\s{0,3}#{1,6}\s+", RegexOptions.Compiled);
+    private readonly BlueskyContentValidator _blueskyContentValidator;
+
+    public PlatformContentPolicy(BlueskyContentValidator? blueskyContentValidator = null)
+    {
+        _blueskyContentValidator = blueskyContentValidator ?? new BlueskyContentValidator();
+    }
 
     public PlatformContentPolicyResult Evaluate(SocialPlatform platform, string content, bool normalizeFormatting)
     {
@@ -40,13 +47,27 @@ public sealed class PlatformContentPolicy
         var maxChars = GetMaxChars(platform);
         if (maxChars.HasValue)
         {
-            var segments = DraftsService.SplitMarkdownIntoSegments(normalized);
-            for (var i = 0; i < segments.Count; i++)
+            if (platform == SocialPlatform.Bluesky)
             {
-                var cleaned = SharedPatterns.MediaRegex.Replace(segments[i], "").Trim();
-                if (cleaned.Length > maxChars.Value)
+                var segments = _blueskyContentValidator.Analyze(normalized);
+                for (var i = 0; i < segments.Count; i++)
                 {
-                    errors.Add($"Post {i + 1} exceeds {maxChars.Value} characters for {platform} ({cleaned.Length}).");
+                    if (segments[i].CharacterCount > maxChars.Value)
+                    {
+                        errors.Add($"Post {i + 1} exceeds {maxChars.Value} characters for {platform} ({segments[i].CharacterCount}).");
+                    }
+                }
+            }
+            else
+            {
+                var segments = DraftSegmentService.SplitMarkdownIntoSegments(normalized);
+                for (var i = 0; i < segments.Count; i++)
+                {
+                    var cleaned = SharedPatterns.StripMediaMarkdown(segments[i]).Trim();
+                    if (cleaned.Length > maxChars.Value)
+                    {
+                        errors.Add($"Post {i + 1} exceeds {maxChars.Value} characters for {platform} ({cleaned.Length}).");
+                    }
                 }
             }
         }

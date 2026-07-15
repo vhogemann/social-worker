@@ -1,12 +1,10 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faTrashCan, faBoxArchive, faPenToSquare, faArrowRotateLeft, faLink, faGear } from "@fortawesome/free-solid-svg-icons";
 import { faBluesky, faXTwitter, faLinkedin, faFacebook, faInstagram } from "@fortawesome/free-brands-svg-icons";
-import { useDraftStore } from "../../store/draftStore";
-import { useEditorStore } from "../../store/editorStore";
-import { saveCurrentChat, restoreChat, clearChat } from "../../api/chat";
 import { SettingsModal } from "../Settings/SettingsModal";
 import { CreateDraftModal } from "./CreateDraftModal";
+import { useDraftListManager } from "./useDraftListManager";
 
 const PLATFORM_BADGE_COLORS: Record<string, string> = {
   Bluesky: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
@@ -25,90 +23,40 @@ const PLATFORM_ICONS: Record<string, any> = {
 };
 
 export function DraftList() {
-  const drafts = useDraftStore((s) => s.drafts);
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const loadDrafts = useDraftStore((s) => s.loadDrafts);
-  const createDraft = useDraftStore((s) => s.createDraft);
-  const switchDraft = useDraftStore((s) => s.switchDraft);
-  const saveDraftContent = useDraftStore((s) => s.saveDraftContent);
-  const setDoc = useEditorStore((s) => s.setDoc);
+  const {
+    activeDraftId,
+    archiveDraft,
+    unarchiveDraft,
+    settingsOpen,
+    setSettingsOpen,
+    editingTitleId,
+    setEditingTitleId,
+    editTitleValue,
+    setEditTitleValue,
+    showArchived,
+    setShowArchived,
+    createModalOpen,
+    setCreateModalOpen,
+    handleSelect,
+    handleNew,
+    handleSaveTitle,
+    startEditTitle,
+    handleDelete,
+    canonicalDrafts,
+    variantDrafts,
+  } = useDraftListManager();
 
-  const archiveDraft = useDraftStore((s) => s.archiveDraft);
-  const unarchiveDraft = useDraftStore((s) => s.unarchiveDraft);
-  const deleteDraft = useDraftStore((s) => s.deleteDraft);
-  const updateDraftTitle = useDraftStore((s) => s.updateDraftTitle);
-
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
-  const [editTitleValue, setEditTitleValue] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-
-  useEffect(() => {
-    loadDrafts();
-  }, []);
-
-  const handleSelect = async (id: string) => {
-    if (id === activeDraftId) return;
-    if (activeDraftId) {
-      saveCurrentChat(activeDraftId);
-      await saveDraftContent(activeDraftId, useEditorStore.getState().doc);
-    }
-    const draft = await switchDraft(id);
-    setDoc(draft.content ?? "");
-    restoreChat(id);
-  };
-
-  const handleNew = async (title?: string, targetPlatform?: string) => {
-    if (activeDraftId) {
-      saveCurrentChat(activeDraftId);
-      await saveDraftContent(activeDraftId, useEditorStore.getState().doc);
-    }
-    const draft = await createDraft(title, undefined, targetPlatform);
-    setDoc(draft.content ?? "");
-    restoreChat(draft.id);
-  };
-
-  const handleSaveTitle = async (id: string) => {
-    setEditingTitleId(null);
-    await updateDraftTitle(id, editTitleValue.trim());
-  };
-
-  const startEditTitle = (id: string, currentTitle: string) => {
-    setEditingTitleId(id);
-    setEditTitleValue(currentTitle);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this draft?")) return;
-
-    clearChat(id);
-
-    if (id === activeDraftId) {
-      const remaining = drafts.filter((d) => d.id !== id && d.status !== "Deleted");
-      await deleteDraft(id);
-
-      if (remaining.length > 0) {
-        const nextId = remaining[0].id;
-        const draft = await switchDraft(nextId);
-        setDoc(draft.content ?? "");
-        restoreChat(nextId);
-      } else {
-        setCreateModalOpen(true);
+  const variantsByCanonical = useMemo(() => {
+    const grouped = new Map<string, typeof variantDrafts>();
+    for (const variant of variantDrafts) {
+      if (!variant.canonicalDraftId) {
+        continue;
       }
-    } else {
-      await deleteDraft(id);
+      const current = grouped.get(variant.canonicalDraftId) || [];
+      grouped.set(variant.canonicalDraftId, [...current, variant]);
     }
-  };
-
-  const visibleDrafts = drafts.filter((d) => {
-    if (d.status === "Deleted") return false;
-    if (d.status === "Archived") return showArchived;
-    return !showArchived;
-  });
-
-  const canonicalDrafts = visibleDrafts.filter((d) => !d.canonicalDraftId);
-  const variantDrafts = visibleDrafts.filter((d) => d.canonicalDraftId);
+    return grouped;
+  }, [variantDrafts]);
 
   return (
     <div className="w-56 flex flex-col h-full bg-panel border-r border-border shrink-0">
@@ -128,7 +76,7 @@ export function DraftList() {
       </div>
       <div className="flex-1 overflow-y-auto divide-y divide-border">
         {canonicalDrafts.map((d) => {
-          const variants = variantDrafts.filter((v) => v.canonicalDraftId === d.id);
+          const variants = variantsByCanonical.get(d.id) || [];
           return (
             <div key={d.id}>
               <div
@@ -180,8 +128,6 @@ export function DraftList() {
                     </>
                   )}
                 </button>
-
-                {/* Hover Actions Menu */}
                 {editingTitleId !== d.id && (
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1.5 bg-panel/95 py-0.5 px-1 rounded border border-border/80 shadow-sm">
                     {d.status === "Archived" ? (

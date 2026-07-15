@@ -1,13 +1,17 @@
 using System;
 using System.Text.Json;
 
-namespace SocialWorker.Api.Features.Chat;
+namespace SocialWorker.Api.Features.Chat.Services;
 
 public sealed class ChatStreamWriter
 {
-    public string MessageId()
+    public string MessageId(string? messageId = null)
     {
-        return "f:{\"messageId\":\"m_" + Guid.NewGuid().ToString("N") + "\"}\n";
+        var effectiveMessageId = string.IsNullOrWhiteSpace(messageId)
+            ? "m_" + Guid.NewGuid().ToString("N")
+            : messageId;
+
+        return "f:{\"messageId\":\"" + effectiveMessageId + "\"}\n";
     }
 
     public string TextDelta(string content)

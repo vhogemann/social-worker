@@ -9,7 +9,7 @@ public static class ChatEndpoint
 {
     public static void MapChatEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/chat", async (HttpContext ctx, ChatService svc, CancellationToken ct) =>
+        app.MapPost("/api/chat", async (HttpContext ctx, ChatService svc, ILogger<ChatService> log, CancellationToken ct) =>
         {
             var userId = ctx.User.GetUserId();
             if (userId is null)
@@ -23,8 +23,9 @@ public static class ChatEndpoint
             {
                 req = await ctx.Request.ReadFromJsonAsync<ChatModels.ChatRequest>(ct);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                log.LogError(ex, "Failed to parse chat request JSON payload.");
                 ctx.Response.StatusCode = 400;
                 return;
             }

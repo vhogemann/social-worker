@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -11,15 +8,13 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
-using SocialWorker.Api.Features.Drafts;
+using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Publishing;
 
 public static class PublishingEndpoint
 {
-    private static readonly Regex UnsupportedBlueskyMarkdownRegex = new(@"\*\*[^*]+\*\*|__[^_]+__|(?<!\*)\*[^*\n]+\*(?!\*)|(?m)^\s{0,3}#{1,6}\s+", RegexOptions.Compiled);
-
     public static void MapPublishingEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/drafts/{draftId:guid}/threads").RequireAuthorization();
@@ -27,7 +22,8 @@ public static class PublishingEndpoint
         group.MapPost("/{threadId:guid}/publish", async (
             ClaimsPrincipal principal,
             AppDbContext db,
-            IEnumerable<IPublisher> publishers,
+            IPublisherResolver publisherResolver,
+            BlueskyContentValidator blueskyContentValidator,
             Guid draftId,
             Guid threadId,
             CancellationToken ct) =>
@@ -42,7 +38,7 @@ public static class PublishingEndpoint
             if (thread == null) return Results.NotFound();
 
             // Validate content before publishing
-            var validationError = ValidateThreadContent(thread.Content ?? "", thread.Platform);
+            var validationError = ValidateThreadContent(thread.Content ?? "", thread.Platform, blueskyContentValidator);
             if (validationError != null)
             {
                 return Results.BadRequest(validationError);
@@ -54,7 +50,7 @@ public static class PublishingEndpoint
                 return Results.BadRequest($"No connected account found for platform: {thread.Platform}");
             }
 
-            var publisher = publishers.FirstOrDefault(p => string.Equals(p.Platform, thread.Platform, StringComparison.OrdinalIgnoreCase));
+            var publisher = publisherResolver.Resolve(thread.Platform);
             if (publisher == null)
             {
                 return Results.BadRequest($"No publisher configured for platform: {thread.Platform}");
@@ -87,44 +83,11 @@ public static class PublishingEndpoint
         });
     }
 
-    private static string? ValidateThreadContent(string content, string platform)
+    private static string? ValidateThreadContent(string content, string platform, BlueskyContentValidator blueskyContentValidator)
     {
-        if (platform != "Bluesky")
+        if (!string.Equals(platform, "Bluesky", StringComparison.OrdinalIgnoreCase))
             return null; // Only validate for Bluesky for now
 
-        var segments = DraftsService.SplitMarkdownIntoSegments(content);
-        
-        foreach (var segment in segments)
-        {
-            var text = SharedPatterns.MediaRegex.Replace(segment, "").Trim();
-            if (string.IsNullOrEmpty(text)) continue;
-
-            int charCount = text.Length;
-            if (charCount > 300)
-            {
-                return $"Post exceeds 300 character limit ({charCount} characters). Please shorten the content.";
-            }
-
-            int imageCount = SharedPatterns.MediaRegex.Matches(segment).Count;
-            if (imageCount > 4)
-            {
-                return $"Post contains {imageCount} images. Bluesky allows maximum 4 images per post.";
-            }
-
-            bool hasYouTube = segment.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
-                              segment.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
-
-            if (imageCount > 0 && hasYouTube)
-            {
-                return "Cannot mix images and YouTube embeds in a single post on Bluesky.";
-            }
-
-            if (UnsupportedBlueskyMarkdownRegex.IsMatch(segment))
-            {
-                return "Post contains unsupported markdown (bold/italic/heading markers). Use plain text only.";
-            }
-        }
-
-        return null;
+        return blueskyContentValidator.GetFirstPublishValidationError(content);
     }
 }

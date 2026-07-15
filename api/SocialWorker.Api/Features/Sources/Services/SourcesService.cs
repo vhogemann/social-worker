@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -70,20 +69,39 @@ public sealed record AddUrlSourceResult(Guid SourceId, string Reference, string?
 
 public sealed class SourcesService
 {
-    private static readonly Regex UrlRegex = new(@"https?://[^\s\)\""'<>]+", RegexOptions.Compiled);
-    private static readonly Regex FileRegex = new(@"file://([0-9a-fA-F\-]{36})", RegexOptions.Compiled);
-
     private readonly AppDbContext _db;
     private readonly WebScraperService _scraper;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly BackgroundJobQueue _queue;
+    private readonly IServiceScopeFactory? _scopeFactory;
+    private readonly BackgroundJobQueue? _queue;
+    private SourceReconciliationService? _sourceReconciliationService;
+    private SourceTranscriptionService? _sourceTranscriptionService;
+    private SourceSearchService? _sourceSearchService;
 
-    public SourcesService(AppDbContext db, WebScraperService scraper, IServiceScopeFactory scopeFactory, BackgroundJobQueue queue)
+    private SourceReconciliationService SourceReconciliationService =>
+        _sourceReconciliationService ??= new SourceReconciliationService(_db, _scopeFactory, _queue);
+
+    private SourceTranscriptionService SourceTranscriptionService =>
+        _sourceTranscriptionService ??= new SourceTranscriptionService(_scopeFactory, _queue);
+
+    private SourceSearchService SourceSearchService =>
+        _sourceSearchService ??= new SourceSearchService(_db);
+
+    public SourcesService(
+        AppDbContext db,
+        WebScraperService scraper,
+        IServiceScopeFactory? scopeFactory,
+        BackgroundJobQueue? queue,
+        SourceReconciliationService? sourceReconciliationService = null,
+        SourceTranscriptionService? sourceTranscriptionService = null,
+        SourceSearchService? sourceSearchService = null)
     {
         _db = db;
         _scraper = scraper;
         _scopeFactory = scopeFactory;
         _queue = queue;
+        _sourceReconciliationService = sourceReconciliationService;
+        _sourceTranscriptionService = sourceTranscriptionService;
+        _sourceSearchService = sourceSearchService;
     }
 
     public async Task<List<SourceDto>> GetSourcesForDraftAsync(Guid userId, Guid draftId, CancellationToken ct)
@@ -155,76 +173,7 @@ public sealed class SourcesService
 
     public async Task<SourceSearchResultDto> SearchSourcesAsync(Guid userId, string query, int page, int pageSize, CancellationToken ct)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-
-        var normalizedQuery = query?.Trim() ?? string.Empty;
-
-        var accessibleSources = _db.Sources
-            .Where(s => s.DraftSources.Any(ds => ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted));
-
-        if (!string.IsNullOrWhiteSpace(normalizedQuery))
-        {
-            if (_db.Database.IsNpgsql())
-            {
-                var like = $"%{normalizedQuery}%";
-                accessibleSources = accessibleSources.Where(s =>
-                    EF.Functions.ILike(s.Reference, like) ||
-                    (s.Title != null && EF.Functions.ILike(s.Title, like)) ||
-                    (s.Content != null && EF.Functions.ILike(s.Content, like)) ||
-                    (s.Summary != null && EF.Functions.ILike(s.Summary, like)));
-            }
-            else
-            {
-                var lowered = normalizedQuery.ToLower();
-                accessibleSources = accessibleSources.Where(s =>
-                    s.Reference.ToLower().Contains(lowered) ||
-                    (s.Title != null && s.Title.ToLower().Contains(lowered)) ||
-                    (s.Content != null && s.Content.ToLower().Contains(lowered)) ||
-                    (s.Summary != null && s.Summary.ToLower().Contains(lowered)));
-            }
-        }
-
-        var total = await accessibleSources.Select(s => s.Id).Distinct().CountAsync(ct);
-
-        var rows = await accessibleSources
-            .OrderByDescending(s => s.AddedAt)
-            .Select(s => new
-            {
-                s.Id,
-                s.Kind,
-                s.Reference,
-                s.Title,
-                s.Summary,
-                s.TranscriptStatus,
-                s.YoutubeVideoId,
-                s.AddedAt
-            })
-            .Distinct()
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(ct);
-
-        var items = rows.Select(s =>
-        {
-            var links = SourceLinkFields.Build(s.Id, s.Kind, s.Reference, s.Title);
-            return new SourceSearchItemDto(
-                s.Id,
-                s.Kind.ToString(),
-                s.Reference,
-                s.Title,
-                s.Summary,
-                s.TranscriptStatus.ToString(),
-                s.YoutubeVideoId,
-                s.AddedAt,
-                links.CanonicalUrl,
-                links.CitationLabel,
-                links.EmbedKind,
-                links.CanonicalEmbedMarkdown,
-                links.PlainLinkLine);
-        }).ToList();
-
-        return new SourceSearchResultDto(items, total, page, pageSize);
+        return await SourceSearchService.SearchSourcesAsync(userId, query, page, pageSize, ct);
     }
 
     public async Task<SourceDto> LinkSourceAsync(Guid userId, Guid sourceId, Guid draftId, CancellationToken ct)
@@ -305,7 +254,7 @@ public sealed class SourcesService
         source.Summary = null;
         await _db.SaveChangesAsync(ct);
 
-        QueueTranscriptExtraction(source.Id, draftId.Value);
+        SourceTranscriptionService.QueueTranscriptExtraction(source.Id, draftId.Value);
 
         return new SourceStatusDto(source.Id, source.TranscriptStatus.ToString(), source.Summary, source.YoutubeVideoId);
     }
@@ -351,19 +300,12 @@ public sealed class SourcesService
         }
 
         string extractedText;
-        try
+        using (var tempStreamForExtract = new MemoryStream())
         {
-            using (var tempStreamForExtract = new MemoryStream())
-            {
-                fileStream.Position = 0;
-                await fileStream.CopyToAsync(tempStreamForExtract, ct);
-                tempStreamForExtract.Position = 0;
-                extractedText = await extractor.ExtractTextAsync(fileName, tempStreamForExtract);
-            }
-        }
-        catch (Exception)
-        {
-            throw;
+            fileStream.Position = 0;
+            await fileStream.CopyToAsync(tempStreamForExtract, ct);
+            tempStreamForExtract.Position = 0;
+            extractedText = await extractor.ExtractTextAsync(fileName, tempStreamForExtract);
         }
 
         var newSource = new Source
@@ -391,116 +333,7 @@ public sealed class SourcesService
 
     public async Task ReconcileSourcesAsync(Draft draft, string content)
     {
-        var urls = UrlRegex.Matches(content)
-            .Select(m => m.Value)
-            .Distinct()
-            .ToList();
-
-        var fileIds = FileRegex.Matches(content)
-            .Select(m => Guid.TryParse(m.Groups[1].Value, out var id) ? (Guid?)id : null)
-            .Where(id => id.HasValue)
-            .Select(id => id!.Value)
-            .Distinct()
-            .ToList();
-
-        var existing = await _db.Sources
-            .Where(s => s.DraftSources.Any(ds => ds.DraftId == draft.Id))
-            .ToListAsync();
-
-        var draftLinks = await _db.DraftSources
-            .Where(ds => ds.DraftId == draft.Id)
-            .ToListAsync();
-
-        bool changed = false;
-        foreach (var src in existing)
-        {
-            if (src.Kind == SourceKind.File && !fileIds.Contains(src.Id))
-            {
-                var link = draftLinks.FirstOrDefault(ds => ds.SourceId == src.Id);
-                if (link != null)
-                {
-                    _db.DraftSources.Remove(link);
-                    changed = true;
-
-                    var hasOtherLinks = await _db.DraftSources.AnyAsync(ds => ds.SourceId == src.Id && ds.DraftId != draft.Id);
-                    if (!hasOtherLinks)
-                    {
-                        _db.Sources.Remove(src);
-                    }
-                }
-                changed = true;
-            }
-        }
-
-        if (changed)
-        {
-            await _db.SaveChangesAsync();
-        }
-
-        var newUrls = urls.Where(url => !existing.Any(e => (e.Kind == SourceKind.Url || e.Kind == SourceKind.YouTube) && e.Reference == url)).ToList();
-        if (newUrls.Count > 0)
-        {
-            var loadingSources = new List<Source>();
-            foreach (var url in newUrls)
-            {
-                var isYouTube = url.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
-                                url.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
-
-                var source = new Source
-                {
-                    Kind = isYouTube ? SourceKind.YouTube : SourceKind.Url,
-                    Reference = url,
-                    Title = "Fetching...",
-                    Content = null
-                };
-                _db.Sources.Add(source);
-                _db.DraftSources.Add(new DraftSource
-                {
-                    DraftId = draft.Id,
-                    Source = source,
-                    LinkedAt = DateTime.UtcNow
-                });
-                loadingSources.Add(source);
-            }
-            await _db.SaveChangesAsync();
-
-            _queue.Enqueue(new BackgroundJobQueue.Job("url-scrape", async ct =>
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var scopedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                var scopedScraper = scope.ServiceProvider.GetRequiredService<WebScraperService>();
-
-                foreach (var ls in loadingSources)
-                {
-                    var scrape = await scopedScraper.ScrapeUrlAsync(ls.Reference);
-                    var dbSource = await scopedDb.Sources.FindAsync(new object[] { ls.Id }, ct);
-                    if (dbSource == null)
-                    {
-                        continue;
-                    }
-
-                    if (scrape.Success)
-                    {
-                        dbSource.Reference = scrape.FinalUrl;
-                        dbSource.Title = scrape.Title;
-                        dbSource.Content = scrape.Content;
-                        dbSource.Kind = scrape.IsYouTube ? SourceKind.YouTube : SourceKind.Url;
-                    }
-                    else
-                    {
-                        dbSource.Title = $"Failed: {ls.Reference}";
-                        dbSource.Content = $"Error fetching link: {scrape.Error}";
-                    }
-                }
-
-                var d = await scopedDb.Drafts.FindAsync(new object[] { draft.Id }, ct);
-                if (d != null)
-                {
-                    d.UpdatedAt = DateTime.UtcNow;
-                }
-                await scopedDb.SaveChangesAsync(ct);
-            }));
-        }
+        await SourceReconciliationService.ReconcileSourcesAsync(draft, content);
     }
 
     public async Task DeleteSourceAsync(Guid userId, Guid draftId, Guid sourceId, CancellationToken ct)
@@ -595,65 +428,10 @@ public sealed class SourcesService
 
         if (sourceKind == SourceKind.YouTube)
         {
-            QueueTranscriptExtraction(source.Id, draft.Id);
+            SourceTranscriptionService.QueueTranscriptExtraction(source.Id, draft.Id);
         }
 
         return new AddUrlSourceResult(source.Id, source.Reference, source.Title, source.Kind.ToString());
-    }
-
-    private void QueueTranscriptExtraction(Guid sourceId, Guid draftId)
-    {
-        _queue.Enqueue(new BackgroundJobQueue.Job("youtube-transcript", async ct =>
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var scopedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var transcriber = scope.ServiceProvider.GetRequiredService<ITranscriptExtractionService>();
-
-            var source = await scopedDb.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-            if (source == null)
-            {
-                return;
-            }
-
-            source.TranscriptStatus = TranscriptStatus.Processing;
-            await scopedDb.SaveChangesAsync(ct);
-
-            try
-            {
-                var result = await transcriber.ExtractAsync(source.Reference, $"{source.Id}.json", ct);
-                if (!result.Success || string.IsNullOrWhiteSpace(result.TranscriptPath))
-                {
-                    source.TranscriptStatus = TranscriptStatus.Failed;
-                    source.Summary = result.Error;
-                    await scopedDb.SaveChangesAsync(ct);
-                    return;
-                }
-
-                source.TranscriptPath = result.TranscriptPath;
-
-                var transcript = await transcriber.ReadTranscriptAsync(result.TranscriptPath, ct);
-                if (transcript?.Transcript is { Length: > 0 } text)
-                {
-                    source.Content = text;
-                }
-
-                source.TranscriptStatus = TranscriptStatus.Complete;
-
-                var draft = await scopedDb.Drafts.FindAsync(new object[] { draftId }, ct);
-                if (draft != null)
-                {
-                    draft.UpdatedAt = DateTime.UtcNow;
-                }
-
-                await scopedDb.SaveChangesAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                source.TranscriptStatus = TranscriptStatus.Failed;
-                source.Summary = ex.Message;
-                await scopedDb.SaveChangesAsync(ct);
-            }
-        }));
     }
 
     private static bool TryValidateAbsoluteHttpUrl(string reference, out string error)

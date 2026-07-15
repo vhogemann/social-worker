@@ -118,6 +118,48 @@ public sealed class MediaServiceTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task UploadMediaAsync_UsesMarkdownLinkText_WhenProvided()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, svc, user, draft) = await CreateAsync(db);
+
+        var result = await svc.UploadMediaAsync(
+            user.Id,
+            draft.Id,
+            "test.png",
+            "image/png",
+            new MemoryStream(TinyPng),
+            CancellationToken.None,
+            altText: "stored alt",
+            markdownLinkText: "Preview Label");
+
+        Assert.StartsWith("![Preview Label](media://", result.MarkdownTag);
+
+        var asset = await db.MediaAssets.FirstAsync(m => m.Id == result.Id);
+        Assert.Equal("stored alt", asset.AltText);
+    }
+
+    [Fact]
+    public async Task UploadMediaAsync_FallsBackToAltText_WhenMarkdownLinkTextMissing()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, svc, user, draft) = await CreateAsync(db);
+
+        var result = await svc.UploadMediaAsync(
+            user.Id,
+            draft.Id,
+            "test.png",
+            "image/png",
+            new MemoryStream(TinyPng),
+            CancellationToken.None,
+            altText: "stored alt");
+
+        Assert.StartsWith("![stored alt](media://", result.MarkdownTag);
+    }
+
+    [Fact]
     public async Task DeleteMediaAsync_Removes_Asset()
     {
         using var db = CreateDbContext();

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -69,6 +71,12 @@ public sealed class BlueskyPublisherTests : SqliteTestBase
     private static bool IsPath(HttpRequestMessage req, string suffix)
     {
         return req.RequestUri?.AbsolutePath?.EndsWith(suffix, StringComparison.Ordinal) == true;
+    }
+
+    private static string SliceUtf8ByBytes(string text, int byteStart, int byteEnd)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        return Encoding.UTF8.GetString(bytes, byteStart, byteEnd - byteStart);
     }
 
     [Fact]
@@ -288,5 +296,305 @@ public sealed class BlueskyPublisherTests : SqliteTestBase
             .ToList();
         Assert.Contains("app.bsky.richtext.facet#tag", types);
         Assert.Contains("app.bsky.richtext.facet#link", types);
+    }
+
+    [Fact]
+    public async Task PublishAsync_BuildsFacets_ForMarkdownLinks()
+    {
+        using var db = CreateFreshDb(Options);
+        string? capturedRecordBody = null;
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            else if (IsPath(req, "createRecord"))
+            {
+                capturedRecordBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = "at://did:plc:test/app.bsky.feed.post/abc", cid = "post-cid" }));
+            }
+        });
+
+        var content = "Read more at [The Atlantic](https://www.theatlantic.com/magazine/archive/2022/05/social-media-democracy-trust-babel/629369/)";
+        var result = await publisher.PublishAsync(new PlatformThread { Content = content }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRecordBody);
+
+        using var doc = JsonDocument.Parse(capturedRecordBody!);
+        var record = doc.RootElement.GetProperty("record");
+        var text = record.GetProperty("text").GetString() ?? "";
+        
+        // The text should be plain without markdown
+        Assert.Equal("Read more at The Atlantic", text);
+        
+        // Should have a facet for the link
+        var facets = record.GetProperty("facets");
+        Assert.NotEmpty(facets.EnumerateArray());
+        
+        var linkFacets = facets.EnumerateArray()
+            .Where(f => f.GetProperty("features").EnumerateArray()
+                .Any(feat => feat.GetProperty("$type").GetString() == "app.bsky.richtext.facet#link"))
+            .ToList();
+        
+        Assert.Single(linkFacets);
+        var linkFacet = linkFacets.First();
+        var linkUrl = linkFacet.GetProperty("features")[0].GetProperty("uri").GetString();
+        Assert.Equal("https://www.theatlantic.com/magazine/archive/2022/05/social-media-democracy-trust-babel/629369/", linkUrl);
+    }
+
+    [Fact]
+    public async Task PublishAsync_BuildsFacets_ForMarkdownLinksWithHashtags()
+    {
+        using var db = CreateFreshDb(Options);
+        string? capturedRecordBody = null;
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            else if (IsPath(req, "createRecord"))
+            {
+                capturedRecordBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = "at://did:plc:test/app.bsky.feed.post/abc", cid = "post-cid" }));
+            }
+        });
+
+        var content = "Check out [this article](https://example.com/article) for more info. #Tech #AI";
+        var result = await publisher.PublishAsync(new PlatformThread { Content = content }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRecordBody);
+
+        using var doc = JsonDocument.Parse(capturedRecordBody!);
+        var record = doc.RootElement.GetProperty("record");
+        var facets = record.GetProperty("facets");
+        
+        var facetTypes = facets.EnumerateArray()
+            .SelectMany(f => f.GetProperty("features").EnumerateArray())
+            .Select(f => f.GetProperty("$type").GetString())
+            .ToList();
+        
+        // Should have both link and tag facets
+        Assert.Contains("app.bsky.richtext.facet#link", facetTypes);
+        Assert.Contains("app.bsky.richtext.facet#tag", facetTypes);
+        
+        // Should have 3 facets total (1 link + 2 tags)
+        Assert.Equal(3, facets.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task PublishAsync_MarkdownLink_DoesNotIncludeClosingParen()
+    {
+        using var db = CreateFreshDb(Options);
+        string? capturedRecordBody = null;
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            else if (IsPath(req, "createRecord"))
+            {
+                capturedRecordBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = "at://did:plc:test/app.bsky.feed.post/abc", cid = "post-cid" }));
+            }
+        });
+
+        var content = "See [docs](https://docs.example.com/guide) for details.";
+        var result = await publisher.PublishAsync(new PlatformThread { Content = content }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRecordBody);
+
+        using var doc = JsonDocument.Parse(capturedRecordBody!);
+        var record = doc.RootElement.GetProperty("record");
+        var facets = record.GetProperty("facets");
+        
+        // Get the link facet
+        var linkFacet = facets.EnumerateArray().First(f => 
+            f.GetProperty("features")[0].GetProperty("$type").GetString() == "app.bsky.richtext.facet#link");
+        
+        var uri = linkFacet.GetProperty("features")[0].GetProperty("uri").GetString();
+        
+        // URL should NOT end with a paren
+        Assert.False(uri?.EndsWith(")"), $"Link URL should not include closing paren: {uri}");
+        Assert.Equal("https://docs.example.com/guide", uri);
+    }
+
+    [Fact]
+    public async Task PublishAsync_BuildsFacets_ForMultipleMarkdownLinks()
+    {
+        using var db = CreateFreshDb(Options);
+        string? capturedRecordBody = null;
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            else if (IsPath(req, "createRecord"))
+            {
+                capturedRecordBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = "at://did:plc:test/app.bsky.feed.post/abc", cid = "post-cid" }));
+            }
+        });
+
+        var content = "Read [One](https://example.com/one) then [Two](https://example.com/two).";
+        var result = await publisher.PublishAsync(new PlatformThread { Content = content }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRecordBody);
+
+        using var doc = JsonDocument.Parse(capturedRecordBody!);
+        var record = doc.RootElement.GetProperty("record");
+        var text = record.GetProperty("text").GetString() ?? "";
+        Assert.Equal("Read One then Two.", text);
+
+        var linkUris = record.GetProperty("facets").EnumerateArray()
+            .SelectMany(f => f.GetProperty("features").EnumerateArray())
+            .Where(f => f.GetProperty("$type").GetString() == "app.bsky.richtext.facet#link")
+            .Select(f => f.GetProperty("uri").GetString())
+            .Where(u => !string.IsNullOrWhiteSpace(u))
+            .ToList();
+
+        Assert.Equal(2, linkUris.Count);
+        Assert.Contains("https://example.com/one", linkUris);
+        Assert.Contains("https://example.com/two", linkUris);
+    }
+
+    [Fact]
+    public async Task PublishAsync_BuildsFacets_ForMarkdownLinksWithUtf8Prefix_ByteOffsetsMatchLinkText()
+    {
+        using var db = CreateFreshDb(Options);
+        string? capturedRecordBody = null;
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            else if (IsPath(req, "createRecord"))
+            {
+                capturedRecordBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = "at://did:plc:test/app.bsky.feed.post/abc", cid = "post-cid" }));
+            }
+        });
+
+        var content = "Café 😊 [ümlaut](https://example.com/u)";
+        var result = await publisher.PublishAsync(new PlatformThread { Content = content }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRecordBody);
+
+        using var doc = JsonDocument.Parse(capturedRecordBody!);
+        var record = doc.RootElement.GetProperty("record");
+        var text = record.GetProperty("text").GetString() ?? "";
+        Assert.Equal("Café 😊 ümlaut", text);
+
+        var linkFacet = record.GetProperty("facets").EnumerateArray().First(f =>
+            f.GetProperty("features").EnumerateArray()
+                .Any(feat => feat.GetProperty("$type").GetString() == "app.bsky.richtext.facet#link"));
+
+        var byteStart = linkFacet.GetProperty("index").GetProperty("byteStart").GetInt32();
+        var byteEnd = linkFacet.GetProperty("index").GetProperty("byteEnd").GetInt32();
+        var slicedText = SliceUtf8ByBytes(text, byteStart, byteEnd);
+
+        Assert.Equal("ümlaut", slicedText);
+        Assert.Equal("https://example.com/u", linkFacet.GetProperty("features")[0].GetProperty("uri").GetString());
+    }
+
+    [Fact]
+    public async Task PublishAsync_BuildsFacets_ForMarkdownLinksAdjacentToPunctuation()
+    {
+        using var db = CreateFreshDb(Options);
+        string? capturedRecordBody = null;
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            else if (IsPath(req, "createRecord"))
+            {
+                capturedRecordBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = "at://did:plc:test/app.bsky.feed.post/abc", cid = "post-cid" }));
+            }
+        });
+
+        var content = "See [docs](https://docs.example.com/guide), please.";
+        var result = await publisher.PublishAsync(new PlatformThread { Content = content }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRecordBody);
+
+        using var doc = JsonDocument.Parse(capturedRecordBody!);
+        var record = doc.RootElement.GetProperty("record");
+        var text = record.GetProperty("text").GetString() ?? "";
+        Assert.Equal("See docs, please.", text);
+
+        var linkFacet = record.GetProperty("facets").EnumerateArray().First(f =>
+            f.GetProperty("features").EnumerateArray()
+                .Any(feat => feat.GetProperty("$type").GetString() == "app.bsky.richtext.facet#link"));
+
+        var byteStart = linkFacet.GetProperty("index").GetProperty("byteStart").GetInt32();
+        var byteEnd = linkFacet.GetProperty("index").GetProperty("byteEnd").GetInt32();
+        var slicedText = SliceUtf8ByBytes(text, byteStart, byteEnd);
+
+        Assert.Equal("docs", slicedText);
+        Assert.Equal("https://docs.example.com/guide", linkFacet.GetProperty("features")[0].GetProperty("uri").GetString());
+    }
+
+    [Fact]
+    public async Task PublishAsync_BuildsFacets_ForMarkdownLinksWithBareUrlAndHashtag()
+    {
+        using var db = CreateFreshDb(Options);
+        string? capturedRecordBody = null;
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            else if (IsPath(req, "createRecord"))
+            {
+                capturedRecordBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = "at://did:plc:test/app.bsky.feed.post/abc", cid = "post-cid" }));
+            }
+        });
+
+        var content = "Canary: [Alpha](https://example.com/a) [Beta](https://example.com/b) https://example.com/c #LinkTest";
+        var result = await publisher.PublishAsync(new PlatformThread { Content = content }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.NotNull(capturedRecordBody);
+
+        using var doc = JsonDocument.Parse(capturedRecordBody!);
+        var record = doc.RootElement.GetProperty("record");
+        var text = record.GetProperty("text").GetString() ?? "";
+        Assert.Equal("Canary: Alpha Beta https://example.com/c #LinkTest", text);
+
+        var facets = record.GetProperty("facets").EnumerateArray().ToList();
+
+        var linkFacets = facets.Where(f =>
+            f.GetProperty("features").EnumerateArray()
+                .Any(feat => feat.GetProperty("$type").GetString() == "app.bsky.richtext.facet#link")).ToList();
+        Assert.Equal(3, linkFacets.Count);
+
+        var linkUriBySlice = new Dictionary<string, string?>();
+        foreach (var linkFacet in linkFacets)
+        {
+            var byteStart = linkFacet.GetProperty("index").GetProperty("byteStart").GetInt32();
+            var byteEnd = linkFacet.GetProperty("index").GetProperty("byteEnd").GetInt32();
+            var slice = SliceUtf8ByBytes(text, byteStart, byteEnd);
+            var uri = linkFacet.GetProperty("features")[0].GetProperty("uri").GetString();
+            linkUriBySlice[slice] = uri;
+        }
+
+        Assert.Equal("https://example.com/a", linkUriBySlice["Alpha"]);
+        Assert.Equal("https://example.com/b", linkUriBySlice["Beta"]);
+        Assert.Equal("https://example.com/c", linkUriBySlice["https://example.com/c"]);
+
+        var tagFacet = facets.First(f =>
+            f.GetProperty("features").EnumerateArray()
+                .Any(feat => feat.GetProperty("$type").GetString() == "app.bsky.richtext.facet#tag"));
+        var tagByteStart = tagFacet.GetProperty("index").GetProperty("byteStart").GetInt32();
+        var tagByteEnd = tagFacet.GetProperty("index").GetProperty("byteEnd").GetInt32();
+        Assert.Equal("#LinkTest", SliceUtf8ByBytes(text, tagByteStart, tagByteEnd));
     }
 }

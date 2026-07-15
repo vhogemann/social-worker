@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace SocialWorker.Api.Features.Chat;
+namespace SocialWorker.Api.Features.Chat.Services;
 
 internal static class ChatContextWindowPolicy
 {

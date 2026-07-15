@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace SocialWorker.Api.Features.Chat;
+namespace SocialWorker.Api.Features.Chat.Models;
 
 public static class ChatModels
 {
@@ -11,6 +11,9 @@ public static class ChatModels
         public string? System { get; set; }
         public string? Editor { get; set; }
         public Guid? DraftId { get; set; }
+
+        [JsonPropertyName("unstable_assistantMessageId")]
+        public string? UnstableAssistantMessageId { get; set; }
     }
 
     public sealed class UiMessage

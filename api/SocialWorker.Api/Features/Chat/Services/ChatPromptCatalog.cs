@@ -3,7 +3,7 @@ using System.IO;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
-namespace SocialWorker.Api.Features.Chat;
+namespace SocialWorker.Api.Features.Chat.Services;
 
 public sealed class ChatPromptCatalog
 {

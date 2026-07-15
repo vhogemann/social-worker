@@ -12,7 +12,23 @@ namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record AddImageSourceArgs(string Url, string? AltText);
 
-public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, string>
+public sealed record AddImageSourceResult(
+    bool Success,
+    string Message,
+    string? MarkdownTag = null,
+    string? Error = null) : IChatToolResult
+{
+    public static implicit operator string(AddImageSourceResult result) => result.ToDisplayText();
+
+    public string ToDisplayText()
+    {
+        return Success
+            ? Message
+            : $"Error: {Error ?? Message}";
+    }
+}
+
+public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, AddImageSourceResult>
 {
     private readonly IServiceScopeFactory _scopeFactory;
 
@@ -41,16 +57,16 @@ public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, string
         }
         """).RootElement.Clone();
 
-    public override async Task<string> ExecuteAsync(AddImageSourceArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<AddImageSourceResult> ExecuteAsync(AddImageSourceArgs args, Guid? draftId, Guid userId, CancellationToken ct)
     {
         if (!draftId.HasValue)
         {
-            return "Error: No draft ID active.";
+            return new AddImageSourceResult(false, "No draft ID active.", Error: "No draft ID active.");
         }
 
         if (string.IsNullOrWhiteSpace(args.Url) || !Uri.TryCreate(args.Url, UriKind.Absolute, out _))
         {
-            return "Error: A valid absolute image URL is required.";
+            return new AddImageSourceResult(false, "A valid absolute image URL is required.", Error: "A valid absolute image URL is required.");
         }
 
         using var scope = _scopeFactory.CreateScope();
@@ -61,7 +77,7 @@ public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, string
         var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
         if (draft == null)
         {
-            return "Error: Draft not found or access denied.";
+            return new AddImageSourceResult(false, "Draft not found or access denied.", Error: "Draft not found or access denied.");
         }
 
         try
@@ -80,11 +96,11 @@ public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, string
                 ? $"![{args.AltText}](media://{uploadResult.Id})"
                 : uploadResult.MarkdownTag;
 
-            return $"Successfully imported image. Markdown tag: {finalTag}";
+            return new AddImageSourceResult(true, $"Successfully imported image. Markdown tag: {finalTag}", finalTag);
         }
         catch (Exception ex)
         {
-            return $"Error importing image: {ex.Message}";
+            return new AddImageSourceResult(false, $"Error importing image: {ex.Message}", Error: ex.Message);
         }
     }
 }

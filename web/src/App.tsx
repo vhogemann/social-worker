@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { ChatProvider, restoreChat } from "./api/chat";
@@ -13,9 +13,12 @@ function AppContent() {
   const editorRef = useRef<HTMLDivElement>(null);
   const loadDrafts = useDraftStore((s) => s.loadDrafts);
   const setDoc = useEditorStore((s) => s.setDoc);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    loadDrafts().then(async () => {
+    let cancelled = false;
+
+    void loadDrafts().then(async () => {
       const state = useDraftStore.getState();
       if (state.drafts.length > 0) {
         const first = state.drafts[0];
@@ -27,11 +30,32 @@ function AppContent() {
         setDoc(draft.content ?? "");
         restoreChat(draft.id);
       }
+
+      if (!cancelled) {
+        setIsReady(true);
+      }
     });
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadDrafts, setDoc]);
 
   useHotkey("Mod+J", () => chatRef.current?.focus());
   useHotkey("Mod+K", () => editorRef.current?.focus());
+
+  if (!isReady) {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <header className="shrink-0 px-4 py-2 border-b border-border text-xs font-mono text-muted">
+          social-worker <span className="text-accent">·</span> mvp
+        </header>
+        <div className="flex-1 flex items-center justify-center text-xs font-mono text-muted">
+          loading draft...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useDataStreamRuntime } from "@assistant-ui/react-data-stream";
 import { AssistantRuntimeProvider, type AssistantRuntime, useThread } from "@assistant-ui/react";
 import { useEditorStore } from "../store/editorStore";
@@ -10,16 +10,24 @@ import { useAuthStore } from "../store/authStore";
 export function useChatRuntime() {
   const editorDoc = useEditorStore((s) => s.doc);
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  return useDataStreamRuntime({
-    api: "/api/chat",
-    headers: async () => {
-      const token = useAuthStore.getState().accessToken;
-      return (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>;
-    },
-    body: {
+
+  const headers = useCallback(async () => {
+    const token = useAuthStore.getState().accessToken;
+    return (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>;
+  }, []);
+
+  const body = useMemo(
+    () => ({
       editor: editorDoc,
       draftId: activeDraftId,
-    },
+    }),
+    [editorDoc, activeDraftId],
+  );
+
+  return useDataStreamRuntime({
+    api: "/api/chat",
+    headers,
+    body,
     sendExtraMessageFields: true,
   });
 }
@@ -60,27 +68,28 @@ function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
 
   useEffect(() => {
     const previousDraftId = prevDraftIdRef.current;
+    const currentRuntime = runtimeRef ?? runtime;
 
     if (previousDraftId && previousDraftId !== activeDraftId) {
       saveCurrentChat(previousDraftId);
-      if (runtimeRef?.thread.getState().isRunning) {
-        runtime.thread.cancelRun();
+      if (currentRuntime.thread.getState().isRunning) {
+        currentRuntime.thread.cancelRun();
       }
     }
 
     if (activeDraftId) {
       const saved = useChatStore.getState().loadMessages(activeDraftId);
       if (saved) {
-        runtime.thread.import(saved);
+        currentRuntime.thread.import(saved);
       } else {
-        runtime.thread.reset();
+        currentRuntime.thread.reset();
       }
     } else {
-      runtime.thread.reset();
+      currentRuntime.thread.reset();
     }
 
     prevDraftIdRef.current = activeDraftId;
-  }, [activeDraftId, runtime]);
+  }, [activeDraftId]);
 
   useEffect(() => {
     if (!prevIsRunningRef.current && isRunning) {

@@ -1,21 +1,17 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Security;
 
@@ -23,22 +19,29 @@ namespace SocialWorker.Api.Features.Publishing;
 
 public class BlueskyPublisher : IPublisher
 {
-    private static readonly Regex HashtagRegex = new(@"#([a-zA-Z][a-zA-Z0-9_]*)", RegexOptions.Compiled);
-    private static readonly Regex UrlRegex = new(@"https?://[^\s\]>""']+", RegexOptions.Compiled);
-
-    private readonly HttpClient _http;
-    private readonly AppDbContext _db;
-    private readonly FileStorageProvider _storage;
+    private readonly BlueskyApiClient _apiClient;
+    private readonly BlueskyContentPreparationService _contentPreparation;
+    private readonly BlueskyFacetBuilder _facetBuilder;
     private readonly string _encryptionKey;
+    private readonly ILogger<BlueskyPublisher> _logger;
 
     public string Platform => "Bluesky";
 
-    public BlueskyPublisher(HttpClient http, IConfiguration config, AppDbContext db, FileStorageProvider storage)
+    public BlueskyPublisher(
+        HttpClient http,
+        IConfiguration config,
+        AppDbContext db,
+        FileStorageProvider storage,
+        ILogger<BlueskyPublisher>? logger = null,
+        BlueskyApiClient? apiClient = null,
+        BlueskyContentPreparationService? contentPreparation = null,
+        BlueskyFacetBuilder? facetBuilder = null)
     {
-        _http = http;
-        _db = db;
-        _storage = storage;
+        _apiClient = apiClient ?? new BlueskyApiClient(http);
+        _contentPreparation = contentPreparation ?? new BlueskyContentPreparationService(db, storage, _apiClient, http);
+        _facetBuilder = facetBuilder ?? new BlueskyFacetBuilder();
         _encryptionKey = config["Auth:DbEncryptionKey"] ?? "";
+        _logger = logger ?? NullLogger<BlueskyPublisher>.Instance;
     }
 
     public async Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)
@@ -60,31 +63,19 @@ public class BlueskyPublisher : IPublisher
 
         try
         {
-            var sessionReq = new { identifier = account.Handle, password = appPassword };
-            var sessionRes = await _http.PostAsJsonAsync("https://bsky.social/xrpc/com.atproto.server.createSession", sessionReq, ct);
-            
-            if (!sessionRes.IsSuccessStatusCode)
+            var sessionRes = await _apiClient.CreateSessionAsync(account.Handle, appPassword, ct);
+            if (!sessionRes.Success || sessionRes.Value is null)
             {
-                var err = await sessionRes.Content.ReadAsStringAsync(ct);
-                return new PublishResult { Success = false, ErrorMessage = $"Failed to authenticate with Bluesky: {err}" };
+                return new PublishResult { Success = false, ErrorMessage = sessionRes.Error };
             }
 
-            var sessionData = await sessionRes.Content.ReadFromJsonAsync<JsonNode>(cancellationToken: ct);
-            var accessJwt = sessionData?["accessJwt"]?.GetValue<string>();
-            var did = sessionData?["did"]?.GetValue<string>();
+            var session = sessionRes.Value;
 
-            if (accessJwt == null || did == null)
-            {
-                return new PublishResult { Success = false, ErrorMessage = "Invalid session response from Bluesky." };
-            }
-
-            _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessJwt);
-
-            var segments = DraftsService.SplitMarkdownIntoSegments(thread.Content ?? "");
+            var segments = DraftSegmentService.SplitMarkdownIntoSegments(thread.Content ?? "");
             if (segments.Count == 0) return new PublishResult { Success = false, ErrorMessage = "Thread is empty." };
 
-            JsonObject? rootRef = null;
-            JsonObject? parentRef = null;
+            BlueskyRecordRef? rootRef = null;
+            BlueskyRecordRef? parentRef = null;
             var publishedPosts = new List<PublishedPost>();
             int segmentIndex = 0;
 
@@ -97,218 +88,53 @@ public class BlueskyPublisher : IPublisher
                     continue;
                 }
 
-                var imagesList = new JsonArray();
-                var matches = SharedPatterns.MediaRegex.Matches(text);
-                
-                foreach (Match match in matches)
+                var prepared = await _contentPreparation.PrepareAsync(text, session.AccessJwt, ct);
+                var textFacets = _facetBuilder.Build(prepared.Text);
+                var postRecord = new BlueskyPostRecord
                 {
-                    var altText = match.Groups[1].Value;
-                    if (Guid.TryParse(match.Groups[2].Value, out var mediaId))
-                    {
-                        var asset = await _db.MediaAssets.FirstOrDefaultAsync(a => a.Id == mediaId, ct);
-                        if (asset != null)
-                        {
-                            var fullPath = _storage.GetFullPath(asset.FilePath);
-                            if (File.Exists(fullPath))
-                            {
-                                var fileBytes = await File.ReadAllBytesAsync(fullPath, ct);
-                                using var content = new ByteArrayContent(fileBytes);
-                                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(asset.MimeType);
-                                
-                                var uploadRes = await _http.PostAsync("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", content, ct);
-                                if (uploadRes.IsSuccessStatusCode)
-                                {
-                                    var uploadData = await uploadRes.Content.ReadFromJsonAsync<JsonNode>(cancellationToken: ct);
-                                    var blob = uploadData?["blob"];
-                                    if (blob != null)
-                                    {
-                                        imagesList.Add(new JsonObject
-                                        {
-                                            ["alt"] = !string.IsNullOrEmpty(asset.AltText) ? asset.AltText : altText,
-                                            ["image"] = blob.DeepClone()
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Remove the image markdown tags from the text before posting
-                text = SharedPatterns.MediaRegex.Replace(text, "").Trim();
-
-                // Detect YouTube markdown embed and build app.bsky.embed.external
-                JsonObject? externalEmbed = null;
-                var ytMatch = SharedPatterns.YoutubeMarkdownRegex.Match(text);
-                if (ytMatch.Success)
-                {
-                    var ytTitle = ytMatch.Groups[1].Value;
-                    var ytUrl = ytMatch.Groups[2].Value;
-                    text = SharedPatterns.YoutubeMarkdownRegex.Replace(text, "").Trim();
-
-                    var externalNode = new JsonObject
-                    {
-                        ["uri"] = ytUrl,
-                        ["title"] = string.IsNullOrEmpty(ytTitle) ? ytUrl : ytTitle,
-                        ["description"] = ""
-                    };
-
-                    try
-                    {
-                        var oEmbedUrl = $"https://www.youtube.com/oembed?url={Uri.EscapeDataString(ytUrl)}&format=json";
-                        var oEmbedRes = await _http.GetAsync(oEmbedUrl, ct);
-                        if (oEmbedRes.IsSuccessStatusCode)
-                        {
-                            var oEmbed = await oEmbedRes.Content.ReadFromJsonAsync<JsonNode>(cancellationToken: ct);
-                            var oEmbedTitle = oEmbed?["title"]?.GetValue<string>();
-                            var thumbUrl = oEmbed?["thumbnail_url"]?.GetValue<string>();
-
-                            if (!string.IsNullOrEmpty(oEmbedTitle))
-                                externalNode["title"] = oEmbedTitle;
-
-                            if (!string.IsNullOrEmpty(thumbUrl))
-                            {
-                                var thumbRes = await _http.GetAsync(thumbUrl, ct);
-                                if (thumbRes.IsSuccessStatusCode)
-                                {
-                                    var thumbBytes = await thumbRes.Content.ReadAsByteArrayAsync(ct);
-                                    var mimeType = thumbRes.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
-                                    using var thumbContent = new ByteArrayContent(thumbBytes);
-                                    thumbContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
-                                    var blobRes = await _http.PostAsync("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", thumbContent, ct);
-                                    if (blobRes.IsSuccessStatusCode)
-                                    {
-                                        var blobData = await blobRes.Content.ReadFromJsonAsync<JsonNode>(cancellationToken: ct);
-                                        var blob = blobData?["blob"];
-                                        if (blob != null)
-                                            externalNode["thumb"] = blob.DeepClone();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // oEmbed fetch failed — post with URL and title only, no thumbnail
-                    }
-
-                    externalEmbed = new JsonObject
-                    {
-                        ["$type"] = "app.bsky.embed.external",
-                        ["external"] = externalNode
-                    };
-                }
-
-                var postRecord = new JsonObject
-                {
-                    ["$type"] = "app.bsky.feed.post",
-                    ["text"] = text,
-                    ["createdAt"] = DateTime.UtcNow.ToString("O")
+                    CreatedAt = DateTime.UtcNow.ToString("O"),
+                    Text = textFacets.PlainText,
+                    Facets = textFacets.Facets.Count > 0 ? textFacets.Facets : null,
+                    Embed = prepared.Embed,
+                    Reply = rootRef is not null && parentRef is not null
+                        ? new BlueskyReply { Root = rootRef, Parent = parentRef }
+                        : null
                 };
 
-                var facets = BuildFacets(text);
-                if (facets.Count > 0)
+                _logger.LogInformation("Bluesky segment {SegmentIndex}: textLength={TextLength}, facetCount={FacetCount}", segmentIndex, textFacets.PlainText.Length, textFacets.Facets.Count);
+
+                var postRes = await _apiClient.CreateRecordAsync(session.Did, postRecord, session.AccessJwt, ct);
+                if (!postRes.Success || postRes.Value is null)
                 {
-                    var facetsArray = new JsonArray();
-                    foreach (var f in facets) facetsArray.Add(f);
-                    postRecord["facets"] = facetsArray;
+                    return new PublishResult { Success = false, ErrorMessage = postRes.Error };
                 }
 
-                if (externalEmbed != null)
-                {
-                    postRecord["embed"] = externalEmbed;
-                }
-                else if (imagesList.Count > 0)
-                {
-                    postRecord["embed"] = new JsonObject
-                    {
-                        ["$type"] = "app.bsky.embed.images",
-                        ["images"] = imagesList
-                    };
-                }
+                var created = postRes.Value;
 
-                if (rootRef != null && parentRef != null)
-                {
-                    postRecord["reply"] = new JsonObject
-                    {
-                        ["root"] = rootRef.DeepClone(),
-                        ["parent"] = parentRef.DeepClone()
-                    };
-                }
-
-                var createRecordReq = new { repo = did, collection = "app.bsky.feed.post", record = postRecord };
-                var postRes = await _http.PostAsJsonAsync("https://bsky.social/xrpc/com.atproto.repo.createRecord", createRecordReq, ct);
-                
-                if (!postRes.IsSuccessStatusCode)
-                {
-                    var err = await postRes.Content.ReadAsStringAsync(ct);
-                    return new PublishResult { Success = false, ErrorMessage = $"Failed to post segment to Bluesky: {err}" };
-                }
-
-                var postData = await postRes.Content.ReadFromJsonAsync<JsonNode>(cancellationToken: ct);
-                var uri = postData?["uri"]?.GetValue<string>();
-                var cid = postData?["cid"]?.GetValue<string>();
-
-                if (uri == null || cid == null) return new PublishResult { Success = false, ErrorMessage = "Invalid post response from Bluesky." };
-
-                var parts = uri.Split('/');
+                var parts = created.Uri.Split('/');
                 var rkey = parts.LastOrDefault();
                 var postUrl = $"https://bsky.app/profile/{account.Handle}/post/{rkey}";
 
                 publishedPosts.Add(new PublishedPost
                 {
                     SegmentIndex = segmentIndex,
-                    RemoteId = uri,
+                    RemoteId = created.Uri,
                     Url = postUrl
                 });
 
                 segmentIndex++;
 
-                var currentRef = new JsonObject { ["uri"] = uri, ["cid"] = cid };
-                rootRef ??= (JsonObject)currentRef.DeepClone();
-                parentRef = (JsonObject)currentRef.DeepClone();
+                var currentRef = new BlueskyRecordRef(created.Uri, created.Cid);
+                rootRef ??= currentRef;
+                parentRef = currentRef;
             }
 
             return new PublishResult { Success = true, Posts = publishedPosts };
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Unexpected Bluesky publish failure for account {Handle}", account.Handle);
             return new PublishResult { Success = false, ErrorMessage = ex.Message };
         }
-    }
-
-    private static List<JsonObject> BuildFacets(string text)
-    {
-        var facets = new List<JsonObject>();
-
-        foreach (Match m in HashtagRegex.Matches(text))
-        {
-            var byteStart = Encoding.UTF8.GetByteCount(text, 0, m.Index);
-            var byteEnd = byteStart + Encoding.UTF8.GetByteCount(text, m.Index, m.Length);
-            facets.Add(new JsonObject
-            {
-                ["index"] = new JsonObject { ["byteStart"] = byteStart, ["byteEnd"] = byteEnd },
-                ["features"] = new JsonArray
-                {
-                    new JsonObject { ["$type"] = "app.bsky.richtext.facet#tag", ["tag"] = m.Groups[1].Value }
-                }
-            });
-        }
-
-        foreach (Match m in UrlRegex.Matches(text))
-        {
-            var byteStart = Encoding.UTF8.GetByteCount(text, 0, m.Index);
-            var byteEnd = byteStart + Encoding.UTF8.GetByteCount(text, m.Index, m.Length);
-            facets.Add(new JsonObject
-            {
-                ["index"] = new JsonObject { ["byteStart"] = byteStart, ["byteEnd"] = byteEnd },
-                ["features"] = new JsonArray
-                {
-                    new JsonObject { ["$type"] = "app.bsky.richtext.facet#link", ["uri"] = m.Value }
-                }
-            });
-        }
-
-        return facets;
     }
 }

@@ -7,7 +7,15 @@ namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record ProposeStageTransitionArgs(string Platform, string Stage, string Reasoning);
 
-public sealed record ProposeStageTransitionResult(bool Success, string Platform, string ProposedStage, string Reasoning);
+public sealed record ProposeStageTransitionResult(bool Success, string Platform, string ProposedStage, string Reasoning) : IChatToolResult
+{
+  public string ToDisplayText()
+  {
+    return Success
+      ? $"Proposed transition for {Platform}: {ProposedStage}. Reasoning: {Reasoning}"
+      : $"Failed to propose transition for {Platform}.";
+  }
+}
 
 public sealed class ProposeStageTransitionTool : ChatToolBase<ProposeStageTransitionArgs, ProposeStageTransitionResult>
 {

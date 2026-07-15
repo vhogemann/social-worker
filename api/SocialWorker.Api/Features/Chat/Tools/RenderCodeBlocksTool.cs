@@ -17,7 +17,24 @@ namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record RenderCodeBlocksArgs(string? Theme, int? BlockIndex);
 
-public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, string>
+public sealed record RenderedCodeBlockItem(int Index, string Language, string MarkdownTag);
+
+public sealed record RenderCodeBlocksResult(
+    bool Success,
+    IReadOnlyList<RenderedCodeBlockItem> RenderedBlocks,
+    int TotalBlocks,
+    string Message,
+    string? Error = null) : IChatToolResult
+{
+    public static implicit operator string(RenderCodeBlocksResult result) => result.ToDisplayText();
+
+    public string ToDisplayText()
+    {
+        return Message;
+    }
+}
+
+public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, RenderCodeBlocksResult>
 {
     private readonly IServiceScopeFactory _scopeFactory;
 
@@ -49,10 +66,10 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, st
         }
         """).RootElement.Clone();
 
-    public override async Task<string> ExecuteAsync(RenderCodeBlocksArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<RenderCodeBlocksResult> ExecuteAsync(RenderCodeBlocksArgs args, Guid? draftId, Guid userId, CancellationToken ct)
     {
         if (!draftId.HasValue)
-            return "Error: No active draft.";
+            return new RenderCodeBlocksResult(false, Array.Empty<RenderedCodeBlockItem>(), 0, "Error: No active draft.", "No active draft.");
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -63,13 +80,13 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, st
         var draft = await db.Drafts.FirstOrDefaultAsync(
             d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
         if (draft == null)
-            return "Error: Draft not found or access denied.";
+            return new RenderCodeBlocksResult(false, Array.Empty<RenderedCodeBlockItem>(), 0, "Error: Draft not found or access denied.", "Draft not found or access denied.");
 
         var content = draft.Content ?? "";
         var blocks = CodeBlockParser.Parse(content);
 
         if (blocks.Count == 0)
-            return "No code blocks found in the draft.";
+            return new RenderCodeBlocksResult(false, Array.Empty<RenderedCodeBlockItem>(), 0, "No code blocks found in the draft.", "No code blocks found in the draft.");
 
         var theme = CodeTheme.FromString(args.Theme);
         var codeImageService = new CodeImageService(mediaService, renderer);
@@ -84,7 +101,12 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, st
         }
 
         if (rendered.Count == 0)
-            return $"Block index {args.BlockIndex} not found. The draft has {blocks.Count} code block(s) (0-based).";
+            return new RenderCodeBlocksResult(
+                false,
+                Array.Empty<RenderedCodeBlockItem>(),
+                blocks.Count,
+                $"Block index {args.BlockIndex} not found. The draft has {blocks.Count} code block(s) (0-based).",
+                "Requested code block index was not found.");
 
         content = ReplaceFencesWithImages(content, rendered);
         draft.Content = content;
@@ -100,7 +122,15 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, st
             var lang = string.IsNullOrEmpty(block.Language) ? "plain" : block.Language;
             sb.AppendLine($"- Block {idx} ({lang}): {tag}");
         }
-        return sb.ToString().TrimEnd();
+
+        var renderedItems = rendered
+            .Select(item => new RenderedCodeBlockItem(
+                item.Index,
+                string.IsNullOrEmpty(item.Block.Language) ? "plain" : item.Block.Language,
+                item.MarkdownTag))
+            .ToList();
+
+        return new RenderCodeBlocksResult(true, renderedItems, blocks.Count, sb.ToString().TrimEnd());
     }
 
     private static readonly Regex FenceRegex = new(

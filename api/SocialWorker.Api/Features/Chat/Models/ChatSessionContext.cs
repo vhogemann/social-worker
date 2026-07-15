@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Infrastructure.Llm;
 
-namespace SocialWorker.Api.Features.Chat;
+namespace SocialWorker.Api.Features.Chat.Models;
 
 public sealed record ChatSessionContext(
     LlmProvider Provider,

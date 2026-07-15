@@ -27,6 +27,8 @@ public sealed record UploadMediaResult(Guid Id, string MarkdownTag);
 
 public sealed class MediaService
 {
+    private const int MaxAltTextLength = 1000;
+
     private readonly AppDbContext _db;
     private readonly ImageResizer _resizer;
     private readonly FileStorageProvider _storage;
@@ -45,8 +47,12 @@ public sealed class MediaService
         string mimeType,
         Stream stream,
         CancellationToken ct,
-        string? altText = null)
+        string? altText = null,
+        string? markdownLinkText = null)
     {
+        var normalizedAltText = NormalizeAltText(altText);
+        var normalizedMarkdownLinkText = NormalizeMarkdownLinkText(markdownLinkText);
+
         var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
             ?? throw new KeyNotFoundException("Draft not found or access denied.");
 
@@ -80,14 +86,14 @@ public sealed class MediaService
                 Height = existing.Height
             };
 
-            if (!string.IsNullOrEmpty(altText))
-                sharedAsset.AltText = altText;
+            if (!string.IsNullOrEmpty(normalizedAltText))
+                sharedAsset.AltText = normalizedAltText;
             
             _db.MediaAssets.Add(sharedAsset);
             await _db.SaveChangesAsync(ct);
 
-            var displayAlt = altText ?? sharedAsset.FileName;
-            return new UploadMediaResult(sharedAsset.Id, $"![{displayAlt}](media://{sharedAsset.Id})");
+            var linkText = normalizedMarkdownLinkText ?? normalizedAltText ?? sharedAsset.FileName;
+            return new UploadMediaResult(sharedAsset.Id, $"![{linkText}](media://{sharedAsset.Id})");
         }
 
         var mediaId = Guid.NewGuid();
@@ -121,14 +127,14 @@ public sealed class MediaService
             SizeBytes = processResult.Data.Length,
             Width = processResult.Width,
             Height = processResult.Height,
-            AltText = altText
+            AltText = normalizedAltText
         };
 
         _db.MediaAssets.Add(mediaAsset);
         await _db.SaveChangesAsync(ct);
 
-        var markdownAlt = altText ?? mediaAsset.FileName;
-        return new UploadMediaResult(mediaAsset.Id, $"![{markdownAlt}](media://{mediaAsset.Id})");
+        var linkTextForTag = normalizedMarkdownLinkText ?? normalizedAltText ?? mediaAsset.FileName;
+        return new UploadMediaResult(mediaAsset.Id, $"![{linkTextForTag}](media://{mediaAsset.Id})");
     }
 
     public async Task<(string FullPath, string MimeType)> GetMediaFileAsync(Guid id, CancellationToken ct)
@@ -154,7 +160,7 @@ public sealed class MediaService
             throw new UnauthorizedAccessException("Access denied.");
         }
 
-        asset.AltText = altText;
+        asset.AltText = NormalizeAltText(altText);
         await _db.SaveChangesAsync(ct);
 
         return new MediaAssetDto(
@@ -168,6 +174,36 @@ public sealed class MediaService
             asset.Width,
             asset.Height
         );
+    }
+
+    private static string? NormalizeAltText(string? altText)
+    {
+        if (string.IsNullOrWhiteSpace(altText))
+        {
+            return null;
+        }
+
+        var trimmed = altText.Trim();
+        return trimmed.Length <= MaxAltTextLength
+            ? trimmed
+            : trimmed[..MaxAltTextLength];
+    }
+
+    private static string? NormalizeMarkdownLinkText(string? linkText)
+    {
+        if (string.IsNullOrWhiteSpace(linkText))
+        {
+            return null;
+        }
+
+        var normalized = linkText
+            .Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Replace("[", "", StringComparison.Ordinal)
+            .Replace("]", "", StringComparison.Ordinal)
+            .Trim();
+
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     public async Task DeleteMediaAsync(Guid userId, Guid id, CancellationToken ct)

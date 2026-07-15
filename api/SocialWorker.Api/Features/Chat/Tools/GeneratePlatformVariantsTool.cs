@@ -16,7 +16,24 @@ namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record GeneratePlatformVariantsArgs(string CanonicalDraftId, List<string> Platforms);
 
-public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatformVariantsArgs, string>
+public sealed record GeneratedPlatformVariant(string Platform, Guid DraftId, IReadOnlyList<string>? Warnings = null);
+
+public sealed record GeneratePlatformVariantsResult(
+    bool Success,
+    IReadOnlyList<GeneratedPlatformVariant> CreatedVariants,
+    IReadOnlyList<string> Issues,
+    string Message,
+    string? Error = null) : IChatToolResult
+{
+    public static implicit operator string(GeneratePlatformVariantsResult result) => result.ToDisplayText();
+
+    public string ToDisplayText()
+    {
+        return Message;
+    }
+}
+
+public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatformVariantsArgs, GeneratePlatformVariantsResult>
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly LlmProviderService _providerService;
@@ -50,11 +67,11 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
         }
         """).RootElement.Clone();
 
-    public override async Task<string> ExecuteAsync(GeneratePlatformVariantsArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<GeneratePlatformVariantsResult> ExecuteAsync(GeneratePlatformVariantsArgs args, Guid? draftId, Guid userId, CancellationToken ct)
     {
         if (!Guid.TryParse(args.CanonicalDraftId, out var canonicalGuid))
         {
-            return "Error: Invalid canonical draft ID.";
+            return new GeneratePlatformVariantsResult(false, Array.Empty<GeneratedPlatformVariant>(), Array.Empty<string>(), "Error: Invalid canonical draft ID.", "Invalid canonical draft ID.");
         }
 
         using var scope = _scopeFactory.CreateScope();
@@ -66,11 +83,11 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
             .FirstOrDefaultAsync(d => d.Id == canonicalGuid && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
         if (canonical == null)
         {
-            return "Error: Canonical draft not found or access denied.";
+            return new GeneratePlatformVariantsResult(false, Array.Empty<GeneratedPlatformVariant>(), Array.Empty<string>(), "Error: Canonical draft not found or access denied.", "Canonical draft not found or access denied.");
         }
 
         var sourcePlatform = canonical.TargetPlatform?.ToString() ?? "Bluesky";
-        var createdVariants = new List<string>();
+        var createdVariants = new List<GeneratedPlatformVariant>();
         var errors = new List<string>();
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, ct);
@@ -78,7 +95,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
 
         if (provider == null)
         {
-            return "Error: No active LLM provider configured.";
+            return new GeneratePlatformVariantsResult(false, Array.Empty<GeneratedPlatformVariant>(), Array.Empty<string>(), "Error: No active LLM provider configured.", "No active LLM provider configured.");
         }
 
         var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
@@ -179,11 +196,11 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
 
             if (policyResult.Warnings.Count > 0)
             {
-                createdVariants.Add($"{platform} (ID: {variant.Id}, warnings: {string.Join(" | ", policyResult.Warnings)})");
+                createdVariants.Add(new GeneratedPlatformVariant(platform, variant.Id, policyResult.Warnings));
             }
             else
             {
-                createdVariants.Add($"{platform} (ID: {variant.Id})");
+                createdVariants.Add(new GeneratedPlatformVariant(platform, variant.Id));
             }
         }
 
@@ -193,14 +210,19 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
         var result = new StringBuilder();
         if (createdVariants.Count > 0)
         {
-            result.AppendLine($"Created {createdVariants.Count} variant(s): {string.Join(", ", createdVariants)}.");
+            var descriptions = createdVariants.Select(v =>
+                v.Warnings is { Count: > 0 }
+                    ? $"{v.Platform} (ID: {v.DraftId}, warnings: {string.Join(" | ", v.Warnings)})"
+                    : $"{v.Platform} (ID: {v.DraftId})");
+            result.AppendLine($"Created {createdVariants.Count} variant(s): {string.Join(", ", descriptions)}.");
         }
         if (errors.Count > 0)
         {
             result.AppendLine($"Issues: {string.Join("; ", errors)}.");
         }
 
-        return result.Length > 0 ? result.ToString().Trim() : "No variants were created.";
+        var message = result.Length > 0 ? result.ToString().Trim() : "No variants were created.";
+        return new GeneratePlatformVariantsResult(createdVariants.Count > 0, createdVariants, errors, message);
     }
 
 }

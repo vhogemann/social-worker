@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using SocialWorker.Api.Data.Entities;
 
-namespace SocialWorker.Api.Features.Chat;
+namespace SocialWorker.Api.Features.Chat.Services;
 
 public sealed class SystemPromptBuilder
 {

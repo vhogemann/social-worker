@@ -23,7 +23,13 @@ public sealed record FetchSourceResult(
     string? CitationLabel = null,
     string? EmbedKind = null,
     string? CanonicalEmbedMarkdown = null,
-    string? PlainLinkLine = null);
+    string? PlainLinkLine = null) : IChatToolResult
+{
+    public string ToDisplayText()
+    {
+        return $"Fetched source {Id} ({Kind}): {Title ?? Reference}";
+    }
+}
 
 public sealed class FetchSourceTool : ChatToolBase<FetchSourceArgs, FetchSourceResult>
 {

@@ -143,6 +143,7 @@ These should remain first-class and be kept current:
 | [SOURCES_LIBRARY_AND_TRANSCRIPTS.md](SOURCES_LIBRARY_AND_TRANSCRIPTS.md) | primary product roadmap item |
 | [TECH_DEBT.md](TECH_DEBT.md) | engineering cleanup and reliability backlog |
 | [TEST_PLAN.md](TEST_PLAN.md) | test strategy and coverage backlog |
+| [TO_REFACTOR.md](TO_REFACTOR.md) | prioritized refactoring opportunities backlog |
 
 ## Reference-only planning documents
 

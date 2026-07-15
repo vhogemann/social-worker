@@ -10,17 +10,17 @@ public sealed class CodeImageRenderer : IDisposable
 {
     private const float FontSize = 14f;
     private const float LineHeightMultiplier = 1.6f;
-    private const float HorizontalPadding = 44f;
-    private const float VerticalPadding = 28f;
-    private const float ChromeHeight = 52f;
-    private const float LineNumWidth = 44f;
-    private const float DotRadius = 6f;
-    private const float DotY = ChromeHeight / 2f;
-    private const float FirstDotX = 22f;
-    private const float DotSpacing = 20f;
-    private const float CornerRadius = 14f;
-    private const float LangPadding = 12f;
-    private const int MinWidth = 560;
+    private const float HorizontalPadding = 24f;
+    private const float VerticalPadding = 20f;
+    private const float FooterPadding = 16f;
+    private const float LineNumWidth = 34f;
+    private const float WatermarkFontSize = 10f;
+    private const float WatermarkInset = 12f;
+    private const float WatermarkBaselineOffset = 2f;
+    private const float MinCornerRadius = 8f;
+    private const float MaxCornerRadius = 24f;
+    private const float CornerRadiusRatio = 0.06f;
+    private const int MinWidth = 460;
     private const int MaxWidth = 1200;
 
     private readonly SKTypeface _typeface;
@@ -57,7 +57,7 @@ public sealed class CodeImageRenderer : IDisposable
         var textAreaWidth = maxLineChars * charWidth;
         var contentWidth = LineNumWidth + textAreaWidth + HorizontalPadding * 2;
         var canvasWidth = (int)Math.Clamp(Math.Ceiling(contentWidth), MinWidth, MaxWidth);
-        var canvasHeight = (int)Math.Ceiling(ChromeHeight + VerticalPadding + lines.Count * lineHeight + VerticalPadding);
+        var canvasHeight = (int)Math.Ceiling(VerticalPadding + lines.Count * lineHeight + VerticalPadding + FooterPadding);
 
         using var bitmap = new SKBitmap(canvasWidth, canvasHeight);
         using var canvas = new SKCanvas(bitmap);
@@ -65,8 +65,8 @@ public sealed class CodeImageRenderer : IDisposable
         canvas.Clear(SKColors.Transparent);
 
         DrawBackground(canvas, theme, canvasWidth, canvasHeight);
-        DrawChrome(canvas, theme, canvasWidth, block.Language);
         DrawCode(canvas, lines, theme, measurePaint, lineHeight, ascent, canvasWidth, canvasHeight);
+        DrawWatermark(canvas, theme, canvasWidth, canvasHeight, block.Language);
 
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
@@ -75,47 +75,15 @@ public sealed class CodeImageRenderer : IDisposable
 
     private static void DrawBackground(SKCanvas canvas, CodeTheme theme, int width, int height)
     {
+        var cornerRadius = CalculateCornerRadius(width, height);
         using var bgPaint = new SKPaint { Color = theme.Background, IsAntialias = true };
-        canvas.DrawRoundRect(new SKRoundRect(new SKRect(0, 0, width, height), CornerRadius), bgPaint);
+        canvas.DrawRoundRect(new SKRoundRect(new SKRect(0, 0, width, height), cornerRadius), bgPaint);
     }
 
-    private void DrawChrome(SKCanvas canvas, CodeTheme theme, int width, string language)
+    private static float CalculateCornerRadius(int width, int height)
     {
-        canvas.Save();
-
-        using var clipPath = new SKPath();
-        clipPath.AddRoundRect(new SKRoundRect(new SKRect(0, 0, width, ChromeHeight + CornerRadius), CornerRadius));
-        canvas.ClipPath(clipPath, SKClipOperation.Intersect, antialias: true);
-
-        using var chromePaint = new SKPaint { Color = theme.ChromeBackground, IsAntialias = true };
-        canvas.DrawRect(0, 0, width, ChromeHeight + CornerRadius, chromePaint);
-
-        canvas.Restore();
-
-        // Separator line
-        using var linePaint = new SKPaint { Color = theme.Background.WithAlpha(120), StrokeWidth = 1f };
-        canvas.DrawLine(0, ChromeHeight, width, ChromeHeight, linePaint);
-
-        // Window dots
-        DrawDot(canvas, FirstDotX, DotY, DotRadius, theme.DotClose);
-        DrawDot(canvas, FirstDotX + DotSpacing, DotY, DotRadius, theme.DotMinimize);
-        DrawDot(canvas, FirstDotX + DotSpacing * 2, DotY, DotRadius, theme.DotExpand);
-
-        // Language label
-        if (!string.IsNullOrWhiteSpace(language))
-        {
-            using var langPaint = MakeTextPaint(theme.LineNumberText);
-            langPaint.TextSize = 11f;
-            var langText = language.ToUpperInvariant();
-            var langWidth = langPaint.MeasureText(langText);
-            canvas.DrawText(langText, width - langWidth - LangPadding, DotY + langPaint.TextSize * 0.35f, langPaint);
-        }
-    }
-
-    private static void DrawDot(SKCanvas canvas, float x, float y, float radius, SKColor color)
-    {
-        using var paint = new SKPaint { Color = color, IsAntialias = true };
-        canvas.DrawCircle(x, y, radius, paint);
+        var scaled = MathF.Min(width, height) * CornerRadiusRatio;
+        return Math.Clamp(scaled, MinCornerRadius, MaxCornerRadius);
     }
 
     private void DrawCode(
@@ -129,7 +97,7 @@ public sealed class CodeImageRenderer : IDisposable
         int canvasHeight)
     {
         var codeLeft = HorizontalPadding + LineNumWidth;
-        var baselineY = ChromeHeight + VerticalPadding + ascent;
+        var baselineY = VerticalPadding + ascent;
 
         for (int i = 0; i < lines.Count; i++)
         {
@@ -154,6 +122,20 @@ public sealed class CodeImageRenderer : IDisposable
 
         _ = canvasWidth;
         _ = canvasHeight;
+    }
+
+    private void DrawWatermark(SKCanvas canvas, CodeTheme theme, int canvasWidth, int canvasHeight, string language)
+    {
+        var watermark = string.IsNullOrWhiteSpace(language)
+            ? "TEXT"
+            : language.Trim().ToUpperInvariant();
+
+        using var watermarkPaint = MakeTextPaint(theme.DefaultText.WithAlpha(132));
+        watermarkPaint.TextSize = WatermarkFontSize;
+        var watermarkWidth = watermarkPaint.MeasureText(watermark);
+        var x = canvasWidth - WatermarkInset - watermarkWidth;
+        var y = canvasHeight - WatermarkInset - WatermarkBaselineOffset;
+        canvas.DrawText(watermark, x, y, watermarkPaint);
     }
 
     private SKPaint MakeTextPaint(SKColor color) => new()

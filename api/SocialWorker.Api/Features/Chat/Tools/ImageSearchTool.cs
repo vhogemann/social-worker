@@ -8,7 +8,49 @@ namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record ImageSearchArgs(string Query);
 
-public sealed class ImageSearchTool : ChatToolBase<ImageSearchArgs, string>
+public sealed record ImageSearchResultItem(string Title, string Url, string? Description);
+
+public sealed record ImageSearchResult(
+    string Query,
+    IReadOnlyList<ImageSearchResultItem> Results,
+    IReadOnlyList<string> UsageNotes,
+    string? Error = null) : IChatToolResult
+{
+    public static implicit operator string(ImageSearchResult result) => result.ToDisplayText();
+
+    public string ToDisplayText()
+    {
+        if (!string.IsNullOrWhiteSpace(Error))
+        {
+            return Error;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Image search results for: '{Query}' (top {Results.Count}):");
+        sb.AppendLine();
+
+        for (var i = 0; i < Results.Count; i++)
+        {
+            var item = Results[i];
+            sb.AppendLine($"{i + 1}. {item.Title}");
+            sb.AppendLine($"   URL: {item.Url}");
+            if (!string.IsNullOrEmpty(item.Description))
+            {
+                sb.AppendLine($"   Description: {item.Description}");
+            }
+            sb.AppendLine();
+        }
+
+        foreach (var note in UsageNotes)
+        {
+            sb.AppendLine(note);
+        }
+
+        return sb.ToString().Trim();
+    }
+}
+
+public sealed class ImageSearchTool : ChatToolBase<ImageSearchArgs, ImageSearchResult>
 {
     private const int MaxResults = 12;
     private readonly ISearchEngine _searchEngine;
@@ -34,43 +76,36 @@ public sealed class ImageSearchTool : ChatToolBase<ImageSearchArgs, string>
         }
         """).RootElement.Clone();
 
-    public override async Task<string> ExecuteAsync(ImageSearchArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<ImageSearchResult> ExecuteAsync(ImageSearchArgs args, Guid? draftId, Guid userId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(args.Query))
         {
-            return "No image search query provided.";
+            return new ImageSearchResult(string.Empty, Array.Empty<ImageSearchResultItem>(), Array.Empty<string>(), "No image search query provided.");
         }
 
         var results = await _searchEngine.SearchImagesAsync(args.Query, ct);
         if (results == null || results.Count == 0)
         {
-            return "No image search results found.";
+            return new ImageSearchResult(args.Query, Array.Empty<ImageSearchResultItem>(), Array.Empty<string>(), "No image search results found.");
         }
 
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"Image search results for: '{args.Query}' (top {Math.Min(MaxResults, results.Count)}):");
-        sb.AppendLine();
-
-        var count = 0;
+        var normalized = new List<ImageSearchResultItem>();
         foreach (var r in results)
         {
-            count++;
-            if (count > MaxResults)
+            if (normalized.Count >= MaxResults)
             {
                 break;
             }
 
-            sb.AppendLine($"{count}. {r.Title}");
-            sb.AppendLine($"   URL: {r.Url}");
-            if (!string.IsNullOrEmpty(r.Snippet))
-            {
-                sb.AppendLine($"   Description: {r.Snippet}");
-            }
-            sb.AppendLine();
+            normalized.Add(new ImageSearchResultItem(r.Title, r.Url, r.Snippet));
         }
 
-        sb.AppendLine("Next step: call add_image_source with one direct image URL, then call view_image with the returned media://{guid}.");
-
-        return sb.ToString().Trim();
+        return new ImageSearchResult(
+            args.Query,
+            normalized,
+            new[]
+            {
+                "Next step: call add_image_source with one direct image URL, then call view_image with the returned media://{guid}."
+            });
     }
 }

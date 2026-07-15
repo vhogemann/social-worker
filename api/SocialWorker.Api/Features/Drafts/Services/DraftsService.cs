@@ -2,10 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -57,26 +55,33 @@ public sealed record DraftDto(
 
 public sealed class DraftsService
 {
-    private static readonly Regex YouTubeEmbedRegex = new(@"!\[.*?\]\((https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+|https?://youtu\.be/[\w-]+)\)", RegexOptions.Compiled);
-
     private readonly AppDbContext _db;
     private readonly FileStorageProvider _storage;
     private readonly SourcesService _sourcesService;
+    private readonly DraftSegmentService _draftSegmentService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly BackgroundJobQueue _queue;
+    private DraftChatSummaryService? _draftChatSummaryService;
+
+    private DraftChatSummaryService DraftChatSummaryService =>
+        _draftChatSummaryService ??= new DraftChatSummaryService(_scopeFactory, _queue);
 
     public DraftsService(
         AppDbContext db,
         FileStorageProvider storage,
         SourcesService sourcesService,
         IServiceScopeFactory scopeFactory,
-        BackgroundJobQueue queue)
+        BackgroundJobQueue queue,
+        DraftChatSummaryService? draftChatSummaryService = null,
+        DraftSegmentService? draftSegmentService = null)
     {
         _db = db;
         _storage = storage;
         _sourcesService = sourcesService;
+        _draftSegmentService = draftSegmentService ?? new DraftSegmentService(db);
         _scopeFactory = scopeFactory;
         _queue = queue;
+        _draftChatSummaryService = draftChatSummaryService;
     }
 
     private static DraftDto ToDto(Draft draft, List<PlatformThread> threads, List<Post> posts, List<MediaAsset> media)
@@ -165,7 +170,7 @@ public sealed class DraftsService
         _db.PlatformThreads.Add(thread);
         await _db.SaveChangesAsync(ct);
 
-        await ReconcileSegmentsAsync(draft, content ?? "", ct);
+        await _draftSegmentService.ReconcileSegmentsAsync(draft, content ?? "", ct);
         await _db.SaveChangesAsync(ct);
 
         await _sourcesService.ReconcileSourcesAsync(draft, content ?? "");
@@ -211,7 +216,7 @@ public sealed class DraftsService
         if (content is not null)
         {
             draft.Content = content;
-            await ReconcileSegmentsAsync(draft, content, ct);
+            await _draftSegmentService.ReconcileSegmentsAsync(draft, content, ct);
             await _sourcesService.ReconcileSourcesAsync(draft, content);
             
             // Sync content to all platform threads for this draft
@@ -247,7 +252,7 @@ public sealed class DraftsService
         if (chatHistory is not null)
         {
             draft.ChatHistory = chatHistory;
-            TriggerBackgroundSummarization(userId, id, chatHistory);
+            DraftChatSummaryService.TriggerBackgroundSummarization(userId, id, chatHistory);
         }
 
         if (chatSummary is not null)
@@ -357,236 +362,9 @@ public sealed class DraftsService
             posts.Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url)).ToList());
     }
 
-    public async Task ReconcileSegmentsAsync(Draft draft, string markdown, CancellationToken ct = default)
+    public Task ReconcileSegmentsAsync(Draft draft, string markdown, CancellationToken ct = default)
     {
-        var rawSegments = SplitMarkdownIntoSegments(markdown);
-        var existing = await _db.ThreadSegments
-            .Where(s => s.DraftId == draft.Id)
-            .OrderBy(s => s.Position)
-            .ToListAsync(ct);
-
-        int max = Math.Max(rawSegments.Count, existing.Count);
-        for (int i = 0; i < max; i++)
-        {
-            if (i < rawSegments.Count)
-            {
-                var content = rawSegments[i];
-                if (i < existing.Count)
-                {
-                    existing[i].Content = content;
-                }
-                else
-                {
-                    _db.ThreadSegments.Add(new ThreadSegment
-                    {
-                        DraftId = draft.Id,
-                        Position = i,
-                        Content = content
-                    });
-                }
-            }
-            else
-            {
-                _db.ThreadSegments.Remove(existing[i]);
-            }
-        }
+        return _draftSegmentService.ReconcileSegmentsAsync(draft, markdown, ct);
     }
 
-    private void TriggerBackgroundSummarization(Guid userId, Guid draftId, string chatHistoryJson)
-    {
-        _queue.Enqueue(new BackgroundJobQueue.Job("chat-summary", async ct =>
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var adapter = scope.ServiceProvider.GetRequiredService<ILlmProviderAdapter>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DraftsService>>();
-            var providerService = scope.ServiceProvider.GetRequiredService<LlmProviderService>();
-
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
-            if (user == null) return;
-
-            var provider = await providerService.GetProviderForUserAsync(db, user);
-            if (provider == null) return;
-
-            var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
-
-            using var doc = JsonDocument.Parse(chatHistoryJson);
-            if (!doc.RootElement.TryGetProperty("messages", out var messagesArray) || messagesArray.ValueKind != JsonValueKind.Array)
-            {
-                return;
-            }
-
-            var totalCount = messagesArray.GetArrayLength();
-            var totalTokens = messagesArray.EnumerateArray().Sum(ChatContextWindowPolicy.EstimateStoredMessageTokens);
-
-            var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId);
-            if (draft == null) return;
-
-            var contextWindow = provider.ContextWindowTokens.GetValueOrDefault() > 0
-                ? provider.ContextWindowTokens!.Value
-                : ChatContextWindowPolicy.ResolveContextWindowTokens(provider.Model);
-            var targetTailTokenBudget = Math.Clamp(contextWindow / 4, 1200, 12 * 1024);
-            var shouldCompact = totalCount >= 20 || totalTokens > targetTailTokenBudget * 2;
-            if (!shouldCompact)
-            {
-                return;
-            }
-
-            logger.LogInformation("Triggering compaction for draft {DraftId}. Total messages: {TotalCount}, estimated tokens: {TotalTokens}, target tail token budget: {TailBudget}", draftId, totalCount, totalTokens, targetTailTokenBudget);
-
-            var tailMessages = new List<JsonElement>();
-            var tailTokens = 0;
-            for (var i = totalCount - 1; i >= 0; i--)
-            {
-                var message = messagesArray[i];
-                var messageTokens = ChatContextWindowPolicy.EstimateStoredMessageTokens(message);
-                if (tailMessages.Count > 0 && tailTokens + messageTokens > targetTailTokenBudget)
-                {
-                    break;
-                }
-
-                tailMessages.Add(message);
-                tailTokens += messageTokens;
-            }
-
-            tailMessages.Reverse();
-            int messagesToSummarize = Math.Max(0, totalCount - tailMessages.Count);
-            if (messagesToSummarize <= 0) return;
-
-            var existingSummaryContext = "";
-            if (!string.IsNullOrEmpty(draft.ChatSummary))
-            {
-                existingSummaryContext = $"Existing Summary of earlier conversation:\n{draft.ChatSummary}\n\n";
-            }
-
-            var sb = new StringBuilder();
-            sb.AppendLine("Please read this conversation history and provide a concise, structured summary. Focus on key user instructions, preferences, decisions, and outcomes that the assistant should remember. Do not lose context. Keep the summary under 300 words.");
-            sb.AppendLine(existingSummaryContext);
-            sb.AppendLine("New Conversation History:");
-
-            for (int i = 0; i < messagesToSummarize; i++)
-            {
-                var msg = messagesArray[i];
-                var role = msg.TryGetProperty("role", out var r) ? r.GetString() : "unknown";
-
-                var contentText = "";
-                if (msg.TryGetProperty("content", out var contentProp))
-                {
-                    if (contentProp.ValueKind == JsonValueKind.String)
-                    {
-                        contentText = contentProp.GetString() ?? "";
-                    }
-                    else if (contentProp.ValueKind == JsonValueKind.Array)
-                    {
-                        var parts = new List<string>();
-                        foreach (var part in contentProp.EnumerateArray())
-                        {
-                            if (part.TryGetProperty("text", out var t))
-                            {
-                                parts.Add(t.GetString() ?? "");
-                            }
-                        }
-                        contentText = string.Join(" ", parts);
-                    }
-                }
-
-                sb.AppendLine($"{role}: {contentText}");
-            }
-
-            var summarizeRequest = new OpenAiModels.ChatCompletionRequest
-            {
-                Model = credentials.Model,
-                Messages = new List<OpenAiModels.OpenAiMessage>
-                {
-                    new() { Role = "system", Content = "You are a helpful assistant that summarizes chat conversations to keep context tight." },
-                    new() { Role = "user", Content = sb.ToString() }
-                },
-                Stream = false
-            };
-
-            var response = await adapter.CompleteAsync(summarizeRequest, credentials, ct);
-            if (response?.Choices != null && response.Choices.Count > 0)
-            {
-                var newSummary = response.Choices[0].Message.Content?.ToString();
-                if (!string.IsNullOrEmpty(newSummary))
-                {
-                    var historyNode = JsonNode.Parse(chatHistoryJson)?.AsObject();
-                    var messageNodes = new JsonArray();
-                    foreach (var message in tailMessages)
-                    {
-                        var cloned = JsonNode.Parse(message.GetRawText());
-                        if (cloned != null)
-                        {
-                            messageNodes.Add(cloned);
-                        }
-                    }
-
-                    if (historyNode != null)
-                    {
-                        historyNode["messages"] = messageNodes;
-                        draft.ChatHistory = historyNode.ToJsonString();
-                    }
-
-                    draft.ChatSummary = newSummary;
-                    draft.LastSummarizedMessageCount = 0;
-                    draft.UpdatedAt = DateTime.UtcNow;
-                    await db.SaveChangesAsync(ct);
-                    logger.LogInformation("Compaction completed for draft {DraftId}. Summary covers {SummarizedCount} messages, raw history trimmed to {TailCount} messages.", draftId, messagesToSummarize, tailMessages.Count);
-                }
-            }
-        }));
-    }
-
-    public static List<string> SplitMarkdownIntoSegments(string markdown)
-    {
-        var result = new List<string>();
-        if (string.IsNullOrEmpty(markdown))
-        {
-            return new List<string> { "" };
-        }
-
-        var lines = markdown.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-        var current = new System.Text.StringBuilder();
-
-        foreach (var line in lines)
-        {
-            if (line.Trim() == "---")
-            {
-                result.Add(current.ToString().Trim());
-                current.Clear();
-            }
-            else
-            {
-                if (current.Length > 0)
-                {
-                    current.AppendLine();
-                }
-                current.Append(line);
-            }
-        }
-        result.Add(current.ToString().Trim());
-        return result;
-    }
-
-    public static SegmentMediaAnalysis AnalyzeSegmentMedia(string segmentContent)
-    {
-        var imageIds = SharedPatterns.MediaRegex.Matches(segmentContent)
-            .Select(m => Guid.TryParse(m.Groups[2].Value, out var guid) ? guid : Guid.Empty)
-            .Where(g => g != Guid.Empty)
-            .Distinct()
-            .ToArray();
-
-        string? youtubeUrl = null;
-        var ytMatch = YouTubeEmbedRegex.Match(segmentContent);
-        if (ytMatch.Success)
-        {
-            youtubeUrl = ytMatch.Groups[1].Value;
-        }
-
-        bool hasConflict = imageIds.Length > 0 && youtubeUrl != null;
-
-        return new SegmentMediaAnalysis(imageIds, youtubeUrl, hasConflict);
-    }
-
-    public record SegmentMediaAnalysis(Guid[] ImageIds, string? YouTubeUrl, bool HasConflict);
 }

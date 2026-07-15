@@ -25,7 +25,29 @@ public sealed record ListSourcesResultItem(
     string? CanonicalEmbedMarkdown = null,
     string? PlainLinkLine = null);
 
-public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, List<ListSourcesResultItem>>
+public sealed record ListSourcesResult(IReadOnlyList<ListSourcesResultItem> Items) : IChatToolResult, IReadOnlyList<ListSourcesResultItem>
+{
+    public int Count => Items.Count;
+
+    public ListSourcesResultItem this[int index] => Items[index];
+
+    public IEnumerator<ListSourcesResultItem> GetEnumerator() => Items.GetEnumerator();
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public string ToDisplayText()
+    {
+        if (Items.Count == 0)
+        {
+            return "No sources found for the active draft.";
+        }
+
+        var lines = Items.Select(item => $"- {item.Id} ({item.Kind}): {item.Title ?? item.Reference}");
+        return string.Join("\n", lines);
+    }
+}
+
+public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, ListSourcesResult>
 {
     private readonly IServiceScopeFactory _scopeFactory;
 
@@ -45,7 +67,7 @@ public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, List<ListSou
         }
         """).RootElement.Clone();
 
-    public override async Task<List<ListSourcesResultItem>> ExecuteAsync(ListSourcesArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<ListSourcesResult> ExecuteAsync(ListSourcesArgs args, Guid? draftId, Guid userId, CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -56,7 +78,7 @@ public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, List<ListSou
 
         if (activeDraftId == null)
         {
-            return new List<ListSourcesResultItem>();
+            return new ListSourcesResult(Array.Empty<ListSourcesResultItem>());
         }
 
         var rows = await db.Sources
@@ -78,6 +100,6 @@ public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, List<ListSou
                 links.PlainLinkLine);
         }).ToList();
 
-        return sources;
+        return new ListSourcesResult(sources);
     }
 }

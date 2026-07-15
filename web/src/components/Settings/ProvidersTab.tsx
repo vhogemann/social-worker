@@ -1,211 +1,40 @@
-import { useState, useEffect } from "react";
-import {
-  listProviders,
-  createProvider,
-  updateProvider,
-  deleteProvider,
-  testProvider,
-  type LlmProviderDto
-} from "../../api/providers";
+import { useProvidersManager } from "./useProvidersManager";
 
 export function ProvidersTab() {
-  const [providers, setProviders] = useState<LlmProviderDto[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const {
+    providers,
+    loading,
+    error,
+    editingId,
+    name,
+    providerType,
+    baseUrl,
+    apiKey,
+    model,
+    contextWindowTokens,
+    testing,
+    testResult,
+    suggestedModels,
+    setName,
+    setBaseUrl,
+    setApiKey,
+    setModel,
+    setContextWindowTokens,
+    setError,
+    setTestResult,
+    handleTypeChange,
+    handleStartEdit,
+    handleCancelEdit,
+    handleSubmit,
+    handleTestConnection,
+    handleToggleActive,
+    handleSetDefault,
+    handleDelete
+  } = useProvidersManager();
 
-  // Form states
-  const [name, setName] = useState("");
-  const [providerType, setProviderType] = useState("OpenRouter");
-  const [baseUrl, setBaseUrl] = useState("https://openrouter.ai/api/v1");
-  const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("");
-  const [contextWindowTokens, setContextWindowTokens] = useState("");
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  const fetchProviders = async () => {
-    try {
-      const data = await listProviders();
-      setProviders(data);
-    } catch (err: any) {
-      setError(err.message || "Failed to load providers");
-    }
-  };
-
-  useEffect(() => {
-    fetchProviders();
-  }, []);
-
-  const openRouterModels = [
-    "anthropic/claude-3.5-sonnet",
-    "meta-llama/llama-3-8b-instruct:free",
-    "google/gemini-pro",
-    "openai/gpt-4o-mini",
-    "openai/gpt-4o"
-  ];
-
-  const ollamaModels = [
-    "llama3.1",
-    "llama3",
-    "mistral",
-    "phi3",
-    "gemma2"
-  ];
-
-  const suggestedModels = providerType === "Ollama" ? ollamaModels : openRouterModels;
-
-  const handleTestConnection = async () => {
-    if (!baseUrl.trim() || !model.trim()) {
-      setError("Base URL and Model are required to test connection.");
-      return;
-    }
-
-    setTesting(true);
-    setError(null);
-    setTestResult(null);
-
-    try {
-      const res = await testProvider({
-        providerType,
-        baseUrl: baseUrl.trim(),
-        apiKey: providerType === "Ollama" ? "" : apiKey.trim(),
-        model: model.trim(),
-        contextWindowTokens: contextWindowTokens.trim() ? Number(contextWindowTokens.trim()) : undefined
-      });
-
-      if (res.success) {
-        const contextMsg = res.contextWindowTokens ? ` Inferred context window: ${res.contextWindowTokens.toLocaleString()} tokens.` : "";
-        setTestResult({ success: true, message: `Connection successful!${contextMsg}` });
-      } else {
-        setTestResult({ success: false, message: res.error || "Connection failed." });
-      }
-    } catch (err: any) {
-      setTestResult({ success: false, message: err.message || "Connection failed." });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const handleTypeChange = (type: string) => {
-    setProviderType(type);
-    setTestResult(null);
-    if (type === "Ollama") {
-      setBaseUrl("http://ollama:11434/v1");
-      setApiKey("");
-    } else {
-      setBaseUrl("https://openrouter.ai/api/v1");
-    }
-  };
-
-  const handleStartEdit = (p: LlmProviderDto) => {
-    setEditingId(p.id);
-    setName(p.name);
-    setProviderType(p.providerType);
-    setBaseUrl(p.baseUrl);
-    setModel(p.model);
-    setContextWindowTokens(p.contextWindowTokens ? String(p.contextWindowTokens) : "");
-    setApiKey("");
-    setTestResult(null);
-    setError(null);
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setName("");
-    setApiKey("");
-    setModel("");
-    setContextWindowTokens("");
-    if (providerType === "Ollama") {
-      setBaseUrl("http://ollama:11434/v1");
-    } else {
-      setBaseUrl("https://openrouter.ai/api/v1");
-    }
-    setTestResult(null);
-    setError(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !baseUrl.trim() || !model.trim()) {
-      setError("Name, Base URL, and Model are required.");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      if (editingId) {
-        await updateProvider(editingId, {
-          name: name.trim(),
-          providerType,
-          baseUrl: baseUrl.trim(),
-          apiKey: providerType === "Ollama" ? "" : (apiKey.trim() || undefined),
-          model: model.trim(),
-          contextWindowTokens: contextWindowTokens.trim() ? Number(contextWindowTokens.trim()) : undefined
-        });
-        setEditingId(null);
-      } else {
-        await createProvider({
-          name: name.trim(),
-          providerType,
-          baseUrl: baseUrl.trim(),
-          apiKey: providerType === "Ollama" ? "" : apiKey.trim(),
-          model: model.trim(),
-          contextWindowTokens: contextWindowTokens.trim() ? Number(contextWindowTokens.trim()) : undefined
-        });
-      }
-
-      // Reset form
-      setName("");
-      setApiKey("");
-      setModel("");
-      setContextWindowTokens("");
-      if (providerType === "Ollama") {
-        setBaseUrl("http://ollama:11434/v1");
-      } else {
-        setBaseUrl("https://openrouter.ai/api/v1");
-      }
-      setTestResult(null);
-
-      await fetchProviders();
-    } catch (err: any) {
-      setError(err.message || "Failed to save provider");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleToggleActive = async (provider: LlmProviderDto) => {
-    setError(null);
-    try {
-      await updateProvider(provider.id, { isActive: !provider.isActive });
-      await fetchProviders();
-    } catch (err: any) {
-      setError(err.message || "Failed to update provider status");
-    }
-  };
-
-  const handleSetDefault = async (provider: LlmProviderDto) => {
-    setError(null);
-    try {
-      await updateProvider(provider.id, { isDefault: true });
-      await fetchProviders();
-    } catch (err: any) {
-      setError(err.message || "Failed to set default provider");
-    }
-  };
-
-  const handleDelete = async (id: string) => {
+  const confirmDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this provider?")) return;
-    setError(null);
-    try {
-      await deleteProvider(id);
-      await fetchProviders();
-    } catch (err: any) {
-      setError(err.message || "Failed to delete provider");
-    }
+    await handleDelete(id);
   };
 
   return (
@@ -283,7 +112,7 @@ export function ProvidersTab() {
                   edit
                 </button>
                 <button
-                  onClick={() => handleDelete(p.id)}
+                  onClick={() => { void confirmDelete(p.id); }}
                   disabled={p.isDefault}
                   className="px-2.5 py-1 text-[11px] font-mono border border-red-900/30 text-red-400 hover:text-red-300 hover:bg-red-950/20 rounded uppercase tracking-wider transition-colors disabled:opacity-50"
                 >

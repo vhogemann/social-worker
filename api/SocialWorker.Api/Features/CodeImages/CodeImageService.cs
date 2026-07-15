@@ -28,6 +28,9 @@ public sealed class CodeImageService
 
         var lang = string.IsNullOrWhiteSpace(block.Language) ? "code" : block.Language;
         var fileName = $"code-{lang}.png";
+        var markdownLinkText = string.IsNullOrWhiteSpace(block.Language)
+            ? "code snippet"
+            : $"{block.Language.Trim().ToLowerInvariant()} code snippet";
 
         // Store the code fence as alt text for reversibility
         var codeFence = string.IsNullOrEmpty(block.Language)
@@ -35,6 +38,14 @@ public sealed class CodeImageService
             : $"```{block.Language}\n{block.Code}\n```";
 
         using var stream = new MemoryStream(pngBytes);
-        return await _media.UploadMediaAsync(userId, draftId, fileName, "image/png", stream, ct, codeFence);
+        return await _media.UploadMediaAsync(
+            userId,
+            draftId,
+            fileName,
+            "image/png",
+            stream,
+            ct,
+            altText: codeFence,
+            markdownLinkText: markdownLinkText);
     }
 }

@@ -73,6 +73,20 @@ social-worker/
 - **Implementation plans**: saved as `*.md` files in `planning/` and its subdirectories (for example `planning/archive/IMAGE_UPLOADS.md`, `planning/future/PYTHON_SANDBOX.md`). Each active or reference plan must be linked from `planning/PLAN.md` under the relevant section. This is the source of truth for tracking planned and completed work.
 - **TDD / Test Coverage**: Nothing is done until it is covered by tests. All new features, services, endpoints, and tools must have accompanying unit tests under `api/SocialWorker.Api.Tests/`.
 
+### Refactoring criteria for agents
+
+When performing refactors, apply these criteria unless the task explicitly says otherwise:
+
+- **Single responsibility split**: if one class handles API calls + content parsing + persistence + orchestration, split into focused services.
+- **Thin orchestrator pattern**: keep top-level feature classes (for example, publishers/tools/endpoints) as coordinators that delegate to extracted services.
+- **Typed models over dynamic JSON**: do not use `JsonObject`, `JsonNode`, or `JsonArray` in feature logic when a stable shape exists. Create explicit request/response/domain models instead.
+- **Model extraction**: move non-trivial nested/anonymous payload shapes into named model files under the feature folder.
+- **Behavior parity first**: preserve external behavior and wire-level payload shapes while refactoring internals.
+- **No swallowed exceptions**: if catching `Exception`, log with `LogError` unless explicitly handling a safe best-effort path.
+- **Cross-cutting rule centralization**: if the same validation/normalization logic appears in multiple endpoints/tools, extract to shared helper/service.
+- **Bounded public constructors**: allow optional dependency injection overrides only when needed for testability; keep default wiring straightforward.
+- **Tests required for refactors**: update/add tests for changed responsibilities and serialization contracts before considering refactor complete.
+
 ## LLM configuration
 
 Set in `.env`. The API reads these at startup:

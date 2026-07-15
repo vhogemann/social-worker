@@ -11,7 +11,24 @@ namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record AddSourceArgs(string Kind, string Reference, string? Title, string? Content);
 
-public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, string>
+public sealed record AddSourceResult(
+    bool Success,
+    string Message,
+    Guid? SourceId = null,
+    string? Kind = null,
+    string? Error = null) : IChatToolResult
+{
+    public static implicit operator string(AddSourceResult result) => result.ToDisplayText();
+
+    public string ToDisplayText()
+    {
+        return Success
+            ? Message
+            : $"Error: {Error ?? Message}";
+    }
+}
+
+public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
 {
     private readonly IServiceScopeFactory _scopeFactory;
 
@@ -49,27 +66,29 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, string>
         }
         """).RootElement.Clone();
 
-    public override async Task<string> ExecuteAsync(AddSourceArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<AddSourceResult> ExecuteAsync(AddSourceArgs args, Guid? draftId, Guid userId, CancellationToken ct)
     {
         if (!draftId.HasValue)
         {
-            return "Error: No draft ID active.";
+            return new AddSourceResult(false, "No draft ID active.", Error: "No draft ID active.");
         }
 
         if (!Enum.TryParse<SourceKind>(args.Kind, true, out var kind))
         {
-            return $"Error: Invalid source kind '{args.Kind}'. Must be one of Url, YouTube, File.";
+            var error = $"Invalid source kind '{args.Kind}'. Must be one of Url, YouTube, File.";
+            return new AddSourceResult(false, error, Error: error);
         }
 
         var reference = args.Reference?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(reference))
         {
-            return "Error: Source reference is required.";
+            return new AddSourceResult(false, "Source reference is required.", Error: "Source reference is required.");
         }
 
         if ((kind == SourceKind.Url || kind == SourceKind.YouTube) && !TryValidateAbsoluteHttpUrl(reference, out var referenceError))
         {
-            return $"Error: {referenceError} Pass the exact absolute URL, including https://.";
+            var error = $"{referenceError} Pass the exact absolute URL, including https://.";
+            return new AddSourceResult(false, error, Error: error);
         }
 
         using var scope = _scopeFactory.CreateScope();
@@ -87,22 +106,26 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, string>
 
             if (kind == SourceKind.YouTube && !string.Equals(result.Kind, "YouTube", StringComparison.OrdinalIgnoreCase))
             {
-                return "Error: The provided reference is not recognized as a YouTube URL.";
+                return new AddSourceResult(false, "The provided reference is not recognized as a YouTube URL.", Error: "The provided reference is not recognized as a YouTube URL.");
             }
 
-            return $"Successfully added source '{result.Title}' ({result.Kind}) with ID {result.SourceId}. Use list_sources or fetch_source to inspect it before drafting from it.";
+            return new AddSourceResult(
+                true,
+                $"Successfully added source '{result.Title}' ({result.Kind}) with ID {result.SourceId}. Use list_sources or fetch_source to inspect it before drafting from it.",
+                result.SourceId,
+                result.Kind);
         }
         catch (KeyNotFoundException)
         {
-            return "Error: Draft not found or access denied.";
+            return new AddSourceResult(false, "Draft not found or access denied.", Error: "Draft not found or access denied.");
         }
         catch (ArgumentException ex)
         {
-            return $"Error: {ex.Message} Pass the exact absolute URL, including https://.";
+            return new AddSourceResult(false, $"{ex.Message} Pass the exact absolute URL, including https://.", Error: ex.Message);
         }
         catch (InvalidOperationException ex)
         {
-            return $"Error: Failed to add source because the URL could not be scraped. {ex.Message}";
+            return new AddSourceResult(false, $"Failed to add source because the URL could not be scraped. {ex.Message}", Error: ex.Message);
         }
     }
 

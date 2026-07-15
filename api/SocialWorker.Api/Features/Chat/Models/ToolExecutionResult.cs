@@ -2,12 +2,27 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 
-namespace SocialWorker.Api.Features.Chat;
+namespace SocialWorker.Api.Features.Chat.Models;
 
 public sealed record ToolExecutionResult(
     object Result,
     IReadOnlyList<OpenAiModels.OpenAiMessage>? ExtraMessages = null)
 {
+    public IChatToolResult AsDisplayResult()
+    {
+        return Result as IChatToolResult ?? new DefaultChatToolResult(Result);
+    }
+
+    public string ToDisplayText()
+    {
+        return AsDisplayResult().ToDisplayText();
+    }
+
+    public object ToDisplayPayload()
+    {
+        return Result is IChatToolResult ? ToDisplayText() : Result;
+    }
+
     public List<OpenAiModels.OpenAiMessage> ToMessages(string toolCallId)
     {
         if (ExtraMessages != null && ExtraMessages.Count > 0)
@@ -32,5 +47,13 @@ public sealed record ToolExecutionResult(
                 Content = contentStr
             }
         };
+    }
+
+    private sealed record DefaultChatToolResult(object Value) : IChatToolResult
+    {
+        public string ToDisplayText()
+        {
+            return Value is string s ? s : JsonSerializer.Serialize(Value);
+        }
     }
 }

@@ -24,7 +24,23 @@ public sealed record ViewImageResultItem(
 public sealed record ViewImageResultImageUrl(
     [property: JsonPropertyName("url")] string Url);
 
-public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageResultItem>>
+public sealed record ViewImageToolResult(IReadOnlyList<ViewImageResultItem> Items, string Summary) : IChatToolResult, IReadOnlyList<ViewImageResultItem>
+{
+    public int Count => Items.Count;
+
+    public ViewImageResultItem this[int index] => Items[index];
+
+    public IEnumerator<ViewImageResultItem> GetEnumerator() => Items.GetEnumerator();
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public string ToDisplayText()
+    {
+        return Summary;
+    }
+}
+
+public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolResult>
 {
     private readonly IServiceScopeFactory _scopeFactory;
 
@@ -50,7 +66,7 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
         }
         """).RootElement.Clone();
 
-    public override async Task<List<ViewImageResultItem>> ExecuteAsync(ViewImageArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<ViewImageToolResult> ExecuteAsync(ViewImageArgs args, Guid? draftId, Guid userId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(args.Id))
         {
@@ -138,14 +154,17 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
         var bytes = data.ToArray();
         var base64 = Convert.ToBase64String(bytes);
 
-        return new List<ViewImageResultItem>
+        var items = new List<ViewImageResultItem>
         {
             new ViewImageResultItem("text", $"Image: {asset.FileName} ({asset.Width}x{asset.Height}). Current alt text: {asset.AltText ?? "(none)"}", null),
             new ViewImageResultItem("image_url", null, new ViewImageResultImageUrl($"data:image/jpeg;base64,{base64}"))
         };
+
+        var summary = $"Image inspected: {asset.FileName} ({asset.Width}x{asset.Height}).";
+        return new ViewImageToolResult(items, summary);
     }
 
-    protected override ToolExecutionResult BuildResult(List<ViewImageResultItem> result)
+    protected override ToolExecutionResult BuildResult(ViewImageToolResult result)
     {
         var extraMessages = new List<OpenAiModels.OpenAiMessage>
         {
@@ -157,7 +176,7 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, List<ViewImageRe
             new()
             {
                 Role = "user",
-                Content = result.ToArray()
+                Content = result.Items.ToArray()
             }
         };
 

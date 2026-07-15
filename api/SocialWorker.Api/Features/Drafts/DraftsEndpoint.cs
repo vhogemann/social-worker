@@ -136,8 +136,8 @@ public static class DraftsEndpoint
         });
     }
 
-    public static List<string> SplitMarkdownIntoSegments(string markdown) => DraftsService.SplitMarkdownIntoSegments(markdown);
-    public static DraftsService.SegmentMediaAnalysis AnalyzeSegmentMedia(string segmentContent) => DraftsService.AnalyzeSegmentMedia(segmentContent);
+    public static List<string> SplitMarkdownIntoSegments(string markdown) => DraftSegmentService.SplitMarkdownIntoSegments(markdown);
+    public static SegmentMediaAnalysis AnalyzeSegmentMedia(string segmentContent) => DraftSegmentService.AnalyzeSegmentMedia(segmentContent);
 }
 
 public sealed record CreateDraftRequest(string? Title, string? Content, string? TargetPlatform = null);
