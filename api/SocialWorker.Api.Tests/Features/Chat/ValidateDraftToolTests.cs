@@ -9,6 +9,9 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Publishing.Bluesky;
+using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
+using SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
+using SocialWorker.Api.Features.Publishing.Validation;
 using Xunit;
 
 namespace SocialWorker.Api.Tests;
@@ -34,6 +37,24 @@ public sealed class ValidateDraftToolTests : IDisposable
     public void Dispose()
     {
         _connection.Dispose();
+    }
+
+    private static BlueskyDraftValidator CreateValidator()
+    {
+        return new BlueskyDraftValidator(
+            new BlueskyContentValidator(),
+            new IValidateDraftRule<BlueskySegmentValidation>[]
+            {
+                new BlueskyMaxCharactersRule(),
+                new BlueskyMaxImagesRule(),
+                new BlueskyNoMixedImagesAndYouTubeRule(),
+                new BlueskyUnsupportedMarkdownRule(),
+                new BlueskyPlaceholderLinkRule(),
+                new BlueskyPlaceholderMediaRule(),
+                new BlueskyPlaceholderUrlRule(),
+                new BlueskyMissingAltTextRule(),
+                new BlueskyTitleLikeOpenerRule()
+            });
     }
 
     [Fact]
@@ -71,7 +92,7 @@ public sealed class ValidateDraftToolTests : IDisposable
         var serviceProvider = serviceCollection.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        var tool = new ValidateDraftTool(scopeFactory, new BlueskyContentValidator());
+        var tool = new ValidateDraftTool(scopeFactory, CreateValidator());
         var report = await tool.ExecuteAsync(new ValidateDraftArgs(null), draft.Id, userId, CancellationToken.None);
         var display = report.ToDisplayText();
 
@@ -102,7 +123,7 @@ public sealed class ValidateDraftToolTests : IDisposable
         var serviceProvider = serviceCollection.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        var tool = new ValidateDraftTool(scopeFactory, new BlueskyContentValidator());
+        var tool = new ValidateDraftTool(scopeFactory, CreateValidator());
         var explicitContent = "This is segment 1 under 300 chars.\n---\nThis is segment 2 under 300 chars.";
         
         var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), null, userId, CancellationToken.None);

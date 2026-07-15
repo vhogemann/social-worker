@@ -1,29 +1,19 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
-using SocialWorker.Api.Features.Publishing.Bluesky;
-using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
+using SocialWorker.Api.Features.Publishing.Validation;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
 
 public sealed record ValidateDraftArgs(string? Content);
-
-public enum ValidateDraftSeverity
-{
-    Error,
-    Warning
-}
-
-public sealed record ValidateDraftIssue(ValidateDraftSeverity Severity, string Message);
 
 public sealed record ValidateDraftPostResult(
     int PostNumber,
@@ -100,18 +90,13 @@ public sealed record ValidateDraftResult(
 
 public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, ValidateDraftResult>
 {
-    private static readonly Regex TitleLikeOpenerRegex = new(@"(?i)\b(key\s+takeaways|takeaways|summary|overview|highlights)\b", RegexOptions.Compiled);
-    private static readonly Regex PlaceholderLinkTokenRegex = new(@"\[(?=[^\]\n]{0,80}(?i:link|source|youtube|docs))[^\]\n]+\](?!\()", RegexOptions.Compiled);
-    private static readonly Regex PlaceholderMediaTokenRegex = new(@"(?i)media://\s*(guid|\{guid\}|placeholder)", RegexOptions.Compiled);
-    private static readonly Regex PlaceholderUrlRegex = new(@"(?i)https?://(www\.)?example\.com\b", RegexOptions.Compiled);
-
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly BlueskyContentValidator _blueskyContentValidator;
+    private readonly BlueskyDraftValidator _blueskyDraftValidator;
 
-    public ValidateDraftTool(IServiceScopeFactory scopeFactory, BlueskyContentValidator blueskyContentValidator)
+    public ValidateDraftTool(IServiceScopeFactory scopeFactory, BlueskyDraftValidator blueskyDraftValidator)
     {
         _scopeFactory = scopeFactory;
-        _blueskyContentValidator = blueskyContentValidator;
+        _blueskyDraftValidator = blueskyDraftValidator;
     }
 
     public override string Name => "validate_draft";
@@ -149,150 +134,19 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, Validate
         {
             if (!draftId.HasValue)
             {
-                return new ValidateDraftResult(
-                    new[]
-                    {
-                        new ValidateDraftPostResult(
-                            1,
-                            0,
-                            0,
-                            false,
-                            new[] { new ValidateDraftIssue(ValidateDraftSeverity.Error, "No draft ID active.") })
-                    },
-                    ValidateDraftOverallStatus.Failed);
+                return BlueskyDraftValidator.CreateFailureResult("No draft ID active.");
             }
 
             var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
             if (draft == null)
             {
-                return new ValidateDraftResult(
-                    new[]
-                    {
-                        new ValidateDraftPostResult(
-                            1,
-                            0,
-                            0,
-                            false,
-                            new[] { new ValidateDraftIssue(ValidateDraftSeverity.Error, "Draft not found or access denied.") })
-                    },
-                    ValidateDraftOverallStatus.Failed);
+                return BlueskyDraftValidator.CreateFailureResult("Draft not found or access denied.");
             }
 
             validationContent = draft.Content ?? "";
             mediaAssets = await db.MediaAssets.Where(m => m.DraftId == draftId.Value).ToListAsync(ct);
         }
 
-        var segments = _blueskyContentValidator.Analyze(validationContent);
-
-        bool hasErrors = false;
-        bool hasWarnings = false;
-        var posts = new List<ValidateDraftPostResult>();
-
-        for (int i = 0; i < segments.Count; i++)
-        {
-            var segment = segments[i];
-            var issues = new List<ValidateDraftIssue>();
-
-            var imageReferences = SharedPatterns.ExtractMediaReferences(segment.Segment);
-            int imageCount = segment.ImageCount;
-            var missingAltImages = new List<string>();
-
-            foreach (var mediaRef in imageReferences)
-            {
-                var markdownAlt = mediaRef.AltText;
-                var mediaId = mediaRef.MediaId;
-
-                var asset = mediaAssets.FirstOrDefault(m => m.Id == mediaId);
-                var assetAlt = asset?.AltText;
-
-                if (string.IsNullOrWhiteSpace(markdownAlt) && string.IsNullOrWhiteSpace(assetAlt))
-                {
-                    missingAltImages.Add(asset?.FileName ?? $"media://{mediaId}");
-                }
-            }
-
-            bool hasYouTube = segment.HasYouTube;
-
-            bool hasUnsupportedMarkdown = segment.HasUnsupportedMarkdown;
-            var firstNonEmptyLine = segment.Segment
-                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
-                .Select(l => l.Trim())
-                .FirstOrDefault(l => !string.IsNullOrWhiteSpace(l)) ?? string.Empty;
-            bool hasTitleLikeOpener = firstNonEmptyLine.Length > 0 &&
-                                      (firstNonEmptyLine.EndsWith(':') || TitleLikeOpenerRegex.IsMatch(firstNonEmptyLine));
-            bool hasPlaceholderLinks = PlaceholderLinkTokenRegex.IsMatch(segment.Segment);
-            bool hasPlaceholderMedia = PlaceholderMediaTokenRegex.IsMatch(segment.Segment);
-            bool hasPlaceholderUrls = PlaceholderUrlRegex.IsMatch(segment.Segment);
-
-            int charCount = segment.CharacterCount;
-
-            if (charCount > 300)
-            {
-                issues.Add(new ValidateDraftIssue(ValidateDraftSeverity.Error, $"Exceeds the 300-character limit by {charCount - 300} characters."));
-                hasErrors = true;
-            }
-
-            if (imageCount > 4)
-            {
-                issues.Add(new ValidateDraftIssue(ValidateDraftSeverity.Error, $"Contains {imageCount} images (Bluesky allows a maximum of 4 images per post)."));
-                hasErrors = true;
-            }
-
-            if (imageCount > 0 && hasYouTube)
-            {
-                issues.Add(new ValidateDraftIssue(ValidateDraftSeverity.Error, "Cannot mix images and YouTube embeds in a single post on Bluesky."));
-                hasErrors = true;
-            }
-
-            if (hasUnsupportedMarkdown)
-            {
-                issues.Add(new ValidateDraftIssue(ValidateDraftSeverity.Error, "Unsupported markdown styling detected for Bluesky (bold/italic/heading markers). Use plain text formatting."));
-                hasErrors = true;
-            }
-
-            if (hasPlaceholderLinks)
-            {
-                issues.Add(new ValidateDraftIssue(ValidateDraftSeverity.Error, "Placeholder link text detected (e.g., [source link]). Use concrete URLs or valid markdown links."));
-                hasErrors = true;
-            }
-
-            if (hasPlaceholderMedia)
-            {
-                issues.Add(new ValidateDraftIssue(ValidateDraftSeverity.Error, "Placeholder media reference detected (e.g., media://guid). Use a real media://{guid} from add_image_source or render_code_blocks."));
-                hasErrors = true;
-            }
-
-            if (hasPlaceholderUrls)
-            {
-                issues.Add(new ValidateDraftIssue(ValidateDraftSeverity.Error, "Placeholder URL detected (e.g., example.com). Use a concrete source URL."));
-                hasErrors = true;
-            }
-
-            if (missingAltImages.Count > 0)
-            {
-                issues.Add(new ValidateDraftIssue(ValidateDraftSeverity.Warning, $"Missing ALT text on images: {string.Join(", ", missingAltImages)}"));
-                hasWarnings = true;
-            }
-
-            if (hasTitleLikeOpener)
-            {
-                issues.Add(new ValidateDraftIssue(ValidateDraftSeverity.Warning, "Title-like opener detected. Prefer a conversational opening line for Bluesky."));
-                hasWarnings = true;
-            }
-
-            posts.Add(new ValidateDraftPostResult(i + 1, charCount, imageCount, hasYouTube, issues));
-        }
-
-        var overallStatus = ValidateDraftOverallStatus.Valid;
-        if (hasErrors)
-        {
-            overallStatus = ValidateDraftOverallStatus.Failed;
-        }
-        else if (hasWarnings)
-        {
-            overallStatus = ValidateDraftOverallStatus.Warnings;
-        }
-
-        return new ValidateDraftResult(posts, overallStatus);
+        return _blueskyDraftValidator.Validate(validationContent, mediaAssets);
     }
 }
