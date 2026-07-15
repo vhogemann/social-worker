@@ -27,4 +27,16 @@ public sealed class PlatformContentPolicyTests
         Assert.Contains("300 characters", rules);
         Assert.Contains("---", rules);
     }
+
+    [Fact]
+    public void Evaluate_ReturnsBlueskyLengthError_ThroughSharedRule()
+    {
+        var policy = new PlatformContentPolicy();
+        var content = new string('x', 301);
+
+        var result = policy.Evaluate(SocialPlatform.Bluesky, content, normalizeFormatting: false);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("exceeds 300 characters", System.StringComparison.OrdinalIgnoreCase));
+    }
 }
