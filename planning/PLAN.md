@@ -51,7 +51,7 @@ Goals:
  
 Tracked in:
  
-- [SOURCES_LIBRARY_AND_TRANSCRIPTS.md](SOURCES_LIBRARY_AND_TRANSCRIPTS.md)
+- [archive/SOURCES_LIBRARY_AND_TRANSCRIPTS.md](archive/SOURCES_LIBRARY_AND_TRANSCRIPTS.md)
  
 ### 2. Publishing and platform reach
  
@@ -136,27 +136,25 @@ Reference docs:
 - [future/TELEGRAM_INTEGRATION.md](future/TELEGRAM_INTEGRATION.md)
 
 ## Active planning documents
-
+ 
 These should remain first-class and be kept current:
-
+ 
 | File | Role |
 |---|---|
-| [SOURCES_LIBRARY_AND_TRANSCRIPTS.md](SOURCES_LIBRARY_AND_TRANSCRIPTS.md) | primary product roadmap item |
 | [TECH_DEBT.md](TECH_DEBT.md) | engineering cleanup and reliability backlog |
 | [TEST_PLAN.md](TEST_PLAN.md) | test strategy and coverage backlog |
-| [TO_REFACTOR.md](TO_REFACTOR.md) | prioritized refactoring opportunities backlog |
-
+ 
 ## Reference-only planning documents
-
+ 
 ### Future ideas
-
+ 
 - [future/E2E_TESTING.md](future/E2E_TESTING.md)
 - [future/PYTHON_SANDBOX.md](future/PYTHON_SANDBOX.md)
 - [future/SELF_EVOLVING_ASSISTANT.md](future/SELF_EVOLVING_ASSISTANT.md)
 - [future/TELEGRAM_INTEGRATION.md](future/TELEGRAM_INTEGRATION.md)
-
+ 
 ### Historical completed plans
-
+ 
 - [archive/AUTHENTICATION.md](archive/AUTHENTICATION.md)
 - [archive/BRAND_VOICE_PROMPTS.md](archive/BRAND_VOICE_PROMPTS.md)
 - [archive/CHAT_HISTORY_PERSISTENCE.md](archive/CHAT_HISTORY_PERSISTENCE.md)
@@ -166,8 +164,10 @@ These should remain first-class and be kept current:
 - [archive/MVP.md](archive/MVP.md)
 - [archive/PLATFORM_VARIANTS.md](archive/PLATFORM_VARIANTS.md)
 - [archive/SEARCH_TOOL.md](archive/SEARCH_TOOL.md)
+- [archive/SOURCES_LIBRARY_AND_TRANSCRIPTS.md](archive/SOURCES_LIBRARY_AND_TRANSCRIPTS.md)
 - [archive/THREAD_STAGES.md](archive/THREAD_STAGES.md)
 - [archive/REFACTORING_PLAN.md](archive/REFACTORING_PLAN.md)
+- [archive/TO_REFACTOR.md](archive/TO_REFACTOR.md)
 
 ### Retained only as historical context
 
