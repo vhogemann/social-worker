@@ -71,6 +71,7 @@ social-worker/
 - **New platform publishers** implement `IPublisher` in `api/SocialWorker.Api/Features/Publishing/`. `BlueskyPublisher` is the reference; others return `NotImplemented` + an auth URL until implemented.
 - **Stage transitions** are server-enforced: the model calls `set_stage`, but the server only applies it after the UI records user approval. `publish` is rejected unless `Stage=Ready` and the target platform's variant is confirmed.
 - **Implementation plans**: saved as `*.md` files in `planning/` and its subdirectories (for example `planning/archive/IMAGE_UPLOADS.md`, `planning/future/PYTHON_SANDBOX.md`). Each active or reference plan must be linked from `planning/PLAN.md` under the relevant section. This is the source of truth for tracking planned and completed work.
+- **Release tags**: use SemVer only in the form `vMAJOR.MINOR.PATCH` (for example `v0.1.4`). Do not create date-based or suffixed release tags.
 - **TDD / Test Coverage**: Nothing is done until it is covered by tests. All new features, services, endpoints, and tools must have accompanying unit tests under `api/SocialWorker.Api.Tests/`.
 
 ### Refactoring criteria for agents
