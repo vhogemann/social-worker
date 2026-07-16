@@ -604,51 +604,51 @@ SUMMARY_API_KEY=...  # for OpenRouter only
 ## Verification Checklist
 
 ### Backend
-- [ ] EF migration creates `DraftSource` table + indexes
-- [ ] Existing sources migrate to `DraftSource` automatically
-- [ ] `Source` entity has new columns: Summary, TranscriptStatus, TranscriptPath, YoutubeVideoId
-- [ ] Postgres FTS: `ContentTsv` column + GIN index working
-- [ ] YouTubeService: Extract video ID from URLs (various formats)
-- [ ] TranscriptExtractionService: Calls Python API, retry logic works
-- [ ] SummarizationService: Calls Python API
-- [ ] All 6 endpoints return correct DTOs
-- [ ] Background job: TranscriptExtractionJob queued + executed
-- [ ] Python health check: .NET can ping transcriber health endpoint
-- [ ] Source queries: Work through DraftSource junction table
-- [ ] **15+ new unit tests** (migration, services, endpoints, FTS, junction)
+- [x] EF migration creates `DraftSource` table + indexes
+- [x] Existing sources migrate to `DraftSource` automatically
+- [x] `Source` entity has new columns: Summary, TranscriptStatus, TranscriptPath, YoutubeVideoId
+- [x] Postgres FTS: `ContentTsv` column + GIN index working
+- [x] YouTubeService: Extract video ID from URLs (various formats)
+- [x] TranscriptExtractionService: Calls Python API, retry logic works
+- [x] SummarizationService: Calls Python API
+- [x] All 6 endpoints return correct DTOs
+- [x] Background job: TranscriptExtractionJob queued + executed
+- [x] Python health check: .NET can ping transcriber health endpoint
+- [x] Source queries: Work through DraftSource junction table
+- [x] **15+ new unit tests** (migration, services, endpoints, FTS, junction)
 
 ### Frontend
-- [ ] `/sources` route loads + renders list
-- [ ] Search input → debounce → API call → list updates
-- [ ] Pagination click → URL query params change → fetch new page
-- [ ] Detail modal → fetch full content + summary
-- [ ] "Add to current draft" → LinkSourceAsync → current draft reloads
-- [ ] ThreadPreview shows source badges (when applicable)
-- [ ] Status polling works (mock 2s interval)
-- [ ] No circular imports or TypeScript errors
-- [ ] **8+ new component tests** (search, pagination, modal, polling)
+- [x] `/sources` route loads + renders list
+- [x] Search input → debounce → API call → list updates
+- [x] Pagination click → URL query params change → fetch new page
+- [x] Detail modal → fetch full content + summary
+- [x] "Add to current draft" → LinkSourceAsync → current draft reloads
+- [x] ThreadPreview shows source badges (when applicable)
+- [x] Status polling works (mock 2s interval)
+- [x] No circular imports or TypeScript errors
+- [x] **8+ new component tests** (search, pagination, modal, polling)
 
 ### Docker
-- [ ] `docker compose up` starts transcriber service
-- [ ] Transcriber health check passes: `curl http://localhost:8001/health`
-- [ ] Transcript files saved to `./transcripts/` on host
-- [ ] Python service can call Ollama (if configured)
-- [ ] No port conflicts (8001 for transcriber)
-- [ ] Volume mount works: Files persist across container restarts
+- [x] `docker compose up` starts transcriber service
+- [x] Transcriber health check passes: `curl http://localhost:8001/health`
+- [x] Transcript files saved to `./transcripts/` on host
+- [x] Python service can call Ollama (if configured)
+- [x] No port conflicts (8001 for transcriber)
+- [x] Volume mount works: Files persist across container restarts
 
 ### E2E Workflow
-- [ ] Add YouTube URL to draft
+- [x] Add YouTube URL to draft
   - Transcript status shows "Processing" ⏳
   - Poll status endpoint → "Complete" ✓ when done
   - Transcript appears in Sources library
-- [ ] Add URL to draft
+- [x] Add URL to draft
   - Fetched + cached
   - Appears in Sources library with preview
-- [ ] Search sources library
+- [x] Search sources library
   - FTS finds content by keyword
   - Results paginate correctly
   - Filters work (type, date)
-- [ ] Link existing source to new draft
+- [x] Link existing source to new draft
   - Source appears in new draft's sources
   - Deleting from one draft doesn't delete from other
   - Summary + transcript preserved

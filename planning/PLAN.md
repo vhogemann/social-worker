@@ -39,23 +39,23 @@ This file is the single source of truth for roadmap status and planning links.
 ## Roadmap themes
 
 ### 1. Source ingestion and knowledge reuse
-
-Status: `Now`
-
+ 
+Status: `Completed`
+ 
 Goals:
-
+ 
 - reusable source library across drafts
 - better source search and retrieval
 - YouTube transcript ingestion and reuse
 - higher-confidence web ingestion and source management
-
+ 
 Tracked in:
-
+ 
 - [SOURCES_LIBRARY_AND_TRANSCRIPTS.md](SOURCES_LIBRARY_AND_TRANSCRIPTS.md)
-
+ 
 ### 2. Publishing and platform reach
-
-Status: `Now / Next`
+ 
+Status: `Now`
 
 Goals:
 
