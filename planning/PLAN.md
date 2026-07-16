@@ -144,6 +144,7 @@ These should remain first-class and be kept current:
 | File | Role |
 |---|---|
 | [BLUESKY.md](BLUESKY.md) | primary product roadmap item |
+| [RSS_AUTOMATION.md](RSS_AUTOMATION.md) | RSS/Atom feed automation & subscription ingestion plan |
 | [BLUESKY_SOURCE_THREAD_CONTEXT.md](BLUESKY_SOURCE_THREAD_CONTEXT.md) | external Bluesky source thread-context ingestion plan |
 | [THREADED_REPLIES.md](THREADED_REPLIES.md) | linked-reply draft architecture and UI nesting plan |
 | [TECH_DEBT.md](TECH_DEBT.md) | engineering cleanup and reliability backlog |
@@ -155,7 +156,6 @@ These should remain first-class and be kept current:
  
 - [future/E2E_TESTING.md](future/E2E_TESTING.md)
 - [future/PYTHON_SANDBOX.md](future/PYTHON_SANDBOX.md)
-- [future/RSS_AUTOMATION.md](future/RSS_AUTOMATION.md)
 - [future/SELF_EVOLVING_ASSISTANT.md](future/SELF_EVOLVING_ASSISTANT.md)
 - [future/TELEGRAM_INTEGRATION.md](future/TELEGRAM_INTEGRATION.md)
  
@@ -184,6 +184,7 @@ These should remain first-class and be kept current:
  
 ### Near-term
  
+- RSS/Atom feed subscription & draft generation automation
 - Sources library and transcript support
 - Bluesky reply / thread expansion workflow
 - stronger E2E and release confidence
@@ -193,7 +194,6 @@ These should remain first-class and be kept current:
  
 - thread reordering and multi-draft workflow improvements
 - scheduled publishing
-- RSS/Atom feed subscription & draft generation automation
  
 ### Long-term
  

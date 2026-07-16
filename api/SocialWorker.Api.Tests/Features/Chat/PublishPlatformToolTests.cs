@@ -24,8 +24,7 @@ public sealed class PublishPlatformToolTests : SqliteTestBase
 
         var result = await tool.ExecuteAsync(new PublishPlatformArgs("Bluesky"), null, Guid.NewGuid(), CancellationToken.None);
 
-        var error = result.GetType().GetProperty("error")?.GetValue(result) as string;
-        Assert.Contains("No active draft", error);
+        Assert.Contains("No active draft", result.Error);
     }
 
     [Fact]

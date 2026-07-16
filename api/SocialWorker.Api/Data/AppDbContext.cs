@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<BrandVoicePrompt> BrandVoicePrompts => Set<BrandVoicePrompt>();
     public DbSet<DraftBlueskyMetadata> DraftBlueskyMetadata => Set<DraftBlueskyMetadata>();
+    public DbSet<FeedSubscription> FeedSubscriptions => Set<FeedSubscription>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -200,6 +201,22 @@ public class AppDbContext : DbContext
                 .WithOne(d => d.BlueskyMetadata)
                 .HasForeignKey<DraftBlueskyMetadata>(x => x.DraftId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<FeedSubscription>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(200);
+            e.Property(x => x.FeedUrl).HasMaxLength(500);
+            e.Property(x => x.WebsiteUrl).HasMaxLength(500);
+            e.Property(x => x.InstructionPrompt).HasColumnType("text");
+            e.Property(x => x.IncludeFilters).HasMaxLength(500);
+            e.Property(x => x.ExcludeFilters).HasMaxLength(500);
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.UserId);
         });
     }
 }

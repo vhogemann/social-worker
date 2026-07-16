@@ -18,6 +18,7 @@ using SocialWorker.Api.Features.Accounts;
 using SocialWorker.Api.Features.Prompts;
 using SocialWorker.Api.Features.CodeImages;
 using SocialWorker.Api.Features.PlatformVariants;
+using SocialWorker.Api.Features.Feeds;
 using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
@@ -54,6 +55,10 @@ builder.Services.AddScoped<ChatService>();
 builder.Services.AddHttpClient<ModelCapabilityProbe>();
 builder.Services.AddScoped<SourceExtractor>();
 builder.Services.AddHttpClient<WebScraperService>();
+builder.Services.AddHttpClient<FeedDiscoveryService>();
+builder.Services.AddScoped<FeedOrchestrationService>();
+builder.Services.AddSingleton<FeedPollingHostedService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<FeedPollingHostedService>());
 builder.Services.AddHttpClient<ITranscriptExtractionService, TranscriptExtractionService>((sp, client) =>
 {
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TranscriberOptions>>().Value;
@@ -273,6 +278,7 @@ app.MapPublishingEndpoints();
 app.MapBrandVoicePromptsEndpoints();
 app.MapCodeImageEndpoints();
 app.MapPlatformVariantsEndpoints();
+app.MapFeedsEndpoints();
 
 if (app.Environment.IsDevelopment())
 {

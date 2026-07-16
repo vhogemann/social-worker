@@ -25,6 +25,7 @@
     <PackageReference Include="ColorCode.Core" Version="2.0.15" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
     <PackageReference Include="dbup-postgresql" Version="6.0.3" />
+    <PackageReference Include="CodeHollow.FeedReader" Version="1.2.6" />
   </ItemGroup>
 
   <ItemGroup>

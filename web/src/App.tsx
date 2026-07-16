@@ -7,6 +7,7 @@ import { ChatPanel } from "./components/ChatPanel/ChatPanel";
 import { EditorPanel } from "./components/EditorPanel/EditorPanel";
 import { DraftList } from "./components/DraftList/DraftList";
 import { SourcesLibrary } from "./components/SourcesLibrary/SourcesLibrary";
+import { FeedsPanel } from "./components/FeedsPanel/FeedsPanel";
 import { useDraftStore } from "./store/draftStore";
 import { useEditorStore } from "./store/editorStore";
 
@@ -95,13 +96,15 @@ function AppContent() {
           social-worker <span className="text-accent">·</span> mvp
         </div>
         <div className="flex gap-4">
-          <Link to="/" className="hover:text-foreground">Composer Link</Link>
-          <Link to="/sources" className="hover:text-foreground">Sources Library Link</Link>
+          <Link to="/" className="hover:text-foreground">Composer</Link>
+          <Link to="/sources" className="hover:text-foreground">Sources Library</Link>
+          <Link to="/feeds" className="hover:text-foreground">Feeds</Link>
         </div>
       </header>
       <Routes>
         <Route path="/" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
         <Route path="/sources" element={<SourcesLibrary />} />
+        <Route path="/feeds" element={<FeedsPanel />} />
       </Routes>
     </div>
   );

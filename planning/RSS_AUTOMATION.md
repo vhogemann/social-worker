@@ -1,28 +1,31 @@
-# Future Idea: RSS/Atom Feed Ingestion & Automation
+# RSS/Atom Feed Ingestion & Automation
 
 Implement first-level automation by subscribing to external RSS/Atom feeds, periodically polling them, and converting new items into Drafts with feed-specific agent instructions.
 
-## Proposed Concept
+## Decisions & Design Specifications
 
 ### 1. Feed Subscription Model
-We will introduce a `FeedSubscription` entity:
+We will introduce a `FeedSubscription` entity linked to `AppUser`:
 - `Id` (Guid)
-- `Title` (string)
-- `FeedUrl` (string)
+- `UserId` (Guid) — Owner of the subscription.
+- `Title` (string) — User-defined title for the subscription.
+- `FeedUrl` (string) — The resolved RSS/Atom feed URL.
+- `WebsiteUrl` (string) — The original website URL entered by the user (if any) prior to feed auto-discovery.
 - `InstructionPrompt` (string) — Feed-specific instructions passed to the agent to draft the thread (e.g., "Summarize this tech blog post, highlight the key metrics, and keep a professional tone").
 - `AutoPublish` (bool) — If true, publish immediately when ready. If false, leave the draft in the inbox for manual review.
-- `LastPolledAt` (DateTime)
+- `LastPolledAt` (DateTime, nullable)
 - `IncludeFilters` (string, nullable) — Comma-separated keywords or regex; only ingest items matching these.
 - `ExcludeFilters` (string, nullable) — Comma-separated keywords or regex; ignore items matching these.
+- `CreatedAt` (DateTime)
 
 ### 2. Polling Engine (Hosted Service)
 A background hosted service (`FeedPollingHostedService`) will:
-- Run periodically (e.g., every 30 minutes).
-- Fetch feed items since `LastPolledAt`.
+- Run periodically (every 30 minutes, or configured via appsettings/timer).
+- Fetch feed items since `LastPolledAt` or from a window of the last 24 hours if `LastPolledAt` is null.
 - For each new item:
   - Check if the item's unique identifier (`guid` or URL) has already been processed to prevent duplication.
-  - If a filter is specified, match the item title/description against `IncludeFilters` and `ExcludeFilters`.
-  - Create a new `Draft` and launch the automated ingestion pipeline.
+  - If filters are specified, match the item title/description against `IncludeFilters` and `ExcludeFilters`.
+  - Create a new `Draft` in the `Sourcing` stage and launch the automated ingestion pipeline.
 
 ---
 
@@ -44,7 +47,7 @@ A background hosted service (`FeedPollingHostedService`) will:
 ### C. Headless Agent Execution
 - **The Problem**: Currently, thread generation is triggered interactively via chat (SSE).
 - **The Solution**: Create a headless workflow execution service that can trigger an LLM run programmatically:
-  1. Create a `Draft` and link the initial feed source.
+  1. Create a `Draft` in the `Sourcing` stage and link the initial feed source.
   2. Start the background ingestion pipeline (scraping / YouTube transcription).
   3. **Ingestion Gate**: Wait for the ingestion/transcription background job to finish. The draft generation loop is only triggered once the `Source.TranscriptStatus` or ingestion state reaches `Complete`. If ingestion fails, mark the draft as `Failed` and abort generation.
   4. Construct the initial chat message using the feed's `InstructionPrompt` referencing the fully ingested source.
@@ -53,32 +56,13 @@ A background hosted service (`FeedPollingHostedService`) will:
 
 ---
 
-## RSS/Atom Parsing Libraries (Candidates)
+## RSS/Atom Parsing Library
 
-To avoid reinventing the wheel, we will use an existing .NET library to parse feeds:
-
-1. **`System.ServiceModel.Syndication` (Recommended)**:
-   - Microsoft's official, standard, and fully-featured syndication library.
-   - Available via the `System.ServiceModel.Syndication` NuGet package for .NET 10.
-   - Built-in support for RSS 2.0 and Atom 1.0, handling all namespaces, timestamps, links, and content summaries out of the box.
-   - Minimal dependency footprint, officially supported.
-   - Usage:
-     ```csharp
-     using var reader = XmlReader.Create(feedUrl);
-     var feed = SyndicationFeed.Load(reader);
-     foreach (var item in feed.Items)
-     {
-         var link = item.Links.FirstOrDefault()?.Uri?.ToString();
-         var title = item.Title.Text;
-     }
-     ```
-
-2. **`FeedReader`**:
-   - A popular, lightweight open-source C# alternative.
-   - Simplifies parsing and auto-discovery of RSS feeds from regular webpage URLs.
-   - Highly active but introduces a third-party dependency.
-
-We will use **`System.ServiceModel.Syndication`** for stability, compliance, and official Microsoft support.
+We will use **`FeedReader`**:
+- A popular, lightweight open-source C# alternative.
+- Available via NuGet package `CodeHollow.FeedReader`.
+- Simplifies parsing and supports auto-discovery of RSS feeds from regular webpage URLs out of the box.
+- API auto-discovery will run asynchronously when visiting a dashboard or upon background parsing rather than blocking save requests.
 
 ---
 
@@ -86,27 +70,28 @@ We will use **`System.ServiceModel.Syndication`** for stability, compliance, and
 
 ### 1. General RSS Auto-Discovery
 To make subscribing user-friendly, when a user enters a general URL (like `https://someblog.com` or `https://substack.com/profile`), the application will:
-- Scrape the page HTML.
-- Look for `<link rel="alternate" type="application/rss+xml" href="...">` or `type="application/atom+xml"`.
-- If found, use that resolved URL as the target `FeedUrl`.
+- Check if it's a direct XML feed. If not, use `FeedReader.GetFeedUrlsFromPageAsync(url)` or parse HTML to find feed links.
+- Store both the user-entered URL (`WebsiteUrl`) and the resolved feed XML URL (`FeedUrl`).
 
 ### 2. YouTube Channel Feed Ingestion
 YouTube publishes RSS feeds for all channels at:
 `https://www.youtube.com/feeds/videos.xml?channel_id={channelId}`
 
 If a user submits a channel handle or URL (e.g., `https://www.youtube.com/@ChannelName` or `https://www.youtube.com/channel/UC...`):
-- The scraper will parse the channel page to extract the `rss+xml` link tag, resolving the correct `channel_id` automatically.
-- Once registered, the Polling Engine will ingest new video links (e.g., `https://www.youtube.com/watch?v=...`).
+- We will resolve the channel ID using auto-discovery/HTML scraping (as parsed inside the existing `WebScraperService.FetchYouTubeMetadataAsync` matching `youtube.com/feeds/videos.xml?channel_id=(UC[\w-]+)`).
+- Once registered, the Polling Engine will ingest new video links.
 - Because of **Smart Source Detection (Section A)**, the engine recognizes the YouTube URL, automatically extracts its transcript via `YouTubeService`, and hands the full transcript to the LLM agent to compose a draft thread.
 
 ---
 
-## Database Schema
+## Database Schema (Postgres)
 ```sql
 CREATE TABLE FeedSubscriptions (
     Id UUID PRIMARY KEY,
+    UserId UUID NOT NULL REFERENCES Users(Id) ON DELETE CASCADE,
     Title VARCHAR(200) NOT NULL,
     FeedUrl VARCHAR(500) NOT NULL,
+    WebsiteUrl VARCHAR(500),
     InstructionPrompt TEXT NOT NULL,
     AutoPublish BOOLEAN NOT NULL DEFAULT FALSE,
     IncludeFilters VARCHAR(500),
@@ -114,4 +99,6 @@ CREATE TABLE FeedSubscriptions (
     LastPolledAt TIMESTAMP WITH TIME ZONE,
     CreatedAt TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+CREATE INDEX IX_FeedSubscriptions_UserId ON FeedSubscriptions(UserId);
 ```

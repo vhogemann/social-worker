@@ -66,6 +66,7 @@ export function clearChat(draftId: string) {
 function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
   const isRunning = useThread((state) => state.isRunning);
+  const activeMessages = useChatStore((s) => activeDraftId ? s.messagesByDraft[activeDraftId] : null);
 
   const prevDraftIdRef = useRef<string | null>(activeDraftId);
   const prevIsRunningRef = useRef(isRunning);
@@ -83,9 +84,12 @@ function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
     }
 
     if (activeDraftId) {
-      const saved = useChatStore.getState().loadMessages(activeDraftId);
+      const saved = activeMessages;
       if (saved) {
-        currentRuntime.thread.import(saved);
+        const currentMessagesCount = currentRuntime.thread.getState().messages.length;
+        if (currentMessagesCount === 0 || saved.messages.length > currentMessagesCount) {
+          currentRuntime.thread.import(saved);
+        }
       } else {
         currentRuntime.thread.reset();
       }
@@ -94,7 +98,7 @@ function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
     }
 
     prevDraftIdRef.current = activeDraftId;
-  }, [activeDraftId]);
+  }, [activeDraftId, activeMessages, runtime]);
 
   useEffect(() => {
     if (!prevIsRunningRef.current && isRunning) {

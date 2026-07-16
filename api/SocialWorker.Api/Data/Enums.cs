@@ -12,7 +12,8 @@ public enum DraftStatus
     Sourcing,
     Formatting,
     Archived,
-    Deleted
+    Deleted,
+    Failed
 }
 
 public enum SourceKind

@@ -6,15 +6,17 @@ Use this file only as a short project entry point. Do not maintain a second road
 
 ## Current priorities
 
-1. Source ingestion and knowledge reuse
-2. Publishing expansion beyond Bluesky
-3. Quality and release confidence
-4. Tech debt and platform hardening
+1. RSS/Atom feed automation & subscription ingestion
+2. Source ingestion and knowledge reuse
+3. Publishing expansion beyond Bluesky
+4. Quality and release confidence
+5. Tech debt and platform hardening
 
 ## Active planning docs
 
 - [planning/PLAN.md](planning/PLAN.md) — canonical roadmap and plan index
 - [planning/SOURCES_LIBRARY_AND_TRANSCRIPTS.md](planning/SOURCES_LIBRARY_AND_TRANSCRIPTS.md) — next major product roadmap item
+- [planning/RSS_AUTOMATION.md](planning/RSS_AUTOMATION.md) — RSS/Atom feed subscription & draft generation automation plan
 - [planning/TECH_DEBT.md](planning/TECH_DEBT.md) — ongoing engineering cleanup backlog
 - [planning/TEST_PLAN.md](planning/TEST_PLAN.md) — test coverage and validation backlog
 
