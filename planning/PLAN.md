@@ -60,11 +60,11 @@ Status: `Now`
 Goals:
  
 - improve Bluesky post-publish workflows
-- support thread reply / expansion flows
- 
-Concrete backlog:
- 
 - Thread reply / expansion for published Bluesky threads
+ 
+Tracked in:
+ 
+- [BLUESKY.md](BLUESKY.md)
  
 Deferred to v3:
 - Twitter/X publisher
@@ -141,6 +141,7 @@ These should remain first-class and be kept current:
  
 | File | Role |
 |---|---|
+| [BLUESKY.md](BLUESKY.md) | primary product roadmap item |
 | [TECH_DEBT.md](TECH_DEBT.md) | engineering cleanup and reliability backlog |
 | [TEST_PLAN.md](TEST_PLAN.md) | test strategy and coverage backlog |
  
