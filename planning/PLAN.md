@@ -56,16 +56,17 @@ Tracked in:
 ### 2. Publishing and platform reach
  
 Status: `Now`
-
+ 
 Goals:
-
+ 
 - improve Bluesky post-publish workflows
 - support thread reply / expansion flows
-- implement additional platform publishers
-
+ 
 Concrete backlog:
-
+ 
 - Thread reply / expansion for published Bluesky threads
+ 
+Deferred to v3:
 - Twitter/X publisher
 - LinkedIn publisher
 - Facebook publisher
@@ -174,22 +175,22 @@ These should remain first-class and be kept current:
 - [archive/UI-LIBRARIES.md](archive/UI-LIBRARIES.md)
 
 ## Backlog summary
-
+ 
 ### Near-term
-
+ 
 - Sources library and transcript support
 - Bluesky reply / thread expansion workflow
 - stronger E2E and release confidence
 - source / search / scraper reliability improvements
-
+ 
 ### Mid-term
-
-- additional publishers beyond Bluesky
+ 
 - thread reordering and multi-draft workflow improvements
 - scheduled publishing
-
+ 
 ### Long-term
-
+ 
+- additional publishers beyond Bluesky (v3)
 - Python sandbox and advanced tool runtime
 - Telegram / remote interface ideas
 - multi-user / team support
