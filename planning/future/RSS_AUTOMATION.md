@@ -44,10 +44,12 @@ A background hosted service (`FeedPollingHostedService`) will:
 ### C. Headless Agent Execution
 - **The Problem**: Currently, thread generation is triggered interactively via chat (SSE).
 - **The Solution**: Create a headless workflow execution service that can trigger an LLM run programmatically:
-  1. Create a `Draft` and link the fully extracted feed source to it.
-  2. Construct an initial chat message using the feed's `InstructionPrompt`.
-  3. Run the LLM/Tool invocation loop in the background without requiring an active SSE connection.
-  4. Once the LLM completes generation and sets the stage to `Ready`, if `AutoPublish` is true, invoke the `BlueskyPublisher` automatically.
+  1. Create a `Draft` and link the initial feed source.
+  2. Start the background ingestion pipeline (scraping / YouTube transcription).
+  3. **Ingestion Gate**: Wait for the ingestion/transcription background job to finish. The draft generation loop is only triggered once the `Source.TranscriptStatus` or ingestion state reaches `Complete`. If ingestion fails, mark the draft as `Failed` and abort generation.
+  4. Construct the initial chat message using the feed's `InstructionPrompt` referencing the fully ingested source.
+  5. Run the LLM/Tool invocation loop in the background without requiring an active SSE connection.
+  6. Once the LLM completes generation and sets the stage to `Ready`, if `AutoPublish` is true, invoke the `BlueskyPublisher` automatically.
 
 ---
 
