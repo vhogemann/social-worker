@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDraftStore } from "../../store/draftStore";
 import { useEditorStore } from "../../store/editorStore";
 import { saveCurrentChat, restoreChat, clearChat } from "../../api/chat";
@@ -23,6 +24,8 @@ export function useDraftListManager() {
   const [showArchived, setShowArchived] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
+  const navigate = useNavigate();
+
   useEffect(() => {
     loadDrafts();
   }, [loadDrafts]);
@@ -33,9 +36,7 @@ export function useDraftListManager() {
       saveCurrentChat(activeDraftId);
       await saveDraftContent(activeDraftId, useEditorStore.getState().doc);
     }
-    const draft = await switchDraft(id);
-    setDoc(draft.content ?? "");
-    restoreChat(id);
+    navigate(`/draft/${id}`);
   };
 
   const handleNew = async (title?: string, targetPlatform?: string) => {
@@ -44,8 +45,7 @@ export function useDraftListManager() {
       await saveDraftContent(activeDraftId, useEditorStore.getState().doc);
     }
     const draft = await createDraft(title, undefined, targetPlatform);
-    setDoc(draft.content ?? "");
-    restoreChat(draft.id);
+    navigate(`/draft/${draft.id}`);
   };
 
   const handleSaveTitle = async (id: string) => {
@@ -69,11 +69,9 @@ export function useDraftListManager() {
 
       if (remaining.length > 0) {
         const nextId = remaining[0].id;
-        const draft = await switchDraft(nextId);
-        setDoc(draft.content ?? "");
-        restoreChat(nextId);
+        navigate(`/draft/${nextId}`);
       } else {
-        setCreateModalOpen(true);
+        navigate("/");
       }
     } else {
       await deleteDraft(id);

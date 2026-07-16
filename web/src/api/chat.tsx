@@ -86,8 +86,9 @@ function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
     if (activeDraftId) {
       const saved = activeMessages;
       if (saved) {
+        const isSwitchingDraft = previousDraftId !== activeDraftId;
         const currentMessagesCount = currentRuntime.thread.getState().messages.length;
-        if (currentMessagesCount === 0 || saved.messages.length > currentMessagesCount) {
+        if (isSwitchingDraft || currentMessagesCount === 0 || saved.messages.length > currentMessagesCount) {
           currentRuntime.thread.import(saved);
         }
       } else {

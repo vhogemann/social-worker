@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-import { ChatProvider, restoreChat } from "./api/chat";
+import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useLocation } from "react-router-dom";
+import { ChatProvider } from "./api/chat";
 import { ChatPanel } from "./components/ChatPanel/ChatPanel";
 import { EditorPanel } from "./components/EditorPanel/EditorPanel";
 import { DraftList } from "./components/DraftList/DraftList";
@@ -44,34 +44,76 @@ function AppContent() {
   const chatRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const loadDrafts = useDraftStore((s) => s.loadDrafts);
-  const setDoc = useEditorStore((s) => s.setDoc);
+  const applyExternal = useEditorStore((s) => s.applyExternal);
   const [isReady, setIsReady] = useState(false);
 
+  const navigate = useNavigate();
+  const location = useLocation();
+  const match = location.pathname.match(/\/draft\/([^/]+)/);
+  const draftId = match ? match[1] : null;
+
+  // 1. Load drafts once on mount and initialize active draft if path matches
   useEffect(() => {
     let cancelled = false;
-
-    void loadDrafts().then(async () => {
+    void loadDrafts().then(() => {
+      if (cancelled) return;
+      
       const state = useDraftStore.getState();
-      if (state.drafts.length > 0) {
-        const first = state.drafts[0];
-        useDraftStore.setState({ activeDraftId: first.id });
-        setDoc(first.content ?? "");
-        restoreChat(first.id);
-      } else {
-        const draft = await state.createDraft();
-        setDoc(draft.content ?? "");
-        restoreChat(draft.id);
+      const match = window.location.pathname.match(/\/draft\/([^/]+)/);
+      const initialDraftId = match ? match[1] : null;
+
+      if (initialDraftId) {
+        const draft = state.drafts.find((d) => d.id === initialDraftId);
+        if (draft) {
+          useDraftStore.setState({ activeDraftId: initialDraftId });
+          applyExternal(draft.content ?? "");
+        }
       }
 
-      if (!cancelled) {
-        setIsReady(true);
-      }
+      setIsReady(true);
     });
-
     return () => {
       cancelled = true;
     };
-  }, [loadDrafts, setDoc]);
+  }, [loadDrafts, applyExternal]);
+
+  // 2. Redirect from "/" or "/index.html" to the active or first draft once loaded
+  useEffect(() => {
+    if (!isReady) return;
+
+    if (location.pathname === "/" || location.pathname === "/index.html") {
+      const state = useDraftStore.getState();
+      let targetId = state.activeDraftId;
+      if (!targetId && state.drafts.length > 0) {
+        targetId = state.drafts[0].id;
+      }
+      if (!targetId) {
+        void state.createDraft().then((draft) => {
+          navigate(`/draft/${draft.id}`, { replace: true });
+        });
+      } else {
+        navigate(`/draft/${targetId}`, { replace: true });
+      }
+    }
+  }, [isReady, location.pathname, navigate]);
+
+  // 3. Synchronize draft active state when draftId parameter in route changes
+  useEffect(() => {
+    if (!isReady || !draftId) return;
+
+    const state = useDraftStore.getState();
+    const draft = state.drafts.find((d) => d.id === draftId);
+    if (draft) {
+      useDraftStore.setState({ activeDraftId: draftId });
+      applyExternal(draft.content ?? "");
+    } else {
+      void useDraftStore.getState().switchDraft(draftId).then((loaded) => {
+        applyExternal(loaded.content ?? "");
+      }).catch(() => {
+        navigate("/", { replace: true });
+      });
+    }
+  }, [draftId, isReady, applyExternal, navigate]);
 
   useHotkey("Mod+J", () => chatRef.current?.focus());
   useHotkey("Mod+K", () => editorRef.current?.focus());
@@ -103,6 +145,7 @@ function AppContent() {
       </header>
       <Routes>
         <Route path="/" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
+        <Route path="/draft/:draftId" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
         <Route path="/sources" element={<SourcesLibrary />} />
         <Route path="/feeds" element={<FeedsPanel />} />
       </Routes>

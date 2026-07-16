@@ -3,6 +3,8 @@ import { loginViaUi } from "../helpers/auth.js";
 
 test.describe("Drafts", () => {
   test.beforeEach(async ({ page }) => {
+    page.on("console", (msg: any) => console.log("BROWSER CONSOLE:", msg.text()));
+    page.on("pageerror", (err: any) => console.log("BROWSER ERROR:", err.message));
     await loginViaUi(page);
   });
 
