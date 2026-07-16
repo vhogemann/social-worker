@@ -80,6 +80,25 @@ We will use **`System.ServiceModel.Syndication`** for stability, compliance, and
 
 ---
 
+## Feed Auto-Discovery & YouTube Channel Integration
+
+### 1. General RSS Auto-Discovery
+To make subscribing user-friendly, when a user enters a general URL (like `https://someblog.com` or `https://substack.com/profile`), the application will:
+- Scrape the page HTML.
+- Look for `<link rel="alternate" type="application/rss+xml" href="...">` or `type="application/atom+xml"`.
+- If found, use that resolved URL as the target `FeedUrl`.
+
+### 2. YouTube Channel Feed Ingestion
+YouTube publishes RSS feeds for all channels at:
+`https://www.youtube.com/feeds/videos.xml?channel_id={channelId}`
+
+If a user submits a channel handle or URL (e.g., `https://www.youtube.com/@ChannelName` or `https://www.youtube.com/channel/UC...`):
+- The scraper will parse the channel page to extract the `rss+xml` link tag, resolving the correct `channel_id` automatically.
+- Once registered, the Polling Engine will ingest new video links (e.g., `https://www.youtube.com/watch?v=...`).
+- Because of **Smart Source Detection (Section A)**, the engine recognizes the YouTube URL, automatically extracts its transcript via `YouTubeService`, and hands the full transcript to the LLM agent to compose a draft thread.
+
+---
+
 ## Database Schema
 ```sql
 CREATE TABLE FeedSubscriptions (
