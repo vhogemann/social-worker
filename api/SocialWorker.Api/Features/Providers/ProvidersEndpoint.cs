@@ -9,6 +9,15 @@ namespace SocialWorker.Api.Features.Providers;
 
 public static class ProvidersEndpoint
 {
+    private static readonly PlatformCapabilityDto[] PlatformCapabilities =
+    {
+        new("Bluesky", true),
+        new("Twitter", false),
+        new("LinkedIn", false),
+        new("Facebook", false),
+        new("Instagram", false)
+    };
+
     public static void MapProvidersEndpoints(this WebApplication app)
     {
         var adminGroup = app.MapGroup("/api/providers")
@@ -68,5 +77,8 @@ public static class ProvidersEndpoint
             var providers = await service.GetAvailableProvidersAsync(ct);
             return Results.Ok(providers);
         }).RequireAuthorization();
+
+        app.MapGet("/api/providers/platform-capabilities", () => Results.Ok(PlatformCapabilities))
+            .RequireAuthorization();
     }
 }

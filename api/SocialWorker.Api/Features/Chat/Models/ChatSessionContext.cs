@@ -11,4 +11,5 @@ public sealed record ChatSessionContext(
     Draft Draft,
     string EditorContent,
     List<MediaAsset> MediaAssets,
-    string? DefaultBrandVoiceBody = null);
+    string? DefaultBrandVoiceBody = null,
+    string? RepliedThreadContext = null);

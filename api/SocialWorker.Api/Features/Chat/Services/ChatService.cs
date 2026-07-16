@@ -62,6 +62,21 @@ public sealed class ChatService
 
         if (_slashCommandService.TryParse(commandText, out var slashCommand, out var slashArgs))
         {
+            if (string.Equals(slashCommand, "validate", StringComparison.OrdinalIgnoreCase))
+            {
+                var toolCallId = $"slash-{Guid.NewGuid():N}";
+                const string toolName = "validate_draft";
+                const string toolArgsJson = "{}";
+
+                yield return _writer.ToolCall(toolCallId, toolName, toolArgsJson);
+                var toolResult = await ExecuteToolAsync(toolName, toolArgsJson, req.DraftId, userId, ct);
+                yield return _writer.ToolResult(toolCallId, toolResult.ToDisplayPayload());
+                yield return _writer.TextDelta(toolResult.ToDisplayText());
+                yield return _writer.StepFinish("stop", false);
+                yield return _writer.StreamDone();
+                yield break;
+            }
+
             var slashOutput = await _slashCommandService.ExecuteAsync(slashCommand, slashArgs, req.DraftId, userId, ExecuteToolAsync, ct);
             yield return _writer.TextDelta(slashOutput);
             yield return _writer.StepFinish("stop", false);

@@ -12,6 +12,7 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Infrastructure.Background;
 using SocialWorker.Api.Infrastructure.Llm;
@@ -231,6 +232,197 @@ public sealed class DraftsServiceTests : SqliteTestBase
         Assert.True(compactedMessages.GetArrayLength() < messages.Count);
     }
 
+    [Fact]
+    public async Task SetDraftBlueskyReplyTargetAsync_UpsertsMetadata()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, service, user) = await CreateServiceAsync(db);
+        var draft = await db.Drafts.FirstAsync(d => d.UserId == user.Id);
+
+        var updated = await service.SetDraftBlueskyReplyTargetAsync(
+            user.Id,
+            draft.Id,
+            "at://did:plc:root/app.bsky.feed.post/1",
+            "root-cid",
+            "at://did:plc:parent/app.bsky.feed.post/2",
+            "parent-cid",
+            "https://bsky.app/profile/example/post/2",
+            "author",
+            "parent text",
+            "https://cdn.bsky.app/avatar.jpg",
+            CancellationToken.None);
+
+        Assert.NotNull(updated.BlueskyReplyTarget);
+        Assert.Equal("root-cid", updated.BlueskyReplyTarget!.ReplyRootCid);
+        Assert.Equal("parent-cid", updated.BlueskyReplyTarget.ReplyParentCid);
+        Assert.Equal("https://cdn.bsky.app/avatar.jpg", updated.BlueskyReplyTarget.ReplyParentAvatarUrl);
+
+        var persisted = await db.DraftBlueskyMetadata.SingleAsync(m => m.DraftId == draft.Id);
+        Assert.Equal("at://did:plc:root/app.bsky.feed.post/1", persisted.ReplyRootUri);
+        Assert.Equal("at://did:plc:parent/app.bsky.feed.post/2", persisted.ReplyParentUri);
+    }
+
+    [Fact]
+    public async Task SetDraftBlueskyReplyTargetAsync_Throws_WhenAlreadySet()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, service, user) = await CreateServiceAsync(db);
+        var draft = await db.Drafts.FirstAsync(d => d.UserId == user.Id);
+
+        await service.SetDraftBlueskyReplyTargetAsync(
+            user.Id,
+            draft.Id,
+            "at://did:plc:root/app.bsky.feed.post/1",
+            "root-cid",
+            "at://did:plc:parent/app.bsky.feed.post/2",
+            "parent-cid",
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SetDraftBlueskyReplyTargetAsync(
+                user.Id,
+                draft.Id,
+                "at://did:plc:root/app.bsky.feed.post/3",
+                "root-cid-2",
+                "at://did:plc:parent/app.bsky.feed.post/4",
+                "parent-cid-2",
+                "https://bsky.app/profile/example/post/4",
+                "author-2",
+                "parent text 2",
+                null,
+                CancellationToken.None));
+
+        var persisted = await db.DraftBlueskyMetadata.SingleAsync(m => m.DraftId == draft.Id);
+        Assert.Equal("root-cid", persisted.ReplyRootCid);
+        Assert.Equal("parent-cid", persisted.ReplyParentCid);
+    }
+
+    [Fact]
+    public async Task SetDraftBlueskyReplyTargetFromUrlAsync_SetsMetadataFromResolverResult()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, service, user) = await CreateServiceAsync(db);
+        var draft = await db.Drafts.FirstAsync(d => d.UserId == user.Id);
+
+        var resolver = new FakeBlueskyReplyTargetResolver(new BlueskyReplyTargetResolutionResult(
+            true,
+            null,
+            "at://did:plc:root/app.bsky.feed.post/1",
+            "root-cid",
+            "at://did:plc:parent/app.bsky.feed.post/2",
+            "parent-cid",
+            "https://bsky.app/profile/example/post/2",
+            "example",
+            "hello",
+            "https://cdn.bsky.app/avatar.jpg"));
+
+        var updated = await service.SetDraftBlueskyReplyTargetFromUrlAsync(
+            user.Id,
+            draft.Id,
+            "https://bsky.app/profile/example/post/2",
+            resolver,
+            CancellationToken.None);
+
+        Assert.NotNull(updated.BlueskyReplyTarget);
+        Assert.Equal("root-cid", updated.BlueskyReplyTarget!.ReplyRootCid);
+        Assert.Equal("parent-cid", updated.BlueskyReplyTarget.ReplyParentCid);
+        Assert.Equal("https://bsky.app/profile/example/post/2", updated.BlueskyReplyTarget.ReplyParentUrl);
+    }
+
+    [Fact]
+    public async Task SetDraftBlueskyReplyTargetFromUrlAsync_Throws_WhenResolverFails()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, service, user) = await CreateServiceAsync(db);
+        var draft = await db.Drafts.FirstAsync(d => d.UserId == user.Id);
+
+        var resolver = new FakeBlueskyReplyTargetResolver(new BlueskyReplyTargetResolutionResult(false, "bad url"));
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.SetDraftBlueskyReplyTargetFromUrlAsync(
+                user.Id,
+                draft.Id,
+                "https://bsky.app/profile/example/post/2",
+                resolver,
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SetDraftBlueskyReplyTargetAsync_Throws_WhenDraftHasSentThread()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, service, user) = await CreateServiceAsync(db);
+        var draft = await db.Drafts.FirstAsync(d => d.UserId == user.Id);
+
+        db.PlatformThreads.Add(new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "Bluesky",
+            Stage = PlatformThreadStage.Sent,
+            Content = draft.Content,
+        });
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SetDraftBlueskyReplyTargetAsync(
+                user.Id,
+                draft.Id,
+                "at://did:plc:root/app.bsky.feed.post/1",
+                "root-cid",
+                "at://did:plc:parent/app.bsky.feed.post/2",
+                "parent-cid",
+                null,
+                null,
+                null,
+                null,
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CreateReplyDraftFromBlueskyPostUrlAsync_CreatesNewDraftWithReplyTarget()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, service, user) = await CreateServiceAsync(db);
+        var beforeCount = await db.Drafts.CountAsync(d => d.UserId == user.Id);
+
+        var resolver = new FakeBlueskyReplyTargetResolver(new BlueskyReplyTargetResolutionResult(
+            true,
+            null,
+            "at://did:plc:root/app.bsky.feed.post/1",
+            "root-cid",
+            "at://did:plc:parent/app.bsky.feed.post/2",
+            "parent-cid",
+            "https://bsky.app/profile/example/post/2",
+            "example",
+            "hello",
+            "https://cdn.bsky.app/avatar.jpg"));
+
+        var created = await service.CreateReplyDraftFromBlueskyPostUrlAsync(
+            user.Id,
+            "https://bsky.app/profile/example/post/2",
+            "Reply draft",
+            "",
+            resolver,
+            CancellationToken.None);
+
+        var afterCount = await db.Drafts.CountAsync(d => d.UserId == user.Id);
+        Assert.Equal(beforeCount + 1, afterCount);
+        Assert.Equal("Reply draft", created.Title);
+        Assert.NotNull(created.BlueskyReplyTarget);
+        Assert.Equal("root-cid", created.BlueskyReplyTarget!.ReplyRootCid);
+    }
+
     private static async Task<(DraftsService Service, AppUser User, Draft Draft)> CreateSummarizationServiceAsync(AppDbContext db, BackgroundJobQueue queue, ILlmProviderAdapter adapter, string model = "gpt-4o-mini")
     {
         var user = new AppUser
@@ -372,5 +564,25 @@ public sealed class SummaryAdapter : ILlmProviderAdapter
                 }
             }
         });
+    }
+}
+
+internal sealed class FakeBlueskyReplyTargetResolver : IBlueskyReplyTargetResolver
+{
+    private readonly BlueskyReplyTargetResolutionResult _result;
+
+    public FakeBlueskyReplyTargetResolver(BlueskyReplyTargetResolutionResult result)
+    {
+        _result = result;
+    }
+
+    public Task<BlueskyReplyTargetResolutionResult> ResolveAsync(string url, CancellationToken ct)
+    {
+        return Task.FromResult(_result);
+    }
+
+    public Task<string?> ResolveThreadContextAsync(string url, CancellationToken ct)
+    {
+        return Task.FromResult<string?>(null);
     }
 }

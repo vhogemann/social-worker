@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Infrastructure.Llm;
 
 namespace SocialWorker.Api.Features.Chat.Services;
@@ -17,17 +18,20 @@ public class ChatSessionLoader
     private readonly ModelCapabilityProbe _probe;
     private readonly DraftTitleGenerator _titleGenerator;
     private readonly LlmProviderService _providerService;
+    private readonly IBlueskyReplyTargetResolver _replyTargetResolver;
 
     public ChatSessionLoader(
         IServiceScopeFactory scopeFactory,
         ModelCapabilityProbe probe,
         DraftTitleGenerator titleGenerator,
-        LlmProviderService providerService)
+        LlmProviderService providerService,
+        IBlueskyReplyTargetResolver replyTargetResolver)
     {
         _scopeFactory = scopeFactory;
         _probe = probe;
         _titleGenerator = titleGenerator;
         _providerService = providerService;
+        _replyTargetResolver = replyTargetResolver;
     }
 
     public virtual async Task<ChatSessionContext> LoadAsync(
@@ -82,6 +86,20 @@ public class ChatSessionLoader
         }
 
         var mediaAssets = await db.MediaAssets.Where(m => m.DraftId == draft.Id).ToListAsync(ct);
+        var replyMetadata = await db.DraftBlueskyMetadata.FirstOrDefaultAsync(m => m.DraftId == draft.Id, ct);
+
+        string? repliedThreadContext = null;
+        if (!string.IsNullOrWhiteSpace(replyMetadata?.ReplyParentUrl))
+        {
+            try
+            {
+                repliedThreadContext = await _replyTargetResolver.ResolveThreadContextAsync(replyMetadata.ReplyParentUrl, ct);
+            }
+            catch
+            {
+                repliedThreadContext = null;
+            }
+        }
 
         var defaultBrandVoice = await db.BrandVoicePrompts
             .FirstOrDefaultAsync(b => b.UserId == userId && b.IsDefault, ct);
@@ -98,6 +116,7 @@ public class ChatSessionLoader
             draft,
             editorContent,
             mediaAssets,
-            defaultBrandVoice?.Body);
+            defaultBrandVoice?.Body,
+            repliedThreadContext);
     }
 }

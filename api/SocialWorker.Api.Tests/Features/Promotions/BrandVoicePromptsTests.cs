@@ -104,7 +104,8 @@ public sealed class BrandVoicePromptsTests : IDisposable
             scopeFactory,
             probe,
             null!,
-            providerService
+            providerService,
+            null!
         );
 
         var session = await loader.LoadAsync(userId, draft.Id, null, new List<ChatModels.UiMessage>(), CancellationToken.None);

@@ -52,6 +52,7 @@ Goals:
 Tracked in:
  
 - [archive/SOURCES_LIBRARY_AND_TRANSCRIPTS.md](archive/SOURCES_LIBRARY_AND_TRANSCRIPTS.md)
+- [BLUESKY_SOURCE_THREAD_CONTEXT.md](BLUESKY_SOURCE_THREAD_CONTEXT.md)
  
 ### 2. Publishing and platform reach
  
@@ -65,6 +66,7 @@ Goals:
 Tracked in:
  
 - [BLUESKY.md](BLUESKY.md)
+- [THREADED_REPLIES.md](THREADED_REPLIES.md)
  
 Deferred to v3:
 - Twitter/X publisher
@@ -142,6 +144,8 @@ These should remain first-class and be kept current:
 | File | Role |
 |---|---|
 | [BLUESKY.md](BLUESKY.md) | primary product roadmap item |
+| [BLUESKY_SOURCE_THREAD_CONTEXT.md](BLUESKY_SOURCE_THREAD_CONTEXT.md) | external Bluesky source thread-context ingestion plan |
+| [THREADED_REPLIES.md](THREADED_REPLIES.md) | linked-reply draft architecture and UI nesting plan |
 | [TECH_DEBT.md](TECH_DEBT.md) | engineering cleanup and reliability backlog |
 | [TEST_PLAN.md](TEST_PLAN.md) | test strategy and coverage backlog |
  

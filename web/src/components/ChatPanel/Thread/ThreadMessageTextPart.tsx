@@ -3,6 +3,7 @@ import { ThreadMessageImageSearchPanel, parseImageSearchResult } from "./ThreadM
 import { resolveMediaUri, rewriteMediaUris } from "./ThreadMessageMedia";
 import { parsePostPreview, ThreadMessagePostPreview } from "./ThreadMessagePostPreview";
 import { ThreadMessageSearchResultsPanel, parseWebSearchResults } from "./ThreadMessageSearchResultsPanel";
+import { parseValidationReport, ThreadMessageValidationReport } from "./ThreadMessageValidationReport";
 
 export function ThreadMessageTextPart({ text }: { text: string }) {
   const parsedSearchResults = parseWebSearchResults(text);
@@ -27,6 +28,11 @@ export function ThreadMessageTextPart({ text }: { text: string }) {
   }
 
   const parsedPostPreview = parsePostPreview(text);
+
+  const parsedValidationReport = parseValidationReport(text);
+  if (parsedValidationReport) {
+    return <ThreadMessageValidationReport chips={parsedValidationReport.chips} />;
+  }
 
   if (parsedPostPreview) {
     return <ThreadMessagePostPreview posts={parsedPostPreview.posts} />;

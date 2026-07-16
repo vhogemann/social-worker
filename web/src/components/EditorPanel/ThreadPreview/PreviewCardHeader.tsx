@@ -1,15 +1,26 @@
 import React, { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCheck, faCopy, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
+import { faCheck, faCopy, faReply, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
 
 interface PreviewCardHeaderProps {
   index: number;
   total: number;
   postUrl?: string;
   cleanText: string;
+  canCreateReplyDraft: boolean;
+  creatingReplyDraft: boolean;
+  onCreateReplyDraft: () => void;
 }
 
-export const PreviewCardHeader: React.FC<PreviewCardHeaderProps> = ({ index, total, postUrl, cleanText }) => {
+export const PreviewCardHeader: React.FC<PreviewCardHeaderProps> = ({
+  index,
+  total,
+  postUrl,
+  cleanText,
+  canCreateReplyDraft,
+  creatingReplyDraft,
+  onCreateReplyDraft,
+}) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -38,26 +49,32 @@ export const PreviewCardHeader: React.FC<PreviewCardHeaderProps> = ({ index, tot
           </span>
         </div>
 
-        <button
-          onClick={handleCopy}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors select-none ${
-            copied
-              ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50"
-              : "bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          }`}
-        >
-          {copied ? (
-            <>
-              <FontAwesomeIcon icon={faCheck} className="w-3.5 h-3.5" />
-              <span>Copied</span>
-            </>
-          ) : (
-            <>
-              <FontAwesomeIcon icon={faCopy} className="w-3.5 h-3.5" />
-              <span>Copy</span>
-            </>
+        <div className="flex items-center gap-2">
+          {postUrl && canCreateReplyDraft && (
+            <button
+              onClick={onCreateReplyDraft}
+              disabled={creatingReplyDraft}
+              title={creatingReplyDraft ? "Creating reply draft" : "Create reply draft"}
+              aria-label={creatingReplyDraft ? "Creating reply draft" : "Create reply draft"}
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-xs font-medium border transition-colors select-none bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 disabled:opacity-60"
+            >
+              <FontAwesomeIcon icon={faReply} className="w-3.5 h-3.5" />
+            </button>
           )}
-        </button>
+
+          <button
+            onClick={handleCopy}
+            title={copied ? "Copied" : "Copy"}
+            aria-label={copied ? "Copied" : "Copy"}
+            className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-medium border transition-colors select-none ${
+              copied
+                ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50"
+                : "bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <FontAwesomeIcon icon={copied ? faCheck : faCopy} className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {postUrl && (

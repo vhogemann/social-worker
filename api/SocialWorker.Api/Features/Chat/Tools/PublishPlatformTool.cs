@@ -22,12 +22,6 @@ public sealed record PublishPlatformToolResult(
     [property: JsonPropertyName("error")] string? Error = null,
     [property: JsonPropertyName("authUrl")] string? AuthUrl = null) : IChatToolResult
 {
-    public bool success => Success;
-    public string message => Message;
-    public IReadOnlyList<PublishedPost>? posts => Posts;
-    public string? error => Error;
-    public string? authUrl => AuthUrl;
-
     public static implicit operator string(PublishPlatformToolResult result) => result.ToDisplayText();
 
     public string ToDisplayText()
@@ -73,6 +67,7 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var publisherResolver = scope.ServiceProvider.GetRequiredService<IPublisherResolver>();
         var blueskyContentValidator = scope.ServiceProvider.GetRequiredService<BlueskyContentValidator>();
+        var replyTargetResolver = scope.ServiceProvider.GetRequiredService<IBlueskyReplyTargetResolver>();
 
         var thread = await db.PlatformThreads
             .FirstOrDefaultAsync(t => t.DraftId == draftId && t.Platform.ToLower() == platform.ToLower(), ct);
@@ -99,6 +94,12 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
         if (validationError != null)
         {
             return new PublishPlatformToolResult(false, validationError, Error: validationError);
+        }
+
+        var replyTargetValidationError = await ValidateBlueskyReplyTargetAsync(db, replyTargetResolver, thread, ct);
+        if (replyTargetValidationError != null)
+        {
+            return new PublishPlatformToolResult(false, replyTargetValidationError, Error: replyTargetValidationError);
         }
 
         var result = await publisher.PublishAsync(thread, account, ct);
@@ -148,5 +149,47 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
             return null;
 
         return blueskyContentValidator.GetFirstPublishValidationError(content);
+    }
+
+    private static async Task<string?> ValidateBlueskyReplyTargetAsync(
+        AppDbContext db,
+        IBlueskyReplyTargetResolver resolver,
+        PlatformThread thread,
+        CancellationToken ct)
+    {
+        if (!string.Equals(thread.Platform, "Bluesky", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var metadata = await db.DraftBlueskyMetadata
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.DraftId == thread.DraftId, ct);
+
+        if (metadata is null)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(metadata.ReplyParentUrl))
+        {
+            return "Draft reply target is missing a canonical post URL and cannot be revalidated.";
+        }
+
+        var resolved = await resolver.ResolveAsync(metadata.ReplyParentUrl, ct);
+        if (!resolved.Success)
+        {
+            return $"Draft reply target could not be revalidated: {resolved.Error ?? "unknown error"}";
+        }
+
+        if (!string.Equals(resolved.ReplyRootUri, metadata.ReplyRootUri, StringComparison.Ordinal)
+            || !string.Equals(resolved.ReplyRootCid, metadata.ReplyRootCid, StringComparison.Ordinal)
+            || !string.Equals(resolved.ReplyParentUri, metadata.ReplyParentUri, StringComparison.Ordinal)
+            || !string.Equals(resolved.ReplyParentCid, metadata.ReplyParentCid, StringComparison.Ordinal))
+        {
+            return "Draft reply target metadata no longer matches the referenced Bluesky post. Please create a new draft reply target.";
+        }
+
+        return null;
     }
 }

@@ -63,7 +63,8 @@ public sealed class ChatRequestPreparationService
             session.EditorContent,
             session.MediaAssets,
             session.Capabilities.SupportsVision,
-            session.DefaultBrandVoiceBody);
+            session.DefaultBrandVoiceBody,
+            session.RepliedThreadContext);
 
         var finalSystemPrompt = systemPrompt;
         if (!string.IsNullOrEmpty(session.Draft.ChatSummary))

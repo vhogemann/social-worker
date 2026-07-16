@@ -35,6 +35,20 @@ describe("parsePostPreview", () => {
     expect(parsed).toBeNull();
   });
 
+  it("returns null for validation report content", () => {
+    const parsed = parsePostPreview([
+      "### Draft Validation Report",
+      "",
+      "#### Post 1:",
+      "- **Character Count**: 338 characters (max 300)",
+      "- ❌ **Error**: Exceeds the 300-character limit by 38 characters.",
+      "",
+      "---",
+      "❌ **Overall Status**: Validation failed. Please fix the errors listed above before publishing.",
+    ].join("\n"));
+    expect(parsed).toBeNull();
+  });
+
   it("excludes assistant intro and trailing publication commentary around numbered posts", () => {
     const text = [
       "The Bluesky thread is drafted, validated, and set up with all constraints met! 🌿✨",
@@ -105,5 +119,27 @@ describe("ThreadMessageTextPart", () => {
     expect(screen.getByText("First post body")).toBeInTheDocument();
     expect(screen.getByText("Second post body")).toBeInTheDocument();
     expect(screen.queryByText("The thread is ready for publication on Bluesky.")).not.toBeInTheDocument();
+  });
+
+  it("renders validation output using compact accent chips", () => {
+    render(
+      <ThreadMessageTextPart
+        text={[
+          "### Draft Validation Report",
+          "",
+          "#### Post 1:",
+          "- **Character Count**: 338 characters (max 300)",
+          "- ❌ **Error**: Exceeds the 300-character limit by 38 characters.",
+          "",
+          "---",
+          "❌ **Overall Status**: Validation failed. Please fix the errors listed above before publishing.",
+        ].join("\n")}
+      />
+    );
+
+    expect(screen.getByTestId("validation-report-chips")).toBeInTheDocument();
+    expect(screen.getByText("post 1: Character Count: 338 characters (max 300)")).toBeInTheDocument();
+    expect(screen.getByText("post 1: Error: Exceeds the 300-character limit by 38 characters.")).toBeInTheDocument();
+    expect(screen.getByText("Overall Status: Validation failed. Please fix the errors listed above before publishing.")).toBeInTheDocument();
   });
 });

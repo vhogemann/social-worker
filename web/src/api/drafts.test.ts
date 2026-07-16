@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import {
   fetchDrafts,
   createDraft,
+  createReplyDraftFromBlueskyPostUrl,
   fetchDraft,
   patchDraft,
   fetchPlatformThreads,
@@ -108,6 +109,27 @@ describe("drafts API", () => {
     });
   });
 
+  describe("createReplyDraftFromBlueskyPostUrl", () => {
+    it("posts to reply-from-url endpoint and returns created draft", async () => {
+      mockApiFetch.mockResolvedValueOnce(new Response(JSON.stringify(makeDraft("d1")), { status: 200 }));
+
+      const result = await createReplyDraftFromBlueskyPostUrl("https://bsky.app/profile/test/post/abc");
+
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/drafts/reply-from-url",
+        expect.objectContaining({ method: "POST" })
+      );
+      expect(result.id).toBe("d1");
+    });
+
+    it("throws readable error when request fails", async () => {
+      mockApiFetch.mockResolvedValueOnce(new Response("bad url", { status: 400 }));
+      await expect(
+        createReplyDraftFromBlueskyPostUrl("https://bsky.app/profile/test/post/abc")
+      ).rejects.toThrow("bad url");
+    });
+  });
+
   describe("fetchPlatformThreads", () => {
     it("returns thread array", async () => {
       mockApiFetch.mockResolvedValueOnce(new Response(JSON.stringify([makeThread()]), { status: 200 }));
@@ -146,6 +168,23 @@ describe("drafts API", () => {
         new Response(JSON.stringify({ error: "Not ready" }), { status: 400 })
       );
       await expect(publishPlatformThread("d1", "t1")).rejects.toThrow("Not ready");
+    });
+
+    it("throws with plain-text server error on failure", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response("Exceeds the 300-character limit by 38 characters.", { status: 400 })
+      );
+      await expect(publishPlatformThread("d1", "t1")).rejects.toThrow("Exceeds the 300-character limit");
+    });
+
+    it("throws with JSON-string server error on failure", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify("Exceeds the 300-character limit by 38 characters."), {
+          status: 400,
+          headers: { "content-type": "application/json" },
+        })
+      );
+      await expect(publishPlatformThread("d1", "t1")).rejects.toThrow("Exceeds the 300-character limit");
     });
   });
 

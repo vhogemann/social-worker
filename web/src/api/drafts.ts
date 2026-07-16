@@ -89,6 +89,16 @@ export interface DraftDto {
   targetPlatform: string | null;
   canonicalDraftId: string | null;
   threads: PlatformThreadDto[];
+  blueskyReplyTarget?: {
+    replyRootUri: string;
+    replyRootCid: string;
+    replyParentUri: string;
+    replyParentCid: string;
+    replyParentUrl?: string | null;
+    replyParentAuthor?: string | null;
+    replyParentText?: string | null;
+    replyParentAvatarUrl?: string | null;
+  } | null;
   sources?: SourceDto[];
   mediaAssets?: MediaAssetDto[];
   chatHistory?: string | null;
@@ -110,6 +120,18 @@ export async function createDraft(title?: string, content?: string, targetPlatfo
     body: JSON.stringify({ title, content, targetPlatform }),
   });
   if (!res.ok) throw new Error(`createDraft failed: ${res.status}`);
+  return res.json();
+}
+
+export async function createReplyDraftFromBlueskyPostUrl(url: string, title?: string, content?: string): Promise<DraftDto> {
+  const res = await apiFetch("/api/drafts/reply-from-url", {
+    method: "POST",
+    body: JSON.stringify({ url, title, content }),
+  });
+  if (!res.ok) {
+    const message = await res.text().catch(() => "");
+    throw new Error(message || `createReplyDraftFromBlueskyPostUrl failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -135,6 +157,18 @@ export async function patchDraft(
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`patchDraft failed: ${res.status}`);
+  return res.json();
+}
+
+export async function patchDraftBlueskyReplyTargetFromUrl(id: string, url: string): Promise<DraftDto> {
+  const res = await apiFetch(`/api/drafts/${id}/bluesky-reply-target/from-url`, {
+    method: "PATCH",
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    const message = await res.text().catch(() => "");
+    throw new Error(message || `patchDraftBlueskyReplyTargetFromUrl failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -185,8 +219,26 @@ export async function publishPlatformThread(
     method: "POST",
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `publishPlatformThread failed: ${res.status}`);
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const data = await res.json().catch(() => null);
+      if (typeof data === "string" && data.trim().length > 0) {
+        throw new Error(data);
+      }
+
+      if (data && typeof data === "object") {
+        const payload = data as Record<string, unknown>;
+        const message = payload.error ?? payload.message;
+        if (typeof message === "string" && message.trim().length > 0) {
+          throw new Error(message);
+        }
+      }
+
+      throw new Error(`publishPlatformThread failed: ${res.status}`);
+    }
+
+    const message = await res.text().catch(() => "");
+    throw new Error(message || `publishPlatformThread failed: ${res.status}`);
   }
   return res.json();
 }
@@ -370,5 +422,16 @@ export async function fetchDraftFamily(draftId: string): Promise<{ canonical: Dr
 export async function fetchVariants(draftId: string): Promise<DraftDto[]> {
   const res = await apiFetch(`/api/drafts/${draftId}/variants`);
   if (!res.ok) throw new Error(`fetchVariants failed: ${res.status}`);
+  return res.json();
+}
+
+export type PlatformCapabilityDto = {
+  platform: string;
+  supportsReplyTarget: boolean;
+};
+
+export async function fetchPlatformCapabilities(): Promise<PlatformCapabilityDto[]> {
+  const res = await apiFetch("/api/providers/platform-capabilities");
+  if (!res.ok) throw new Error(`fetchPlatformCapabilities failed: ${res.status}`);
   return res.json();
 }

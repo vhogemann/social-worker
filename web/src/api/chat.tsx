@@ -10,6 +10,11 @@ import { useAuthStore } from "../store/authStore";
 export function useChatRuntime() {
   const editorDoc = useEditorStore((s) => s.doc);
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
+  const drafts = useDraftStore((s) => s.drafts);
+  const activeDraft = drafts.find((d) => d.id === activeDraftId);
+  const editorForRequest = (editorDoc && editorDoc.length > 0)
+    ? editorDoc
+    : (activeDraft?.content ?? "");
 
   const headers = useCallback(async () => {
     const token = useAuthStore.getState().accessToken;
@@ -18,10 +23,10 @@ export function useChatRuntime() {
 
   const body = useMemo(
     () => ({
-      editor: editorDoc,
+      editor: editorForRequest,
       draftId: activeDraftId,
     }),
-    [editorDoc, activeDraftId],
+    [editorForRequest, activeDraftId],
   );
 
   return useDataStreamRuntime({

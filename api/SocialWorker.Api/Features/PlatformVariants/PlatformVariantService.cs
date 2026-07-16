@@ -104,6 +104,7 @@ public sealed class PlatformVariantService
                     new(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>())
                 },
                 new List<MediaAssetMiniDto>(),
+                null,
                 variant.ChatHistory,
                 variant.ChatSummary,
                 variant.LastSummarizedMessageCount,

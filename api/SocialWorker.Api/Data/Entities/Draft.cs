@@ -18,6 +18,7 @@ public class Draft
     public ICollection<PlatformThread> Threads { get; set; } = new List<PlatformThread>();
     public ICollection<DraftSource> DraftSources { get; set; } = new List<DraftSource>();
     public ICollection<MediaAsset> MediaAssets { get; set; } = new List<MediaAsset>();
+    public DraftBlueskyMetadata? BlueskyMetadata { get; set; }
     public string? ChatHistory { get; set; }
     public string? ChatSummary { get; set; }
     public int LastSummarizedMessageCount { get; set; }

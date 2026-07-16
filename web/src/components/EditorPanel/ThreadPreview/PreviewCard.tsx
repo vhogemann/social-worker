@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useDraftStore } from "../../../store/draftStore";
 import { useEditorStore } from "../../../store/editorStore";
+import { saveCurrentChat, restoreChat } from "../../../api/chat";
 import { renderCodeImage } from "../../../api/drafts";
 import { CodeFence } from "./types";
 import { parseSegment, extractCodeFences, extractCodeFenceFromAltText } from "./utils";
@@ -21,12 +22,16 @@ interface PreviewCardProps {
 
 export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total, isLast, postUrl }) => {
   const [renderingFence, setRenderingFence] = useState<string | null>(null);
+  const [creatingReplyDraft, setCreatingReplyDraft] = useState(false);
 
   const drafts = useDraftStore((s) => s.drafts);
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
   const activeDraft = drafts.find((d) => d.id === activeDraftId);
   const saveDraftContent = useDraftStore((s) => s.saveDraftContent);
+  const createReplyDraftFromBlueskyPostUrl = useDraftStore((s) => s.createReplyDraftFromBlueskyPostUrl);
   const applyExternal = useEditorStore((s) => s.applyExternal);
+  const setDoc = useEditorStore((s) => s.setDoc);
+  const setPanelMode = useEditorStore((s) => s.setPanelMode);
 
   const { cleanText, images, youtubeUrls, links } = parseSegment(content);
   const hasConflict = images.length > 0 && youtubeUrls.length > 0;
@@ -74,6 +79,29 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total,
     }
   };
 
+  const handleCreateReplyDraft = async () => {
+    if (!activeDraftId) return;
+
+    const sourceReplyUrl = activeDraft?.blueskyReplyTarget?.replyParentUrl ?? postUrl;
+    if (!sourceReplyUrl) return;
+
+    setCreatingReplyDraft(true);
+    try {
+      saveCurrentChat(activeDraftId);
+      await saveDraftContent(activeDraftId, useEditorStore.getState().doc);
+      const replyDraft = await createReplyDraftFromBlueskyPostUrl(sourceReplyUrl);
+      setDoc(replyDraft.content ?? "");
+      restoreChat(replyDraft.id);
+      setPanelMode("edit");
+    } catch (err) {
+      console.error("Failed to create reply draft:", err);
+    } finally {
+      setCreatingReplyDraft(false);
+    }
+  };
+
+  const canCreateReplyDraft = (activeDraft?.targetPlatform ?? "").toLowerCase() === "bluesky";
+
   return (
     <div className="relative flex items-start gap-4 pb-8 group">
       {!isLast && (
@@ -90,6 +118,9 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total,
           total={total}
           postUrl={postUrl}
           cleanText={cleanText}
+          canCreateReplyDraft={canCreateReplyDraft}
+          creatingReplyDraft={creatingReplyDraft}
+          onCreateReplyDraft={handleCreateReplyDraft}
         />
 
         {cleanText && (

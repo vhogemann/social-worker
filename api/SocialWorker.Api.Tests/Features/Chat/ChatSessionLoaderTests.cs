@@ -39,7 +39,7 @@ public sealed class ChatSessionLoaderTests : SqliteTestBase
         var titleGen = new DraftTitleGenerator(new DemoLlmAdapter(), NullLogger<DraftTitleGenerator>.Instance);
         var providerSvc = new LlmProviderService();
 
-        var loader = new ChatSessionLoader(scopeFactory, probe, titleGen, providerSvc);
+        var loader = new ChatSessionLoader(scopeFactory, probe, titleGen, providerSvc, null!);
         return (db, loader, user, provider);
     }
 
@@ -55,7 +55,7 @@ public sealed class ChatSessionLoaderTests : SqliteTestBase
         var services = new ServiceCollection();
         services.AddSingleton(db);
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
-        var loader = new ChatSessionLoader(scopeFactory, null!, null!, new LlmProviderService());
+        var loader = new ChatSessionLoader(scopeFactory, null!, null!, new LlmProviderService(), null!);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             loader.LoadAsync(Guid.NewGuid(), null, null, new(), CancellationToken.None));
@@ -72,7 +72,7 @@ public sealed class ChatSessionLoaderTests : SqliteTestBase
         var services = new ServiceCollection();
         services.AddSingleton(db);
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
-        var loader = new ChatSessionLoader(scopeFactory, null!, null!, new LlmProviderService());
+        var loader = new ChatSessionLoader(scopeFactory, null!, null!, new LlmProviderService(), null!);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             loader.LoadAsync(Guid.NewGuid(), null, null, new(), CancellationToken.None));

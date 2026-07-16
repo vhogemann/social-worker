@@ -16,6 +16,7 @@ const RenderCodeBlocksToolCall = () => <ThreadMessageToolActivityCall name="rend
 const GeneratePlatformVariantsToolCall = () => <ThreadMessageToolActivityCall name="generate_platform_variants" />;
 const FormatValidatePlatformContentToolCall = () => <ThreadMessageToolActivityCall name="format_validate_platform_content" />;
 const PublishToolCall = () => <ThreadMessageToolActivityCall name="publish" />;
+const SetBlueskyReplyTargetToolCall = () => <ThreadMessageToolActivityCall name="set_bluesky_reply_target" />;
 
 export function ThreadMessage() {
   const role = useMessage((m) => m.role);
@@ -43,6 +44,7 @@ export function ThreadMessage() {
               generate_platform_variants: GeneratePlatformVariantsToolCall as never,
               format_validate_platform_content: FormatValidatePlatformContentToolCall as never,
               publish: PublishToolCall as never,
+              set_bluesky_reply_target: SetBlueskyReplyTargetToolCall as never,
             },
           },
         }}

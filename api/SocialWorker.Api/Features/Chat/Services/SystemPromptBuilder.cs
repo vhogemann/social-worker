@@ -77,7 +77,7 @@ public sealed class SystemPromptBuilder
         return defaultPrompt;
     }
 
-    public string Build(string? customSystemPrompt, string editorContent, List<MediaAsset> mediaAssets, bool supportsVision, string? brandVoiceBody)
+    public string Build(string? customSystemPrompt, string editorContent, List<MediaAsset> mediaAssets, bool supportsVision, string? brandVoiceBody, string? repliedThreadContext = null)
     {
         var sb = new StringBuilder();
 
@@ -107,6 +107,15 @@ public sealed class SystemPromptBuilder
         if (!string.IsNullOrEmpty(imagesMetadata))
         {
             sb.Append(imagesMetadata);
+        }
+
+        if (!string.IsNullOrWhiteSpace(repliedThreadContext))
+        {
+            sb.AppendLine();
+            sb.AppendLine();
+            sb.AppendLine("--- REPLIED THREAD CONTEXT START ---");
+            sb.AppendLine(repliedThreadContext);
+            sb.AppendLine("--- REPLIED THREAD CONTEXT END ---");
         }
 
         sb.AppendLine();

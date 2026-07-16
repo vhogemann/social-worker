@@ -24,10 +24,17 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.9" />
     <PackageReference Include="ColorCode.Core" Version="2.0.15" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <PackageReference Include="dbup-postgresql" Version="6.0.3" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Features/CodeImages/Fonts/JetBrainsMono-Regular.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Data/Migrations/**/*.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

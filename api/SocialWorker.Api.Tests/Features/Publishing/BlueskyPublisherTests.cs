@@ -168,6 +168,116 @@ public sealed class BlueskyPublisherTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task PublishAsync_ReturnsError_WhenReplyMetadataIsIncomplete()
+    {
+        using var db = CreateFreshDb(Options);
+        var user = new AppUser
+        {
+            Id = Guid.NewGuid(),
+            Username = "reply-test-user",
+            Email = "reply-test-user@example.com",
+            PasswordHash = "hash"
+        };
+        db.Users.Add(user);
+        var draftId = Guid.NewGuid();
+        db.Drafts.Add(new Draft
+        {
+            Id = draftId,
+            Title = "Reply Draft",
+            UserId = user.Id,
+            Content = "Hello"
+        });
+
+        db.DraftBlueskyMetadata.Add(new DraftBlueskyMetadata
+        {
+            DraftId = draftId,
+            ReplyRootUri = "at://did:plc:root/app.bsky.feed.post/1",
+            ReplyRootCid = "root-cid"
+        });
+        await db.SaveChangesAsync();
+
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+            {
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            }
+        });
+
+        var result = await publisher.PublishAsync(new PlatformThread
+        {
+            DraftId = draftId,
+            Content = "Hello"
+        }, MakeAccount());
+
+        Assert.False(result.Success);
+        Assert.Contains("incomplete", result.ErrorMessage ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PublishAsync_UsesReplyMetadata_ForFirstPublishedSegment()
+    {
+        using var db = CreateFreshDb(Options);
+        var user = new AppUser
+        {
+            Id = Guid.NewGuid(),
+            Username = "reply-success-user",
+            Email = "reply-success-user@example.com",
+            PasswordHash = "hash"
+        };
+        db.Users.Add(user);
+        var draftId = Guid.NewGuid();
+        db.Drafts.Add(new Draft
+        {
+            Id = draftId,
+            Title = "Reply Success Draft",
+            UserId = user.Id,
+            Content = "First segment\n---\nSecond segment"
+        });
+
+        db.DraftBlueskyMetadata.Add(new DraftBlueskyMetadata
+        {
+            DraftId = draftId,
+            ReplyRootUri = "at://did:plc:root/app.bsky.feed.post/100",
+            ReplyRootCid = "root-cid",
+            ReplyParentUri = "at://did:plc:parent/app.bsky.feed.post/101",
+            ReplyParentCid = "parent-cid"
+        });
+        await db.SaveChangesAsync();
+
+        var requestBodies = new List<string>();
+        var (publisher, _) = CreatePublisher(db, ValidKey, (req, resp) =>
+        {
+            if (IsPath(req, "createSession"))
+            {
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { accessJwt = "test-jwt", did = "did:plc:test" }));
+            }
+            else if (IsPath(req, "createRecord"))
+            {
+                requestBodies.Add(req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty);
+                var sequence = requestBodies.Count;
+                resp.Content = new StringContent(JsonSerializer.Serialize(new { uri = $"at://did:plc:test/app.bsky.feed.post/{sequence}", cid = $"cid-{sequence}" }));
+            }
+        });
+
+        var result = await publisher.PublishAsync(new PlatformThread
+        {
+            DraftId = draftId,
+            Content = "First segment\n---\nSecond segment"
+        }, MakeAccount());
+
+        Assert.True(result.Success);
+        Assert.Equal(2, requestBodies.Count);
+
+        using var firstDoc = JsonDocument.Parse(requestBodies[0]);
+        var firstReply = firstDoc.RootElement.GetProperty("record").GetProperty("reply");
+        Assert.Equal("at://did:plc:root/app.bsky.feed.post/100", firstReply.GetProperty("root").GetProperty("uri").GetString());
+        Assert.Equal("root-cid", firstReply.GetProperty("root").GetProperty("cid").GetString());
+        Assert.Equal("at://did:plc:parent/app.bsky.feed.post/101", firstReply.GetProperty("parent").GetProperty("uri").GetString());
+        Assert.Equal("parent-cid", firstReply.GetProperty("parent").GetProperty("cid").GetString());
+    }
+
+    [Fact]
     public async Task PublishAsync_YouTubeMarkdown_BuildsExternalEmbed()
     {
         using var db = CreateFreshDb(Options);

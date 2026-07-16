@@ -162,6 +162,11 @@ public sealed class ChatRoundProcessor
             _log.LogInformation("Tool {ToolName} execution completed.", toolCall.Name);
             yield return _writer.ToolResult(toolCall.Id, toolResult.ToDisplayPayload());
 
+            if (string.Equals(toolCall.Name, "validate_draft", StringComparison.Ordinal))
+            {
+                yield return _writer.TextDelta(toolResult.ToDisplayText());
+            }
+
             ctx.Payload.Messages.AddRange(toolResult.ToMessages(toolCall.Id));
 
             if (string.Equals(toolCall.Name, "validate_draft", StringComparison.Ordinal))

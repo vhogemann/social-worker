@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Drafts;
@@ -34,6 +35,26 @@ public static class DraftsEndpoint
 
             var result = await draftsService.CreateDraftAsync(userId.Value, req.Title, req.Content, req.TargetPlatform, ct);
             return Results.Created($"/api/drafts/{result.Id}", result);
+        });
+
+        group.MapPost("/reply-from-url", async (ClaimsPrincipal principal, DraftsService draftsService, IBlueskyReplyTargetResolver resolver, CreateReplyDraftFromUrlRequest req, CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            try
+            {
+                var result = await draftsService.CreateReplyDraftFromBlueskyPostUrlAsync(userId.Value, req.Url, req.Title, req.Content, resolver, ct);
+                return Results.Created($"/api/drafts/{result.Id}", result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
         });
 
         group.MapGet("/{id:guid}", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, CancellationToken ct) =>
@@ -65,6 +86,65 @@ public static class DraftsEndpoint
             catch (KeyNotFoundException)
             {
                 return Results.NotFound();
+            }
+        });
+
+        group.MapPatch("/{id:guid}/bluesky-reply-target", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, UpdateDraftBlueskyReplyTargetRequest req, CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            try
+            {
+                var result = await draftsService.SetDraftBlueskyReplyTargetAsync(
+                    userId.Value,
+                    id,
+                    req.ReplyRootUri,
+                    req.ReplyRootCid,
+                    req.ReplyParentUri,
+                    req.ReplyParentCid,
+                    req.ReplyParentUrl,
+                    req.ReplyParentAuthor,
+                    req.ReplyParentText,
+                    req.ReplyParentAvatarUrl,
+                    ct);
+                return Results.Ok(result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
+        });
+
+        group.MapPatch("/{id:guid}/bluesky-reply-target/from-url", async (ClaimsPrincipal principal, DraftsService draftsService, IBlueskyReplyTargetResolver resolver, Guid id, UpdateDraftBlueskyReplyTargetFromUrlRequest req, CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            try
+            {
+                var result = await draftsService.SetDraftBlueskyReplyTargetFromUrlAsync(userId.Value, id, req.Url, resolver, ct);
+                return Results.Ok(result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(ex.Message);
             }
         });
 
@@ -142,6 +222,8 @@ public static class DraftsEndpoint
 
 public sealed record CreateDraftRequest(string? Title, string? Content, string? TargetPlatform = null);
 
+public sealed record CreateReplyDraftFromUrlRequest(string Url, string? Title = null, string? Content = null);
+
 public sealed record UpdateDraftRequest(
     string? Title,
     string? Content,
@@ -149,6 +231,18 @@ public sealed record UpdateDraftRequest(
     string? ChatHistory = null,
     string? ChatSummary = null,
     int? LastSummarizedMessageCount = null);
+
+public sealed record UpdateDraftBlueskyReplyTargetRequest(
+    string? ReplyRootUri,
+    string? ReplyRootCid,
+    string? ReplyParentUri,
+    string? ReplyParentCid,
+    string? ReplyParentUrl,
+    string? ReplyParentAuthor,
+    string? ReplyParentText,
+    string? ReplyParentAvatarUrl);
+
+public sealed record UpdateDraftBlueskyReplyTargetFromUrlRequest(string Url);
 
 public sealed record CreatePlatformThreadRequest(string Platform);
 

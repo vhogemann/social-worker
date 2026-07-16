@@ -13,6 +13,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Background;
@@ -37,6 +38,17 @@ public sealed record MediaAssetMiniDto(
     DateTime CreatedAt
 );
 
+public sealed record BlueskyReplyTargetDto(
+    string ReplyRootUri,
+    string ReplyRootCid,
+    string ReplyParentUri,
+    string ReplyParentCid,
+    string? ReplyParentUrl,
+    string? ReplyParentAuthor,
+    string? ReplyParentText,
+    string? ReplyParentAvatarUrl
+);
+
 public sealed record DraftDto(
     Guid Id,
     string Title,
@@ -46,6 +58,7 @@ public sealed record DraftDto(
     Guid? CanonicalDraftId,
     List<PlatformThreadDto> Threads,
     List<MediaAssetMiniDto> MediaAssets,
+    BlueskyReplyTargetDto? BlueskyReplyTarget,
     string? ChatHistory,
     string? ChatSummary,
     int LastSummarizedMessageCount,
@@ -84,7 +97,7 @@ public sealed class DraftsService
         _draftChatSummaryService = draftChatSummaryService;
     }
 
-    private static DraftDto ToDto(Draft draft, List<PlatformThread> threads, List<Post> posts, List<MediaAsset> media)
+    private static DraftDto ToDto(Draft draft, List<PlatformThread> threads, List<Post> posts, List<MediaAsset> media, DraftBlueskyMetadata? blueskyMetadata = null)
     {
         return new DraftDto(
             draft.Id,
@@ -101,6 +114,17 @@ public sealed class DraftsService
                 .ToList(),
             media.Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt))
                 .ToList(),
+            blueskyMetadata is null
+                ? null
+                : new BlueskyReplyTargetDto(
+                    blueskyMetadata.ReplyRootUri ?? string.Empty,
+                    blueskyMetadata.ReplyRootCid ?? string.Empty,
+                    blueskyMetadata.ReplyParentUri ?? string.Empty,
+                    blueskyMetadata.ReplyParentCid ?? string.Empty,
+                    blueskyMetadata.ReplyParentUrl,
+                    blueskyMetadata.ReplyParentAuthor,
+                    blueskyMetadata.ReplyParentText,
+                    blueskyMetadata.ReplyParentAvatarUrl),
             draft.ChatHistory,
             draft.ChatSummary,
             draft.LastSummarizedMessageCount,
@@ -126,6 +150,10 @@ public sealed class DraftsService
             .Where(m => draftIds.Contains(m.DraftId))
             .ToListAsync(ct);
 
+        var blueskyMetadata = await _db.DraftBlueskyMetadata
+            .Where(m => draftIds.Contains(m.DraftId))
+            .ToListAsync(ct);
+
         var threadIds = threads.Select(t => t.Id).ToList();
         var posts = await _db.Posts
             .Where(p => threadIds.Contains(p.PlatformThreadId))
@@ -137,7 +165,8 @@ public sealed class DraftsService
             var threadIds = draftThreads.Select(t => t.Id).ToList();
             var draftPosts = posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToList();
             var draftMedia = media.Where(m => m.DraftId == d.Id).ToList();
-            return ToDto(d, draftThreads, draftPosts, draftMedia);
+            var draftBlueskyMetadata = blueskyMetadata.FirstOrDefault(m => m.DraftId == d.Id);
+            return ToDto(d, draftThreads, draftPosts, draftMedia, draftBlueskyMetadata);
         }).ToList();
     }
 
@@ -176,7 +205,7 @@ public sealed class DraftsService
         await _sourcesService.ReconcileSourcesAsync(draft, content ?? "");
         await _db.SaveChangesAsync(ct);
 
-        return ToDto(draft, new List<PlatformThread> { thread }, new List<Post>(), new List<MediaAsset>());
+        return ToDto(draft, new List<PlatformThread> { thread }, new List<Post>(), new List<MediaAsset>(), null);
     }
 
     public async Task<DraftDto> GetDraftByIdAsync(Guid userId, Guid id, CancellationToken ct)
@@ -189,8 +218,9 @@ public sealed class DraftsService
         var threadIds = threads.Select(t => t.Id).ToList();
         var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
+        var blueskyMetadata = await _db.DraftBlueskyMetadata.FirstOrDefaultAsync(m => m.DraftId == id, ct);
 
-        return ToDto(draft, threads, posts, media);
+        return ToDto(draft, threads, posts, media, blueskyMetadata);
     }
 
     public async Task<DraftDto> UpdateDraftAsync(
@@ -272,8 +302,135 @@ public sealed class DraftsService
         var threadIds = threads.Select(t => t.Id).ToList();
         var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
+        var blueskyMetadata = await _db.DraftBlueskyMetadata.FirstOrDefaultAsync(m => m.DraftId == id, ct);
 
-        return ToDto(draft, threads, posts, media);
+        return ToDto(draft, threads, posts, media, blueskyMetadata);
+    }
+
+    public async Task<DraftDto> SetDraftBlueskyReplyTargetAsync(
+        Guid userId,
+        Guid draftId,
+        string? replyRootUri,
+        string? replyRootCid,
+        string? replyParentUri,
+        string? replyParentCid,
+        string? replyParentUrl,
+        string? replyParentAuthor,
+        string? replyParentText,
+        string? replyParentAvatarUrl,
+        CancellationToken ct)
+    {
+        var draft = await _db.Drafts
+            .FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
+            ?? throw new KeyNotFoundException("Draft not found or access denied.");
+
+        var hasSentThread = await _db.PlatformThreads
+            .AnyAsync(t => t.DraftId == draftId && t.Stage == PlatformThreadStage.Sent, ct);
+        if (hasSentThread)
+        {
+            throw new InvalidOperationException("Cannot set a reply target on a sent draft. Create a new reply draft instead.");
+        }
+
+        var rootUri = string.IsNullOrWhiteSpace(replyRootUri) ? null : replyRootUri.Trim();
+        var rootCid = string.IsNullOrWhiteSpace(replyRootCid) ? null : replyRootCid.Trim();
+        var parentUri = string.IsNullOrWhiteSpace(replyParentUri) ? null : replyParentUri.Trim();
+        var parentCid = string.IsNullOrWhiteSpace(replyParentCid) ? null : replyParentCid.Trim();
+        var parentUrl = string.IsNullOrWhiteSpace(replyParentUrl) ? null : replyParentUrl.Trim();
+        var parentAuthor = string.IsNullOrWhiteSpace(replyParentAuthor) ? null : replyParentAuthor.Trim();
+        var parentText = string.IsNullOrWhiteSpace(replyParentText) ? null : replyParentText.Trim();
+        var parentAvatarUrl = string.IsNullOrWhiteSpace(replyParentAvatarUrl) ? null : replyParentAvatarUrl.Trim();
+
+        var clear = rootUri is null
+            && rootCid is null
+            && parentUri is null
+            && parentCid is null
+            && parentUrl is null
+            && parentAuthor is null
+            && parentText is null
+            && parentAvatarUrl is null;
+        var metadata = await _db.DraftBlueskyMetadata.FirstOrDefaultAsync(m => m.DraftId == draftId, ct);
+
+        if (metadata is not null)
+        {
+            throw new InvalidOperationException("Bluesky reply target is already set for this draft and cannot be changed.");
+        }
+
+        if (clear)
+        {
+            throw new ArgumentException("Reply target values are required.");
+        }
+        else
+        {
+            if (rootUri is null || rootCid is null || parentUri is null || parentCid is null)
+            {
+                throw new ArgumentException("ReplyRootUri, ReplyRootCid, ReplyParentUri, and ReplyParentCid are required to set a Bluesky reply target.");
+            }
+
+            if (metadata is null)
+            {
+                metadata = new DraftBlueskyMetadata { DraftId = draftId };
+                _db.DraftBlueskyMetadata.Add(metadata);
+            }
+
+            metadata.ReplyRootUri = rootUri;
+            metadata.ReplyRootCid = rootCid;
+            metadata.ReplyParentUri = parentUri;
+            metadata.ReplyParentCid = parentCid;
+            metadata.ReplyParentUrl = parentUrl;
+            metadata.ReplyParentAuthor = parentAuthor;
+            metadata.ReplyParentText = parentText;
+            metadata.ReplyParentAvatarUrl = parentAvatarUrl;
+        }
+
+        draft.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        return await GetDraftByIdAsync(userId, draftId, ct);
+    }
+
+    public async Task<DraftDto> CreateReplyDraftFromBlueskyPostUrlAsync(
+        Guid userId,
+        string url,
+        string? title,
+        string? content,
+        IBlueskyReplyTargetResolver resolver,
+        CancellationToken ct)
+    {
+        var created = await CreateDraftAsync(userId, title, content, "Bluesky", ct);
+
+        return await SetDraftBlueskyReplyTargetFromUrlAsync(
+            userId,
+            created.Id,
+            url,
+            resolver,
+            ct);
+    }
+
+    public async Task<DraftDto> SetDraftBlueskyReplyTargetFromUrlAsync(
+        Guid userId,
+        Guid draftId,
+        string url,
+        IBlueskyReplyTargetResolver resolver,
+        CancellationToken ct)
+    {
+        var resolution = await resolver.ResolveAsync(url, ct);
+        if (!resolution.Success)
+        {
+            throw new ArgumentException(resolution.Error ?? "Could not resolve Bluesky post URL.");
+        }
+
+        return await SetDraftBlueskyReplyTargetAsync(
+            userId,
+            draftId,
+            resolution.ReplyRootUri,
+            resolution.ReplyRootCid,
+            resolution.ReplyParentUri,
+            resolution.ReplyParentCid,
+            resolution.ReplyParentUrl,
+            resolution.ReplyParentAuthor,
+            resolution.ReplyParentText,
+            resolution.ReplyParentAvatarUrl,
+            ct);
     }
 
     public async Task<List<PlatformThreadDto>> GetPlatformThreadsForDraftAsync(Guid userId, Guid id, CancellationToken ct)

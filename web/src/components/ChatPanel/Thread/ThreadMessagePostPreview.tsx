@@ -44,6 +44,10 @@ function extractPostsByHeaders(text: string): string[] {
 }
 
 export function parsePostPreview(text: string): ParsedPostPreview | null {
+  if (/Draft Validation Report|Overall Status\s*:/i.test(text)) {
+    return null;
+  }
+
   const byHeaders = extractPostsByHeaders(text);
   if (byHeaders.length >= 2) return { posts: byHeaders };
 

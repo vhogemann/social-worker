@@ -1,15 +1,19 @@
 import { create } from "zustand";
-import { fetchDrafts, createDraft, fetchDraft, patchDraft, createPlatformThread, patchPlatformThread, publishPlatformThread, fetchSources, uploadFile, uploadMedia, patchMediaAsset, deleteMediaAsset, type DraftDto, type PlatformThreadDto, type SourceDto, type MediaAssetDto } from "../api/drafts";
+import { fetchDrafts, createDraft, createReplyDraftFromBlueskyPostUrl, fetchDraft, patchDraft, createPlatformThread, patchPlatformThread, publishPlatformThread, fetchSources, uploadFile, uploadMedia, patchMediaAsset, deleteMediaAsset, fetchPlatformCapabilities, type DraftDto, type PlatformThreadDto, type SourceDto, type MediaAssetDto, type PlatformCapabilityDto } from "../api/drafts";
 import { useChatStore } from "./chatStore";
 
 interface DraftStore {
   drafts: DraftDto[];
   activeDraftId: string | null;
   activePlatform: string;
+  platformCapabilities: PlatformCapabilityDto[];
   sources: SourceDto[];
   loading: boolean;
   loadDrafts: () => Promise<void>;
+  loadPlatformCapabilities: () => Promise<void>;
+  supportsReplyTargetForPlatform: (platform: string | null | undefined) => boolean;
   createDraft: (title?: string, content?: string, targetPlatform?: string) => Promise<DraftDto>;
+  createReplyDraftFromBlueskyPostUrl: (url: string, title?: string, content?: string) => Promise<DraftDto>;
   switchDraft: (id: string) => Promise<DraftDto>;
   updateDraftTitle: (id: string, title: string) => Promise<void>;
   saveDraftContent: (id: string, content: string) => Promise<void>;
@@ -33,6 +37,7 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   drafts: [],
   activeDraftId: null,
   activePlatform: "Bluesky",
+  platformCapabilities: [],
   sources: [],
   loading: false,
 
@@ -51,10 +56,30 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     }
   },
 
+  loadPlatformCapabilities: async () => {
+    const platformCapabilities = await fetchPlatformCapabilities();
+    set({ platformCapabilities });
+  },
+
+  supportsReplyTargetForPlatform: (platform) => {
+    if (!platform) return false;
+    const capabilities = get().platformCapabilities;
+    return capabilities.some((c) => c.platform.toLowerCase() === platform.toLowerCase() && c.supportsReplyTarget);
+  },
+
   createDraft: async (title, content, targetPlatform) => {
     const draft = await createDraft(title, content, targetPlatform);
     set((s) => ({ drafts: [draft, ...s.drafts], activeDraftId: draft.id }));
     return draft;
+  },
+
+  createReplyDraftFromBlueskyPostUrl: async (url, title, content) => {
+    const updatedDraft = await createReplyDraftFromBlueskyPostUrl(url, title, content);
+    set((s) => ({
+      drafts: [updatedDraft, ...s.drafts.filter((d) => d.id !== updatedDraft.id)],
+      activeDraftId: updatedDraft.id,
+    }));
+    return updatedDraft;
   },
 
   switchDraft: async (id) => {

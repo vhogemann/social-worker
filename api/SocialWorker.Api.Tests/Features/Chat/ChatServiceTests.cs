@@ -73,7 +73,7 @@ public sealed class ChatServiceTests
         private readonly ChatSessionContext _session;
 
         public FakeSessionLoader(ChatSessionContext session)
-            : base(null!, null!, null!, null!)
+            : base(null!, null!, null!, null!, null!)
         {
             _session = session;
         }

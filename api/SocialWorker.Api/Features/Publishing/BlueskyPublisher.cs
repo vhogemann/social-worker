@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,6 +23,7 @@ public class BlueskyPublisher : IPublisher
     private readonly BlueskyApiClient _apiClient;
     private readonly BlueskyContentPreparationService _contentPreparation;
     private readonly BlueskyFacetBuilder _facetBuilder;
+    private readonly AppDbContext _db;
     private readonly string _encryptionKey;
     private readonly ILogger<BlueskyPublisher> _logger;
 
@@ -37,6 +39,7 @@ public class BlueskyPublisher : IPublisher
         BlueskyContentPreparationService? contentPreparation = null,
         BlueskyFacetBuilder? facetBuilder = null)
     {
+        _db = db;
         _apiClient = apiClient ?? new BlueskyApiClient(http);
         _contentPreparation = contentPreparation ?? new BlueskyContentPreparationService(db, storage, _apiClient, http);
         _facetBuilder = facetBuilder ?? new BlueskyFacetBuilder();
@@ -74,8 +77,30 @@ public class BlueskyPublisher : IPublisher
             var segments = DraftSegmentService.SplitMarkdownIntoSegments(thread.Content ?? "");
             if (segments.Count == 0) return new PublishResult { Success = false, ErrorMessage = "Thread is empty." };
 
+            var replyMetadata = await _db.DraftBlueskyMetadata
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.DraftId == thread.DraftId, ct);
+
             BlueskyRecordRef? rootRef = null;
             BlueskyRecordRef? parentRef = null;
+            if (replyMetadata is not null)
+            {
+                if (string.IsNullOrWhiteSpace(replyMetadata.ReplyRootUri)
+                    || string.IsNullOrWhiteSpace(replyMetadata.ReplyRootCid)
+                    || string.IsNullOrWhiteSpace(replyMetadata.ReplyParentUri)
+                    || string.IsNullOrWhiteSpace(replyMetadata.ReplyParentCid))
+                {
+                    return new PublishResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Draft reply target is incomplete. Please set root and parent URI/CID before publishing."
+                    };
+                }
+
+                rootRef = new BlueskyRecordRef(replyMetadata.ReplyRootUri, replyMetadata.ReplyRootCid);
+                parentRef = new BlueskyRecordRef(replyMetadata.ReplyParentUri, replyMetadata.ReplyParentCid);
+            }
+
             var publishedPosts = new List<PublishedPost>();
             int segmentIndex = 0;
 

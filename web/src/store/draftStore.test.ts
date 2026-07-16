@@ -5,6 +5,7 @@ import { useChatStore } from "./chatStore";
 vi.mock("../api/drafts", () => ({
   fetchDrafts: vi.fn(),
   createDraft: vi.fn(),
+  createReplyDraftFromBlueskyPostUrl: vi.fn(),
   fetchDraft: vi.fn(),
   patchDraft: vi.fn(),
   createPlatformThread: vi.fn(),
@@ -15,11 +16,13 @@ vi.mock("../api/drafts", () => ({
   uploadMedia: vi.fn(),
   patchMediaAsset: vi.fn(),
   deleteMediaAsset: vi.fn(),
+  fetchPlatformCapabilities: vi.fn(),
 }));
 
 import * as draftsApi from "../api/drafts";
 const mockFetchDrafts = draftsApi.fetchDrafts as Mock;
 const mockCreateDraft = draftsApi.createDraft as Mock;
+const mockCreateReplyDraftFromBlueskyPostUrl = draftsApi.createReplyDraftFromBlueskyPostUrl as Mock;
 const mockFetchDraft = draftsApi.fetchDraft as Mock;
 const mockPatchDraft = draftsApi.patchDraft as Mock;
 const mockCreatePlatformThread = draftsApi.createPlatformThread as Mock;
@@ -30,6 +33,7 @@ const mockUploadFile = draftsApi.uploadFile as Mock;
 const mockUploadMedia = draftsApi.uploadMedia as Mock;
 const mockPatchMediaAsset = draftsApi.patchMediaAsset as Mock;
 const mockDeleteMediaAsset = draftsApi.deleteMediaAsset as Mock;
+const mockFetchPlatformCapabilities = draftsApi.fetchPlatformCapabilities as Mock;
 
 const makeDraft = (id = "d1", overrides = {}) => ({
   id,
@@ -63,6 +67,7 @@ function resetStore() {
     drafts: [],
     activeDraftId: null,
     activePlatform: "Bluesky",
+    platformCapabilities: [],
     sources: [],
     loading: false,
   });
@@ -73,6 +78,7 @@ describe("draftStore", () => {
     resetStore();
     vi.clearAllMocks();
     mockFetchSources.mockResolvedValue([]);
+    mockFetchPlatformCapabilities.mockResolvedValue([]);
   });
 
   describe("loadDrafts", () => {
@@ -110,6 +116,33 @@ describe("draftStore", () => {
       const state = useDraftStore.getState();
       expect(state.drafts[0].id).toBe("d-new");
       expect(state.activeDraftId).toBe("d-new");
+      expect(result.id).toBe("d-new");
+    });
+  });
+
+  describe("createReplyDraftFromBlueskyPostUrl", () => {
+    it("creates draft, sets reply target from URL, and activates returned draft", async () => {
+      useDraftStore.setState({ drafts: [makeDraft("d0")] });
+      mockCreateReplyDraftFromBlueskyPostUrl.mockResolvedValueOnce(
+        makeDraft("d-new", {
+          blueskyReplyTarget: {
+            replyRootUri: "at://did:plc:root/app.bsky.feed.post/1",
+            replyRootCid: "root-cid",
+            replyParentUri: "at://did:plc:parent/app.bsky.feed.post/2",
+            replyParentCid: "parent-cid",
+            replyParentUrl: "https://bsky.app/profile/test/post/2",
+            replyParentAuthor: "test",
+            replyParentText: "hello",
+            replyParentAvatarUrl: "https://cdn.bsky.app/avatar.jpg",
+          },
+        })
+      );
+
+      const result = await useDraftStore.getState().createReplyDraftFromBlueskyPostUrl("https://bsky.app/profile/test/post/2");
+
+  expect(mockCreateReplyDraftFromBlueskyPostUrl).toHaveBeenCalledWith("https://bsky.app/profile/test/post/2", undefined, undefined);
+      expect(useDraftStore.getState().activeDraftId).toBe("d-new");
+      expect(useDraftStore.getState().drafts[0].id).toBe("d-new");
       expect(result.id).toBe("d-new");
     });
   });
@@ -264,6 +297,32 @@ describe("draftStore", () => {
       await useDraftStore.getState().loadSources("d1");
 
       expect(useDraftStore.getState().sources).toHaveLength(1);
+    });
+  });
+
+  describe("platform capabilities", () => {
+    it("loads platform capabilities into store", async () => {
+      mockFetchPlatformCapabilities.mockResolvedValueOnce([
+        { platform: "Bluesky", supportsReplyTarget: true },
+        { platform: "Twitter", supportsReplyTarget: false },
+      ]);
+
+      await useDraftStore.getState().loadPlatformCapabilities();
+
+      expect(useDraftStore.getState().platformCapabilities).toHaveLength(2);
+    });
+
+    it("returns true only when platform supports reply target", () => {
+      useDraftStore.setState({
+        platformCapabilities: [
+          { platform: "Bluesky", supportsReplyTarget: true },
+          { platform: "Twitter", supportsReplyTarget: false },
+        ],
+      });
+
+      expect(useDraftStore.getState().supportsReplyTargetForPlatform("Bluesky")).toBe(true);
+      expect(useDraftStore.getState().supportsReplyTargetForPlatform("Twitter")).toBe(false);
+      expect(useDraftStore.getState().supportsReplyTargetForPlatform(null)).toBe(false);
     });
   });
 

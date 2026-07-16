@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<BrandVoicePrompt> BrandVoicePrompts => Set<BrandVoicePrompt>();
+    public DbSet<DraftBlueskyMetadata> DraftBlueskyMetadata => Set<DraftBlueskyMetadata>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -181,6 +182,23 @@ public class AppDbContext : DbContext
             e.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DraftBlueskyMetadata>(e =>
+        {
+            e.HasKey(x => x.DraftId);
+            e.Property(x => x.ReplyRootUri).HasMaxLength(1000);
+            e.Property(x => x.ReplyRootCid).HasMaxLength(255);
+            e.Property(x => x.ReplyParentUri).HasMaxLength(1000);
+            e.Property(x => x.ReplyParentCid).HasMaxLength(255);
+            e.Property(x => x.ReplyParentUrl).HasMaxLength(1000);
+            e.Property(x => x.ReplyParentAuthor).HasMaxLength(255);
+            e.Property(x => x.ReplyParentText).HasColumnType("text");
+            e.Property(x => x.ReplyParentAvatarUrl).HasMaxLength(2000);
+            e.HasOne(x => x.Draft)
+                .WithOne(d => d.BlueskyMetadata)
+                .HasForeignKey<DraftBlueskyMetadata>(x => x.DraftId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

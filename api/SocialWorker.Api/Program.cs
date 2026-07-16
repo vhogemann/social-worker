@@ -1,4 +1,5 @@
 using System.Text;
+using DbUp;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -110,6 +111,7 @@ builder.Services.AddScoped<IChatTool, RenderCodeBlocksTool>();
 builder.Services.AddScoped<IChatTool, FormatValidatePlatformContentTool>();
 builder.Services.AddScoped<IChatTool, GeneratePlatformVariantsTool>();
 builder.Services.AddScoped<IChatTool, SearchSourcesTool>();
+builder.Services.AddScoped<IChatTool, SetBlueskyReplyTargetTool>();
 builder.Services.AddSingleton<CodeImageRenderer>();
 builder.Services.AddScoped<CodeImageService>();
 
@@ -126,6 +128,7 @@ builder.Services.AddScoped<ISearchEngine>(sp =>
     return sp.GetRequiredService<SearXngSearchEngine>();
 });
 builder.Services.AddHttpClient<IPublisher, BlueskyPublisher>();
+builder.Services.AddHttpClient<IBlueskyReplyTargetResolver, BlueskyReplyTargetResolver>();
 builder.Services.AddScoped<IPublisher, TwitterPublisher>();
 builder.Services.AddScoped<IPublisher, LinkedInPublisher>();
 builder.Services.AddScoped<IPublisher, FacebookPublisher>();
@@ -171,9 +174,33 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    var connectionString = builder.Configuration.GetConnectionString("Default");
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException("Connection string 'Default' is not configured.");
+    }
+
+    EnsureDatabase.For.PostgresqlDatabase(connectionString);
+
+    var migrationsPath = Path.Combine(AppContext.BaseDirectory, "Data", "Migrations");
+    if (!Directory.Exists(migrationsPath))
+    {
+        migrationsPath = Path.Combine(app.Environment.ContentRootPath, "Data", "Migrations");
+    }
+
+    var upgrader = DeployChanges.To
+        .PostgresqlDatabase(connectionString)
+        .WithScriptsFromFileSystem(migrationsPath)
+        .LogToConsole()
+        .Build();
+
+    var migrationResult = upgrader.PerformUpgrade();
+    if (!migrationResult.Successful)
+    {
+        throw new Exception($"Database migration failed: {migrationResult.Error}", migrationResult.Error);
+    }
+
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
-    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"LlmProviders\" ADD COLUMN IF NOT EXISTS \"ContextWindowTokens\" integer;");
 
     var authOpts = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AuthOptions>>().Value;
     var adminUser = await db.Users.FirstOrDefaultAsync(u => u.Username == "admin");

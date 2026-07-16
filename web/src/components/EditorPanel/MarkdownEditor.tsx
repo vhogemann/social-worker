@@ -4,35 +4,8 @@ import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { vim, getCM } from "@replit/codemirror-vim";
 import { useEditorStore } from "../../store/editorStore";
 import { useDraftStore } from "../../store/draftStore";
-
-function VimStatus({ view }: { view: EditorView | null }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!view) return;
-    const cm = getCM(view);
-    if (!cm) return;
-    const update = () => {
-      if (ref.current) {
-        const mode = (cm as unknown as { state?: { vim?: { mode?: string } } }).state?.vim?.mode;
-        ref.current.textContent = mode ? `--${mode.toUpperCase()}--` : "";
-      }
-    };
-    cm.on("vim-mode-change", update);
-    update();
-    return () => cm.off("vim-mode-change", update);
-  }, [view]);
-
-  return (
-    <div
-      ref={ref}
-      className="absolute top-2 right-3 px-2 py-0.5 text-xs font-mono text-accent bg-panel/80 rounded border border-border z-10"
-    />
-  );
-}
 
 export function MarkdownEditor() {
   const doc = useEditorStore((s) => s.doc);
@@ -50,7 +23,6 @@ export function MarkdownEditor() {
 
   const extensions = useMemo(
     () => [
-      vim(),
       history(),
       markdown({ base: markdownLanguage }),
       highlightSelectionMatches(),
@@ -211,7 +183,6 @@ export function MarkdownEditor() {
       onDrop={handleDrop}
       onPaste={handlePaste}
     >
-      <VimStatus view={viewRef.current} />
       {errorMsg && (
         <div className="absolute top-2 left-3 right-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs px-3 py-2 rounded-xl z-20 shadow-lg flex items-center justify-between transition-all select-none">
           <span className="truncate pr-4">{errorMsg}</span>
