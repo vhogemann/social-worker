@@ -373,6 +373,120 @@ public sealed class SourcesServiceTests : SqliteTestBase
             }
         }
     }
+
+    [Fact]
+    public async Task SearchSourcesAsync_Filters_By_Kind()
+    {
+        using var db = new AppDbContext(Options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft" };
+        db.Drafts.Add(draft);
+        var urlSource = new Source { Id = Guid.NewGuid(), Kind = SourceKind.Url, Reference = "https://example.com/url", Title = "URL Source" };
+        var ytSource = new Source { Id = Guid.NewGuid(), Kind = SourceKind.YouTube, Reference = "https://youtube.com/watch?v=abc", Title = "YT Source" };
+        db.Sources.AddRange(urlSource, ytSource);
+        db.DraftSources.AddRange(
+            new DraftSource { DraftId = draft.Id, SourceId = urlSource.Id },
+            new DraftSource { DraftId = draft.Id, SourceId = ytSource.Id });
+        await db.SaveChangesAsync();
+
+        var service = new SourcesService(db, null!, null!, null!);
+        var result = await service.SearchSourcesAsync(userId, "", 1, 20, CancellationToken.None, kindFilter: SourceKind.YouTube);
+
+        Assert.Single(result.Items);
+        Assert.Equal("YouTube", result.Items[0].Kind);
+    }
+
+    [Fact]
+    public async Task SearchSourcesAsync_Filters_By_DateRange()
+    {
+        using var db = new AppDbContext(Options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft" };
+        db.Drafts.Add(draft);
+        var oldSource = new Source { Id = Guid.NewGuid(), Kind = SourceKind.Url, Reference = "https://old.com", Title = "Old", AddedAt = new DateTime(2025, 1, 1) };
+        var newSource = new Source { Id = Guid.NewGuid(), Kind = SourceKind.Url, Reference = "https://new.com", Title = "New", AddedAt = new DateTime(2026, 7, 1) };
+        db.Sources.AddRange(oldSource, newSource);
+        db.DraftSources.AddRange(
+            new DraftSource { DraftId = draft.Id, SourceId = oldSource.Id },
+            new DraftSource { DraftId = draft.Id, SourceId = newSource.Id });
+        await db.SaveChangesAsync();
+
+        var service = new SourcesService(db, null!, null!, null!);
+        var result = await service.SearchSourcesAsync(userId, "", 1, 20, CancellationToken.None,
+            addedAfter: new DateTime(2026, 6, 1));
+
+        Assert.Single(result.Items);
+        Assert.Equal("New", result.Items[0].Title);
+    }
+
+    [Fact]
+    public async Task SearchSourcesAsync_ExcludesDraftId()
+    {
+        using var db = new AppDbContext(Options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft1 = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft 1" };
+        var draft2 = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft 2" };
+        db.Drafts.AddRange(draft1, draft2);
+        var s1 = new Source { Id = Guid.NewGuid(), Kind = SourceKind.Url, Reference = "https://a.com", Title = "Linked to draft1" };
+        var s2 = new Source { Id = Guid.NewGuid(), Kind = SourceKind.Url, Reference = "https://b.com", Title = "Linked to draft2 only" };
+        db.Sources.AddRange(s1, s2);
+        db.DraftSources.AddRange(
+            new DraftSource { DraftId = draft1.Id, SourceId = s1.Id },
+            new DraftSource { DraftId = draft2.Id, SourceId = s2.Id });
+        await db.SaveChangesAsync();
+
+        var service = new SourcesService(db, null!, null!, null!);
+        var result = await service.SearchSourcesAsync(userId, "", 1, 20, CancellationToken.None, excludeDraftId: draft1.Id);
+
+        Assert.Single(result.Items);
+        Assert.Equal(s2.Id, result.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task GetSourceDetailByIdAsync_Returns_Source_Without_DraftId()
+    {
+        using var db = new AppDbContext(Options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft" };
+        db.Drafts.Add(draft);
+        var source = new Source { Id = Guid.NewGuid(), Kind = SourceKind.Url, Reference = "https://example.com", Title = "My Source", Content = "The content" };
+        db.Sources.Add(source);
+        db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id });
+        await db.SaveChangesAsync();
+
+        var service = new SourcesService(db, null!, null!, null!);
+        var detail = await service.GetSourceDetailByIdAsync(userId, source.Id, CancellationToken.None);
+
+        Assert.Equal(source.Id, detail.Id);
+        Assert.Equal("My Source", detail.Title);
+        Assert.Equal("The content", detail.Content);
+        Assert.Equal(draft.Id, detail.DraftId);
+    }
+
+    [Fact]
+    public async Task GetSourceDetailByIdAsync_Throws_When_Not_Accessible()
+    {
+        using var db = new AppDbContext(Options);
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        db.Users.AddRange(
+            new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" },
+            new AppUser { Id = otherUserId, Username = "other", Email = "other@example.com", PasswordHash = "hash" });
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = otherUserId, Title = "Other draft" };
+        db.Drafts.Add(draft);
+        var source = new Source { Id = Guid.NewGuid(), Kind = SourceKind.Url, Reference = "https://example.com", Title = "Private Source" };
+        db.Sources.Add(source);
+        db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id });
+        await db.SaveChangesAsync();
+
+        var service = new SourcesService(db, null!, null!, null!);
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            service.GetSourceDetailByIdAsync(userId, source.Id, CancellationToken.None));
+    }
 }
 
 internal sealed class StaticHttpMessageHandler : HttpMessageHandler

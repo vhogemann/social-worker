@@ -203,8 +203,25 @@ export async function fetchSourceDetail(draftId: string, sourceId: string): Prom
   return res.json();
 }
 
-export async function searchSources(query: string, page = 1, pageSize = 20): Promise<SourceSearchResultDto> {
+export async function fetchSourceById(sourceId: string): Promise<SourceDetailDto> {
+  const res = await apiFetch(`/api/sources/${sourceId}`);
+  if (!res.ok) throw new Error(`fetchSourceById failed: ${res.status}`);
+  return res.json();
+}
+
+export async function searchSources(
+  query: string,
+  page = 1,
+  pageSize = 20,
+  kind?: string,
+  addedAfter?: string,
+  addedBefore?: string
+): Promise<SourceSearchResultDto> {
   const params = new URLSearchParams({ query, page: `${page}`, pageSize: `${pageSize}` });
+  if (kind) params.set("kind", kind);
+  if (addedAfter) params.set("addedAfter", addedAfter);
+  if (addedBefore) params.set("addedBefore", addedBefore);
+
   const res = await apiFetch(`/api/sources?${params.toString()}`);
   if (!res.ok) throw new Error(`searchSources failed: ${res.status}`);
   return res.json();

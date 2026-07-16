@@ -17,7 +17,16 @@ public sealed class SourceSearchService
         _db = db;
     }
 
-    public async Task<SourceSearchResultDto> SearchSourcesAsync(Guid userId, string query, int page, int pageSize, CancellationToken ct)
+    public async Task<SourceSearchResultDto> SearchSourcesAsync(
+        Guid userId,
+        string query,
+        int page,
+        int pageSize,
+        CancellationToken ct,
+        SourceKind? kindFilter = null,
+        DateTime? addedAfter = null,
+        DateTime? addedBefore = null,
+        Guid? excludeDraftId = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
@@ -27,16 +36,34 @@ public sealed class SourceSearchService
         var accessibleSources = _db.Sources
             .Where(s => s.DraftSources.Any(ds => ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted));
 
+        if (excludeDraftId.HasValue)
+        {
+            accessibleSources = accessibleSources
+                .Where(s => !s.DraftSources.Any(ds => ds.DraftId == excludeDraftId.Value));
+        }
+
+        if (kindFilter.HasValue)
+        {
+            accessibleSources = accessibleSources.Where(s => s.Kind == kindFilter.Value);
+        }
+
+        if (addedAfter.HasValue)
+        {
+            accessibleSources = accessibleSources.Where(s => s.AddedAt >= addedAfter.Value);
+        }
+
+        if (addedBefore.HasValue)
+        {
+            accessibleSources = accessibleSources.Where(s => s.AddedAt <= addedBefore.Value);
+        }
+
         if (!string.IsNullOrWhiteSpace(normalizedQuery))
         {
             if (_db.Database.IsNpgsql())
             {
-                var like = $"%{normalizedQuery}%";
                 accessibleSources = accessibleSources.Where(s =>
-                    EF.Functions.ILike(s.Reference, like) ||
-                    (s.Title != null && EF.Functions.ILike(s.Title, like)) ||
-                    (s.Content != null && EF.Functions.ILike(s.Content, like)) ||
-                    (s.Summary != null && EF.Functions.ILike(s.Summary, like)));
+                    EF.Functions.ToTsVector("english", (s.Title ?? "") + " " + (s.Content ?? ""))
+                        .Matches(EF.Functions.PlainToTsQuery("english", normalizedQuery)));
             }
             else
             {

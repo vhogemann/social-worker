@@ -83,6 +83,8 @@ public sealed class SourcesService
     private SourceTranscriptionService SourceTranscriptionService =>
         _sourceTranscriptionService ??= new SourceTranscriptionService(_scopeFactory, _queue);
 
+    private readonly SummarizationService? _summarizer;
+
     private SourceSearchService SourceSearchService =>
         _sourceSearchService ??= new SourceSearchService(_db);
 
@@ -93,7 +95,8 @@ public sealed class SourcesService
         BackgroundJobQueue? queue,
         SourceReconciliationService? sourceReconciliationService = null,
         SourceTranscriptionService? sourceTranscriptionService = null,
-        SourceSearchService? sourceSearchService = null)
+        SourceSearchService? sourceSearchService = null,
+        SummarizationService? summarizer = null)
     {
         _db = db;
         _scraper = scraper;
@@ -102,6 +105,7 @@ public sealed class SourcesService
         _sourceReconciliationService = sourceReconciliationService;
         _sourceTranscriptionService = sourceTranscriptionService;
         _sourceSearchService = sourceSearchService;
+        _summarizer = summarizer;
     }
 
     public async Task<List<SourceDto>> GetSourcesForDraftAsync(Guid userId, Guid draftId, CancellationToken ct)
@@ -171,9 +175,51 @@ public sealed class SourcesService
             detailLinks.PlainLinkLine);
     }
 
-    public async Task<SourceSearchResultDto> SearchSourcesAsync(Guid userId, string query, int page, int pageSize, CancellationToken ct)
+    public async Task<SourceSearchResultDto> SearchSourcesAsync(
+        Guid userId,
+        string query,
+        int page,
+        int pageSize,
+        CancellationToken ct,
+        SourceKind? kindFilter = null,
+        DateTime? addedAfter = null,
+        DateTime? addedBefore = null,
+        Guid? excludeDraftId = null)
     {
-        return await SourceSearchService.SearchSourcesAsync(userId, query, page, pageSize, ct);
+        return await SourceSearchService.SearchSourcesAsync(userId, query, page, pageSize, ct, kindFilter, addedAfter, addedBefore, excludeDraftId);
+    }
+
+    public async Task<SourceDetailDto> GetSourceDetailByIdAsync(Guid userId, Guid sourceId, CancellationToken ct)
+    {
+        var source = await _db.Sources
+            .FirstOrDefaultAsync(s =>
+                s.Id == sourceId &&
+                s.DraftSources.Any(ds => ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted), ct)
+            ?? throw new KeyNotFoundException("Source not found or access denied.");
+
+        var firstDraftId = await _db.DraftSources
+            .Where(ds => ds.SourceId == sourceId && ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted)
+            .OrderByDescending(ds => ds.LinkedAt)
+            .Select(ds => ds.DraftId)
+            .FirstOrDefaultAsync(ct);
+
+        var detailLinks = SourceLinkFields.Build(source.Id, source.Kind, source.Reference, source.Title);
+        return new SourceDetailDto(
+            source.Id,
+            firstDraftId,
+            source.Kind.ToString(),
+            source.Reference,
+            source.Title,
+            source.Content,
+            source.Summary,
+            source.TranscriptStatus.ToString(),
+            source.YoutubeVideoId,
+            source.AddedAt,
+            detailLinks.CanonicalUrl,
+            detailLinks.CitationLabel,
+            detailLinks.EmbedKind,
+            detailLinks.CanonicalEmbedMarkdown,
+            detailLinks.PlainLinkLine);
     }
 
     public async Task<SourceDto> LinkSourceAsync(Guid userId, Guid sourceId, Guid draftId, CancellationToken ct)
@@ -308,12 +354,19 @@ public sealed class SourcesService
             extractedText = await extractor.ExtractTextAsync(fileName, tempStreamForExtract);
         }
 
+        string? summary = null;
+        if (_summarizer != null && !string.IsNullOrWhiteSpace(extractedText))
+        {
+            summary = await _summarizer.SummarizeAsync(extractedText, ct);
+        }
+
         var newSource = new Source
         {
             Kind = SourceKind.File,
             Reference = fileName,
             Title = fileName,
             Content = extractedText,
+            Summary = summary,
             Sha256 = shaHashStr,
             AddedAt = DateTime.UtcNow
         };
@@ -405,12 +458,19 @@ public sealed class SourcesService
             sourceKind = scrape.IsYouTube ? SourceKind.YouTube : SourceKind.Url;
         }
 
+        string? summary = null;
+        if (sourceKind != SourceKind.YouTube && _summarizer != null && !string.IsNullOrWhiteSpace(sourceContent))
+        {
+            summary = await _summarizer.SummarizeAsync(sourceContent, ct);
+        }
+
         var source = new Source
         {
             Kind = sourceKind,
             Reference = normalizedReference,
             Title = sourceTitle ?? normalizedReference,
             Content = sourceContent,
+            Summary = summary,
             YoutubeVideoId = TryExtractYouTubeVideoId(normalizedReference),
             AddedAt = DateTime.UtcNow
         };

@@ -9,7 +9,7 @@ using SocialWorker.Api.Features.Sources;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
 
-public sealed record AddSourceArgs(string Kind, string Reference, string? Title, string? Content);
+public sealed record AddSourceArgs(string? Kind, string? Reference, string? Title, string? Content, Guid? SourceId);
 
 public sealed record AddSourceResult(
     bool Success,
@@ -38,20 +38,24 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
     }
 
     public override string Name => "add_source";
-    public override string Description => "Add a web URL, YouTube video link, or document reference as a source for this draft.";
+    public override string Description => "Add a source to this draft. Either provide a new URL/YouTube/File reference, or pass an existing sourceId (from search_sources) to link an existing source without duplicating it.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {
           "type": "object",
           "properties": {
+            "source_id": {
+              "type": "string",
+              "description": "ID of an existing source to link to this draft (from search_sources results). When provided, kind and reference are not required."
+            },
             "kind": {
               "type": "string",
               "enum": ["Url", "YouTube", "File"],
-              "description": "The kind of the source."
+              "description": "The kind of the source. Required when adding a new source."
             },
             "reference": {
               "type": "string",
-                            "description": "The URL, video link, or file reference. For Url and YouTube kinds this must be an absolute HTTP or HTTPS URL."
+              "description": "The URL, video link, or file reference. Required when adding a new source. For Url and YouTube kinds this must be an absolute HTTP or HTTPS URL."
             },
             "title": {
               "type": "string",
@@ -62,7 +66,7 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
               "description": "Optional text content or transcript."
             }
           },
-          "required": ["kind", "reference"]
+          "required": []
         }
         """).RootElement.Clone();
 
@@ -71,6 +75,30 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
         if (!draftId.HasValue)
         {
             return new AddSourceResult(false, "No draft ID active.", Error: "No draft ID active.");
+        }
+
+        if (args.SourceId.HasValue)
+        {
+            using var linkScope = _scopeFactory.CreateScope();
+            var linkService = linkScope.ServiceProvider.GetRequiredService<SourcesService>();
+            try
+            {
+                var linked = await linkService.LinkSourceAsync(userId, args.SourceId.Value, draftId.Value, ct);
+                return new AddSourceResult(
+                    true,
+                    $"Linked existing source '{linked.Title}' ({linked.Kind}) to this draft.",
+                    linked.Id,
+                    linked.Kind);
+            }
+            catch (KeyNotFoundException)
+            {
+                return new AddSourceResult(false, "Source or draft not found.", Error: "Source or draft not found.");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(args.Kind))
+        {
+            return new AddSourceResult(false, "Either source_id or kind+reference is required.", Error: "Either source_id or kind+reference is required.");
         }
 
         if (!Enum.TryParse<SourceKind>(args.Kind, true, out var kind))

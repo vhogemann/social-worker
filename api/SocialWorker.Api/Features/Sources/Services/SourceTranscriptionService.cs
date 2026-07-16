@@ -55,9 +55,22 @@ public sealed class SourceTranscriptionService
                 source.TranscriptPath = result.TranscriptPath;
 
                 var transcript = await transcriber.ReadTranscriptAsync(result.TranscriptPath, ct);
-                if (transcript?.Transcript is { Length: > 0 } text)
+                string? text = transcript?.Transcript;
+                if (!string.IsNullOrWhiteSpace(text))
                 {
                     source.Content = text;
+                    var summarizer = scope.ServiceProvider.GetService<SummarizationService>();
+                    if (summarizer != null)
+                    {
+                        try
+                        {
+                            source.Summary = await summarizer.SummarizeAsync(text, ct);
+                        }
+                        catch (Exception)
+                        {
+                            // Best-effort
+                        }
+                    }
                 }
 
                 source.TranscriptStatus = TranscriptStatus.Complete;

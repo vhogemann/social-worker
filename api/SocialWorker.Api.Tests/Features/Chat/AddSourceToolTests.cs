@@ -66,7 +66,7 @@ public sealed class AddSourceToolTests : IDisposable
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
         var tool = new AddSourceTool(scopeFactory);
-        var args = new AddSourceArgs("Url", "https://example.com/testpage", null, null);
+        var args = new AddSourceArgs("Url", "https://example.com/testpage", null, null, null);
 
         var response = await tool.ExecuteAsync(args, draft.Id, userId, CancellationToken.None);
 
@@ -101,7 +101,7 @@ public sealed class AddSourceToolTests : IDisposable
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         var tool = new AddSourceTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new AddSourceArgs("Url", "/relative/path", null, null), draft.Id, userId, CancellationToken.None);
+        var result = await tool.ExecuteAsync(new AddSourceArgs("Url", "/relative/path", null, null, null), draft.Id, userId, CancellationToken.None);
 
         Assert.StartsWith("Error:", result);
         Assert.Empty(await db.Sources.ToListAsync());
@@ -128,9 +128,68 @@ public sealed class AddSourceToolTests : IDisposable
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         var tool = new AddSourceTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new AddSourceArgs("Url", "https://example.com/missing", null, null), draft.Id, userId, CancellationToken.None);
+        var result = await tool.ExecuteAsync(new AddSourceArgs("Url", "https://example.com/missing", null, null, null), draft.Id, userId, CancellationToken.None);
 
         Assert.StartsWith("Error:", result);
         Assert.Empty(await db.Sources.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Links_Existing_Source_By_SourceId()
+    {
+        using var db = new AppDbContext(_options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft1 = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft 1", Status = DraftStatus.Editing };
+        var draft2 = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft 2", Status = DraftStatus.Editing };
+        db.Drafts.AddRange(draft1, draft2);
+        var source = new Source { Kind = SourceKind.Url, Reference = "https://example.com", Title = "Existing Source", Content = "content" };
+        db.Sources.Add(source);
+        db.DraftSources.Add(new DraftSource { Draft = draft1, Source = source });
+        await db.SaveChangesAsync();
+
+        var client = new HttpClient(new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
+        var scraper = new WebScraperService(client);
+        var services = new ServiceCollection();
+        services.AddSingleton(db);
+        services.AddSingleton(scraper);
+        services.AddSingleton<BackgroundJobQueue>();
+        services.AddSingleton<SourcesService>();
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+
+        var tool = new AddSourceTool(scopeFactory);
+        var result = await tool.ExecuteAsync(new AddSourceArgs(null, null, null, null, source.Id), draft2.Id, userId, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Contains("Linked existing source", result.Message);
+
+        var link = await db.DraftSources.FirstOrDefaultAsync(ds => ds.DraftId == draft2.Id && ds.SourceId == source.Id);
+        Assert.NotNull(link);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Returns_Error_When_Neither_SourceId_Nor_Kind_Provided()
+    {
+        using var db = new AppDbContext(_options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft", Status = DraftStatus.Editing };
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var client = new HttpClient(new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
+        var scraper = new WebScraperService(client);
+        var services = new ServiceCollection();
+        services.AddSingleton(db);
+        services.AddSingleton(scraper);
+        services.AddSingleton<BackgroundJobQueue>();
+        services.AddSingleton<SourcesService>();
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+
+        var tool = new AddSourceTool(scopeFactory);
+        var result = await tool.ExecuteAsync(new AddSourceArgs(null, null, null, null, null), draft.Id, userId, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("source_id or kind+reference", result.Error);
     }
 }

@@ -59,6 +59,12 @@ builder.Services.AddHttpClient<ITranscriptExtractionService, TranscriptExtractio
     client.BaseAddress = new Uri(options.BaseUrl);
     client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
 });
+builder.Services.AddHttpClient<SummarizationService>((sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TranscriberOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+});
 builder.Services.AddScoped<SourceReconciliationService>();
 builder.Services.AddScoped<SourceTranscriptionService>();
 builder.Services.AddScoped<SourceSearchService>();
@@ -103,6 +109,7 @@ builder.Services.AddScoped<IChatTool, ImageSearchTool>();
 builder.Services.AddScoped<IChatTool, RenderCodeBlocksTool>();
 builder.Services.AddScoped<IChatTool, FormatValidatePlatformContentTool>();
 builder.Services.AddScoped<IChatTool, GeneratePlatformVariantsTool>();
+builder.Services.AddScoped<IChatTool, SearchSourcesTool>();
 builder.Services.AddSingleton<CodeImageRenderer>();
 builder.Services.AddScoped<CodeImageService>();
 

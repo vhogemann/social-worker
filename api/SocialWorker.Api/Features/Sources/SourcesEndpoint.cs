@@ -23,19 +23,51 @@ public static class SourcesEndpoint
             string? query,
             int? page,
             int? pageSize,
+            string? kind,
+            DateTime? addedAfter,
+            DateTime? addedBefore,
             CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
+
+            SourceKind? kindFilter = null;
+            if (!string.IsNullOrWhiteSpace(kind) && Enum.TryParse<SourceKind>(kind, true, out var parsedKind))
+            {
+                kindFilter = parsedKind;
+            }
 
             var result = await sourcesService.SearchSourcesAsync(
                 userId.Value,
                 query ?? string.Empty,
                 page ?? 1,
                 pageSize ?? 20,
-                ct);
+                ct,
+                kindFilter,
+                addedAfter,
+                addedBefore);
 
             return Results.Ok(result);
+        }).RequireAuthorization();
+
+        app.MapGet("/api/sources/{sourceId:guid}", async (
+            ClaimsPrincipal principal,
+            SourcesService sourcesService,
+            Guid sourceId,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            try
+            {
+                var result = await sourcesService.GetSourceDetailByIdAsync(userId.Value, sourceId, ct);
+                return Results.Ok(result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
         }).RequireAuthorization();
 
         app.MapGet("/api/sources/{sourceId:guid}/status", async (

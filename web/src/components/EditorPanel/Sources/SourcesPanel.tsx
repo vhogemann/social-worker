@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { SourceItem } from "./SourceItem";
 import { MediaAssetItem } from "./MediaAssetItem";
 import { SourcePreviewModal } from "./SourcePreviewModal";
@@ -98,7 +99,10 @@ export const SourcesPanel: React.FC = () => {
       {expanded && (
         <div className="px-4 pb-4 max-h-40 overflow-y-auto border-t border-border/40 pt-3">
           <div className="mb-3 rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950">
-            <div className="mb-2 text-[10px] font-mono uppercase tracking-wider text-muted">Search source library</div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-muted">Search source library</span>
+              <Link to="/sources" className="text-[10px] font-mono text-accent hover:underline">Open Full Library &rarr;</Link>
+            </div>
             <div className="flex items-center gap-2">
               <input
                 value={libraryQuery}
