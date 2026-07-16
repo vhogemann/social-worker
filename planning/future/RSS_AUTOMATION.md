@@ -51,6 +51,35 @@ A background hosted service (`FeedPollingHostedService`) will:
 
 ---
 
+## RSS/Atom Parsing Libraries (Candidates)
+
+To avoid reinventing the wheel, we will use an existing .NET library to parse feeds:
+
+1. **`System.ServiceModel.Syndication` (Recommended)**:
+   - Microsoft's official, standard, and fully-featured syndication library.
+   - Available via the `System.ServiceModel.Syndication` NuGet package for .NET 10.
+   - Built-in support for RSS 2.0 and Atom 1.0, handling all namespaces, timestamps, links, and content summaries out of the box.
+   - Minimal dependency footprint, officially supported.
+   - Usage:
+     ```csharp
+     using var reader = XmlReader.Create(feedUrl);
+     var feed = SyndicationFeed.Load(reader);
+     foreach (var item in feed.Items)
+     {
+         var link = item.Links.FirstOrDefault()?.Uri?.ToString();
+         var title = item.Title.Text;
+     }
+     ```
+
+2. **`FeedReader`**:
+   - A popular, lightweight open-source C# alternative.
+   - Simplifies parsing and auto-discovery of RSS feeds from regular webpage URLs.
+   - Highly active but introduces a third-party dependency.
+
+We will use **`System.ServiceModel.Syndication`** for stability, compliance, and official Microsoft support.
+
+---
+
 ## Database Schema
 ```sql
 CREATE TABLE FeedSubscriptions (
