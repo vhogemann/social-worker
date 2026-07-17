@@ -38,7 +38,7 @@ export const FeedsPanel: React.FC = () => {
   const [queueError, setQueueError] = useState<string | null>(null);
 
   // Form state
-  const [isEditing, setIsEditing] = useState(false);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [inputUrl, setInputUrl] = useState("");
   const [title, setTitle] = useState("");
@@ -116,7 +116,7 @@ export const FeedsPanel: React.FC = () => {
       } else {
         await createFeed(payload);
       }
-      setIsEditing(false);
+      setIsSubscriptionModalOpen(false);
       setEditingId(null);
       resetForm();
       await loadAllFeeds();
@@ -135,7 +135,7 @@ export const FeedsPanel: React.FC = () => {
     setIncludeFilters(feed.includeFilters || "");
     setExcludeFilters(feed.excludeFilters || "");
     setInputUrl(feed.websiteUrl || feed.feedUrl);
-    setIsEditing(true);
+    setIsSubscriptionModalOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -200,6 +200,11 @@ export const FeedsPanel: React.FC = () => {
     setDiscoveryError(null);
   };
 
+  const closeSubscriptionModal = () => {
+    setIsSubscriptionModalOpen(false);
+    resetForm();
+  };
+
   const waitingQueueCount = queueItems.filter((item) => item.status !== "Succeeded").length;
   const filteredQueueItems = queueItems.filter((item) => {
     if (queueFilter === "All") return true;
@@ -240,7 +245,7 @@ export const FeedsPanel: React.FC = () => {
             <button
               onClick={() => {
                 resetForm();
-                setIsEditing(true);
+                setIsSubscriptionModalOpen(true);
               }}
               className="px-4 py-2 bg-accent text-bg text-xs font-bold rounded-lg shadow transition hover:opacity-90 flex items-center gap-2"
             >
@@ -269,141 +274,12 @@ export const FeedsPanel: React.FC = () => {
           </div>
         )}
 
-        {isEditing ? (
-          /* Create / Edit Form */
-          <div className="bg-panel border border-border rounded-xl p-6 mb-6 max-w-2xl">
-            <h2 className="text-sm font-bold mb-4">{editingId ? "Edit Subscription" : "Add New Subscription"}</h2>
-            <form onSubmit={handleSave} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Auto-Discover Feed URL</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={inputUrl}
-                    onChange={(e) => setInputUrl(e.target.value)}
-                    placeholder="Enter website URL or YouTube channel handle/URL (e.g. @ChannelName)"
-                    className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleDiscover}
-                    disabled={discovering}
-                    className="px-4 py-2 bg-zinc-800 border border-border rounded-lg text-xs font-semibold transition hover:bg-zinc-700 disabled:opacity-50 text-zinc-300"
-                  >
-                    {discovering ? "Discovering..." : "Discover"}
-                  </button>
-                </div>
-                {discoveryError && (
-                  <p className="mt-1 text-[10px] text-red-400">{discoveryError}</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Feed URL (discovered or manual)</label>
-                  <input
-                    type="text"
-                    required
-                    value={feedUrl}
-                    onChange={(e) => setFeedUrl(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Website URL (optional)</label>
-                  <input
-                    type="text"
-                    value={websiteUrl}
-                    onChange={(e) => setWebsiteUrl(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
-                  />
-                </div>
-                <div className="flex items-center pt-6">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={autoPublish}
-                      onChange={(e) => setAutoPublish(e.target.checked)}
-                      className="rounded border-border text-accent bg-bg focus:ring-0"
-                    />
-                    <span className="text-xs text-foreground font-semibold">Auto-Publish to Bluesky when ready</span>
-                  </label>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Instruction Prompt for LLM Agent</label>
-                <textarea
-                  required
-                  rows={4}
-                  value={instructionPrompt}
-                  onChange={(e) => setInstructionPrompt(e.target.value)}
-                  placeholder="e.g. Summarize this article, highlighting the top 3 key takeaways with professional tone..."
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent font-sans"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Include Filters (comma-separated keywords)</label>
-                  <input
-                    type="text"
-                    value={includeFilters}
-                    onChange={(e) => setIncludeFilters(e.target.value)}
-                    placeholder="e.g. dotnet, csharp, ai"
-                    className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Exclude Filters (comma-separated keywords)</label>
-                  <input
-                    type="text"
-                    value={excludeFilters}
-                    onChange={(e) => setExcludeFilters(e.target.value)}
-                    placeholder="e.g. politics, drama"
-                    className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 border border-border rounded-lg text-xs font-semibold hover:bg-zinc-800 transition text-zinc-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-accent text-bg text-xs font-bold rounded-lg shadow hover:opacity-90 transition"
-                >
-                  Save Subscription
-                </button>
-              </div>
-            </form>
-          </div>
-        ) : null}
-
         {/* List Grid */}
         {loading ? (
           <div className="text-center py-12 text-xs font-mono text-muted">Loading subscriptions...</div>
         ) : feeds.length === 0 ? (
           <div className="text-center py-12 bg-panel border border-border rounded-xl">
-            <p className="text-xs text-muted">No feed subscriptions found. Add your first feed subscription above!</p>
+            <p className="text-xs text-muted">No feed subscriptions found. Add your first feed subscription.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -466,6 +342,148 @@ export const FeedsPanel: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {isSubscriptionModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={closeSubscriptionModal}>
+            <div className="w-full max-w-3xl max-h-[90vh] bg-panel border border-border rounded-xl shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <h2 className="text-sm font-bold">{editingId ? "Edit Subscription" : "Add New Subscription"}</h2>
+                <button
+                  onClick={closeSubscriptionModal}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-border text-zinc-300 text-xs font-semibold rounded-lg transition flex items-center gap-2"
+                >
+                  <FontAwesomeIcon icon={faXmark} className="w-3 h-3" />
+                  Close
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto">
+                <form onSubmit={handleSave} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Auto-Discover Feed URL</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={inputUrl}
+                        onChange={(e) => setInputUrl(e.target.value)}
+                        placeholder="Enter website URL or YouTube channel handle/URL (e.g. @ChannelName)"
+                        className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleDiscover}
+                        disabled={discovering}
+                        className="px-4 py-2 bg-zinc-800 border border-border rounded-lg text-xs font-semibold transition hover:bg-zinc-700 disabled:opacity-50 text-zinc-300"
+                      >
+                        {discovering ? "Discovering..." : "Discover"}
+                      </button>
+                    </div>
+                    {discoveryError && (
+                      <p className="mt-1 text-[10px] text-red-400">{discoveryError}</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Title</label>
+                      <input
+                        type="text"
+                        required
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Feed URL (discovered or manual)</label>
+                      <input
+                        type="text"
+                        required
+                        value={feedUrl}
+                        onChange={(e) => setFeedUrl(e.target.value)}
+                        className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Website URL (optional)</label>
+                      <input
+                        type="text"
+                        value={websiteUrl}
+                        onChange={(e) => setWebsiteUrl(e.target.value)}
+                        className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
+                      />
+                    </div>
+                    <div className="flex items-center pt-6">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={autoPublish}
+                          onChange={(e) => setAutoPublish(e.target.checked)}
+                          className="rounded border-border text-accent bg-bg focus:ring-0"
+                        />
+                        <span className="text-xs text-foreground font-semibold">Auto-Publish to Bluesky when ready</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Instruction Prompt for LLM Agent</label>
+                    <textarea
+                      required
+                      rows={4}
+                      value={instructionPrompt}
+                      onChange={(e) => setInstructionPrompt(e.target.value)}
+                      placeholder="e.g. Summarize this article, highlighting the top 3 key takeaways with professional tone..."
+                      className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent font-sans"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Include Filters (comma-separated keywords)</label>
+                      <input
+                        type="text"
+                        value={includeFilters}
+                        onChange={(e) => setIncludeFilters(e.target.value)}
+                        placeholder="e.g. dotnet, csharp, ai"
+                        className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted mb-1.5">Exclude Filters (comma-separated keywords)</label>
+                      <input
+                        type="text"
+                        value={excludeFilters}
+                        onChange={(e) => setExcludeFilters(e.target.value)}
+                        placeholder="e.g. politics, drama"
+                        className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none focus:border-accent"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={closeSubscriptionModal}
+                      className="px-4 py-2 border border-border rounded-lg text-xs font-semibold hover:bg-zinc-800 transition text-zinc-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-accent text-bg text-xs font-bold rounded-lg shadow hover:opacity-90 transition"
+                    >
+                      Save Subscription
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         )}
 
