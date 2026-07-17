@@ -189,6 +189,7 @@ social-worker/
 │   └── run-app.sh                  # One-command runtime launcher with preflight checks
 │   └── redeploy.sh                 # Safer down/up redeploy helper for dev and app stacks
 │   └── sql.sh                      # Run SQL against Postgres in docker compose
+│   └── synthetic-agent-model-test.sh # DB-driven direct model synthetic test (bypasses app stack)
 ├── .env.example                    # Template environment file
 ├── AGENTS.md                       # Agent guidelines and specifications
 ├── PLAN.md                         # Detailed project roadmap and index
@@ -217,6 +218,22 @@ Use the SQL helper script to run ad-hoc Postgres queries without rewriting docke
 ./scripts/sql.sh -A -F $'\t' -c "select \"Id\", \"Title\" from \"Drafts\" limit 5;"
 ./scripts/sql.sh -f /tmp/query.sql
 cat /tmp/query.sql | ./scripts/sql.sh -A -t
+```
+
+### Direct Model Synthetic Test (DB-Driven)
+
+Run a synthetic thread-generation test directly against the active OpenAI-compatible model endpoint using real source rows from Postgres (without routing through the API tool stack):
+
+```bash
+./scripts/synthetic-agent-model-test.sh \
+	--base-url http://192.168.0.216:11434/v1 \
+	--model gemma4-e4b-32k
+```
+
+You can override the source fixture:
+
+```bash
+./scripts/synthetic-agent-model-test.sh --source-id <source-guid>
 ```
 
 Defaults:
