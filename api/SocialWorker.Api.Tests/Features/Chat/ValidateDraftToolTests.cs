@@ -53,6 +53,7 @@ public sealed class ValidateDraftToolTests : IDisposable
                 new BlueskyPlaceholderMediaRule(),
                 new BlueskyPlaceholderUrlRule(),
                 new BlueskyMissingAltTextRule(),
+                new BlueskyYouTubeEmbedSyntaxRule(),
                 new BlueskyTitleLikeOpenerRule()
             });
     }
@@ -137,5 +138,53 @@ public sealed class ValidateDraftToolTests : IDisposable
         Assert.Contains("Post 2:", display);
         Assert.Contains("**Status**: Valid", display);
         Assert.Contains("Overall Status**: Valid", display);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReturnsError_For_NonEmbed_YouTube_Markdown_Link()
+    {
+        using var db = new AppDbContext(_options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        await db.SaveChangesAsync();
+
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton(db);
+        var serviceProvider = serviceCollection.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var tool = new ValidateDraftTool(scopeFactory, CreateValidator());
+        var explicitContent = "[Video Summary Source](https://www.youtube.com/shorts/xL3LA-Ftg3c)";
+
+        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), null, userId, CancellationToken.None);
+        var display = report.ToDisplayText();
+
+        Assert.Equal(ValidateDraftOverallStatus.Failed, report.OverallStatus);
+        Assert.True(report.HasBlockingErrors);
+        Assert.Contains("YouTube links must use embed syntax", display);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Allows_YouTube_Embed_Syntax()
+    {
+        using var db = new AppDbContext(_options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        await db.SaveChangesAsync();
+
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton(db);
+        var serviceProvider = serviceCollection.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var tool = new ValidateDraftTool(scopeFactory, CreateValidator());
+        var explicitContent = "![Video Summary Source](https://www.youtube.com/shorts/xL3LA-Ftg3c)";
+
+        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), null, userId, CancellationToken.None);
+
+        Assert.False(report.HasBlockingErrors);
+        Assert.DoesNotContain(
+            report.Posts.SelectMany(p => p.Issues),
+            issue => issue.Message.Contains("YouTube links must use embed syntax", StringComparison.Ordinal));
     }
 }
