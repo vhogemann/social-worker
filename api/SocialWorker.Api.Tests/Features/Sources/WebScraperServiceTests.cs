@@ -130,6 +130,83 @@ public sealed class WebScraperServiceTests
     }
 
     [Fact]
+    public async Task ScrapeUrlAsync_DetectsYouTubeShortsUrls()
+    {
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            var url = req.RequestUri?.OriginalString ?? "";
+            if (url.Contains("oembed"))
+            {
+                Assert.Contains("youtube.com%2Fshorts%2F1olibnzyj4k", url);
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"title":"Short Video","author_name":"Creator","author_url":"https://youtube.com/channel/UC1234567890"}""")
+                };
+            }
+
+            if (url.Contains("feeds/videos.xml"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("<feed xmlns=\"http://www.w3.org/2005/Atom\"></feed>")
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("ok")
+            };
+        });
+        var client = new HttpClient(handler);
+        var scraper = new WebScraperService(client);
+
+        var result = await scraper.ScrapeUrlAsync("https://www.youtube.com/shorts/1olibnzyj4k");
+
+        Assert.True(result.IsYouTube);
+        Assert.Equal("https://www.youtube.com/shorts/1olibnzyj4k", result.FinalUrl);
+        Assert.Contains("Short Video", result.Title);
+    }
+
+    [Fact]
+    public async Task ScrapeUrlAsync_DetectsConsentWrappedYouTubeUrl()
+    {
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            var url = req.RequestUri?.OriginalString ?? "";
+            if (url.Contains("oembed"))
+            {
+                Assert.Contains("youtube.com%2Fshorts%2F1olibnzyj4k", url);
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"title":"Short Video","author_name":"Creator","author_url":"https://youtube.com/channel/UC1234567890"}""")
+                };
+            }
+
+            if (url.Contains("feeds/videos.xml"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("<feed xmlns=\"http://www.w3.org/2005/Atom\"></feed>")
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("ok")
+            };
+        });
+        var client = new HttpClient(handler);
+        var scraper = new WebScraperService(client);
+
+        var consentUrl = "https://consent.youtube.com/ml?continue=https://www.youtube.com/shorts/1olibnzyj4k?cbrd%3D1&gl=IE&hl=en-GB";
+        var result = await scraper.ScrapeUrlAsync(consentUrl);
+
+        Assert.True(result.IsYouTube);
+        Assert.Equal("https://www.youtube.com/shorts/1olibnzyj4k?cbrd=1", result.FinalUrl);
+        Assert.Contains("Short Video", result.Title);
+    }
+
+    [Fact]
     public async Task ScrapeUrlAsync_ReturnsFailure_For_HttpError()
     {
         var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));

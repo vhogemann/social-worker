@@ -87,6 +87,7 @@ public sealed class SourceReconciliationService
             foreach (var url in newUrls)
             {
                 var isYouTube = url.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
+                                url.Contains("youtube.com/shorts/", StringComparison.OrdinalIgnoreCase) ||
                                 url.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
 
                 var source = new Source

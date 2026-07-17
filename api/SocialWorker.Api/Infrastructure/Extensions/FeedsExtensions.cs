@@ -9,6 +9,8 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddHttpClient<FeedDiscoveryService>();
         builder.Services.AddScoped<FeedOrchestrationService>();
         builder.Services.AddSingleton<FeedPollingHostedService>();
+        builder.Services.AddSingleton<FeedIngestionQueueHostedService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<FeedPollingHostedService>());
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<FeedIngestionQueueHostedService>());
     }
 }

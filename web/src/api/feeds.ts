@@ -21,6 +21,22 @@ export interface FeedDiscoveryResult {
   error?: string | null;
 }
 
+export interface FeedQueueItemDto {
+  id: string;
+  feedSubscriptionId: string;
+  feedSubscriptionTitle: string;
+  itemTitle: string;
+  itemLink: string;
+  status: "Pending" | "Processing" | "Succeeded" | "Failed";
+  attemptCount: number;
+  maxAttempts: number;
+  nextAttemptAt: string;
+  lastError?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string | null;
+}
+
 export async function discoverFeed(url: string): Promise<FeedDiscoveryResult> {
   const res = await apiFetch("/api/feeds/discover", {
     method: "POST",
@@ -96,5 +112,31 @@ export async function triggerFeed(id: string): Promise<void> {
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
     throw new Error(msg || `triggerFeed failed: ${res.status}`);
+  }
+}
+
+export async function fetchFeedQueue(): Promise<FeedQueueItemDto[]> {
+  const res = await apiFetch("/api/feeds/queue");
+  if (!res.ok) throw new Error(`fetchFeedQueue failed: ${res.status}`);
+  return res.json();
+}
+
+export async function retryFeedQueueItem(id: string): Promise<void> {
+  const res = await apiFetch(`/api/feeds/queue/${id}/retry`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || `retryFeedQueueItem failed: ${res.status}`);
+  }
+}
+
+export async function deleteFeedQueueItem(id: string): Promise<void> {
+  const res = await apiFetch(`/api/feeds/queue/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || `deleteFeedQueueItem failed: ${res.status}`);
   }
 }

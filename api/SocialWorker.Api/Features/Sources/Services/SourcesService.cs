@@ -536,6 +536,18 @@ public sealed class SourcesService
             return null;
         }
 
+        var path = uri.AbsolutePath.Trim('/');
+        if (path.StartsWith("shorts/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("embed/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("live/", StringComparison.OrdinalIgnoreCase))
+        {
+            var pieces = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (pieces.Length >= 2 && !string.IsNullOrWhiteSpace(pieces[1]))
+            {
+                return pieces[1];
+            }
+        }
+
         var query = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
         foreach (var part in query)
         {

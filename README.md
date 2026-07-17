@@ -188,6 +188,7 @@ social-worker/
 ├── scripts/
 │   └── run-app.sh                  # One-command runtime launcher with preflight checks
 │   └── redeploy.sh                 # Safer down/up redeploy helper for dev and app stacks
+│   └── sql.sh                      # Run SQL against Postgres in docker compose
 ├── .env.example                    # Template environment file
 ├── AGENTS.md                       # Agent guidelines and specifications
 ├── PLAN.md                         # Detailed project roadmap and index
@@ -206,6 +207,30 @@ All builds, migration generations, and unit tests must be executed inside Docker
 - **Frontend Build**: `docker compose exec web sh -c "npm run build && npm run typecheck"`
 - **Unit Tests**: `docker compose exec api dotnet test`
 - **EF Core Migrations**: `docker compose exec api dotnet ef migrations add <MigrationName>`
+
+### Database Queries
+
+Use the SQL helper script to run ad-hoc Postgres queries without rewriting docker/psql flags:
+
+```bash
+./scripts/sql.sh -c "select now();"
+./scripts/sql.sh -A -F $'\t' -c "select \"Id\", \"Title\" from \"Drafts\" limit 5;"
+./scripts/sql.sh -f /tmp/query.sql
+cat /tmp/query.sql | ./scripts/sql.sh -A -t
+```
+
+Defaults:
+
+- Service: `db`
+- Database: `socialworker`
+- User: `postgres`
+
+Override defaults when needed:
+
+```bash
+SW_DB_SERVICE=db SW_DB_NAME=socialworker SW_DB_USER=postgres ./scripts/sql.sh -c "select 1;"
+./scripts/sql.sh --service db --db socialworker --user postgres -c "select 1;"
+```
 
 ## Documentation
 

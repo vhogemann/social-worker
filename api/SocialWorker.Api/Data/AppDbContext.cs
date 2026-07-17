@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<BrandVoicePrompt> BrandVoicePrompts => Set<BrandVoicePrompt>();
     public DbSet<DraftBlueskyMetadata> DraftBlueskyMetadata => Set<DraftBlueskyMetadata>();
     public DbSet<FeedSubscription> FeedSubscriptions => Set<FeedSubscription>();
+    public DbSet<FeedIngestionQueueItem> FeedIngestionQueueItems => Set<FeedIngestionQueueItem>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -217,6 +218,23 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.UserId);
+        });
+
+        modelBuilder.Entity<FeedIngestionQueueItem>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.ItemTitle).HasMaxLength(500);
+            e.Property(x => x.ItemLink).HasMaxLength(1000);
+            e.Property(x => x.ItemDescription).HasColumnType("text");
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50);
+            e.Property(x => x.LastError).HasColumnType("text");
+            e.HasOne(x => x.FeedSubscription)
+                .WithMany()
+                .HasForeignKey(x => x.FeedSubscriptionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.FeedSubscriptionId);
+            e.HasIndex(x => new { x.FeedSubscriptionId, x.ItemLink }).IsUnique();
+            e.HasIndex(x => new { x.Status, x.NextAttemptAt });
         });
     }
 }

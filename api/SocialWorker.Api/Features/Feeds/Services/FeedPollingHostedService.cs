@@ -9,25 +9,22 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using CodeHollow.FeedReader;
 using SocialWorker.Api.Data;
-using SocialWorker.Api.Infrastructure.Background;
+using SocialWorker.Api.Data.Entities;
 
 namespace SocialWorker.Api.Features.Feeds;
 
 public sealed class FeedPollingHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly BackgroundJobQueue _queue;
     private readonly ILogger<FeedPollingHostedService> _logger;
     private readonly TimeSpan _pollingInterval;
 
     public FeedPollingHostedService(
         IServiceScopeFactory scopeFactory,
-        BackgroundJobQueue queue,
         IConfiguration config,
         ILogger<FeedPollingHostedService> logger)
     {
         _scopeFactory = scopeFactory;
-        _queue = queue;
         _logger = logger;
 
         var intervalMinutes = config.GetValue<double>("Feeds:PollingIntervalMinutes", 30);
@@ -108,34 +105,41 @@ public sealed class FeedPollingHostedService : BackgroundService
 
         _logger.LogInformation("Found {Count} new items for subscription {Title}", newItems.Count, sub.Title);
 
+        var queuedCount = 0;
+
         foreach (var item in newItems)
         {
-            var itemTitle = item.Title;
-            var itemLink = item.Link;
-            var itemDescription = item.Description;
-            var itemPubDate = item.PublishingDate;
-
-            // Run in a separate fire-and-forget background Task to avoid blocking the sequential BackgroundJobQueue
-            _ = Task.Run(async () =>
+            if (string.IsNullOrWhiteSpace(item.Link))
             {
-                try
-                {
-                    using var jobScope = _scopeFactory.CreateScope();
-                    var orchestrator = jobScope.ServiceProvider.GetRequiredService<FeedOrchestrationService>();
-                    var jobDb = jobScope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    
-                    var freshSub = await jobDb.FeedSubscriptions.FindAsync(new object[] { subscriptionId }, ct);
-                    if (freshSub != null)
-                    {
-                        await orchestrator.ProcessFeedItemAsync(freshSub, itemTitle, itemLink, itemDescription, itemPubDate, ct);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error processing feed item {Link} in background task", itemLink);
-                }
-            }, ct);
+                continue;
+            }
+
+            var exists = await db.FeedIngestionQueueItems
+                .AnyAsync(q => q.FeedSubscriptionId == subscriptionId && q.ItemLink == item.Link, ct);
+            if (exists)
+            {
+                continue;
+            }
+
+            db.FeedIngestionQueueItems.Add(new FeedIngestionQueueItem
+            {
+                Id = Guid.NewGuid(),
+                FeedSubscriptionId = subscriptionId,
+                ItemTitle = string.IsNullOrWhiteSpace(item.Title) ? "Untitled Feed Item" : item.Title,
+                ItemLink = item.Link,
+                ItemDescription = item.Description,
+                ItemPublishedAt = item.PublishingDate,
+                Status = FeedQueueItemStatus.Pending,
+                AttemptCount = 0,
+                MaxAttempts = 3,
+                NextAttemptAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            queuedCount++;
         }
+
+        _logger.LogInformation("Queued {Count} feed items for processing for subscription {Title}", queuedCount, sub.Title);
 
         sub.LastPolledAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);

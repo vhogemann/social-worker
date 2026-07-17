@@ -178,6 +178,87 @@ public static class FeedsEndpoint
             await pollingService.PollSubscriptionAsync(id, ct);
             return Results.Ok(new { Success = true, Message = "Polling triggered successfully." });
         });
+
+        group.MapGet("/queue", async (
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var items = await db.FeedIngestionQueueItems
+                .Include(q => q.FeedSubscription)
+                .Where(q => q.FeedSubscription.UserId == userId.Value)
+                .OrderByDescending(q => q.CreatedAt)
+                .Take(200)
+                .Select(q => new FeedQueueItemDto(
+                    q.Id,
+                    q.FeedSubscriptionId,
+                    q.FeedSubscription.Title,
+                    q.ItemTitle,
+                    q.ItemLink,
+                    q.Status.ToString(),
+                    q.AttemptCount,
+                    q.MaxAttempts,
+                    q.NextAttemptAt,
+                    q.LastError,
+                    q.CreatedAt,
+                    q.UpdatedAt,
+                    q.CompletedAt))
+                .ToListAsync(ct);
+
+            return Results.Ok(items);
+        });
+
+        group.MapPost("/queue/{queueItemId:guid}/retry", async (
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            Guid queueItemId,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var item = await db.FeedIngestionQueueItems
+                .Include(q => q.FeedSubscription)
+                .FirstOrDefaultAsync(q => q.Id == queueItemId && q.FeedSubscription.UserId == userId.Value, ct);
+
+            if (item == null) return Results.NotFound();
+            if (item.Status == FeedQueueItemStatus.Processing)
+            {
+                return Results.BadRequest("Cannot retry an item that is currently processing.");
+            }
+
+            item.Status = FeedQueueItemStatus.Pending;
+            item.AttemptCount = 0;
+            item.LastError = null;
+            item.NextAttemptAt = DateTime.UtcNow;
+            item.CompletedAt = null;
+            item.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { Success = true });
+        });
+
+        group.MapDelete("/queue/{queueItemId:guid}", async (
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            Guid queueItemId,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var item = await db.FeedIngestionQueueItems
+                .Include(q => q.FeedSubscription)
+                .FirstOrDefaultAsync(q => q.Id == queueItemId && q.FeedSubscription.UserId == userId.Value, ct);
+
+            if (item == null) return Results.NotFound();
+            db.FeedIngestionQueueItems.Remove(item);
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
     }
 }
 
@@ -203,3 +284,18 @@ public sealed record FeedSubscriptionDto(
     string? IncludeFilters,
     string? ExcludeFilters,
     DateTime CreatedAt);
+
+public sealed record FeedQueueItemDto(
+    Guid Id,
+    Guid FeedSubscriptionId,
+    string FeedSubscriptionTitle,
+    string ItemTitle,
+    string ItemLink,
+    string Status,
+    int AttemptCount,
+    int MaxAttempts,
+    DateTime NextAttemptAt,
+    string? LastError,
+    DateTime CreatedAt,
+    DateTime UpdatedAt,
+    DateTime? CompletedAt);

@@ -48,6 +48,12 @@ social-worker/
    └─ src/
 ```
 
+## Fast discovery
+
+- Start with [MENTAL_MODEL.md](MENTAL_MODEL.md) for a quick technical orientation map.
+- Use [AGENTS.md](AGENTS.md) for mandatory policies and workflow constraints.
+- Keep [MENTAL_MODEL.md](MENTAL_MODEL.md) updated in the same PR whenever architecture, entrypoints, build/test commands, or major feature ownership changes.
+
 ## Data model
 
 - `Account` — platform credentials (encrypted).
@@ -64,6 +70,7 @@ social-worker/
 - **No emojis** in code or commits.
 - **Mimic existing style** when adding to a file; check neighbors first.
 - **Do not commit** unless explicitly asked.
+- **Keep `MENTAL_MODEL.md` current**: if your change affects project structure, runtime wiring, key file ownership, or standard validation commands, update [MENTAL_MODEL.md](MENTAL_MODEL.md) in the same PR.
 - **Secrets**: never commit `.env`, `proxy/certs/` (if present), or any API keys. `.gitignore` must cover these.
 - **TypeScript types** for API responses are hand-synced in `web/src/api/`. If the API contract changes, update both sides. (OpenAPI codegen is a later option.)
 - **Frontend testability**: build components with a forward look toward testing. Stable anchors such as `data-testid`, explicit labels, and other durable selectors are allowed when they improve e2e/unit test readability and robustness.
@@ -73,6 +80,7 @@ social-worker/
 - **Implementation plans**: saved as `*.md` files in `planning/` and its subdirectories (for example `planning/archive/IMAGE_UPLOADS.md`, `planning/future/PYTHON_SANDBOX.md`). Each active or reference plan must be linked from `planning/PLAN.md` under the relevant section. This is the source of truth for tracking planned and completed work.
 - **Release tags**: use SemVer only in the form `vMAJOR.MINOR.PATCH` (for example `v0.1.4`). Do not create date-based or suffixed release tags.
 - **TDD / Test Coverage**: Nothing is done until it is covered by tests. All new features, services, endpoints, and tools must have accompanying unit tests under `api/SocialWorker.Api.Tests/`.
+- **Test-driven fixes are mandatory**: Any bug fix must begin by reproducing the issue with an automated test (unit test preferred, e2e test when the behavior is cross-system/UI). Create or update a test so it fails before the fix, implement the fix, then rerun the same test(s) to confirm they pass.
 
 ### Refactoring criteria for agents
 

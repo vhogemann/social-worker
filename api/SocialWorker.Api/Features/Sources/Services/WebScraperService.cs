@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Web;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -41,6 +42,8 @@ public sealed class WebScraperService
         {
             return new WebScrapeResult(requestedUrl, requestedUrl, requestedUrl, "", false, false, error);
         }
+
+        normalizedUrl = UnwrapYouTubeConsentUrl(normalizedUrl);
 
         if (IsYouTubeUrl(normalizedUrl))
         {
@@ -128,8 +131,64 @@ public sealed class WebScraperService
 
     private static bool IsYouTubeUrl(string url)
     {
-        return url.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
-               url.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        if (uri.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(uri.AbsolutePath.Trim('/'));
+        }
+
+        if (!uri.Host.Contains("youtube.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var path = uri.AbsolutePath.Trim('/');
+        if (path.StartsWith("watch", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("shorts/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("embed/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("live/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return HttpUtility.ParseQueryString(uri.Query).Get("v") is { Length: > 0 };
+    }
+
+    private static string UnwrapYouTubeConsentUrl(string normalizedUrl)
+    {
+        if (!Uri.TryCreate(normalizedUrl, UriKind.Absolute, out var uri))
+        {
+            return normalizedUrl;
+        }
+
+        if (!uri.Host.Contains("consent.youtube.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return normalizedUrl;
+        }
+
+        var continueParam = HttpUtility.ParseQueryString(uri.Query).Get("continue");
+        if (string.IsNullOrWhiteSpace(continueParam))
+        {
+            return normalizedUrl;
+        }
+
+        var unescaped = Uri.UnescapeDataString(continueParam);
+        if (!Uri.TryCreate(unescaped, UriKind.Absolute, out var continueUri))
+        {
+            return normalizedUrl;
+        }
+
+        if (!continueUri.Host.Contains("youtube.com", StringComparison.OrdinalIgnoreCase) &&
+            !continueUri.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
+        {
+            return normalizedUrl;
+        }
+
+        return continueUri.ToString();
     }
 
     private async Task<(string Title, string Content)> FetchYouTubeMetadataAsync(string url)

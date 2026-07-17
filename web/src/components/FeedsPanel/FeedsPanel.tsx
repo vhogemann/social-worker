@@ -1,19 +1,41 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faArrowLeft,
+  faClock,
+  faFilter,
+  faPlus,
+  faRotateRight,
+  faSpinner,
+  faTrashCan,
+  faXmark
+} from "@fortawesome/free-solid-svg-icons";
 import {
   fetchFeeds,
+  fetchFeedQueue,
   createFeed,
   updateFeed,
   deleteFeed,
   triggerFeed,
   discoverFeed,
+  retryFeedQueueItem,
+  deleteFeedQueueItem,
+  type FeedQueueItemDto,
   type FeedSubscriptionDto
 } from "../../api/feeds";
 
 export const FeedsPanel: React.FC = () => {
   const [feeds, setFeeds] = useState<FeedSubscriptionDto[]>([]);
+  const [queueItems, setQueueItems] = useState<FeedQueueItemDto[]>([]);
+  const [isBacklogOpen, setIsBacklogOpen] = useState(false);
+  const [queueFilter, setQueueFilter] = useState<"All" | "Waiting" | "Failed" | "Succeeded">("All");
+  const [queuePage, setQueuePage] = useState(1);
+  const [queuePageSize, setQueuePageSize] = useState(10);
   const [loading, setLoading] = useState(false);
+  const [queueLoading, setQueueLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
 
   // Form state
   const [isEditing, setIsEditing] = useState(false);
@@ -29,17 +51,23 @@ export const FeedsPanel: React.FC = () => {
   const [discovering, setDiscovering] = useState(false);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [triggeringId, setTriggeringId] = useState<string | null>(null);
+  const [queueActionId, setQueueActionId] = useState<string | null>(null);
 
   const loadAllFeeds = async () => {
     setLoading(true);
+    setQueueLoading(true);
     setError(null);
+    setQueueError(null);
     try {
-      const data = await fetchFeeds();
-      setFeeds(data);
+      const [feedData, queueData] = await Promise.all([fetchFeeds(), fetchFeedQueue()]);
+      setFeeds(feedData);
+      setQueueItems(queueData);
     } catch (err: any) {
       setError(err?.message || "Failed to load feed subscriptions.");
+      setQueueError(err?.message || "Failed to load processing backlog.");
     } finally {
       setLoading(false);
+      setQueueLoading(false);
     }
   };
 
@@ -133,6 +161,32 @@ export const FeedsPanel: React.FC = () => {
     }
   };
 
+  const handleRetryQueueItem = async (id: string) => {
+    setQueueActionId(id);
+    try {
+      await retryFeedQueueItem(id);
+      await loadAllFeeds();
+    } catch (err: any) {
+      alert("Retry failed: " + (err?.message || "Unknown error"));
+    } finally {
+      setQueueActionId(null);
+    }
+  };
+
+  const handleDeleteQueueItem = async (id: string) => {
+    if (!window.confirm("Delete this queued item?")) return;
+
+    setQueueActionId(id);
+    try {
+      await deleteFeedQueueItem(id);
+      await loadAllFeeds();
+    } catch (err: any) {
+      alert("Delete failed: " + (err?.message || "Unknown error"));
+    } finally {
+      setQueueActionId(null);
+    }
+  };
+
   const resetForm = () => {
     setEditingId(null);
     setInputUrl("");
@@ -146,6 +200,26 @@ export const FeedsPanel: React.FC = () => {
     setDiscoveryError(null);
   };
 
+  const waitingQueueCount = queueItems.filter((item) => item.status !== "Succeeded").length;
+  const filteredQueueItems = queueItems.filter((item) => {
+    if (queueFilter === "All") return true;
+    if (queueFilter === "Waiting") return item.status !== "Succeeded";
+    return item.status === queueFilter;
+  });
+  const totalQueuePages = Math.max(1, Math.ceil(filteredQueueItems.length / queuePageSize));
+  const safeQueuePage = Math.min(queuePage, totalQueuePages);
+  const pagedQueueItems = filteredQueueItems.slice((safeQueuePage - 1) * queuePageSize, safeQueuePage * queuePageSize);
+  const pageStart = filteredQueueItems.length === 0 ? 0 : (safeQueuePage - 1) * queuePageSize + 1;
+  const pageEnd = filteredQueueItems.length === 0 ? 0 : Math.min(safeQueuePage * queuePageSize, filteredQueueItems.length);
+
+  const queueFilterOptions: Array<"All" | "Waiting" | "Failed" | "Succeeded"> = ["All", "Waiting", "Failed", "Succeeded"];
+
+  const queueFilterCount = (filter: "All" | "Waiting" | "Failed" | "Succeeded"): number => {
+    if (filter === "All") return queueItems.length;
+    if (filter === "Waiting") return waitingQueueCount;
+    return queueItems.filter((item) => item.status === filter).length;
+  };
+
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-bg text-foreground overflow-y-auto p-6 font-sans">
       <div className="max-w-6xl w-full mx-auto flex flex-col h-full">
@@ -157,19 +231,28 @@ export const FeedsPanel: React.FC = () => {
           </div>
           <div className="flex gap-3">
             <button
+              onClick={() => setIsBacklogOpen(true)}
+              className="px-4 py-2 bg-panel border border-border hover:bg-zinc-800 text-xs font-semibold rounded-lg shadow-sm transition text-zinc-300 flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faClock} className="w-3 h-3" />
+              Processing Backlog ({queueLoading ? "..." : waitingQueueCount})
+            </button>
+            <button
               onClick={() => {
                 resetForm();
                 setIsEditing(true);
               }}
-              className="px-4 py-2 bg-accent text-bg text-xs font-bold rounded-lg shadow transition hover:opacity-90"
+              className="px-4 py-2 bg-accent text-bg text-xs font-bold rounded-lg shadow transition hover:opacity-90 flex items-center gap-2"
             >
+              <FontAwesomeIcon icon={faPlus} className="w-3 h-3" />
               Add Subscription
             </button>
             <Link
               to="/"
               className="flex items-center gap-2 px-4 py-2 bg-panel border border-border hover:bg-zinc-800 text-xs font-semibold rounded-lg shadow-sm transition text-zinc-300"
             >
-              &larr; Back to Composer
+              <FontAwesomeIcon icon={faArrowLeft} className="w-3 h-3" />
+              Back to Composer
             </Link>
           </div>
         </div>
@@ -177,6 +260,12 @@ export const FeedsPanel: React.FC = () => {
         {error && (
           <div className="mb-6 p-3 bg-red-950/40 border border-red-500/50 rounded-lg text-xs text-red-200">
             {error}
+          </div>
+        )}
+
+        {queueError && (
+          <div className="mb-6 p-3 bg-red-950/40 border border-red-500/50 rounded-lg text-xs text-red-200">
+            {queueError}
           </div>
         )}
 
@@ -377,6 +466,137 @@ export const FeedsPanel: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {isBacklogOpen && (
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setIsBacklogOpen(false)}>
+            <div className="w-full max-w-3xl max-h-[85vh] bg-panel border border-border rounded-xl shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <div>
+                  <h2 className="text-sm font-bold">Processing Backlog</h2>
+                  <p className="text-[10px] text-muted mt-1">Waiting items: {queueLoading ? "..." : waitingQueueCount}</p>
+                </div>
+                <button
+                  onClick={() => setIsBacklogOpen(false)}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-border text-zinc-300 text-xs font-semibold rounded-lg transition flex items-center gap-2"
+                >
+                  <FontAwesomeIcon icon={faXmark} className="w-3 h-3" />
+                  Close
+                </button>
+              </div>
+
+              <div className="p-4 overflow-y-auto">
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {queueFilterOptions.map((filter) => {
+                    const isActive = queueFilter === filter;
+                    const count = queueFilterCount(filter);
+                    return (
+                      <button
+                        key={filter}
+                          onClick={() => {
+                            setQueueFilter(filter);
+                            setQueuePage(1);
+                          }}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition flex items-center gap-1.5 ${
+                          isActive
+                            ? "bg-accent/15 text-accent border-accent/30"
+                            : "bg-bg text-zinc-300 border-border hover:bg-zinc-800"
+                        }`}
+                      >
+                        <FontAwesomeIcon icon={faFilter} className="w-3 h-3" />
+                        {filter} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {queueLoading ? (
+                  <div className="text-center py-6 text-xs font-mono text-muted">Loading queue...</div>
+                ) : filteredQueueItems.length === 0 ? (
+                  <div className="text-center py-6 bg-panel border border-border rounded-xl">
+                    <p className="text-xs text-muted">No items match this filter.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+                        <div className="text-[10px] text-muted">
+                          Showing {pageStart}-{pageEnd} of {filteredQueueItems.length}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] text-muted">Page size</label>
+                          <select
+                            value={queuePageSize}
+                            onChange={(e) => {
+                              setQueuePageSize(Number(e.target.value));
+                              setQueuePage(1);
+                            }}
+                            className="bg-bg border border-border rounded-md px-2 py-1 text-[10px] text-zinc-300"
+                          >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                          </select>
+                          <button
+                            onClick={() => setQueuePage((current) => Math.max(1, current - 1))}
+                            disabled={safeQueuePage <= 1}
+                            className="px-2 py-1 bg-zinc-800 border border-border rounded-md text-[10px] text-zinc-300 disabled:opacity-50"
+                          >
+                            Prev
+                          </button>
+                          <span className="text-[10px] text-zinc-300">
+                            {safeQueuePage}/{totalQueuePages}
+                          </span>
+                          <button
+                            onClick={() => setQueuePage((current) => Math.min(totalQueuePages, current + 1))}
+                            disabled={safeQueuePage >= totalQueuePages}
+                            className="px-2 py-1 bg-zinc-800 border border-border rounded-md text-[10px] text-zinc-300 disabled:opacity-50"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+
+                      {pagedQueueItems.map((item) => (
+                      <div key={item.id} className="bg-bg border border-border rounded-xl p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-foreground line-clamp-2">{item.itemTitle}</div>
+                            <div className="text-[10px] text-muted font-mono break-all mt-1">{item.itemLink}</div>
+                            <div className="text-[10px] text-muted mt-1">Subscription: {item.feedSubscriptionTitle}</div>
+                            <div className="text-[10px] text-muted mt-1">Status: {item.status} · Attempts: {item.attemptCount}/{item.maxAttempts}</div>
+                            {item.lastError && (
+                              <div className="text-[10px] text-red-400 mt-1 line-clamp-3">Last Error: {item.lastError}</div>
+                            )}
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            {item.status !== "Succeeded" && (
+                              <button
+                                onClick={() => handleRetryQueueItem(item.id)}
+                                disabled={queueActionId === item.id || item.status === "Processing"}
+                                className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-border text-zinc-300 text-xs font-semibold rounded-lg transition disabled:opacity-50 flex items-center gap-1.5"
+                              >
+                                <FontAwesomeIcon icon={queueActionId === item.id ? faSpinner : faRotateRight} className={`w-3 h-3 ${queueActionId === item.id ? "animate-spin" : ""}`} />
+                                Retry
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteQueueItem(item.id)}
+                              disabled={queueActionId === item.id || item.status === "Processing"}
+                              className="px-3 py-1.5 bg-red-950/20 hover:bg-red-950/40 border border-red-500/20 text-red-400 text-xs font-semibold rounded-lg transition disabled:opacity-50 flex items-center gap-1.5"
+                            >
+                              <FontAwesomeIcon icon={faTrashCan} className="w-3 h-3" />
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

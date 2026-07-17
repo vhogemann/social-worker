@@ -39,3 +39,11 @@ public enum SocialPlatform
     Facebook,
     Instagram
 }
+
+public enum FeedQueueItemStatus
+{
+    Pending,
+    Processing,
+    Succeeded,
+    Failed
+}

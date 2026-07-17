@@ -302,7 +302,8 @@ public sealed class SourcesServiceTests : SqliteTestBase
             var status = await service.RetrySourceTranscriptAsync(userId, source.Id, CancellationToken.None);
             Assert.Equal("Pending", status.TranscriptStatus);
 
-            var queuedJob = await queue.ReadAsync(CancellationToken.None);
+            using var queueReadCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var queuedJob = await queue.ReadAsync(queueReadCts.Token);
             await queuedJob.Work(CancellationToken.None);
 
             var updated = await db.Sources.FirstAsync(s => s.Id == source.Id);
@@ -355,7 +356,8 @@ public sealed class SourcesServiceTests : SqliteTestBase
                 null,
                 CancellationToken.None);
 
-            var queuedJob = await queue.ReadAsync(CancellationToken.None);
+            using var queueReadCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var queuedJob = await queue.ReadAsync(queueReadCts.Token);
             await queuedJob.Work(CancellationToken.None);
 
             var source = await db.Sources.FirstAsync(s => s.Id == result.SourceId);
@@ -364,6 +366,79 @@ public sealed class SourcesServiceTests : SqliteTestBase
             Assert.Equal("abc123xyz09", source.YoutubeVideoId);
             Assert.Equal("Full transcript body", source.Content);
             Assert.Equal($"{source.Id}.json", source.TranscriptPath);
+        }
+        finally
+        {
+            if (Directory.Exists(transcriptDir))
+            {
+                Directory.Delete(transcriptDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AddUrlSourceAsync_For_YouTubeShorts_Queues_Transcript_Extraction_And_Stores_Result()
+    {
+        using var db = new AppDbContext(Options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft title" };
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var transcriptDir = Path.Combine(Path.GetTempPath(), $"sw-transcripts-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(transcriptDir);
+        try
+        {
+            var scraper = new WebScraperService(new HttpClient(new StaticHttpMessageHandler(req =>
+            {
+                var url = req.RequestUri?.OriginalString ?? string.Empty;
+                if (url.Contains("oembed", StringComparison.OrdinalIgnoreCase))
+                {
+                    var payload = "{\"title\":\"Example Short\",\"author_name\":\"Example Author\",\"author_url\":\"https://youtube.com/channel/UC1234567890\"}";
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                    };
+                }
+
+                if (url.Contains("feeds/videos.xml", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent("<feed xmlns=\"http://www.w3.org/2005/Atom\"></feed>", Encoding.UTF8, "application/xml")
+                    };
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("ok", Encoding.UTF8, "text/plain")
+                };
+            })));
+
+            var queue = new BackgroundJobQueue();
+            var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
+            var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
+            var service = new SourcesService(db, scraper, scopeFactory, queue);
+
+            var result = await service.AddUrlSourceAsync(
+                userId,
+                draft.Id,
+                "https://www.youtube.com/shorts/1olibnzyj4k",
+                null,
+                null,
+                CancellationToken.None);
+
+            var queuedJob = await queue.ReadAsync(CancellationToken.None);
+            await queuedJob.Work(CancellationToken.None);
+
+            var source = await db.Sources.FirstAsync(s => s.Id == result.SourceId);
+            Assert.Equal(SourceKind.YouTube, source.Kind);
+            Assert.Equal(TranscriptStatus.Complete, source.TranscriptStatus);
+            Assert.Equal("1olibnzyj4k", source.YoutubeVideoId);
+            Assert.Equal("Full transcript body", source.Content);
+            Assert.Equal($"{source.Id}.json", source.TranscriptPath);
+            Assert.Equal("https://www.youtube.com/shorts/1olibnzyj4k", source.Reference);
         }
         finally
         {
