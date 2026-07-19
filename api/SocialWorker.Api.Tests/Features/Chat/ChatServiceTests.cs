@@ -29,8 +29,19 @@ public sealed class ChatServiceTests
         var log = NullLogger<ChatService>.Instance;
         var toolList = tools ?? new List<IChatTool>();
         var options = Options.Create(chatOptions ?? new ChatOptions());
+        var slashCommandService = new ChatSlashCommandService();
+        var requestPreparationService = new ChatRequestPreparationService(loader, promptBuilder, toolList, options);
+        var toolExecutor = new ChatToolExecutor(toolList, NullLogger<ChatToolExecutor>.Instance);
+        var roundProcessor = new ChatRoundProcessor(writer, llmAdapter, toolExecutor, NullLogger<ChatRoundProcessor>.Instance);
 
-        return new ChatService(loader, promptBuilder, writer, llmAdapter, log, toolList, options);
+        return new ChatService(
+            writer,
+            log,
+            options,
+            slashCommandService,
+            requestPreparationService,
+            toolExecutor,
+            roundProcessor);
     }
 
     private static ChatSessionLoader CreateMockSessionLoader(

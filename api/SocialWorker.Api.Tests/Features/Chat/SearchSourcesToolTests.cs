@@ -42,7 +42,7 @@ public sealed class SearchSourcesToolTests : IDisposable
         services.AddSingleton(db);
         services.AddSingleton(scraper);
         services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton<SourcesService>();
+        services.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
         var provider = services.BuildServiceProvider();
         return (provider.GetRequiredService<IServiceScopeFactory>(), db);
     }

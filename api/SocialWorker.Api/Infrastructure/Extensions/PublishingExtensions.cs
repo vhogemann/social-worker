@@ -29,7 +29,10 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddSingleton<IValidateDraftRule<BlueskySegmentValidation>, BlueskyYouTubeEmbedSyntaxRule>();
         builder.Services.AddSingleton<IValidateDraftRule<BlueskySegmentValidation>, BlueskyTitleLikeOpenerRule>();
         builder.Services.AddScoped<BlueskyDraftValidator>();
-        builder.Services.AddHttpClient<IPublisher, BlueskyPublisher>();
+        builder.Services.AddHttpClient<BlueskyApiClient>();
+        builder.Services.AddHttpClient<BlueskyContentPreparationService>();
+        builder.Services.AddScoped<BlueskyFacetBuilder>();
+        builder.Services.AddScoped<IPublisher, BlueskyPublisher>();
         builder.Services.AddHttpClient<IBlueskyReplyTargetResolver, BlueskyReplyTargetResolver>();
         builder.Services.AddScoped<IPublisher, TwitterPublisher>();
         builder.Services.AddScoped<IPublisher, LinkedInPublisher>();

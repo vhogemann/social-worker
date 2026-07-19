@@ -12,6 +12,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<ChatSessionLoader>();
         builder.Services.AddScoped<SystemPromptBuilder>();
         builder.Services.AddScoped<ChatStreamWriter>();
+        builder.Services.AddScoped<ChatSlashCommandService>();
         builder.Services.AddScoped<ChatRequestPreparationService>();
         builder.Services.AddScoped<ChatToolExecutor>();
         builder.Services.AddScoped<ChatRoundProcessor>();

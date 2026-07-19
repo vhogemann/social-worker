@@ -23,8 +23,8 @@ public sealed class ReplaceEditorContentToolTests : SqliteTestBase
         var storage = new FileStorageProvider();
         var queue = new BackgroundJobQueue();
         var scopeFact = new MockScopeFactory(db);
-        var sourcesService = new SourcesService(db, null!, scopeFact, queue);
-        var draftsService = new DraftsService(db, storage, sourcesService, scopeFact, queue);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db, scopeFactory: scopeFact, queue: queue);
+        var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService, scopeFact, queue);
 
         services.AddSingleton(db);
         services.AddSingleton<DraftsService>(draftsService);

@@ -7,8 +7,6 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat;
@@ -16,7 +14,6 @@ using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Infrastructure;
-using SocialWorker.Api.Infrastructure.Background;
 using SocialWorker.Api.Infrastructure.Llm;
 
 namespace SocialWorker.Api.Features.Drafts;
@@ -72,28 +69,19 @@ public sealed class DraftsService
     private readonly FileStorageProvider _storage;
     private readonly SourcesService _sourcesService;
     private readonly DraftSegmentService _draftSegmentService;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly BackgroundJobQueue _queue;
-    private DraftChatSummaryService? _draftChatSummaryService;
-
-    private DraftChatSummaryService DraftChatSummaryService =>
-        _draftChatSummaryService ??= new DraftChatSummaryService(_scopeFactory, _queue);
+    private readonly DraftChatSummaryService _draftChatSummaryService;
 
     public DraftsService(
         AppDbContext db,
         FileStorageProvider storage,
         SourcesService sourcesService,
-        IServiceScopeFactory scopeFactory,
-        BackgroundJobQueue queue,
-        DraftChatSummaryService? draftChatSummaryService = null,
-        DraftSegmentService? draftSegmentService = null)
+        DraftSegmentService draftSegmentService,
+        DraftChatSummaryService draftChatSummaryService)
     {
         _db = db;
         _storage = storage;
         _sourcesService = sourcesService;
-        _draftSegmentService = draftSegmentService ?? new DraftSegmentService(db);
-        _scopeFactory = scopeFactory;
-        _queue = queue;
+        _draftSegmentService = draftSegmentService;
         _draftChatSummaryService = draftChatSummaryService;
     }
 
@@ -282,7 +270,7 @@ public sealed class DraftsService
         if (chatHistory is not null)
         {
             draft.ChatHistory = chatHistory;
-            DraftChatSummaryService.TriggerBackgroundSummarization(userId, id, chatHistory);
+            _draftChatSummaryService.TriggerBackgroundSummarization(userId, id, chatHistory);
         }
 
         if (chatSummary is not null)

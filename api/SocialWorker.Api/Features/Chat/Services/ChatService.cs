@@ -20,25 +20,21 @@ public sealed class ChatService
     private readonly ChatRoundProcessor _roundProcessor;
 
     public ChatService(
-        ChatSessionLoader sessionLoader,
-        SystemPromptBuilder promptBuilder,
         ChatStreamWriter writer,
-        ILlmProviderAdapter adapter,
         ILogger<ChatService> log,
-        IEnumerable<IChatTool> tools,
         IOptions<ChatOptions> chatOptions,
-        ChatSlashCommandService? slashCommandService = null,
-        ChatRequestPreparationService? requestPreparationService = null,
-        ChatToolExecutor? toolExecutor = null,
-        ChatRoundProcessor? roundProcessor = null)
+        ChatSlashCommandService slashCommandService,
+        ChatRequestPreparationService requestPreparationService,
+        ChatToolExecutor toolExecutor,
+        ChatRoundProcessor roundProcessor)
     {
         _writer = writer;
         _log = log;
         _chatOptions = chatOptions.Value;
-        _slashCommandService = slashCommandService ?? new ChatSlashCommandService();
-        _requestPreparationService = requestPreparationService ?? new ChatRequestPreparationService(sessionLoader, promptBuilder, tools, chatOptions);
-        _toolExecutor = toolExecutor ?? new ChatToolExecutor(tools, Microsoft.Extensions.Logging.Abstractions.NullLogger<ChatToolExecutor>.Instance);
-        _roundProcessor = roundProcessor ?? new ChatRoundProcessor(writer, adapter, _toolExecutor, Microsoft.Extensions.Logging.Abstractions.NullLogger<ChatRoundProcessor>.Instance);
+        _slashCommandService = slashCommandService;
+        _requestPreparationService = requestPreparationService;
+        _toolExecutor = toolExecutor;
+        _roundProcessor = roundProcessor;
     }
 
     public async IAsyncEnumerable<string> StreamAsync(

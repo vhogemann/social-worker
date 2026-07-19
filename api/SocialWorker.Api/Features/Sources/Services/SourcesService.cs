@@ -5,10 +5,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
-using SocialWorker.Api.Infrastructure.Background;
 
 namespace SocialWorker.Api.Features.Sources;
 
@@ -70,43 +68,26 @@ public sealed record AddUrlSourceResult(Guid SourceId, string Reference, string?
 public sealed class SourcesService
 {
     private readonly AppDbContext _db;
-    private readonly WebScraperService _scraper;
-    private readonly IServiceScopeFactory? _scopeFactory;
-    private readonly BackgroundJobQueue? _queue;
     private readonly SourceReconciliationService _sourceReconciliationService;
-    private readonly SourceTranscriptionService _sourceTranscriptionService;
     private readonly SourceSearchService _sourceSearchService;
     private readonly IUrlSourceService _urlSourceService;
     private readonly IYouTubeSourceService _youTubeSourceService;
     private readonly IFileSourceService _fileSourceService;
 
-    private readonly SummarizationService? _summarizer;
-
     public SourcesService(
         AppDbContext db,
-        WebScraperService scraper,
-        IServiceScopeFactory? scopeFactory,
-        BackgroundJobQueue? queue,
-        SourceReconciliationService? sourceReconciliationService = null,
-        SourceTranscriptionService? sourceTranscriptionService = null,
-        SourceSearchService? sourceSearchService = null,
-        IUrlSourceService? urlSourceService = null,
-        IYouTubeSourceService? youTubeSourceService = null,
-        IFileSourceService? fileSourceService = null,
-        SummarizationService? summarizer = null)
+        SourceReconciliationService sourceReconciliationService,
+        SourceSearchService sourceSearchService,
+        IUrlSourceService urlSourceService,
+        IYouTubeSourceService youTubeSourceService,
+        IFileSourceService fileSourceService)
     {
         _db = db;
-        _scraper = scraper;
-        _scopeFactory = scopeFactory;
-        _queue = queue;
-        _summarizer = summarizer;
-
-        _sourceReconciliationService = sourceReconciliationService ?? new SourceReconciliationService(_db, _scopeFactory, _queue);
-        _sourceTranscriptionService = sourceTranscriptionService ?? new SourceTranscriptionService(_scopeFactory, _queue);
-        _sourceSearchService = sourceSearchService ?? new SourceSearchService(_db);
-        _youTubeSourceService = youTubeSourceService ?? new YouTubeSourceService(_db, _sourceTranscriptionService);
-        _urlSourceService = urlSourceService ?? new UrlSourceService(_db, _scraper, _summarizer, new SourceUrlValidator(), _youTubeSourceService);
-        _fileSourceService = fileSourceService ?? new FileSourceService(_db, _summarizer);
+        _sourceReconciliationService = sourceReconciliationService;
+        _sourceSearchService = sourceSearchService;
+        _urlSourceService = urlSourceService;
+        _youTubeSourceService = youTubeSourceService;
+        _fileSourceService = fileSourceService;
     }
 
     public async Task<List<SourceDto>> GetSourcesForDraftAsync(Guid userId, Guid draftId, CancellationToken ct)

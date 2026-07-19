@@ -44,11 +44,11 @@ public sealed class DraftsServiceTests : SqliteTestBase
         db.Drafts.Add(draft);
         await db.SaveChangesAsync();
 
-        var sourcesService = new SourcesService(db, null!, null!, null!);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
         var storage = new FileStorageProvider();
         var queue = new BackgroundJobQueue();
         var scopeFactory = new MockScopeFactory(db);
-        var draftsService = new DraftsService(db, storage, sourcesService, scopeFactory, queue);
+        var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService, scopeFactory, queue);
 
         return (db, draftsService, user);
     }
@@ -459,10 +459,10 @@ public sealed class DraftsServiceTests : SqliteTestBase
         db.Drafts.Add(draft);
         await db.SaveChangesAsync();
 
-        var sourcesService = new SourcesService(db, null!, null!, null!);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
         var storage = new FileStorageProvider();
         var scopeFactory = new SummaryScopeFactory(db, adapter);
-        var draftsService = new DraftsService(db, storage, sourcesService, scopeFactory, queue);
+        var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService, scopeFactory, queue);
         return (draftsService, user, draft);
     }
 }

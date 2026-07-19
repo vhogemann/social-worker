@@ -19,8 +19,8 @@ public sealed class PlatformVariantTests : SqliteTestBase
         _db = CreateDbContext();
         _user = CreateSeedUser(_db);
 
-        var sourcesService = new SourcesService(_db, null!, null!, null!);
-        _draftsService = new DraftsService(_db, null!, sourcesService, null!, null!);
+        var sourcesService = TestServiceFactory.CreateSourcesService(_db);
+        _draftsService = TestServiceFactory.CreateDraftsService(_db, null!, sourcesService);
         _variantService = new PlatformVariantService(_db, _draftsService);
     }
 

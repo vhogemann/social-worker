@@ -32,17 +32,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
             return response;
         })));
 
-        var transcriptionService = new SourceTranscriptionService(null, null);
-        var youTubeService = new YouTubeSourceService(db, transcriptionService);
-        var urlValidator = new SourceUrlValidator();
-        var urlSourceService = new UrlSourceService(db, scraper, null, urlValidator, youTubeService);
-        var service = new SourcesService(
-            db,
-            scraper,
-            null!,
-            null!,
-            urlSourceService: urlSourceService,
-            youTubeSourceService: youTubeService);
+        var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
         var result = await service.AddUrlSourceAsync(
             userId,
             draft.Id,
@@ -73,17 +63,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         var scraper = new WebScraperService(new HttpClient(new StaticHttpMessageHandler(_ =>
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("ok") })));
 
-        var transcriptionService = new SourceTranscriptionService(null, null);
-        var youTubeService = new YouTubeSourceService(db, transcriptionService);
-        var urlValidator = new SourceUrlValidator();
-        var urlSourceService = new UrlSourceService(db, scraper, null, urlValidator, youTubeService);
-        var service = new SourcesService(
-            db,
-            scraper,
-            null!,
-            null!,
-            urlSourceService: urlSourceService,
-            youTubeSourceService: youTubeService);
+        var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.AddUrlSourceAsync(userId, draft.Id, "not-a-url", null, null, CancellationToken.None));
@@ -99,8 +79,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.Drafts.Add(draft);
         await db.SaveChangesAsync();
 
-        var fileSourceService = new FileSourceService(db, null);
-        var service = new SourcesService(db, null!, null!, null!, fileSourceService: fileSourceService);
+        var service = TestServiceFactory.CreateSourcesService(db);
         var extractor = new SourceExtractor();
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hello from file source"));
 
@@ -124,8 +103,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.Drafts.AddRange(draft1, draft2);
         await db.SaveChangesAsync();
 
-        var fileSourceService = new FileSourceService(db, null);
-        var service = new SourcesService(db, null!, null!, null!, fileSourceService: fileSourceService);
+        var service = TestServiceFactory.CreateSourcesService(db);
         var extractor = new SourceExtractor();
 
         await using var stream1 = new MemoryStream(Encoding.UTF8.GetBytes("shared file payload"));
@@ -151,7 +129,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.Drafts.Add(draft);
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
 
         // Access denied (wrong user ID)
         await Assert.ThrowsAsync<KeyNotFoundException>(() => service.GetSourceDetailAsync(Guid.NewGuid(), draft.Id, Guid.NewGuid(), CancellationToken.None));
@@ -181,7 +159,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
 
         var result = await service.GetSourceDetailAsync(userId, draft.Id, source.Id, CancellationToken.None);
 
@@ -214,7 +192,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
 
         await service.DeleteSourceAsync(userId, draft.Id, source.Id, CancellationToken.None);
 
@@ -247,7 +225,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
             new DraftSource { DraftId = otherDraft.Id, SourceId = source.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
 
         await service.DeleteSourceAsync(userId, draft.Id, source.Id, CancellationToken.None);
 
@@ -277,7 +255,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
             new DraftSource { DraftId = otherDraft.Id, SourceId = source2.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
 
         var result = await service.SearchSourcesAsync(userId, "alpha", 1, 20, CancellationToken.None);
 
@@ -300,7 +278,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.DraftSources.Add(new DraftSource { DraftId = originalDraft.Id, SourceId = source.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
 
         var result = await service.LinkSourceAsync(userId, source.Id, targetDraft.Id, CancellationToken.None);
 
@@ -330,7 +308,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
 
         var result = await service.GetSourceStatusAsync(userId, source.Id, CancellationToken.None);
 
@@ -368,7 +346,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         {
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
             var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
-            var service = new SourcesService(db, null!, scopeFactory, queue);
+            var service = TestServiceFactory.CreateSourcesService(db, scopeFactory: scopeFactory, queue: queue);
 
             var status = await service.RetrySourceTranscriptAsync(userId, source.Id, CancellationToken.None);
             Assert.Equal("Pending", status.TranscriptStatus);
@@ -417,18 +395,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
             var queue = new BackgroundJobQueue();
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
             var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
-            var transcriptionService = new SourceTranscriptionService(scopeFactory, queue);
-            var youTubeService = new YouTubeSourceService(db, transcriptionService);
-            var urlValidator = new SourceUrlValidator();
-            var urlSourceService = new UrlSourceService(db, scraper, null, urlValidator, youTubeService);
-            var service = new SourcesService(
-                db,
-                scraper,
-                scopeFactory,
-                queue,
-                sourceTranscriptionService: transcriptionService,
-                urlSourceService: urlSourceService,
-                youTubeSourceService: youTubeService);
+            var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper, scopeFactory: scopeFactory, queue: queue);
 
             var result = await service.AddUrlSourceAsync(
                 userId,
@@ -501,18 +468,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
             var queue = new BackgroundJobQueue();
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
             var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
-            var transcriptionService = new SourceTranscriptionService(scopeFactory, queue);
-            var youTubeService = new YouTubeSourceService(db, transcriptionService);
-            var urlValidator = new SourceUrlValidator();
-            var urlSourceService = new UrlSourceService(db, scraper, null, urlValidator, youTubeService);
-            var service = new SourcesService(
-                db,
-                scraper,
-                scopeFactory,
-                queue,
-                sourceTranscriptionService: transcriptionService,
-                urlSourceService: urlSourceService,
-                youTubeSourceService: youTubeService);
+            var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper, scopeFactory: scopeFactory, queue: queue);
 
             var result = await service.AddUrlSourceAsync(
                 userId,
@@ -558,7 +514,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
             new DraftSource { DraftId = draft.Id, SourceId = ytSource.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
         var result = await service.SearchSourcesAsync(userId, "", 1, 20, CancellationToken.None, kindFilter: SourceKind.YouTube);
 
         Assert.Single(result.Items);
@@ -581,7 +537,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
             new DraftSource { DraftId = draft.Id, SourceId = newSource.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
         var result = await service.SearchSourcesAsync(userId, "", 1, 20, CancellationToken.None,
             addedAfter: new DateTime(2026, 6, 1));
 
@@ -606,7 +562,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
             new DraftSource { DraftId = draft2.Id, SourceId = s2.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
         var result = await service.SearchSourcesAsync(userId, "", 1, 20, CancellationToken.None, excludeDraftId: draft1.Id);
 
         Assert.Single(result.Items);
@@ -626,7 +582,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
         var detail = await service.GetSourceDetailByIdAsync(userId, source.Id, CancellationToken.None);
 
         Assert.Equal(source.Id, detail.Id);
@@ -651,7 +607,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id });
         await db.SaveChangesAsync();
 
-        var service = new SourcesService(db, null!, null!, null!);
+        var service = TestServiceFactory.CreateSourcesService(db);
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
             service.GetSourceDetailByIdAsync(userId, source.Id, CancellationToken.None));
     }

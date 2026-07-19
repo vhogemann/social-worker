@@ -170,6 +170,8 @@ Use this section for concise progress updates while implementation is in flight.
 - 2026-07-19: Validation: `SourcesServiceTests` green after each phase gate (final count: 19 passed, 0 failed).
 - 2026-07-19: Full validation green: `docker compose --profile tooling run --rm dotnet build`; `dotnet test /src/SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj` (241 passed, 0 failed).
 - 2026-07-19: Runtime verification green: `docker compose up --build -d` started db/api/web/transcriber successfully.
+- 2026-07-19: Follow-up API constructor-injection sweep completed for core services that still used fallback construction (`DraftsService`, `ChatService`, `DraftChatSummaryService`, `SourceReconciliationService`, `SourceTranscriptionService`, `SourcesService`, `BlueskyPublisher`) with DI/test wiring updated.
+- 2026-07-19: Post-sweep validation green: `docker compose --profile tooling run --rm dotnet test /src/SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj` (241 passed, 0 failed).
 
 ## Open questions
 

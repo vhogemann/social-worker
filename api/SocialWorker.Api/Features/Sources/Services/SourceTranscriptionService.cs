@@ -10,10 +10,10 @@ namespace SocialWorker.Api.Features.Sources;
 
 public sealed class SourceTranscriptionService
 {
-    private readonly IServiceScopeFactory? _scopeFactory;
-    private readonly BackgroundJobQueue? _queue;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly BackgroundJobQueue _queue;
 
-    public SourceTranscriptionService(IServiceScopeFactory? scopeFactory, BackgroundJobQueue? queue)
+    public SourceTranscriptionService(IServiceScopeFactory scopeFactory, BackgroundJobQueue queue)
     {
         _scopeFactory = scopeFactory;
         _queue = queue;
@@ -21,11 +21,6 @@ public sealed class SourceTranscriptionService
 
     public void QueueTranscriptExtraction(Guid sourceId, Guid draftId)
     {
-        if (_scopeFactory == null || _queue == null)
-        {
-            throw new InvalidOperationException("IServiceScopeFactory and BackgroundJobQueue are required for transcript extraction jobs.");
-        }
-
         _queue.Enqueue(new BackgroundJobQueue.Job("youtube-transcript", async ct =>
         {
             using var scope = _scopeFactory.CreateScope();

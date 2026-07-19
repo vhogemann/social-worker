@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Drafts;
@@ -30,21 +29,19 @@ public class BlueskyPublisher : IPublisher
     public string Platform => "Bluesky";
 
     public BlueskyPublisher(
-        HttpClient http,
         IConfiguration config,
         AppDbContext db,
-        FileStorageProvider storage,
-        ILogger<BlueskyPublisher>? logger = null,
-        BlueskyApiClient? apiClient = null,
-        BlueskyContentPreparationService? contentPreparation = null,
-        BlueskyFacetBuilder? facetBuilder = null)
+        BlueskyApiClient apiClient,
+        BlueskyContentPreparationService contentPreparation,
+        BlueskyFacetBuilder facetBuilder,
+        ILogger<BlueskyPublisher> logger)
     {
         _db = db;
-        _apiClient = apiClient ?? new BlueskyApiClient(http);
-        _contentPreparation = contentPreparation ?? new BlueskyContentPreparationService(db, storage, _apiClient, http);
-        _facetBuilder = facetBuilder ?? new BlueskyFacetBuilder();
+        _apiClient = apiClient;
+        _contentPreparation = contentPreparation;
+        _facetBuilder = facetBuilder;
         _encryptionKey = config["Auth:DbEncryptionKey"] ?? "";
-        _logger = logger ?? NullLogger<BlueskyPublisher>.Instance;
+        _logger = logger;
     }
 
     public async Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)

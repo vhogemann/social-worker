@@ -17,10 +17,10 @@ public sealed class SourceReconciliationService
     private static readonly Regex FileRegex = new(@"file://([0-9a-fA-F\-]{36})", RegexOptions.Compiled);
 
     private readonly AppDbContext _db;
-    private readonly IServiceScopeFactory? _scopeFactory;
-    private readonly BackgroundJobQueue? _queue;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly BackgroundJobQueue _queue;
 
-    public SourceReconciliationService(AppDbContext db, IServiceScopeFactory? scopeFactory, BackgroundJobQueue? queue)
+    public SourceReconciliationService(AppDbContext db, IServiceScopeFactory scopeFactory, BackgroundJobQueue queue)
     {
         _db = db;
         _scopeFactory = scopeFactory;
@@ -78,11 +78,6 @@ public sealed class SourceReconciliationService
         var newUrls = urls.Where(url => !existing.Any(e => (e.Kind == SourceKind.Url || e.Kind == SourceKind.YouTube) && e.Reference == url)).ToList();
         if (newUrls.Count > 0)
         {
-            if (_scopeFactory == null || _queue == null)
-            {
-                throw new InvalidOperationException("IServiceScopeFactory and BackgroundJobQueue are required for URL reconciliation jobs.");
-            }
-
             var loadingSources = new List<Source>();
             foreach (var url in newUrls)
             {

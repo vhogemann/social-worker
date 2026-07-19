@@ -9,11 +9,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing;
+using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Infrastructure.Background;
 using SocialWorker.Api.Infrastructure.Security;
 using Xunit;
@@ -47,7 +49,10 @@ public sealed class BlueskyPublisherTests : SqliteTestBase
         });
         var client = new HttpClient(handler);
         var storage = new FileStorageProvider();
-        var publisher = new BlueskyPublisher(client, config, db, storage);
+        var apiClient = new BlueskyApiClient(client);
+        var contentPreparation = new BlueskyContentPreparationService(db, storage, apiClient, client);
+        var facetBuilder = new BlueskyFacetBuilder();
+        var publisher = new BlueskyPublisher(config, db, apiClient, contentPreparation, facetBuilder, NullLogger<BlueskyPublisher>.Instance);
         return (publisher, client);
     }
 

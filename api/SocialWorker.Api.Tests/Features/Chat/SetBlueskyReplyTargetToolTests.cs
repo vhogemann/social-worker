@@ -118,10 +118,11 @@ public sealed class SetBlueskyReplyTargetToolTests : SqliteTestBase
         var services = new ServiceCollection();
         services.AddSingleton(db);
         services.AddSingleton(resolver);
-        services.AddSingleton(new SourcesService(db, null!, null!, null!));
-        services.AddSingleton<FileStorageProvider>();
-        services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton<DraftsService>();
+        var queue = new BackgroundJobQueue();
+        var sourcesService = TestServiceFactory.CreateSourcesService(db, queue: queue);
+        var draftsService = TestServiceFactory.CreateDraftsService(db, new FileStorageProvider(), sourcesService, queue: queue);
+        services.AddSingleton(sourcesService);
+        services.AddSingleton(draftsService);
         return services.BuildServiceProvider();
     }
 

@@ -16,10 +16,10 @@ namespace SocialWorker.Api.Features.Drafts;
 
 public sealed class DraftChatSummaryService
 {
-    private readonly IServiceScopeFactory? _scopeFactory;
-    private readonly BackgroundJobQueue? _queue;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly BackgroundJobQueue _queue;
 
-    public DraftChatSummaryService(IServiceScopeFactory? scopeFactory, BackgroundJobQueue? queue)
+    public DraftChatSummaryService(IServiceScopeFactory scopeFactory, BackgroundJobQueue queue)
     {
         _scopeFactory = scopeFactory;
         _queue = queue;
@@ -27,11 +27,6 @@ public sealed class DraftChatSummaryService
 
     public void TriggerBackgroundSummarization(Guid userId, Guid draftId, string chatHistoryJson)
     {
-        if (_scopeFactory == null || _queue == null)
-        {
-            return;
-        }
-
         _queue.Enqueue(new BackgroundJobQueue.Job("chat-summary", async ct =>
         {
             using var scope = _scopeFactory.CreateScope();

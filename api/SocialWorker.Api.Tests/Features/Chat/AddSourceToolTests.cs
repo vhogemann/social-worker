@@ -61,7 +61,7 @@ public sealed class AddSourceToolTests : IDisposable
         serviceCollection.AddSingleton(db);
         serviceCollection.AddSingleton(scraper);
         serviceCollection.AddSingleton<BackgroundJobQueue>();
-        serviceCollection.AddSingleton<SourcesService>();
+        serviceCollection.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
         var serviceProvider = serviceCollection.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
@@ -97,7 +97,7 @@ public sealed class AddSourceToolTests : IDisposable
         services.AddSingleton(db);
         services.AddSingleton(scraper);
         services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton<SourcesService>();
+        services.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         var tool = new AddSourceTool(scopeFactory);
@@ -124,7 +124,7 @@ public sealed class AddSourceToolTests : IDisposable
         services.AddSingleton(db);
         services.AddSingleton(scraper);
         services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton<SourcesService>();
+        services.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         var tool = new AddSourceTool(scopeFactory);
@@ -154,7 +154,7 @@ public sealed class AddSourceToolTests : IDisposable
         services.AddSingleton(db);
         services.AddSingleton(scraper);
         services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton<SourcesService>();
+        services.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         var tool = new AddSourceTool(scopeFactory);
@@ -183,7 +183,7 @@ public sealed class AddSourceToolTests : IDisposable
         services.AddSingleton(db);
         services.AddSingleton(scraper);
         services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton<SourcesService>();
+        services.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         var tool = new AddSourceTool(scopeFactory);

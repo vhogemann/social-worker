@@ -68,7 +68,7 @@ public sealed class DraftTests : SqliteTestBase
         await _db.SaveChangesAsync();
 
         // 1. Initial reconciliation
-        await new DraftsService(_db, null!, null!, null!, null!).ReconcileSegmentsAsync(draft, draft.Content);
+        await TestServiceFactory.CreateDraftsService(_db, null!, TestServiceFactory.CreateSourcesService(_db)).ReconcileSegmentsAsync(draft, draft.Content);
         await _db.SaveChangesAsync();
 
         var segments = await _db.ThreadSegments
@@ -87,7 +87,7 @@ public sealed class DraftTests : SqliteTestBase
         // 2. Reduce segment count (updates 0, 1; deletes 2)
         var updatedContent = "Updated first\n---\nUpdated second";
         draft.Content = updatedContent;
-        await new DraftsService(_db, null!, null!, null!, null!).ReconcileSegmentsAsync(draft, updatedContent);
+        await TestServiceFactory.CreateDraftsService(_db, null!, TestServiceFactory.CreateSourcesService(_db)).ReconcileSegmentsAsync(draft, updatedContent);
         await _db.SaveChangesAsync();
 
         segments = await _db.ThreadSegments
@@ -102,7 +102,7 @@ public sealed class DraftTests : SqliteTestBase
         // 3. Expand segment count (updates 0, 1; inserts 2, 3)
         var expandedContent = "One\n---\nTwo\n---\nThree\n---\nFour";
         draft.Content = expandedContent;
-        await new DraftsService(_db, null!, null!, null!, null!).ReconcileSegmentsAsync(draft, expandedContent);
+        await TestServiceFactory.CreateDraftsService(_db, null!, TestServiceFactory.CreateSourcesService(_db)).ReconcileSegmentsAsync(draft, expandedContent);
         await _db.SaveChangesAsync();
 
         segments = await _db.ThreadSegments
@@ -189,7 +189,7 @@ public sealed class DraftTests : SqliteTestBase
         var content = $"Check out my doc: [Doc](file://{fileSource.Id})";
         draft.Content = content;
 
-        await new SourcesService(_db, null!, null!, null!).ReconcileSourcesAsync(draft, content);
+        await TestServiceFactory.CreateSourcesService(_db).ReconcileSourcesAsync(draft, content);
 
         var sources = await _db.Sources.Where(s => s.DraftSources.Any(ds => ds.DraftId == draft.Id)).ToListAsync();
         Assert.Single(sources);
@@ -198,7 +198,7 @@ public sealed class DraftTests : SqliteTestBase
         var content2 = "No file links anymore!";
         draft.Content = content2;
 
-        await new SourcesService(_db, null!, null!, null!).ReconcileSourcesAsync(draft, content2);
+        await TestServiceFactory.CreateSourcesService(_db).ReconcileSourcesAsync(draft, content2);
 
         sources = await _db.Sources.Where(s => s.DraftSources.Any(ds => ds.DraftId == draft.Id)).ToListAsync();
         Assert.Empty(sources);
