@@ -32,7 +32,17 @@ public sealed class SourcesServiceTests : SqliteTestBase
             return response;
         })));
 
-        var service = new SourcesService(db, scraper, null!, null!);
+        var transcriptionService = new SourceTranscriptionService(null, null);
+        var youTubeService = new YouTubeSourceService(db, transcriptionService);
+        var urlValidator = new SourceUrlValidator();
+        var urlSourceService = new UrlSourceService(db, scraper, null, urlValidator, youTubeService);
+        var service = new SourcesService(
+            db,
+            scraper,
+            null!,
+            null!,
+            urlSourceService: urlSourceService,
+            youTubeSourceService: youTubeService);
         var result = await service.AddUrlSourceAsync(
             userId,
             draft.Id,
@@ -63,10 +73,71 @@ public sealed class SourcesServiceTests : SqliteTestBase
         var scraper = new WebScraperService(new HttpClient(new StaticHttpMessageHandler(_ =>
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("ok") })));
 
-        var service = new SourcesService(db, scraper, null!, null!);
+        var transcriptionService = new SourceTranscriptionService(null, null);
+        var youTubeService = new YouTubeSourceService(db, transcriptionService);
+        var urlValidator = new SourceUrlValidator();
+        var urlSourceService = new UrlSourceService(db, scraper, null, urlValidator, youTubeService);
+        var service = new SourcesService(
+            db,
+            scraper,
+            null!,
+            null!,
+            urlSourceService: urlSourceService,
+            youTubeSourceService: youTubeService);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.AddUrlSourceAsync(userId, draft.Id, "not-a-url", null, null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AddFileSourceAsync_Adds_File_Source_With_Extracted_Content()
+    {
+        using var db = new AppDbContext(Options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft title" };
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var fileSourceService = new FileSourceService(db, null);
+        var service = new SourcesService(db, null!, null!, null!, fileSourceService: fileSourceService);
+        var extractor = new SourceExtractor();
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hello from file source"));
+
+        var result = await service.AddFileSourceAsync(userId, draft.Id, "notes.txt", stream, extractor, CancellationToken.None);
+
+        var source = await db.Sources.FirstOrDefaultAsync(s => s.Id == result.SourceId);
+        Assert.NotNull(source);
+        Assert.Equal(SourceKind.File, source!.Kind);
+        Assert.Equal("notes.txt", source.Reference);
+        Assert.Contains("hello from file source", source.Content ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task AddFileSourceAsync_Reuses_Existing_Source_And_Links_Second_Draft()
+    {
+        using var db = new AppDbContext(Options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft1 = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft one" };
+        var draft2 = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft two" };
+        db.Drafts.AddRange(draft1, draft2);
+        await db.SaveChangesAsync();
+
+        var fileSourceService = new FileSourceService(db, null);
+        var service = new SourcesService(db, null!, null!, null!, fileSourceService: fileSourceService);
+        var extractor = new SourceExtractor();
+
+        await using var stream1 = new MemoryStream(Encoding.UTF8.GetBytes("shared file payload"));
+        var first = await service.AddFileSourceAsync(userId, draft1.Id, "shared.txt", stream1, extractor, CancellationToken.None);
+
+        await using var stream2 = new MemoryStream(Encoding.UTF8.GetBytes("shared file payload"));
+        var second = await service.AddFileSourceAsync(userId, draft2.Id, "shared.txt", stream2, extractor, CancellationToken.None);
+
+        Assert.Equal(first.SourceId, second.SourceId);
+        Assert.Equal(1, await db.Sources.CountAsync());
+        Assert.True(await db.DraftSources.AnyAsync(ds => ds.DraftId == draft1.Id && ds.SourceId == first.SourceId));
+        Assert.True(await db.DraftSources.AnyAsync(ds => ds.DraftId == draft2.Id && ds.SourceId == first.SourceId));
     }
 
     [Fact]
@@ -346,7 +417,18 @@ public sealed class SourcesServiceTests : SqliteTestBase
             var queue = new BackgroundJobQueue();
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
             var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
-            var service = new SourcesService(db, scraper, scopeFactory, queue);
+            var transcriptionService = new SourceTranscriptionService(scopeFactory, queue);
+            var youTubeService = new YouTubeSourceService(db, transcriptionService);
+            var urlValidator = new SourceUrlValidator();
+            var urlSourceService = new UrlSourceService(db, scraper, null, urlValidator, youTubeService);
+            var service = new SourcesService(
+                db,
+                scraper,
+                scopeFactory,
+                queue,
+                sourceTranscriptionService: transcriptionService,
+                urlSourceService: urlSourceService,
+                youTubeSourceService: youTubeService);
 
             var result = await service.AddUrlSourceAsync(
                 userId,
@@ -419,7 +501,18 @@ public sealed class SourcesServiceTests : SqliteTestBase
             var queue = new BackgroundJobQueue();
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
             var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
-            var service = new SourcesService(db, scraper, scopeFactory, queue);
+            var transcriptionService = new SourceTranscriptionService(scopeFactory, queue);
+            var youTubeService = new YouTubeSourceService(db, transcriptionService);
+            var urlValidator = new SourceUrlValidator();
+            var urlSourceService = new UrlSourceService(db, scraper, null, urlValidator, youTubeService);
+            var service = new SourcesService(
+                db,
+                scraper,
+                scopeFactory,
+                queue,
+                sourceTranscriptionService: transcriptionService,
+                urlSourceService: urlSourceService,
+                youTubeSourceService: youTubeService);
 
             var result = await service.AddUrlSourceAsync(
                 userId,

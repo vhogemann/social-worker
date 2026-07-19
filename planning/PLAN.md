@@ -149,6 +149,7 @@ These should remain first-class and be kept current:
 | [THREADED_REPLIES.md](THREADED_REPLIES.md) | linked-reply draft architecture and UI nesting plan |
 | [TECH_DEBT.md](TECH_DEBT.md) | engineering cleanup and reliability backlog |
 | [TEST_PLAN.md](TEST_PLAN.md) | test strategy and coverage backlog |
+| [SOURCES_SERVICE_REFACTOR.md](SOURCES_SERVICE_REFACTOR.md) | phased extraction plan for source-type-specific logic from SourcesService |
  
 ## Reference-only planning documents
  

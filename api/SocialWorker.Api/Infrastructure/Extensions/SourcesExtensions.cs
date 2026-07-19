@@ -22,8 +22,12 @@ static partial class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
         });
         builder.Services.AddScoped<SourceExtractor>();
+        builder.Services.AddScoped<ISourceUrlValidator, SourceUrlValidator>();
         builder.Services.AddScoped<SourceReconciliationService>();
         builder.Services.AddScoped<SourceTranscriptionService>();
+        builder.Services.AddScoped<IYouTubeSourceService, YouTubeSourceService>();
+        builder.Services.AddScoped<IUrlSourceService, UrlSourceService>();
+        builder.Services.AddScoped<IFileSourceService, FileSourceService>();
         builder.Services.AddScoped<SourceSearchService>();
         builder.Services.AddScoped<SourcesService>();
     }
