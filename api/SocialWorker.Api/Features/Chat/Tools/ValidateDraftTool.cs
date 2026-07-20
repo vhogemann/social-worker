@@ -100,7 +100,7 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, Validate
     }
 
     public override string Name => "validate_draft";
-    public override string Description => "Validates the draft's formatting compliance for Bluesky (character limits, image counts, YouTube embeds, and missing ALT texts). YouTube videos must use embed syntax: ![Title](https://www.youtube.com/watch?v=VIDEO_ID).";
+    public override string Description => "Validates content compliance against Bluesky's formatting rules. It checks character limits, image counts, ALT texts, and YouTube embeds, and returns a detailed report of validation issues.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

@@ -218,7 +218,7 @@ describe("drafts API", () => {
                 reference: "https://example.com",
                 title: "Example",
                 summary: "Summary",
-                transcriptStatus: "Complete",
+                processingStatus: "Complete",
                 youtubeVideoId: null,
                 addedAt: "2026-01-01",
               },
@@ -243,7 +243,7 @@ describe("drafts API", () => {
         new Response(
           JSON.stringify({
             sourceId: "s1",
-            transcriptStatus: "Processing",
+            processingStatus: "Processing",
             summary: "Summary",
             youtubeVideoId: "abc123xyz09",
           }),
@@ -252,7 +252,7 @@ describe("drafts API", () => {
       );
 
       const result = await fetchSourceStatus("s1");
-      expect(result.transcriptStatus).toBe("Processing");
+      expect(result.processingStatus).toBe("Processing");
     });
   });
 
@@ -262,7 +262,7 @@ describe("drafts API", () => {
         new Response(
           JSON.stringify({
             sourceId: "s1",
-            transcriptStatus: "Pending",
+            processingStatus: "Pending",
             summary: null,
             youtubeVideoId: "abc123xyz09",
           }),
@@ -271,7 +271,7 @@ describe("drafts API", () => {
       );
 
       const result = await retrySourceTranscription("s1");
-      expect(result.transcriptStatus).toBe("Pending");
+      expect(result.processingStatus).toBe("Pending");
     });
   });
 
@@ -323,7 +323,7 @@ describe("drafts API", () => {
             reference: "https://example.com",
             title: "Example",
             summary: "Summary",
-            transcriptStatus: "Complete",
+            processingStatus: "Complete",
             youtubeVideoId: null,
             addedAt: "2026-01-01",
           }),

@@ -11,7 +11,7 @@ public class Source
     public string? Content { get; set; }
     public string? Title { get; set; }
     public string? Summary { get; set; }
-    public TranscriptStatus TranscriptStatus { get; set; } = TranscriptStatus.Pending;
+    public SourceProcessingStatus ProcessingStatus { get; set; } = SourceProcessingStatus.Pending;
     public string? TranscriptPath { get; set; }
     public string? YoutubeVideoId { get; set; }
     public string? Sha256 { get; set; }

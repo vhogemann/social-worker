@@ -84,6 +84,7 @@ public sealed class FileSourceService : IFileSourceService
             Content = extractedText,
             Summary = summary,
             Sha256 = shaHashStr,
+            ProcessingStatus = SourceProcessingStatus.Complete,
             AddedAt = DateTime.UtcNow
         };
 

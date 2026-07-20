@@ -38,7 +38,7 @@ public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, AddIma
     }
 
     public override string Name => "add_image_source";
-    public override string Description => "Downloads an image from a URL, processes it, resizes it, saves it as a media asset for this draft, and returns the markdown image tag (e.g. ![alt](media://{guid})).";
+    public override string Description => "Embeds an external image into the current draft by downloading, optimizing, and resizing it. It saves the asset internally and returns the required markdown link tag.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

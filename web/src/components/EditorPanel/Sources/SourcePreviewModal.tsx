@@ -27,7 +27,7 @@ export const SourcePreviewModal: React.FC<SourcePreviewModalProps> = ({
   const subtitle = isSource ? item.source.reference : `media://${item.asset.id}`;
   const showOpenLink = isSource && (item.source.kind === "Url" || item.source.kind === "YouTube");
   const isYouTubeSource = isSource && item.source.kind === "YouTube";
-  const transcriptStatus = isSource ? item.detail?.transcriptStatus || item.source.transcriptStatus : null;
+  const processingStatus = isSource ? item.detail?.processingStatus || item.source.processingStatus : null;
   const summary = isSource ? item.detail?.summary || item.source.summary : null;
   const transcriptContent = isSource ? item.detail?.content || null : null;
 
@@ -44,9 +44,9 @@ export const SourcePreviewModal: React.FC<SourcePreviewModalProps> = ({
               <h3 className="text-sm font-semibold text-foreground truncate">
                 {title}
               </h3>
-              {transcriptStatus ? (
+              {processingStatus ? (
                 <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-muted shrink-0">
-                  {transcriptStatus}
+                  {processingStatus}
                 </span>
               ) : null}
               {showOpenLink && (

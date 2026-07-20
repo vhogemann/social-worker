@@ -97,12 +97,12 @@ public sealed class YouTubeSourceService : IYouTubeSourceService
             throw new KeyNotFoundException("No accessible draft link found for source.");
         }
 
-        source.TranscriptStatus = TranscriptStatus.Pending;
+        source.ProcessingStatus = SourceProcessingStatus.Pending;
         source.Summary = null;
         await _db.SaveChangesAsync(ct);
 
         QueueTranscriptExtraction(source.Id, draftId.Value);
 
-        return new SourceStatusDto(source.Id, source.TranscriptStatus.ToString(), source.Summary, source.YoutubeVideoId);
+        return new SourceStatusDto(source.Id, source.ProcessingStatus.ToString(), source.Summary, source.YoutubeVideoId);
     }
 }

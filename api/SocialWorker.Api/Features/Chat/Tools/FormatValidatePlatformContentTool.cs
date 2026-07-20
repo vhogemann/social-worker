@@ -40,7 +40,7 @@ public sealed class FormatValidatePlatformContentTool : ChatToolBase<FormatValid
     }
 
     public override string Name => "format_validate_platform_content";
-    public override string Description => "Formats and validates a draft content block against target platform constraints. Use this before saving or publishing platform variants.";
+    public override string Description => "Validates and formats draft content against specific platform rules (e.g., character limits, formatting constraints) before saving or publishing variants.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

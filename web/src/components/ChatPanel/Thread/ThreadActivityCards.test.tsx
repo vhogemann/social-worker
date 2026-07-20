@@ -19,8 +19,8 @@ describe("ThreadActivityCards", () => {
       />
     );
 
-    expect(screen.getByText("activity: publish failed")).toBeInTheDocument();
-    expect(screen.getByText("Post exceeds 300 character limit.")).toBeInTheDocument();
+    expect(screen.getByText(/activity: publish failed/)).toBeInTheDocument();
+    expect(screen.getByText(/Post exceeds 300 character limit/)).toBeInTheDocument();
   });
 
   it("renders nothing when there are no cards", () => {

@@ -17,7 +17,7 @@ public sealed record SourceDto(
     string Reference,
     string? Title,
     string? Summary,
-    string TranscriptStatus,
+    string ProcessingStatus,
     string? YoutubeVideoId,
     DateTime AddedAt,
     string CanonicalUrl,
@@ -34,7 +34,7 @@ public sealed record SourceDetailDto(
     string? Title,
     string? Content,
     string? Summary,
-    string TranscriptStatus,
+    string ProcessingStatus,
     string? YoutubeVideoId,
     DateTime AddedAt,
     string CanonicalUrl,
@@ -49,7 +49,7 @@ public sealed record SourceSearchItemDto(
     string Reference,
     string? Title,
     string? Summary,
-    string TranscriptStatus,
+    string ProcessingStatus,
     string? YoutubeVideoId,
     DateTime AddedAt,
     string CanonicalUrl,
@@ -60,7 +60,7 @@ public sealed record SourceSearchItemDto(
 
 public sealed record SourceSearchResultDto(List<SourceSearchItemDto> Items, int Total, int Page, int PageSize);
 
-public sealed record SourceStatusDto(Guid SourceId, string TranscriptStatus, string? Summary, string? YoutubeVideoId);
+public sealed record SourceStatusDto(Guid SourceId, string ProcessingStatus, string? Summary, string? YoutubeVideoId);
 
 public sealed record AddFileSourceResult(Guid SourceId, string Reference);
 public sealed record AddUrlSourceResult(Guid SourceId, string Reference, string? Title, string Kind);
@@ -112,7 +112,7 @@ public sealed class SourcesService
                 s.Reference,
                 s.Title,
                 s.Summary,
-                s.TranscriptStatus.ToString(),
+                s.ProcessingStatus.ToString(),
                 s.YoutubeVideoId,
                 s.AddedAt,
                 links.CanonicalUrl,
@@ -147,7 +147,7 @@ public sealed class SourcesService
             source.Title,
             source.Content,
             source.Summary,
-            source.TranscriptStatus.ToString(),
+            source.ProcessingStatus.ToString(),
             source.YoutubeVideoId,
             source.AddedAt,
             detailLinks.CanonicalUrl,
@@ -194,7 +194,7 @@ public sealed class SourcesService
             source.Title,
             source.Content,
             source.Summary,
-            source.TranscriptStatus.ToString(),
+            source.ProcessingStatus.ToString(),
             source.YoutubeVideoId,
             source.AddedAt,
             detailLinks.CanonicalUrl,
@@ -235,7 +235,7 @@ public sealed class SourcesService
             source.Reference,
             source.Title,
             source.Summary,
-            source.TranscriptStatus.ToString(),
+            source.ProcessingStatus.ToString(),
             source.YoutubeVideoId,
             source.AddedAt,
             linkFields.CanonicalUrl,
@@ -252,7 +252,7 @@ public sealed class SourcesService
             s.DraftSources.Any(ds => ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted), ct)
             ?? throw new KeyNotFoundException("Source not found or access denied.");
 
-        return new SourceStatusDto(source.Id, source.TranscriptStatus.ToString(), source.Summary, source.YoutubeVideoId);
+        return new SourceStatusDto(source.Id, source.ProcessingStatus.ToString(), source.Summary, source.YoutubeVideoId);
     }
 
     public async Task<SourceStatusDto> RetrySourceTranscriptAsync(Guid userId, Guid sourceId, CancellationToken ct)

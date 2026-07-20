@@ -100,7 +100,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.Title).HasMaxLength(200);
             e.Property(x => x.Content).HasColumnType("text");
             e.Property(x => x.Summary).HasColumnType("text");
-            e.Property(x => x.TranscriptStatus).HasConversion<string>().HasMaxLength(50);
+            e.Property(x => x.ProcessingStatus).HasConversion<string>().HasMaxLength(50);
             e.Property(x => x.TranscriptPath).HasMaxLength(500);
             e.Property(x => x.YoutubeVideoId).HasMaxLength(11);
             e.Property(x => x.Sha256).HasMaxLength(64);

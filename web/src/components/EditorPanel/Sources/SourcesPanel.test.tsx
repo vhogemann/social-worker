@@ -5,6 +5,7 @@ import { SourcesPanel } from "./SourcesPanel";
 import { useDraftStore } from "../../../store/draftStore";
 import { useEditorStore } from "../../../store/editorStore";
 import * as draftsApi from "../../../api/drafts";
+import { MemoryRouter } from "react-router-dom";
 
 vi.mock("../../../api/drafts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../api/drafts")>();
@@ -26,7 +27,7 @@ describe("SourcesPanel", () => {
 
     vi.mocked(draftsApi.fetchSourceStatus).mockResolvedValue({
       sourceId: "source-1",
-      transcriptStatus: "Complete",
+      processingStatus: "Complete",
       summary: "Short summary",
       youtubeVideoId: null,
     });
@@ -58,7 +59,7 @@ describe("SourcesPanel", () => {
           reference: "https://example.com",
           title: "Example Website",
           summary: "Short summary",
-          transcriptStatus: "Complete",
+          processingStatus: "Complete",
           youtubeVideoId: null,
           addedAt: "2026-07-10"
         }
@@ -71,7 +72,11 @@ describe("SourcesPanel", () => {
   });
 
   it("renders the sources list correctly", () => {
-    render(<SourcesPanel />);
+    render(
+      <MemoryRouter>
+        <SourcesPanel />
+      </MemoryRouter>
+    );
     const expandBtn = screen.getByText(/Sources & Images/);
     fireEvent.click(expandBtn);
     expect(screen.getByText("Example Website")).toBeInTheDocument();
@@ -86,14 +91,18 @@ describe("SourcesPanel", () => {
       title: "Example Website",
       content: "This is the fetched site content",
       summary: "Short summary",
-      transcriptStatus: "Complete",
+      processingStatus: "Complete",
       youtubeVideoId: null,
       addedAt: "2026-07-10"
     };
 
     vi.mocked(draftsApi.fetchSourceDetail).mockResolvedValueOnce(mockDetail);
 
-    render(<SourcesPanel />);
+    render(
+      <MemoryRouter>
+        <SourcesPanel />
+      </MemoryRouter>
+    );
 
     const expandBtn = screen.getByText(/Sources & Images/);
     fireEvent.click(expandBtn);
@@ -119,7 +128,7 @@ describe("SourcesPanel", () => {
           reference: "https://reusable.example.com",
           title: "Reusable Source",
           summary: "Shared summary",
-          transcriptStatus: "Complete",
+          processingStatus: "Complete",
           youtubeVideoId: null,
           addedAt: "2026-07-10",
         },
@@ -135,12 +144,16 @@ describe("SourcesPanel", () => {
       reference: "https://reusable.example.com",
       title: "Reusable Source",
       summary: "Shared summary",
-      transcriptStatus: "Complete",
+      processingStatus: "Complete",
       youtubeVideoId: null,
       addedAt: "2026-07-10",
     });
 
-    render(<SourcesPanel />);
+    render(
+      <MemoryRouter>
+        <SourcesPanel />
+      </MemoryRouter>
+    );
 
     fireEvent.click(screen.getByText(/Sources & Images/));
     fireEvent.change(screen.getByPlaceholderText(/Find reusable sources across drafts/i), {
@@ -173,7 +186,7 @@ describe("SourcesPanel", () => {
           reference: "https://www.youtube.com/watch?v=abc123xyz09",
           title: "Example Video",
           summary: "Previous failure",
-          transcriptStatus: "Failed",
+          processingStatus: "Failed",
           youtubeVideoId: "abc123xyz09",
           addedAt: "2026-07-10",
         },
@@ -188,19 +201,23 @@ describe("SourcesPanel", () => {
       title: "Example Video",
       content: "",
       summary: "Previous failure",
-      transcriptStatus: "Failed",
+      processingStatus: "Failed",
       youtubeVideoId: "abc123xyz09",
       addedAt: "2026-07-10",
     });
 
     vi.mocked(draftsApi.retrySourceTranscription).mockResolvedValueOnce({
       sourceId: "source-yt-1",
-      transcriptStatus: "Pending",
+      processingStatus: "Pending",
       summary: null,
       youtubeVideoId: "abc123xyz09",
     });
 
-    render(<SourcesPanel />);
+    render(
+      <MemoryRouter>
+        <SourcesPanel />
+      </MemoryRouter>
+    );
 
     fireEvent.click(screen.getByText(/Sources & Images/));
     fireEvent.click(screen.getByTitle("Preview source content"));
@@ -226,7 +243,7 @@ describe("SourcesPanel", () => {
           reference: "https://www.youtube.com/watch?v=abc123xyz09",
           title: "Tabbed Video",
           summary: null,
-          transcriptStatus: "Complete",
+          processingStatus: "Complete",
           youtubeVideoId: "abc123xyz09",
           addedAt: "2026-07-10",
         },
@@ -241,12 +258,16 @@ describe("SourcesPanel", () => {
       title: "Tabbed Video",
       content: "Transcript content in tab",
       summary: null,
-      transcriptStatus: "Complete",
+      processingStatus: "Complete",
       youtubeVideoId: "abc123xyz09",
       addedAt: "2026-07-10",
     });
 
-    render(<SourcesPanel />);
+    render(
+      <MemoryRouter>
+        <SourcesPanel />
+      </MemoryRouter>
+    );
 
     fireEvent.click(screen.getByText(/Sources & Images/));
     fireEvent.click(screen.getByTitle("Preview source content"));

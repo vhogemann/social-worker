@@ -33,7 +33,7 @@ public sealed class SourceTranscriptionService
                 return;
             }
 
-            source.TranscriptStatus = TranscriptStatus.Processing;
+            source.ProcessingStatus = SourceProcessingStatus.Processing;
             await scopedDb.SaveChangesAsync(ct);
 
             try
@@ -41,7 +41,7 @@ public sealed class SourceTranscriptionService
                 var result = await transcriber.ExtractAsync(source.Reference, $"{source.Id}.json", ct);
                 if (!result.Success || string.IsNullOrWhiteSpace(result.TranscriptPath))
                 {
-                    source.TranscriptStatus = TranscriptStatus.Failed;
+                    source.ProcessingStatus = SourceProcessingStatus.Failed;
                     source.Summary = result.Error;
                     await scopedDb.SaveChangesAsync(ct);
                     return;
@@ -68,7 +68,7 @@ public sealed class SourceTranscriptionService
                     }
                 }
 
-                source.TranscriptStatus = TranscriptStatus.Complete;
+                source.ProcessingStatus = SourceProcessingStatus.Complete;
 
                 var draft = await scopedDb.Drafts.FindAsync(new object[] { draftId }, ct);
                 if (draft != null)
@@ -80,7 +80,7 @@ public sealed class SourceTranscriptionService
             }
             catch (Exception ex)
             {
-                source.TranscriptStatus = TranscriptStatus.Failed;
+                source.ProcessingStatus = SourceProcessingStatus.Failed;
                 source.Summary = ex.Message;
                 await scopedDb.SaveChangesAsync(ct);
             }

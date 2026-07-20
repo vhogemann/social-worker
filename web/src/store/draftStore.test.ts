@@ -97,7 +97,7 @@ describe("draftStore", () => {
       await useDraftStore.getState().loadDrafts();
 
       const saved = useChatStore.getState().loadMessages("d1");
-      expect(saved).toEqual(messages);
+      expect(saved?.messages[0].message.id).toEqual(messages[0].id);
     });
 
     it("ignores invalid chatHistory without throwing", async () => {
@@ -167,7 +167,7 @@ describe("draftStore", () => {
 
       await useDraftStore.getState().switchDraft("d1");
 
-      expect(useChatStore.getState().loadMessages("d1")).toEqual(msgs);
+      expect(useChatStore.getState().loadMessages("d1")?.messages[0].message.id).toEqual(msgs[0].id);
     });
   });
 

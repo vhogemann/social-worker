@@ -87,7 +87,7 @@ public sealed class SourceSearchService
                 s.Reference,
                 s.Title,
                 s.Summary,
-                s.TranscriptStatus,
+                s.ProcessingStatus,
                 s.YoutubeVideoId,
                 s.AddedAt
             })
@@ -105,7 +105,7 @@ public sealed class SourceSearchService
                 s.Reference,
                 s.Title,
                 s.Summary,
-                s.TranscriptStatus.ToString(),
+                s.ProcessingStatus.ToString(),
                 s.YoutubeVideoId,
                 s.AddedAt,
                 links.CanonicalUrl,

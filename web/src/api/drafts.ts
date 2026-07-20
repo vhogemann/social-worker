@@ -25,7 +25,7 @@ export interface SourceDto {
   reference: string;
   title: string | null;
   summary?: string | null;
-  transcriptStatus?: string;
+  processingStatus?: string;
   youtubeVideoId?: string | null;
   addedAt: string;
 }
@@ -38,7 +38,7 @@ export interface SourceDetailDto {
   title: string | null;
   content: string | null;
   summary?: string | null;
-  transcriptStatus?: string;
+  processingStatus?: string;
   youtubeVideoId?: string | null;
   addedAt: string;
 }
@@ -49,7 +49,7 @@ export interface SourceSearchItemDto {
   reference: string;
   title: string | null;
   summary: string | null;
-  transcriptStatus: string;
+  processingStatus: string;
   youtubeVideoId: string | null;
   addedAt: string;
 }
@@ -63,7 +63,7 @@ export interface SourceSearchResultDto {
 
 export interface SourceStatusDto {
   sourceId: string;
-  transcriptStatus: string;
+  processingStatus: string;
   summary: string | null;
   youtubeVideoId: string | null;
 }

@@ -36,5 +36,6 @@ public sealed class FetchSourceToolTests : SqliteTestBase
 
         Assert.Equal(source.Id, result.Id);
         Assert.Equal("Source content here", result.Content);
+        Assert.Equal("Pending", result.ProcessingStatus);
     }
 }

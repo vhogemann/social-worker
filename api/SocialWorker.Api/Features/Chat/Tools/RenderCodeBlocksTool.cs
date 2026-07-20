@@ -47,7 +47,7 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, Re
     public override string Description =>
         "Renders code blocks (triple-backtick fences) in the current draft as syntax-highlighted images and attaches them. " +
         "Use when the user wants to post code as a visual image (Carbon-style). " +
-        "After rendering, the code fence is replaced with a ![code snippet](media://...) reference.";
+        "After rendering, the code fence is replaced with a compact ![code snippet](media://...) reference, which significantly reduces the post's character/word count and helps resolve character limit errors.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

@@ -18,7 +18,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<ChatRoundProcessor>();
         builder.Services.AddScoped<ChatService>();
         builder.Services.AddScoped<IChatTool, ReplaceEditorContentTool>();
-        builder.Services.AddScoped<IChatTool, ProposeStageTransitionTool>();
+        // builder.Services.AddScoped<IChatTool, ProposeStageTransitionTool>();
         builder.Services.AddScoped<IChatTool, ListSourcesTool>();
         builder.Services.AddScoped<IChatTool, FetchSourceTool>();
         builder.Services.AddScoped<IChatTool, ViewImageTool>();
@@ -30,7 +30,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<IChatTool, ImageSearchTool>();
         builder.Services.AddScoped<IChatTool, RenderCodeBlocksTool>();
         builder.Services.AddScoped<IChatTool, FormatValidatePlatformContentTool>();
-        builder.Services.AddScoped<IChatTool, GeneratePlatformVariantsTool>();
+        // builder.Services.AddScoped<IChatTool, GeneratePlatformVariantsTool>();
         builder.Services.AddScoped<IChatTool, SearchSourcesTool>();
         builder.Services.AddScoped<IChatTool, SetBlueskyReplyTargetTool>();
     }

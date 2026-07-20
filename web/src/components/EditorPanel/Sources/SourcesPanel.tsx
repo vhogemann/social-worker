@@ -196,7 +196,7 @@ export const SourcesPanel: React.FC = () => {
           canRetryTranscription={
             previewItem.kind === "source" &&
             previewItem.source.kind === "YouTube" &&
-            (previewDetail?.transcriptStatus || previewItem.source.transcriptStatus) !== "Processing"
+            (previewDetail?.processingStatus || previewItem.source.processingStatus) !== "Processing"
           }
           retryingTranscription={previewItem.kind === "source" && retryingSourceId === previewItem.source.id}
           onRetryTranscription={

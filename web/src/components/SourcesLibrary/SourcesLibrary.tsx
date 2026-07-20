@@ -348,7 +348,7 @@ export const SourcesLibrary: React.FC = () => {
               reference: selectedSource.reference,
               title: selectedSource.title,
               summary: selectedSource.summary,
-              transcriptStatus: selectedSource.transcriptStatus,
+              processingStatus: selectedSource.processingStatus,
               addedAt: selectedSource.addedAt
             },
             detail: detailItem,
@@ -356,7 +356,7 @@ export const SourcesLibrary: React.FC = () => {
           }}
           canRetryTranscription={
             selectedSource.kind === "YouTube" &&
-            (detailItem?.transcriptStatus || selectedSource.transcriptStatus) !== "Processing"
+            (detailItem?.processingStatus || selectedSource.processingStatus) !== "Processing"
           }
           retryingTranscription={retryingSourceId === selectedSource.id}
           onRetryTranscription={() => void handleRetryTranscription(selectedSource)}

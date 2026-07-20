@@ -54,7 +54,7 @@ public sealed class WebSearchTool : ChatToolBase<WebSearchArgs, WebSearchResult>
     }
 
     public override string Name => "web_search";
-    public override string Description => "Search the web for current information, facts, news, or articles.";
+    public override string Description => "Use this tool to retrieve up-to-date information, facts, news articles, or statistics from the live web. Call it whenever you need to check recent events.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

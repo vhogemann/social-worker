@@ -19,6 +19,7 @@ public sealed record FetchSourceResult(
     string Reference,
     string? Title,
     string? Content,
+    string ProcessingStatus,
     string? CanonicalUrl = null,
     string? CitationLabel = null,
     string? EmbedKind = null,
@@ -27,7 +28,7 @@ public sealed record FetchSourceResult(
 {
     public string ToDisplayText()
     {
-        return $"Fetched source {Id} ({Kind}): {Title ?? Reference}";
+        return $"Fetched source {Id} ({Kind}, status: {ProcessingStatus}): {Title ?? Reference}";
     }
 }
 
@@ -41,7 +42,7 @@ public sealed class FetchSourceTool : ChatToolBase<FetchSourceArgs, FetchSourceR
     }
 
     public override string Name => "fetch_source";
-    public override string Description => "Fetch the cached text content of a specific source by its Guid ID.";
+    public override string Description => "Fetch the full text content and metadata of a specific source by Guid ID. If processingStatus is not 'Complete', the content field is not yet populated.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {
@@ -96,6 +97,7 @@ public sealed class FetchSourceTool : ChatToolBase<FetchSourceArgs, FetchSourceR
             source.Reference,
             source.Title,
             source.Content,
+            source.ProcessingStatus.ToString(),
             links.CanonicalUrl,
             links.CitationLabel,
             links.EmbedKind,

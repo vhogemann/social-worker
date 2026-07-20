@@ -38,7 +38,7 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
     }
 
     public override string Name => "add_source";
-    public override string Description => "Add a source to this draft. Either provide a new URL/YouTube/File reference, or pass an existing sourceId (from search_sources) to link an existing source without duplicating it.";
+    public override string Description => "Add a supporting source to the draft. Either provide a source_id to link an existing library source, or specify kind and reference (absolute HTTP/HTTPS URL or filename) to create a new source.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

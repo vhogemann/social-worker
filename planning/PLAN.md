@@ -163,6 +163,7 @@ These should remain first-class and be kept current:
 ### Historical completed plans
  
 - [archive/AUTHENTICATION.md](archive/AUTHENTICATION.md)
+- [archive/TOOL_IMPROVEMENTS.md](archive/TOOL_IMPROVEMENTS.md)
 - [archive/BRAND_VOICE_PROMPTS.md](archive/BRAND_VOICE_PROMPTS.md)
 - [archive/CHAT_HISTORY_PERSISTENCE.md](archive/CHAT_HISTORY_PERSISTENCE.md)
 - [archive/CHAT_SERVICE_REFACTORING.md](archive/CHAT_SERVICE_REFACTORING.md)

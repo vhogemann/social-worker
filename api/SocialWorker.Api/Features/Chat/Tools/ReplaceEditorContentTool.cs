@@ -33,7 +33,7 @@ public sealed class ReplaceEditorContentTool : ChatToolBase<ReplaceEditorContent
     }
 
     public override string Name => "replace_editor_content";
-    public override string Description => "Replace the entire content of the markdown editor with the provided text.";
+    public override string Description => "Completely overwrites all existing content in the markdown editor with the provided text string. Use this when the entire document needs to be replaced.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

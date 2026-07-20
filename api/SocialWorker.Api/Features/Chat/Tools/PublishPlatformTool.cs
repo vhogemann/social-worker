@@ -42,7 +42,7 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
     }
 
     public override string Name => "publish";
-    public override string Description => "Triggers the publication of a drafted thread to a target platform. This is only allowed when the draft's platform variant is not already Sent.";
+    public override string Description => "Publishes the active saved draft thread to the specified platform. This action will fail if the variant is already Sent/published.";
     public override JsonElement Parameters => JsonDocument.Parse("""
     {
         "type": "object",

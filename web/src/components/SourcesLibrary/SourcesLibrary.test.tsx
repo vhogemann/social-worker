@@ -14,6 +14,7 @@ vi.mock("../../api/drafts", async (importOriginal) => {
     fetchSourceById: vi.fn(),
     linkSourceToDraft: vi.fn(),
     retrySourceTranscription: vi.fn(),
+    fetchSources: vi.fn().mockResolvedValue([]),
   };
 });
 
@@ -29,7 +30,7 @@ describe("SourcesLibrary", () => {
           reference: "https://example.com/one",
           title: "Climate Article One",
           summary: "This is a climate change article summary.",
-          transcriptStatus: "Pending",
+          processingStatus: "Pending",
           youtubeVideoId: null,
           addedAt: "2026-07-16T10:00:00Z"
         },
@@ -39,7 +40,7 @@ describe("SourcesLibrary", () => {
           reference: "https://youtube.com/watch?v=abc",
           title: "Climate Change Video",
           summary: "A video on global warming.",
-          transcriptStatus: "Complete",
+          processingStatus: "Complete",
           youtubeVideoId: "abc",
           addedAt: "2026-07-15T10:00:00Z"
         }
@@ -125,7 +126,7 @@ describe("SourcesLibrary", () => {
       reference: "https://example.com/one",
       title: "Climate Article One",
       summary: "This is a climate change article summary.",
-      transcriptStatus: "Pending",
+      processingStatus: "Pending",
       youtubeVideoId: null,
       addedAt: "2026-07-16T10:00:00Z"
     });

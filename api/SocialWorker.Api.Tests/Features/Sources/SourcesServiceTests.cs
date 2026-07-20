@@ -300,7 +300,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
             Reference = "https://youtube.com/watch?v=abc123xyz09",
             Title = "Video",
             Summary = "Transcript summary",
-            TranscriptStatus = TranscriptStatus.Processing,
+            ProcessingStatus = SourceProcessingStatus.Processing,
             YoutubeVideoId = "abc123xyz09"
         };
         db.Drafts.Add(draft);
@@ -312,7 +312,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
 
         var result = await service.GetSourceStatusAsync(userId, source.Id, CancellationToken.None);
 
-        Assert.Equal("Processing", result.TranscriptStatus);
+        Assert.Equal("Processing", result.ProcessingStatus);
         Assert.Equal("Transcript summary", result.Summary);
         Assert.Equal("abc123xyz09", result.YoutubeVideoId);
     }
@@ -330,7 +330,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
             Kind = SourceKind.YouTube,
             Reference = "https://www.youtube.com/watch?v=abc123xyz09",
             Title = "Video",
-            TranscriptStatus = TranscriptStatus.Failed,
+            ProcessingStatus = SourceProcessingStatus.Failed,
             Summary = "Previous failure",
             YoutubeVideoId = "abc123xyz09"
         };
@@ -349,14 +349,14 @@ public sealed class SourcesServiceTests : SqliteTestBase
             var service = TestServiceFactory.CreateSourcesService(db, scopeFactory: scopeFactory, queue: queue);
 
             var status = await service.RetrySourceTranscriptAsync(userId, source.Id, CancellationToken.None);
-            Assert.Equal("Pending", status.TranscriptStatus);
+            Assert.Equal("Pending", status.ProcessingStatus);
 
             using var queueReadCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var queuedJob = await queue.ReadAsync(queueReadCts.Token);
             await queuedJob.Work(CancellationToken.None);
 
             var updated = await db.Sources.FirstAsync(s => s.Id == source.Id);
-            Assert.Equal(TranscriptStatus.Complete, updated.TranscriptStatus);
+            Assert.Equal(SourceProcessingStatus.Complete, updated.ProcessingStatus);
             Assert.Equal("Full transcript body", updated.Content);
             Assert.Equal($"{source.Id}.json", updated.TranscriptPath);
         }
@@ -411,7 +411,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
 
             var source = await db.Sources.FirstAsync(s => s.Id == result.SourceId);
             Assert.Equal(SourceKind.YouTube, source.Kind);
-            Assert.Equal(TranscriptStatus.Complete, source.TranscriptStatus);
+            Assert.Equal(SourceProcessingStatus.Complete, source.ProcessingStatus);
             Assert.Equal("abc123xyz09", source.YoutubeVideoId);
             Assert.Equal("Full transcript body", source.Content);
             Assert.Equal($"{source.Id}.json", source.TranscriptPath);
@@ -483,7 +483,7 @@ public sealed class SourcesServiceTests : SqliteTestBase
 
             var source = await db.Sources.FirstAsync(s => s.Id == result.SourceId);
             Assert.Equal(SourceKind.YouTube, source.Kind);
-            Assert.Equal(TranscriptStatus.Complete, source.TranscriptStatus);
+            Assert.Equal(SourceProcessingStatus.Complete, source.ProcessingStatus);
             Assert.Equal("1olibnzyj4k", source.YoutubeVideoId);
             Assert.Equal("Full transcript body", source.Content);
             Assert.Equal($"{source.Id}.json", source.TranscriptPath);

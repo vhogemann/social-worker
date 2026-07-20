@@ -16,8 +16,7 @@ public sealed record SearchSourcesResultItem(
     string Title,
     string Kind,
     string? Preview,
-    string? Summary,
-    bool IsYoutube);
+    string? Summary);
 
 public sealed record SearchSourcesResult(IReadOnlyList<SearchSourcesResultItem> Items) : IChatToolResult
 {
@@ -44,7 +43,7 @@ public sealed class SearchSourcesTool : ChatToolBase<SearchSourcesArgs, SearchSo
     }
 
     public override string Name => "search_sources";
-    public override string Description => "Search the user's source library for existing sources by keyword. Returns sources NOT already linked to the active draft. Use this to find relevant sources before adding new ones, to avoid duplication.";
+    public override string Description => "Search your global source library for materials by keyword. Returns only sources NOT already linked to the active draft to avoid duplicates.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {
@@ -89,8 +88,7 @@ public sealed class SearchSourcesTool : ChatToolBase<SearchSourcesArgs, SearchSo
             s.Title ?? s.Reference,
             s.Kind,
             s.Summary?.Length > 200 ? s.Summary[..200] + "..." : s.Summary,
-            s.Summary,
-            string.Equals(s.Kind, "YouTube", StringComparison.OrdinalIgnoreCase))).ToList();
+            s.Summary)).ToList();
 
         return new SearchSourcesResult(items);
     }

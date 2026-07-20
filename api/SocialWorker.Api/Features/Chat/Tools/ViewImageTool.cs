@@ -50,7 +50,7 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolRes
     }
 
     public override string Name => "view_image";
-    public override string Description => "Fetch a specific image for visual inspection. Supports media://{guid}, file://{guid}, plain guid, or a direct http/https image URL (which will be imported first).";
+    public override string Description => "Fetches and displays a specific image asset for visual inspection. Accepts various identifiers including GUIDs, file paths, or direct HTTP/HTTPS URLs.";
     public override bool RequiresVision => true;
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""

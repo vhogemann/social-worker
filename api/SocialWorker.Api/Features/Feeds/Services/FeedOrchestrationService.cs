@@ -144,12 +144,12 @@ public sealed class FeedOrchestrationService
                     return;
                 }
 
-                if (currentSource.TranscriptStatus == TranscriptStatus.Complete)
+                if (currentSource.ProcessingStatus == SourceProcessingStatus.Complete)
                 {
                     break;
                 }
 
-                if (currentSource.TranscriptStatus == TranscriptStatus.Failed)
+                if (currentSource.ProcessingStatus == SourceProcessingStatus.Failed)
                 {
                     _logger.LogError("YouTube transcription failed for source {SourceId}.", sourceId);
                     draft.Status = DraftStatus.Failed;

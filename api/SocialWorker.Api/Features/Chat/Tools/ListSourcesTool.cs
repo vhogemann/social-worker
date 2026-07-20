@@ -19,6 +19,7 @@ public sealed record ListSourcesResultItem(
     string Kind,
     string Reference,
     string? Title,
+    string ProcessingStatus,
     string? CanonicalUrl = null,
     string? CitationLabel = null,
     string? EmbedKind = null,
@@ -42,7 +43,7 @@ public sealed record ListSourcesResult(IReadOnlyList<ListSourcesResultItem> Item
             return "No sources found for the active draft.";
         }
 
-        var lines = Items.Select(item => $"- {item.Id} ({item.Kind}): {item.Title ?? item.Reference}");
+        var lines = Items.Select(item => $"- {item.Id} ({item.Kind}, status: {item.ProcessingStatus}): {item.Title ?? item.Reference}");
         return string.Join("\n", lines);
     }
 }
@@ -57,7 +58,7 @@ public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, ListSourcesR
     }
 
     public override string Name => "list_sources";
-    public override string Description => "List all sources attached to the active draft (e.g. text notes or URLs parsed from the text).";
+    public override string Description => "List all sources attached to the active draft. Returns a structured list with source IDs, kinds, titles, processingStatus (Pending/Processing/Complete/Failed), and markdown citation/embed helpers. It does not return the full text content.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {
@@ -93,6 +94,7 @@ public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, ListSourcesR
                 s.Kind.ToString(),
                 s.Reference,
                 s.Title,
+                s.ProcessingStatus.ToString(),
                 links.CanonicalUrl,
                 links.CitationLabel,
                 links.EmbedKind,

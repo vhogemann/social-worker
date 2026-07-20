@@ -61,7 +61,7 @@ public sealed class ImageSearchTool : ChatToolBase<ImageSearchArgs, ImageSearchR
     }
 
     public override string Name => "image_search";
-    public override string Description => "Search the web for images and return compact candidate URLs. For visual inspection, import a candidate via add_image_source first, then call view_image with media://{guid}.";
+    public override string Description => "Search the web for images based on a given query and return candidate URLs for visual inspection.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

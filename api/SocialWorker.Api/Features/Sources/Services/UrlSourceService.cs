@@ -81,6 +81,7 @@ public sealed class UrlSourceService : IUrlSourceService
             Content = sourceContent,
             Summary = summary,
             YoutubeVideoId = _youTubeSourceService.TryExtractYouTubeVideoId(normalizedReference),
+            ProcessingStatus = sourceKind == SourceKind.YouTube ? SourceProcessingStatus.Pending : SourceProcessingStatus.Complete,
             AddedAt = DateTime.UtcNow
         };
 

@@ -1437,8 +1437,8 @@ public sealed class ChatServiceTests
         {
             var result = new List<ListSourcesResultItem>
             {
-                new(_sourceA, "Url", "https://example.com/a", "A"),
-                new(_sourceB, "File", "file://" + _sourceB, "B")
+                new(_sourceA, "Url", "https://example.com/a", "A", "Complete"),
+                new(_sourceB, "File", "file://" + _sourceB, "B", "Complete")
             };
             return Task.FromResult(new ToolExecutionResult(result));
         }
@@ -1462,7 +1462,7 @@ public sealed class ChatServiceTests
             using var doc = JsonDocument.Parse(argumentsJson);
             var id = Guid.Parse(doc.RootElement.GetProperty("id").GetString()!);
             FetchedIds.Add(id);
-            var result = new FetchSourceResult(id, "Url", "https://example.com", "title", "content");
+            var result = new FetchSourceResult(id, "Url", "https://example.com", "title", "content", "Complete");
             return Task.FromResult(new ToolExecutionResult(result));
         }
     }

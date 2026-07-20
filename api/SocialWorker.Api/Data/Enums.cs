@@ -23,7 +23,7 @@ public enum SourceKind
     YouTube
 }
 
-public enum TranscriptStatus
+public enum SourceProcessingStatus
 {
     Pending,
     Processing,

@@ -42,7 +42,7 @@ public sealed class SetBlueskyReplyTargetTool : ChatToolBase<SetBlueskyReplyTarg
 
     public override string Name => "set_bluesky_reply_target";
 
-    public override string Description => "Set the active draft's Bluesky reply target from a strict URL in the form https://bsky.app/profile/<handle>/post/<rkey>. Once set, the reply target cannot be changed.";
+    public override string Description => "Sets the mandatory reply target for the current draft using a specific Bluesky post URL. This locks the reply context; it cannot be changed afterward.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

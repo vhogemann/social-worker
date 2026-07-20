@@ -73,7 +73,7 @@ export function useSourcesPanelManager() {
       return;
     }
 
-    const status = previewDetail?.transcriptStatus || previewItem.source.transcriptStatus;
+    const status = previewDetail?.processingStatus || previewItem.source.processingStatus;
     if (status !== "Pending" && status !== "Processing") {
       return;
     }
@@ -97,7 +97,7 @@ export function useSourcesPanelManager() {
           return {
             ...current,
             summary: result.summary,
-            transcriptStatus: result.transcriptStatus,
+            processingStatus: result.processingStatus,
             youtubeVideoId: result.youtubeVideoId,
           };
         });
@@ -130,7 +130,7 @@ export function useSourcesPanelManager() {
 
         return {
           ...current,
-          transcriptStatus: status.transcriptStatus,
+          processingStatus: status.processingStatus,
           summary: status.summary,
           youtubeVideoId: status.youtubeVideoId,
         };
