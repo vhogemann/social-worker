@@ -86,6 +86,10 @@ social-worker/
 
 When performing refactors, apply these criteria unless the task explicitly says otherwise:
 
+- **Make invalid states unrepresentable**: Restrict direct or invalid object construction. Encapsulate validation and invariant checks in static factory methods on domain entities (e.g. `Source.CreateUrl`, `Source.CreateFile`, `LlmProvider.Create`, `FeedSubscription.Create`, `Draft.Create`) so invalid states cannot be instantiated.
+- **Static factory methods for operation results**: Prefer descriptive static factory methods on strongly typed records over raw constructor calls or positional tuple returns (e.g. `ToolExecutionResult.Success(...)` / `ToolExecutionResult.Error(...)`, `ProviderOperationResult<T>.Ok(...)` / `NotFound()` / `Fail(...)`).
+- **DTO secondary constructor encapsulation**: Add secondary constructors to DTO records that accept domain entities directly (e.g. `LlmProviderDto(LlmProvider p, ModelCapabilities caps)`), hiding property mapping and null-coalescing logic from caller endpoints and services.
+- **Parameter reduction & command/context objects**: Avoid high-arity parameter lists (3+ parameters). Group parameter groups into cohesive command objects (e.g. `UploadMediaCommand`), context records (e.g. `ToolExecutionContext`), or add request-based factory overloads (e.g. `LlmProvider.Create(CreateProviderRequest req)`).
 - **Single responsibility split**: if one class handles API calls + content parsing + persistence + orchestration, split into focused services.
 - **Thin orchestrator pattern**: keep top-level feature classes (for example, publishers/tools/endpoints) as coordinators that delegate to extracted services.
 - **Typed models over dynamic JSON**: do not use `JsonObject`, `JsonNode`, or `JsonArray` in feature logic when a stable shape exists. Create explicit request/response/domain models instead.
