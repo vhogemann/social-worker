@@ -10,22 +10,19 @@ namespace SocialWorker.Api.Features.Sources;
 
 public sealed class SourceTranscriptionService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly BackgroundJobQueue _queue;
 
-    public SourceTranscriptionService(IServiceScopeFactory scopeFactory, BackgroundJobQueue queue)
+    public SourceTranscriptionService(BackgroundJobQueue queue)
     {
-        _scopeFactory = scopeFactory;
         _queue = queue;
     }
 
     public void QueueTranscriptExtraction(Guid sourceId, Guid draftId)
     {
-        _queue.Enqueue(new BackgroundJobQueue.Job("youtube-transcript", async ct =>
+        _queue.EnqueueScoped("youtube-transcript", async (sp, ct) =>
         {
-            using var scope = _scopeFactory.CreateScope();
-            var scopedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var transcriber = scope.ServiceProvider.GetRequiredService<ITranscriptExtractionService>();
+            var scopedDb = sp.GetRequiredService<AppDbContext>();
+            var transcriber = sp.GetRequiredService<ITranscriptExtractionService>();
 
             var source = await scopedDb.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
             if (source == null)
@@ -54,7 +51,7 @@ public sealed class SourceTranscriptionService
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     source.Content = text;
-                    var summarizer = scope.ServiceProvider.GetService<SummarizationService>();
+                    var summarizer = sp.GetService<SummarizationService>();
                     if (summarizer != null)
                     {
                         try
@@ -84,6 +81,6 @@ public sealed class SourceTranscriptionService
                 source.Summary = ex.Message;
                 await scopedDb.SaveChangesAsync(ct);
             }
-        }));
+        });
     }
 }

@@ -17,13 +17,11 @@ public sealed class SourceReconciliationService
     private static readonly Regex FileRegex = new(@"file://([0-9a-fA-F\-]{36})", RegexOptions.Compiled);
 
     private readonly AppDbContext _db;
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly BackgroundJobQueue _queue;
 
-    public SourceReconciliationService(AppDbContext db, IServiceScopeFactory scopeFactory, BackgroundJobQueue queue)
+    public SourceReconciliationService(AppDbContext db, BackgroundJobQueue queue)
     {
         _db = db;
-        _scopeFactory = scopeFactory;
         _queue = queue;
     }
 
@@ -99,11 +97,10 @@ public sealed class SourceReconciliationService
             }
             await _db.SaveChangesAsync();
 
-            _queue.Enqueue(new BackgroundJobQueue.Job("url-scrape", async ct =>
+            _queue.EnqueueScoped("url-scrape", async (sp, ct) =>
             {
-                using var scope = _scopeFactory.CreateScope();
-                var scopedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                var scopedScraper = scope.ServiceProvider.GetRequiredService<WebScraperService>();
+                var scopedDb = sp.GetRequiredService<AppDbContext>();
+                var scopedScraper = sp.GetRequiredService<WebScraperService>();
 
                 foreach (var ls in loadingSources)
                 {
@@ -134,7 +131,7 @@ public sealed class SourceReconciliationService
                     d.UpdatedAt = DateTime.UtcNow;
                 }
                 await scopedDb.SaveChangesAsync(ct);
-            }));
+            });
         }
     }
 }

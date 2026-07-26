@@ -16,24 +16,21 @@ namespace SocialWorker.Api.Features.Drafts;
 
 public sealed class DraftChatSummaryService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly BackgroundJobQueue _queue;
 
-    public DraftChatSummaryService(IServiceScopeFactory scopeFactory, BackgroundJobQueue queue)
+    public DraftChatSummaryService(BackgroundJobQueue queue)
     {
-        _scopeFactory = scopeFactory;
         _queue = queue;
     }
 
     public void TriggerBackgroundSummarization(Guid userId, Guid draftId, string chatHistoryJson)
     {
-        _queue.Enqueue(new BackgroundJobQueue.Job("chat-summary", async ct =>
+        _queue.EnqueueScoped("chat-summary", async (sp, ct) =>
         {
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var adapter = scope.ServiceProvider.GetRequiredService<ILlmProviderAdapter>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DraftsService>>();
-            var providerService = scope.ServiceProvider.GetRequiredService<LlmProviderService>();
+            var db = sp.GetRequiredService<AppDbContext>();
+            var adapter = sp.GetRequiredService<ILlmProviderAdapter>();
+            var logger = sp.GetRequiredService<ILogger<DraftsService>>();
+            var providerService = sp.GetRequiredService<LlmProviderService>();
 
             var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
             if (user == null) return;
@@ -167,6 +164,6 @@ public sealed class DraftChatSummaryService
                     logger.LogInformation("Compaction completed for draft {DraftId}. Summary covers {SummarizedCount} messages, raw history trimmed to {TailCount} messages.", draftId, messagesToSummarize, tailMessages.Count);
                 }
             }
-        }));
+        });
     }
 }
