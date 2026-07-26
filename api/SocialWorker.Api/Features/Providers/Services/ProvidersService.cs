@@ -36,60 +36,35 @@ public class ProvidersService
         foreach (var p in rawProviders)
         {
             var caps = await _probe.GetCapabilitiesAsync(p);
-            providers.Add(new ProviderModels.LlmProviderDto(
-                p.Id,
-                p.Name,
-                p.ProviderType,
-                p.BaseUrl,
-                !string.IsNullOrEmpty(p.ApiKey),
-                p.Model,
-                p.ContextWindowTokens ?? caps.ContextWindowTokens,
-                p.IsDefault,
-                p.IsActive,
-                caps.SupportsVision,
-                caps.SupportsTools
-            ));
+            providers.Add(new ProviderModels.LlmProviderDto(p, caps));
         }
 
         return providers;
     }
 
-    public async Task<(ProviderModels.LlmProviderDto? Dto, string? Error)> CreateProviderAsync(ProviderModels.CreateProviderRequest req, CancellationToken ct = default)
+    public async Task<ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>> CreateProviderAsync(ProviderModels.CreateProviderRequest req, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.ProviderType) ||
             string.IsNullOrWhiteSpace(req.BaseUrl) || string.IsNullOrWhiteSpace(req.Model))
         {
-            return (null, "Name, ProviderType, BaseUrl, and Model are required.");
+            return ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>.Fail("Name, ProviderType, BaseUrl, and Model are required.");
         }
 
         var type = req.ProviderType;
         if (type != "OpenRouter" && type != "Ollama")
         {
-            return (null, "ProviderType must be OpenRouter or Ollama.");
+            return ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>.Fail("ProviderType must be OpenRouter or Ollama.");
         }
 
         var nameExists = await _db.LlmProviders.AnyAsync(p => p.Name.ToLower() == req.Name.ToLower(), ct);
         if (nameExists)
         {
-            return (null, "A provider with this name already exists.");
+            return ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>.Fail("A provider with this name already exists.");
         }
 
         var isFirst = !await _db.LlmProviders.AnyAsync(ct);
 
-        var provider = new LlmProvider
-        {
-            Id = Guid.NewGuid(),
-            Name = req.Name,
-            ProviderType = type,
-            BaseUrl = req.BaseUrl,
-            ApiKey = req.ApiKey ?? "",
-            Model = req.Model,
-            ContextWindowTokens = req.ContextWindowTokens,
-            IsDefault = isFirst,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+        var provider = LlmProvider.Create(req, isFirst);
 
         var caps = await _probe.GetCapabilitiesAsync(provider);
         provider.ContextWindowTokens ??= caps.ContextWindowTokens;
@@ -97,27 +72,16 @@ public class ProvidersService
         _db.LlmProviders.Add(provider);
         await _db.SaveChangesAsync(ct);
 
-        return (new ProviderModels.LlmProviderDto(
-            provider.Id,
-            provider.Name,
-            provider.ProviderType,
-            provider.BaseUrl,
-            !string.IsNullOrEmpty(provider.ApiKey),
-            provider.Model,
-            provider.ContextWindowTokens,
-            provider.IsDefault,
-            provider.IsActive,
-            caps.SupportsVision,
-            caps.SupportsTools
-        ), null);
+        var dto = new ProviderModels.LlmProviderDto(provider, caps);
+        return ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>.Ok(dto);
     }
 
-    public async Task<(ProviderModels.LlmProviderDto? Dto, string? Error, bool IsNotFound)> UpdateProviderAsync(Guid id, ProviderModels.UpdateProviderRequest req, CancellationToken ct = default)
+    public async Task<ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>> UpdateProviderAsync(Guid id, ProviderModels.UpdateProviderRequest req, CancellationToken ct = default)
     {
         var provider = await _db.LlmProviders.FindAsync(new object[] { id }, ct);
         if (provider == null)
         {
-            return (null, null, true);
+            return ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>.NotFound();
         }
 
         if (req.Name != null)
@@ -125,7 +89,7 @@ public class ProvidersService
             var nameExists = await _db.LlmProviders.AnyAsync(p => p.Id != id && p.Name.ToLower() == req.Name.ToLower(), ct);
             if (nameExists)
             {
-                return (null, "A provider with this name already exists.", false);
+                return ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>.Fail("A provider with this name already exists.");
             }
             provider.Name = req.Name;
         }
@@ -134,7 +98,7 @@ public class ProvidersService
         {
             if (req.ProviderType != "OpenRouter" && req.ProviderType != "Ollama")
             {
-                return (null, "ProviderType must be OpenRouter or Ollama.", false);
+                return ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>.Fail("ProviderType must be OpenRouter or Ollama.");
             }
             provider.ProviderType = req.ProviderType;
         }
@@ -163,7 +127,7 @@ public class ProvidersService
         {
             if (!req.IsActive.Value && provider.IsDefault)
             {
-                return (null, "Cannot deactivate the default provider.", false);
+                return ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>.Fail("Cannot deactivate the default provider.");
             }
             provider.IsActive = req.IsActive.Value;
         }
@@ -181,7 +145,7 @@ public class ProvidersService
             }
             else if (provider.IsDefault)
             {
-                return (null, "Cannot unset this provider as default directly. Set another provider as default instead.", false);
+                return ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>.Fail("Cannot unset this provider as default directly. Set another provider as default instead.");
             }
         }
 
@@ -194,38 +158,27 @@ public class ProvidersService
         provider.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        return (new ProviderModels.LlmProviderDto(
-            provider.Id,
-            provider.Name,
-            provider.ProviderType,
-            provider.BaseUrl,
-            !string.IsNullOrEmpty(provider.ApiKey),
-            provider.Model,
-            provider.ContextWindowTokens,
-            provider.IsDefault,
-            provider.IsActive,
-            caps.SupportsVision,
-            caps.SupportsTools
-        ), null, false);
+        var dto = new ProviderModels.LlmProviderDto(provider, caps);
+        return ProviderModels.ProviderOperationResult<ProviderModels.LlmProviderDto>.Ok(dto);
     }
 
-    public async Task<(bool Success, string? Error, bool IsNotFound)> DeleteProviderAsync(Guid id, CancellationToken ct = default)
+    public async Task<ProviderModels.ProviderOperationResult<bool>> DeleteProviderAsync(Guid id, CancellationToken ct = default)
     {
         var provider = await _db.LlmProviders.FindAsync(new object[] { id }, ct);
         if (provider == null)
         {
-            return (false, null, true);
+            return ProviderModels.ProviderOperationResult<bool>.NotFound();
         }
 
         if (provider.IsDefault)
         {
-            return (false, "Cannot delete the default provider.", false);
+            return ProviderModels.ProviderOperationResult<bool>.Fail("Cannot delete the default provider.");
         }
 
         _db.LlmProviders.Remove(provider);
         await _db.SaveChangesAsync(ct);
 
-        return (true, null, false);
+        return ProviderModels.ProviderOperationResult<bool>.Ok(true);
     }
 
     public async Task<ProviderModels.TestProviderResponse> TestProviderConnectionAsync(ProviderModels.TestProviderRequest req, CancellationToken ct = default)
@@ -237,15 +190,14 @@ public class ProvidersService
 
         try
         {
-            var payload = new
+            var payload = new OpenAiModels.ChatCompletionRequest
             {
-                model = req.Model,
-                messages = new[]
+                Model = req.Model,
+                Stream = false,
+                Messages = new List<OpenAiModels.OpenAiMessage>
                 {
-                    new { role = "user", content = "ping" }
-                },
-                max_tokens = 5,
-                stream = false
+                    new OpenAiModels.OpenAiMessage { Role = "user", Content = "ping" }
+                }
             };
 
             var json = JsonSerializer.Serialize(payload);
@@ -265,14 +217,7 @@ public class ProvidersService
             var response = await _http.SendAsync(request, cts.Token);
             if (response.IsSuccessStatusCode)
             {
-                var tempProvider = new LlmProvider
-                {
-                    ProviderType = req.ProviderType,
-                    BaseUrl = req.BaseUrl,
-                    ApiKey = req.ApiKey,
-                    Model = req.Model,
-                    ContextWindowTokens = req.ContextWindowTokens
-                };
+                var tempProvider = LlmProvider.Create("temp", req.ProviderType, req.BaseUrl, req.Model, req.ApiKey, req.ContextWindowTokens);
                 var caps = await _probe.GetCapabilitiesAsync(tempProvider);
                 return new ProviderModels.TestProviderResponse(true, null, req.ContextWindowTokens ?? caps.ContextWindowTokens);
             }

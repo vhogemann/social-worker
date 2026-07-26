@@ -1,10 +1,31 @@
 using System;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SocialWorker.Api.Features.Chat.Services;
 
 public sealed class ChatStreamWriter
 {
+    public sealed record EmptyStreamObject();
+
+    public sealed record StreamTokenUsage(
+        [property: JsonPropertyName("promptTokens")] int PromptTokens = 0,
+        [property: JsonPropertyName("completionTokens")] int CompletionTokens = 0);
+
+    public sealed record ToolCallEventPayload(
+        [property: JsonPropertyName("toolCallId")] string ToolCallId,
+        [property: JsonPropertyName("toolName")] string ToolName,
+        [property: JsonPropertyName("args")] object Args);
+
+    public sealed record ToolResultEventPayload(
+        [property: JsonPropertyName("toolCallId")] string ToolCallId,
+        [property: JsonPropertyName("result")] object Result);
+
+    public sealed record StepFinishEventPayload(
+        [property: JsonPropertyName("finishReason")] string FinishReason,
+        [property: JsonPropertyName("usage")] StreamTokenUsage Usage,
+        [property: JsonPropertyName("isContinued")] bool IsContinued);
+
     public string MessageId(string? messageId = null)
     {
         var effectiveMessageId = string.IsNullOrWhiteSpace(messageId)
@@ -21,36 +42,24 @@ public sealed class ChatStreamWriter
 
     public string ToolCall(string id, string name, string argsJson)
     {
-        var obj = new
-        {
-            toolCallId = id,
-            toolName = name,
-            args = string.IsNullOrEmpty(argsJson)
-                ? (object)new { }
-                : JsonDocument.Parse(argsJson).RootElement.Clone(),
-        };
-        return "9:" + JsonSerializer.Serialize(obj) + "\n";
+        object argsObj = string.IsNullOrEmpty(argsJson)
+            ? new EmptyStreamObject()
+            : JsonDocument.Parse(argsJson).RootElement.Clone();
+
+        var payload = new ToolCallEventPayload(id, name, argsObj);
+        return "9:" + JsonSerializer.Serialize(payload) + "\n";
     }
 
     public string ToolResult(string id, object result)
     {
-        var obj = new
-        {
-            toolCallId = id,
-            result = result
-        };
-        return "a:" + JsonSerializer.Serialize(obj) + "\n";
+        var payload = new ToolResultEventPayload(id, result);
+        return "a:" + JsonSerializer.Serialize(payload) + "\n";
     }
 
     public string StepFinish(string finishReason, bool isContinued)
     {
-        var obj = new
-        {
-            finishReason,
-            usage = new { promptTokens = 0, completionTokens = 0 },
-            isContinued,
-        };
-        return "e:" + JsonSerializer.Serialize(obj) + "\n";
+        var payload = new StepFinishEventPayload(finishReason, new StreamTokenUsage(), isContinued);
+        return "e:" + JsonSerializer.Serialize(payload) + "\n";
     }
 
     public string StreamDone()

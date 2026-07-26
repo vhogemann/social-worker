@@ -48,7 +48,7 @@ public sealed class ReplaceEditorContentTool : ChatToolBase<ReplaceEditorContent
         }
         """).RootElement.Clone();
 
-    public override async Task<ReplaceEditorContentResult> ExecuteAsync(ReplaceEditorContentArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<ReplaceEditorContentResult> ExecuteAsync(ReplaceEditorContentArgs args, Models.ToolExecutionContext context)
     {
         var markdown = args.Markdown;
 
@@ -56,17 +56,17 @@ public sealed class ReplaceEditorContentTool : ChatToolBase<ReplaceEditorContent
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var draftsService = scope.ServiceProvider.GetRequiredService<DraftsService>();
 
-        var draft = draftId.HasValue
-            ? await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
-                ?? throw new InvalidOperationException($"Draft {draftId.Value} not found or access denied")
-            : await db.Drafts.OrderByDescending(d => d.UpdatedAt).FirstOrDefaultAsync(d => d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
+        var draft = context.DraftId.HasValue
+            ? await db.Drafts.FirstOrDefaultAsync(d => d.Id == context.DraftId.Value && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken)
+                ?? throw new InvalidOperationException($"Draft {context.DraftId.Value} not found or access denied")
+            : await db.Drafts.OrderByDescending(d => d.UpdatedAt).FirstOrDefaultAsync(d => d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken)
                 ?? throw new InvalidOperationException("No active draft found");
 
         draft.Content = markdown;
         draft.UpdatedAt = DateTime.UtcNow;
 
-        await draftsService.ReconcileSegmentsAsync(draft, markdown, ct);
-        await db.SaveChangesAsync(ct);
+        await draftsService.ReconcileSegmentsAsync(draft, markdown, context.CancellationToken);
+        await db.SaveChangesAsync(context.CancellationToken);
 
         return new ReplaceEditorContentResult(true, markdown.Length, markdown);
     }

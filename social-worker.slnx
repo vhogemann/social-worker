@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/api/">
+    <Project Path="api/SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj" />
+    <Project Path="api/SocialWorker.Api/SocialWorker.Api.csproj" />
+  </Folder>
+</Solution>

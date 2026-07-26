@@ -57,7 +57,7 @@ public sealed class FetchSourceTool : ChatToolBase<FetchSourceArgs, FetchSourceR
         }
         """).RootElement.Clone();
 
-    public override async Task<FetchSourceResult> ExecuteAsync(FetchSourceArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<FetchSourceResult> ExecuteAsync(FetchSourceArgs args, Models.ToolExecutionContext context)
     {
         var sourceIdStr = args.Id;
         if (sourceIdStr.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
@@ -77,14 +77,14 @@ public sealed class FetchSourceTool : ChatToolBase<FetchSourceArgs, FetchSourceR
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var source = await db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        var source = await db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, context.CancellationToken);
         if (source == null)
         {
             throw new InvalidOperationException($"Source {sourceId} not found");
         }
 
         var owned = await db.DraftSources
-            .AnyAsync(ds => ds.SourceId == source.Id && ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted, ct);
+            .AnyAsync(ds => ds.SourceId == source.Id && ds.Draft.UserId == context.UserId && ds.Draft.Status != DraftStatus.Deleted, context.CancellationToken);
         if (!owned)
         {
             throw new UnauthorizedAccessException("Access denied to target source");

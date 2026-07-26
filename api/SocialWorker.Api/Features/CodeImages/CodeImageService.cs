@@ -38,14 +38,7 @@ public sealed class CodeImageService
             : $"```{block.Language}\n{block.Code}\n```";
 
         using var stream = new MemoryStream(pngBytes);
-        return await _media.UploadMediaAsync(
-            userId,
-            draftId,
-            fileName,
-            "image/png",
-            stream,
-            ct,
-            altText: codeFence,
-            markdownLinkText: markdownLinkText);
+        var cmd = new Media.UploadMediaCommand(userId, draftId, fileName, "image/png", stream, AltText: codeFence, MarkdownLinkText: markdownLinkText);
+        return await _media.UploadMediaAsync(cmd, ct);
     }
 }

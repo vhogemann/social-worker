@@ -64,7 +64,7 @@ public sealed class ChatSlashCommandService
                 return "Usage: /search <query>. Example: /search latest Bluesky character limit";
             }
 
-            var toolArgs = JsonSerializer.Serialize(new { query = args });
+            var toolArgs = JsonSerializer.Serialize(new SearchToolQueryArgs(args));
             var result = await executeTool("web_search", toolArgs, draftId, userId, ct);
             return result.ToDisplayText();
         }
@@ -76,11 +76,14 @@ public sealed class ChatSlashCommandService
                 return "Usage: /search-image <query>. Example: /search-image pineapple product shots";
             }
 
-            var toolArgs = JsonSerializer.Serialize(new { query = args });
+            var toolArgs = JsonSerializer.Serialize(new SearchToolQueryArgs(args));
             var result = await executeTool("image_search", toolArgs, draftId, userId, ct);
             return result.ToDisplayText();
         }
 
         return "Unknown slash command. Use /help to see available commands.";
     }
+
+    private sealed record SearchToolQueryArgs(
+        [property: System.Text.Json.Serialization.JsonPropertyName("query")] string Query);
 }

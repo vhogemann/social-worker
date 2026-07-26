@@ -66,7 +66,7 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolRes
         }
         """).RootElement.Clone();
 
-    public override async Task<ViewImageToolResult> ExecuteAsync(ViewImageArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<ViewImageToolResult> ExecuteAsync(ViewImageArgs args, Models.ToolExecutionContext context)
     {
         if (string.IsNullOrWhiteSpace(args.Id))
         {
@@ -101,7 +101,7 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolRes
 
         if (isHttpUrl)
         {
-            if (!draftId.HasValue)
+            if (!context.DraftId.HasValue)
             {
                 throw new ArgumentException("Viewing an image URL requires an active draft context.");
             }
@@ -109,17 +109,17 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolRes
             var mediaService = scope.ServiceProvider.GetRequiredService<MediaService>();
             var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
             using var client = httpClientFactory.CreateClient();
-            var importResult = await mediaService.ImportMediaFromUrlAsync(userId, draftId.Value, imageIdStr, client, ct);
+            var importResult = await mediaService.ImportMediaFromUrlAsync(context.UserId, context.DraftId.Value, imageIdStr, client, context.CancellationToken);
             imageId = importResult.Id;
         }
 
-        var asset = await db.MediaAssets.FirstOrDefaultAsync(m => m.Id == imageId, ct);
+        var asset = await db.MediaAssets.FirstOrDefaultAsync(m => m.Id == imageId, context.CancellationToken);
         if (asset == null)
         {
             throw new InvalidOperationException($"Image {imageId} not found");
         }
 
-        var owned = await db.Drafts.AnyAsync(d => d.Id == asset.DraftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+        var owned = await db.Drafts.AnyAsync(d => d.Id == asset.DraftId && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
         if (!owned)
         {
             throw new UnauthorizedAccessException("Access denied to target image");
@@ -180,6 +180,6 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolRes
             }
         };
 
-        return new ToolExecutionResult(result, extraMessages);
+        return ToolExecutionResult.Success(result, extraMessages);
     }
 }

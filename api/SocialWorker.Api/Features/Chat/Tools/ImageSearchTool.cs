@@ -76,14 +76,14 @@ public sealed class ImageSearchTool : ChatToolBase<ImageSearchArgs, ImageSearchR
         }
         """).RootElement.Clone();
 
-    public override async Task<ImageSearchResult> ExecuteAsync(ImageSearchArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<ImageSearchResult> ExecuteAsync(ImageSearchArgs args, Models.ToolExecutionContext context)
     {
         if (string.IsNullOrWhiteSpace(args.Query))
         {
             return new ImageSearchResult(string.Empty, Array.Empty<ImageSearchResultItem>(), Array.Empty<string>(), "No image search query provided.");
         }
 
-        var results = await _searchEngine.SearchImagesAsync(args.Query, ct);
+        var results = await _searchEngine.SearchImagesAsync(args.Query, context.CancellationToken);
         if (results == null || results.Count == 0)
         {
             return new ImageSearchResult(args.Query, Array.Empty<ImageSearchResultItem>(), Array.Empty<string>(), "No image search results found.");

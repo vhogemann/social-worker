@@ -22,7 +22,7 @@ public static class AuthEndpoint
             var result = await auth.LoginAsync(req.EmailOrUsername, req.Password, ct);
             if (result == null)
             {
-                return Results.Json(new { error = "Invalid credentials" }, statusCode: 401);
+                return Results.Json(new ApiErrorResponse("Invalid credentials"), statusCode: 401);
             }
             return Results.Ok(result);
         });
@@ -32,7 +32,7 @@ public static class AuthEndpoint
             var result = await auth.RefreshAsync(req.RefreshToken, ct);
             if (result == null)
             {
-                return Results.Json(new { error = "Invalid or expired refresh token" }, statusCode: 401);
+                return Results.Json(new ApiErrorResponse("Invalid or expired refresh token"), statusCode: 401);
             }
             return Results.Ok(result);
         });

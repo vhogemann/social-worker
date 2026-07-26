@@ -176,7 +176,7 @@ public sealed class ChatService
         Guid userId,
         CancellationToken ct)
     {
-        return await _toolExecutor.ExecuteAsync(name, argumentsJson, draftId, userId, ct);
+        return await _toolExecutor.ExecuteAsync(name, argumentsJson, new ToolExecutionContext(draftId, userId, ct));
     }
 
 }

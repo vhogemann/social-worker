@@ -57,9 +57,9 @@ public sealed class SetBlueskyReplyTargetTool : ChatToolBase<SetBlueskyReplyTarg
         }
         """).RootElement.Clone();
 
-    public override async Task<SetBlueskyReplyTargetToolResult> ExecuteAsync(SetBlueskyReplyTargetArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<SetBlueskyReplyTargetToolResult> ExecuteAsync(SetBlueskyReplyTargetArgs args, Models.ToolExecutionContext context)
     {
-        if (!draftId.HasValue)
+        if (!context.DraftId.HasValue)
         {
             return new SetBlueskyReplyTargetToolResult(false, "No active draft context.", Error: "No active draft context.");
         }
@@ -68,7 +68,7 @@ public sealed class SetBlueskyReplyTargetTool : ChatToolBase<SetBlueskyReplyTarg
         var resolver = scope.ServiceProvider.GetRequiredService<IBlueskyReplyTargetResolver>();
         var draftsService = scope.ServiceProvider.GetRequiredService<DraftsService>();
 
-        var resolution = await resolver.ResolveAsync(args.Url, ct);
+        var resolution = await resolver.ResolveAsync(args.Url, context.CancellationToken);
         if (!resolution.Success)
         {
             return new SetBlueskyReplyTargetToolResult(false, "Could not set Bluesky reply target.", Error: resolution.Error ?? "Failed to resolve Bluesky post.");
@@ -77,8 +77,8 @@ public sealed class SetBlueskyReplyTargetTool : ChatToolBase<SetBlueskyReplyTarg
         try
         {
             var updatedDraft = await draftsService.SetDraftBlueskyReplyTargetAsync(
-                userId,
-                draftId.Value,
+                context.UserId,
+                context.DraftId.Value,
                 resolution.ReplyRootUri,
                 resolution.ReplyRootCid,
                 resolution.ReplyParentUri,
@@ -87,7 +87,7 @@ public sealed class SetBlueskyReplyTargetTool : ChatToolBase<SetBlueskyReplyTarg
                 resolution.ReplyParentAuthor,
                 resolution.ReplyParentText,
                 resolution.ReplyParentAvatarUrl,
-                ct);
+                context.CancellationToken);
 
             return new SetBlueskyReplyTargetToolResult(
                 true,

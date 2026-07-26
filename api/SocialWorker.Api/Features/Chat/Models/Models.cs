@@ -27,6 +27,33 @@ public static class ChatModels
         public string Type { get; set; } = "text";
         public string? Text { get; set; }
     }
+
+    public sealed class ChatHistoryPayload
+    {
+        [JsonPropertyName("messages")]
+        public List<StoredChatMessage> Messages { get; set; } = new();
+    }
+
+    public sealed class StoredChatMessage
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+
+        [JsonPropertyName("role")]
+        public string Role { get; set; } = "";
+
+        [JsonPropertyName("content")]
+        public List<StoredChatPart> Content { get; set; } = new();
+    }
+
+    public sealed class StoredChatPart
+    {
+        [JsonPropertyName("type")]
+        public string Type { get; set; } = "text";
+
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = "";
+    }
 }
 
 public static class OpenAiModels

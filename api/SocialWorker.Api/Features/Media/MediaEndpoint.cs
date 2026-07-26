@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Media;
 
@@ -41,7 +42,8 @@ public static class MediaEndpoint
             try
             {
                 using var stream = file.OpenReadStream();
-                var result = await mediaService.UploadMediaAsync(userId.Value, draftId, file.FileName, mimeType, stream, ct);
+                var cmd = new UploadMediaCommand(userId.Value, draftId, file.FileName, mimeType, stream);
+                var result = await mediaService.UploadMediaAsync(cmd, ct);
                 return Results.Ok(new
                 {
                     id = result.Id,
@@ -177,7 +179,7 @@ public static class MediaEndpoint
             try
             {
                 await mediaService.DeleteMediaAsync(userId.Value, id, ct);
-                return Results.Ok(new { success = true });
+                return Results.Ok(new ApiSuccessResponse(true));
             }
             catch (KeyNotFoundException)
             {

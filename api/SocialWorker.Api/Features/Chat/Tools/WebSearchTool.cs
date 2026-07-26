@@ -69,14 +69,14 @@ public sealed class WebSearchTool : ChatToolBase<WebSearchArgs, WebSearchResult>
         }
         """).RootElement.Clone();
 
-    public override async Task<WebSearchResult> ExecuteAsync(WebSearchArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<WebSearchResult> ExecuteAsync(WebSearchArgs args, Models.ToolExecutionContext context)
     {
         if (string.IsNullOrWhiteSpace(args.Query))
         {
             return new WebSearchResult(string.Empty, Array.Empty<string>(), Array.Empty<WebSearchResultItem>(), "No search query provided.");
         }
 
-        var results = await _searchEngine.SearchAsync(args.Query, ct);
+        var results = await _searchEngine.SearchAsync(args.Query, context.CancellationToken);
         if (results == null || results.Count == 0)
         {
             return new WebSearchResult(args.Query, Array.Empty<string>(), Array.Empty<WebSearchResultItem>(), "No search results found.");

@@ -62,7 +62,7 @@ public sealed class SearchSourcesTool : ChatToolBase<SearchSourcesArgs, SearchSo
         }
         """).RootElement.Clone();
 
-    public override async Task<SearchSourcesResult> ExecuteAsync(SearchSourcesArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<SearchSourcesResult> ExecuteAsync(SearchSourcesArgs args, Models.ToolExecutionContext context)
     {
         var query = args.Query?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(query))
@@ -76,12 +76,12 @@ public sealed class SearchSourcesTool : ChatToolBase<SearchSourcesArgs, SearchSo
         var sourcesService = scope.ServiceProvider.GetRequiredService<SourcesService>();
 
         var result = await sourcesService.SearchSourcesAsync(
-            userId,
+            context.UserId,
             query,
             page: 1,
             pageSize: limit,
-            ct,
-            excludeDraftId: draftId);
+            context.CancellationToken,
+            excludeDraftId: context.DraftId);
 
         var items = result.Items.Select(s => new SearchSourcesResultItem(
             s.Id,

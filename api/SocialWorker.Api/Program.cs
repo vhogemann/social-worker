@@ -1,4 +1,5 @@
 using SocialWorker.Api.Data;
+using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,7 +35,7 @@ if (app.Environment.IsDevelopment())
         db.MediaAssets.RemoveRange(db.MediaAssets);
         db.Drafts.RemoveRange(db.Drafts);
         await db.SaveChangesAsync();
-        return Results.Ok(new { reset = true });
+        return Results.Ok(new DatabaseResetResponse(true));
     });
 }
 

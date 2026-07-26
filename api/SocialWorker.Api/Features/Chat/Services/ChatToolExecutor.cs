@@ -22,15 +22,13 @@ public sealed class ChatToolExecutor
     public async Task<ToolExecutionResult> ExecuteAsync(
         string name,
         string argumentsJson,
-        Guid? draftId,
-        Guid userId,
-        CancellationToken ct)
+        ToolExecutionContext context)
     {
         var tool = _tools.FirstOrDefault(t => t.Name == name);
         if (tool == null)
         {
             _log.LogWarning("Unknown tool call request: {ToolName}", name);
-            return new ToolExecutionResult(new { error = $"unknown tool: {name}" });
+            return ToolExecutionResult.Error($"unknown tool: {name}");
         }
 
         try
@@ -38,10 +36,10 @@ public sealed class ChatToolExecutor
             _log.LogInformation(
                 "Executing tool {ToolName} (Draft: {DraftId}, User: {UserId}) with args: {Args}",
                 name,
-                draftId,
-                userId,
+                context.DraftId,
+                context.UserId,
                 argumentsJson);
-            var result = await tool.ExecuteRawAsync(argumentsJson, draftId, userId, ct);
+            var result = await tool.ExecuteRawAsync(argumentsJson, context);
             _log.LogInformation("Successfully executed tool {ToolName}. Output: {Result}", name, JsonSerializer.Serialize(result.Result));
             return result;
         }
@@ -49,7 +47,10 @@ public sealed class ChatToolExecutor
         {
             var inner = ex.InnerException ?? ex;
             _log.LogError(inner, "Error executing tool {ToolName} with args {Args}", name, argumentsJson);
-            return new ToolExecutionResult(new { error = inner.Message });
+            return ToolExecutionResult.Error(inner.Message);
         }
     }
+
+    public sealed record ToolErrorPayload(
+        [property: System.Text.Json.Serialization.JsonPropertyName("error")] string Error);
 }

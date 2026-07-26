@@ -24,4 +24,19 @@ public class Draft
     public int LastSummarizedMessageCount { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    public static Draft Create(Guid userId, string? title = null, string? content = null, SocialPlatform? targetPlatform = null)
+    {
+        return new Draft
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Title = string.IsNullOrWhiteSpace(title) ? "Untitled" : title.Trim(),
+            Content = content,
+            TargetPlatform = targetPlatform,
+            Status = DraftStatus.Editing,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
 }

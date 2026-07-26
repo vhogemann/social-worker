@@ -66,9 +66,9 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, Re
         }
         """).RootElement.Clone();
 
-    public override async Task<RenderCodeBlocksResult> ExecuteAsync(RenderCodeBlocksArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<RenderCodeBlocksResult> ExecuteAsync(RenderCodeBlocksArgs args, Models.ToolExecutionContext context)
     {
-        if (!draftId.HasValue)
+        if (!context.DraftId.HasValue)
             return new RenderCodeBlocksResult(false, Array.Empty<RenderedCodeBlockItem>(), 0, "Error: No active draft.", "No active draft.");
 
         using var scope = _scopeFactory.CreateScope();
@@ -78,7 +78,7 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, Re
         var draftsService = scope.ServiceProvider.GetRequiredService<DraftsService>();
 
         var draft = await db.Drafts.FirstOrDefaultAsync(
-            d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+            d => d.Id == context.DraftId.Value && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
         if (draft == null)
             return new RenderCodeBlocksResult(false, Array.Empty<RenderedCodeBlockItem>(), 0, "Error: Draft not found or access denied.", "Draft not found or access denied.");
 
@@ -96,7 +96,7 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, Re
         {
             if (args.BlockIndex.HasValue && args.BlockIndex.Value != i) continue;
 
-            var result = await codeImageService.RenderAndStoreAsync(userId, draftId.Value, blocks[i], theme, ct);
+            var result = await codeImageService.RenderAndStoreAsync(context.UserId, context.DraftId.Value, blocks[i], theme, context.CancellationToken);
             rendered.Add((blocks[i], result.MarkdownTag, i));
         }
 
@@ -112,8 +112,8 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, Re
         draft.Content = content;
         draft.UpdatedAt = DateTime.UtcNow;
 
-        await draftsService.ReconcileSegmentsAsync(draft, content, ct);
-        await db.SaveChangesAsync(ct);
+        await draftsService.ReconcileSegmentsAsync(draft, content, context.CancellationToken);
+        await db.SaveChangesAsync(context.CancellationToken);
 
         var sb = new StringBuilder();
         sb.AppendLine($"Rendered {rendered.Count} code block(s) as image(s):");

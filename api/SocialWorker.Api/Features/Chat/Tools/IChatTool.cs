@@ -11,10 +11,10 @@ public interface IChatTool
     string Description { get; }
     JsonElement Parameters { get; }
     bool RequiresVision => false;
-    Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, Guid? draftId, Guid userId, CancellationToken ct);
+    Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, Models.ToolExecutionContext context);
 }
 
 public interface IChatTool<TArgs, TResult> : IChatTool
 {
-    Task<TResult> ExecuteAsync(TArgs args, Guid? draftId, Guid userId, CancellationToken ct);
+    Task<TResult> ExecuteAsync(TArgs args, Models.ToolExecutionContext context);
 }

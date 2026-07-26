@@ -42,17 +42,7 @@ public static class FeedsEndpoint
             var subscriptions = await db.FeedSubscriptions
                 .Where(s => s.UserId == userId.Value)
                 .OrderByDescending(s => s.CreatedAt)
-                .Select(s => new FeedSubscriptionDto(
-                    s.Id,
-                    s.Title,
-                    s.FeedUrl,
-                    s.WebsiteUrl,
-                    s.InstructionPrompt,
-                    s.AutoPublish,
-                    s.LastPolledAt,
-                    s.IncludeFilters,
-                    s.ExcludeFilters,
-                    s.CreatedAt))
+                .Select(s => new FeedSubscriptionDto(s))
                 .ToListAsync(ct);
 
             return Results.Ok(subscriptions);
@@ -72,34 +62,12 @@ public static class FeedsEndpoint
                 return Results.BadRequest("Title and FeedUrl are required.");
             }
 
-            var subscription = new FeedSubscription
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId.Value,
-                Title = req.Title.Trim(),
-                FeedUrl = req.FeedUrl.Trim(),
-                WebsiteUrl = req.WebsiteUrl?.Trim(),
-                InstructionPrompt = req.InstructionPrompt?.Trim() ?? "Summarize this article as a thread.",
-                AutoPublish = req.AutoPublish,
-                IncludeFilters = req.IncludeFilters?.Trim(),
-                ExcludeFilters = req.ExcludeFilters?.Trim(),
-                CreatedAt = DateTime.UtcNow
-            };
+            var subscription = FeedSubscription.Create(userId.Value, req);
 
             db.FeedSubscriptions.Add(subscription);
             await db.SaveChangesAsync(ct);
 
-            return Results.Created($"/api/feeds/{subscription.Id}", new FeedSubscriptionDto(
-                subscription.Id,
-                subscription.Title,
-                subscription.FeedUrl,
-                subscription.WebsiteUrl,
-                subscription.InstructionPrompt,
-                subscription.AutoPublish,
-                subscription.LastPolledAt,
-                subscription.IncludeFilters,
-                subscription.ExcludeFilters,
-                subscription.CreatedAt));
+            return Results.Created($"/api/feeds/{subscription.Id}", new FeedSubscriptionDto(subscription));
         });
 
         group.MapPut("/{id:guid}", async (
@@ -132,17 +100,7 @@ public static class FeedsEndpoint
 
             await db.SaveChangesAsync(ct);
 
-            return Results.Ok(new FeedSubscriptionDto(
-                subscription.Id,
-                subscription.Title,
-                subscription.FeedUrl,
-                subscription.WebsiteUrl,
-                subscription.InstructionPrompt,
-                subscription.AutoPublish,
-                subscription.LastPolledAt,
-                subscription.IncludeFilters,
-                subscription.ExcludeFilters,
-                subscription.CreatedAt));
+            return Results.Ok(new FeedSubscriptionDto(subscription));
         });
 
         group.MapDelete("/{id:guid}", async (
@@ -176,7 +134,7 @@ public static class FeedsEndpoint
 
             // Run polling synchronously for this single subscription so that the user gets immediate response
             await pollingService.PollSubscriptionAsync(id, ct);
-            return Results.Ok(new { Success = true, Message = "Polling triggered successfully." });
+            return Results.Ok(new ApiSuccessResponse(true, "Polling triggered successfully."));
         });
 
         group.MapGet("/queue", async (
@@ -238,7 +196,7 @@ public static class FeedsEndpoint
             item.UpdatedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync(ct);
-            return Results.Ok(new { Success = true });
+            return Results.Ok(new ApiSuccessResponse(true));
         });
 
         group.MapDelete("/queue/{queueItemId:guid}", async (
@@ -283,7 +241,13 @@ public sealed record FeedSubscriptionDto(
     DateTime? LastPolledAt,
     string? IncludeFilters,
     string? ExcludeFilters,
-    DateTime CreatedAt);
+    DateTime CreatedAt)
+{
+    public FeedSubscriptionDto(Data.Entities.FeedSubscription s)
+        : this(s.Id, s.Title, s.FeedUrl, s.WebsiteUrl, s.InstructionPrompt, s.AutoPublish, s.LastPolledAt, s.IncludeFilters, s.ExcludeFilters, s.CreatedAt)
+    {
+    }
+};
 
 public sealed record FeedQueueItemDto(
     Guid Id,
@@ -298,4 +262,10 @@ public sealed record FeedQueueItemDto(
     string? LastError,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    DateTime? CompletedAt);
+    DateTime? CompletedAt)
+{
+    public FeedQueueItemDto(Data.Entities.FeedIngestionQueueItem q)
+        : this(q.Id, q.FeedSubscriptionId, q.FeedSubscription?.Title ?? "", q.ItemTitle, q.ItemLink, q.Status.ToString(), q.AttemptCount, q.MaxAttempts, q.NextAttemptAt, q.LastError, q.CreatedAt, q.UpdatedAt, q.CompletedAt)
+    {
+    }
+};

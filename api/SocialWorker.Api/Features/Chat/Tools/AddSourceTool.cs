@@ -70,9 +70,9 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
         }
         """).RootElement.Clone();
 
-    public override async Task<AddSourceResult> ExecuteAsync(AddSourceArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<AddSourceResult> ExecuteAsync(AddSourceArgs args, Models.ToolExecutionContext context)
     {
-        if (!draftId.HasValue)
+        if (!context.DraftId.HasValue)
         {
             return new AddSourceResult(false, "No draft ID active.", Error: "No draft ID active.");
         }
@@ -83,7 +83,7 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
             var linkService = linkScope.ServiceProvider.GetRequiredService<SourcesService>();
             try
             {
-                var linked = await linkService.LinkSourceAsync(userId, args.SourceId.Value, draftId.Value, ct);
+                var linked = await linkService.LinkSourceAsync(context.UserId, args.SourceId.Value, context.DraftId.Value, context.CancellationToken);
                 return new AddSourceResult(
                     true,
                     $"Linked existing source '{linked.Title}' ({linked.Kind}) to this draft.",
@@ -125,12 +125,12 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
         try
         {
             var result = await sourcesService.AddUrlSourceAsync(
-                userId,
-                draftId.Value,
+                context.UserId,
+                context.DraftId.Value,
                 reference,
                 args.Title,
                 args.Content,
-                ct);
+                context.CancellationToken);
 
             if (kind == SourceKind.YouTube && !string.Equals(result.Kind, "YouTube", StringComparison.OrdinalIgnoreCase))
             {

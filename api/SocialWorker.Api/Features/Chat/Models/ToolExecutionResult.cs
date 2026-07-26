@@ -8,6 +8,12 @@ public sealed record ToolExecutionResult(
     object Result,
     IReadOnlyList<OpenAiModels.OpenAiMessage>? ExtraMessages = null)
 {
+    public static ToolExecutionResult Success(object result, IReadOnlyList<OpenAiModels.OpenAiMessage>? extraMessages = null)
+        => new(result, extraMessages);
+
+    public static ToolExecutionResult Error(string errorMessage)
+        => new(new Services.ChatToolExecutor.ToolErrorPayload(errorMessage));
+
     public IChatToolResult AsDisplayResult()
     {
         return Result as IChatToolResult ?? new DefaultChatToolResult(Result);

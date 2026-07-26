@@ -73,17 +73,17 @@ public sealed class UrlSourceService : IUrlSourceService
             summary = await _summarizer.SummarizeAsync(sourceContent, ct);
         }
 
-        var source = new Source
+        var youtubeId = _youTubeSourceService.TryExtractYouTubeVideoId(normalizedReference);
+        var source = sourceKind == SourceKind.YouTube
+            ? Source.CreateYouTube(youtubeId ?? "pending", normalizedReference, sourceTitle ?? normalizedReference)
+            : Source.CreateUrl(normalizedReference, sourceTitle ?? normalizedReference);
+
+        source.Content = sourceContent;
+        source.Summary = summary;
+        if (sourceKind != SourceKind.YouTube)
         {
-            Kind = sourceKind,
-            Reference = normalizedReference,
-            Title = sourceTitle ?? normalizedReference,
-            Content = sourceContent,
-            Summary = summary,
-            YoutubeVideoId = _youTubeSourceService.TryExtractYouTubeVideoId(normalizedReference),
-            ProcessingStatus = sourceKind == SourceKind.YouTube ? SourceProcessingStatus.Pending : SourceProcessingStatus.Complete,
-            AddedAt = DateTime.UtcNow
-        };
+            source.ProcessingStatus = SourceProcessingStatus.Complete;
+        }
 
         _db.Sources.Add(source);
         _db.DraftSources.Add(new DraftSource

@@ -67,7 +67,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
         }
         """).RootElement.Clone();
 
-    public override async Task<GeneratePlatformVariantsResult> ExecuteAsync(GeneratePlatformVariantsArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<GeneratePlatformVariantsResult> ExecuteAsync(GeneratePlatformVariantsArgs args, Models.ToolExecutionContext context)
     {
         if (!Guid.TryParse(args.CanonicalDraftId, out var canonicalGuid))
         {
@@ -80,7 +80,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
         var draftService = scope.ServiceProvider.GetRequiredService<DraftsService>();
 
         var canonical = await db.Drafts
-            .FirstOrDefaultAsync(d => d.Id == canonicalGuid && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+            .FirstOrDefaultAsync(d => d.Id == canonicalGuid && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
         if (canonical == null)
         {
             return new GeneratePlatformVariantsResult(false, Array.Empty<GeneratedPlatformVariant>(), Array.Empty<string>(), "Error: Canonical draft not found or access denied.", "Canonical draft not found or access denied.");
@@ -90,8 +90,8 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
         var createdVariants = new List<GeneratedPlatformVariant>();
         var errors = new List<string>();
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, ct);
-        var provider = user != null ? await _providerService.GetProviderForUserAsync(db, user, ct) : null;
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == context.UserId && u.IsActive, context.CancellationToken);
+        var provider = user != null ? await _providerService.GetProviderForUserAsync(db, user, context.CancellationToken) : null;
 
         if (provider == null)
         {
@@ -117,7 +117,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
             var existing = await db.Drafts.AnyAsync(d =>
                 d.CanonicalDraftId == canonicalGuid &&
                 d.TargetPlatform == targetPlatform &&
-                d.Status != DraftStatus.Deleted, ct);
+                d.Status != DraftStatus.Deleted, context.CancellationToken);
             if (existing)
             {
                 errors.Add($"Skipping {platform}: variant already exists");
@@ -146,7 +146,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
             string adaptedContent;
             try
             {
-                var response = await adapter.CompleteAsync(request, credentials, ct);
+                var response = await adapter.CompleteAsync(request, credentials, context.CancellationToken);
                 adaptedContent = response?.Choices?.FirstOrDefault()?.Message.Content?.ToString()?.Trim() ?? "";
                 if (string.IsNullOrEmpty(adaptedContent))
                 {
@@ -173,13 +173,13 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
             {
                 Title = $"{canonical.Title} ({platform})",
                 Content = adaptedContent,
-                UserId = userId,
+                UserId = context.UserId,
                 TargetPlatform = targetPlatform,
                 CanonicalDraftId = canonicalGuid,
                 Status = DraftStatus.Editing
             };
             db.Drafts.Add(variant);
-            await db.SaveChangesAsync(ct);
+            await db.SaveChangesAsync(context.CancellationToken);
 
             var thread = new PlatformThread
             {
@@ -189,10 +189,10 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
                 Content = adaptedContent
             };
             db.PlatformThreads.Add(thread);
-            await db.SaveChangesAsync(ct);
+            await db.SaveChangesAsync(context.CancellationToken);
 
-            await draftService.ReconcileSegmentsAsync(variant, adaptedContent, ct);
-            await db.SaveChangesAsync(ct);
+            await draftService.ReconcileSegmentsAsync(variant, adaptedContent, context.CancellationToken);
+            await db.SaveChangesAsync(context.CancellationToken);
 
             if (policyResult.Warnings.Count > 0)
             {
@@ -205,7 +205,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
         }
 
         canonical.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(context.CancellationToken);
 
         var result = new StringBuilder();
         if (createdVariants.Count > 0)

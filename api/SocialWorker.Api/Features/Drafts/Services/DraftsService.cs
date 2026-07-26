@@ -166,13 +166,7 @@ public sealed class DraftsService
             platform = parsed;
         }
 
-        var draft = new Draft
-        {
-            Title = string.IsNullOrWhiteSpace(title) ? "Untitled" : title,
-            Content = content,
-            UserId = userId,
-            TargetPlatform = platform ?? SocialPlatform.Bluesky
-        };
+        var draft = Draft.Create(userId, title, content, platform ?? SocialPlatform.Bluesky);
         _db.Drafts.Add(draft);
         await _db.SaveChangesAsync(ct);
 

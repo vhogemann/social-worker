@@ -110,10 +110,7 @@ public sealed class ChatRoundProcessor
             {
                 if (!ctx.HasListedSources)
                 {
-                    var mustListResult = new ToolExecutionResult(new
-                    {
-                        error = "Before replace_editor_content, call list_sources and then fetch_source for every listed source ID. list_sources has not been called in this request yet."
-                    });
+                    var mustListResult = ToolExecutionResult.Error("Before replace_editor_content, call list_sources and then fetch_source for every listed source ID. list_sources has not been called in this request yet.");
                     yield return _writer.ToolResult(toolCall.Id, mustListResult.Result);
                     ctx.Payload.Messages.AddRange(mustListResult.ToMessages(toolCall.Id));
                     continue;
@@ -122,11 +119,7 @@ public sealed class ChatRoundProcessor
                 var missingIds = ctx.GetMissingSourceIds();
                 if (missingIds.Count > 0)
                 {
-                    var missingFetchResult = new ToolExecutionResult(new
-                    {
-                        error = "Before replace_editor_content, call fetch_source for every listed source ID.",
-                        missingSourceIds = missingIds.Select(id => id.ToString()).ToArray()
-                    });
+                    var missingFetchResult = ToolExecutionResult.Error("Before replace_editor_content, call fetch_source for every listed source ID.");
                     yield return _writer.ToolResult(toolCall.Id, missingFetchResult.Result);
                     ctx.Payload.Messages.AddRange(missingFetchResult.ToMessages(toolCall.Id));
                     continue;
@@ -137,10 +130,7 @@ public sealed class ChatRoundProcessor
             {
                 if (ctx.EnforceImageImportBeforeReplace && !ctx.SawAddImageSource)
                 {
-                    var missingImageImport = new ToolExecutionResult(new
-                    {
-                        error = "Before replace_editor_content, call add_image_source with a direct image URL and use the returned media:// tag."
-                    });
+                    var missingImageImport = ToolExecutionResult.Error("Before replace_editor_content, call add_image_source with a direct image URL and use the returned media:// tag.");
                     yield return _writer.ToolResult(toolCall.Id, missingImageImport.Result);
                     ctx.Payload.Messages.AddRange(missingImageImport.ToMessages(toolCall.Id));
                     continue;
@@ -148,17 +138,14 @@ public sealed class ChatRoundProcessor
 
                 if (ctx.EnforceImageInspectionBeforeReplace && !ctx.SawViewImage)
                 {
-                    var missingImageInspection = new ToolExecutionResult(new
-                    {
-                        error = "Before replace_editor_content, call view_image to inspect at least one selected image."
-                    });
+                    var missingImageInspection = ToolExecutionResult.Error("Before replace_editor_content, call view_image to inspect at least one selected image.");
                     yield return _writer.ToolResult(toolCall.Id, missingImageInspection.Result);
                     ctx.Payload.Messages.AddRange(missingImageInspection.ToMessages(toolCall.Id));
                     continue;
                 }
             }
 
-            var toolResult = await _toolExecutor.ExecuteAsync(toolCall.Name, toolCall.Arguments, ctx.DraftId, ctx.UserId, ctx.Ct);
+            var toolResult = await _toolExecutor.ExecuteAsync(toolCall.Name, toolCall.Arguments, new ToolExecutionContext(ctx.DraftId, ctx.UserId, ctx.Ct));
             _log.LogInformation("Tool {ToolName} execution completed.", toolCall.Name);
             yield return _writer.ToolResult(toolCall.Id, toolResult.ToDisplayPayload());
 

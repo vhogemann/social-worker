@@ -68,14 +68,14 @@ public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, ListSourcesR
         }
         """).RootElement.Clone();
 
-    public override async Task<ListSourcesResult> ExecuteAsync(ListSourcesArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<ListSourcesResult> ExecuteAsync(ListSourcesArgs args, Models.ToolExecutionContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var activeDraftId = draftId.HasValue
-            ? draftId.Value
-            : (await db.Drafts.OrderByDescending(d => d.UpdatedAt).FirstOrDefaultAsync(d => d.UserId == userId && d.Status != DraftStatus.Deleted, ct))?.Id;
+        var activeDraftId = context.DraftId.HasValue
+            ? context.DraftId.Value
+            : (await db.Drafts.OrderByDescending(d => d.UpdatedAt).FirstOrDefaultAsync(d => d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken))?.Id;
 
         if (activeDraftId == null)
         {
@@ -84,7 +84,7 @@ public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, ListSourcesR
 
         var rows = await db.Sources
             .Where(s => s.DraftSources.Any(ds => ds.DraftId == activeDraftId.Value))
-            .ToListAsync(ct);
+            .ToListAsync(context.CancellationToken);
 
         var sources = rows.Select(s =>
         {

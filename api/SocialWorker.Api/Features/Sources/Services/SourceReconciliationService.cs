@@ -85,13 +85,9 @@ public sealed class SourceReconciliationService
                                 url.Contains("youtube.com/shorts/", StringComparison.OrdinalIgnoreCase) ||
                                 url.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
 
-                var source = new Source
-                {
-                    Kind = isYouTube ? SourceKind.YouTube : SourceKind.Url,
-                    Reference = url,
-                    Title = "Fetching...",
-                    Content = null
-                };
+                var source = isYouTube
+                    ? Source.CreateYouTube("pending", url, "Fetching...")
+                    : Source.CreateUrl(url, "Fetching...");
                 _db.Sources.Add(source);
                 _db.DraftSources.Add(new DraftSource
                 {

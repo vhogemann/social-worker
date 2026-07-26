@@ -18,7 +18,7 @@ public sealed class MediaServiceTests : SqliteTestBase
     private static readonly byte[] TinyPng = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
-    private static async Task<(AppDbContext Db, MediaService Service, AppUser User, Draft Draft)> CreateAsync(AppDbContext db, string altText = null)
+    private static async Task<(AppDbContext Db, MediaService Service, AppUser User, Draft Draft)> CreateAsync(AppDbContext db, string? altText = null)
     {
         var user = new AppUser { Id = Guid.NewGuid(), Username = "u", Email = "u@e.com", PasswordHash = "h" };
         db.Users.Add(user);

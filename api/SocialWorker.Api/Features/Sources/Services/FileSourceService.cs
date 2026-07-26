@@ -76,17 +76,10 @@ public sealed class FileSourceService : IFileSourceService
             summary = await _summarizer.SummarizeAsync(extractedText, ct);
         }
 
-        var newSource = new Source
-        {
-            Kind = SourceKind.File,
-            Reference = fileName,
-            Title = fileName,
-            Content = extractedText,
-            Summary = summary,
-            Sha256 = shaHashStr,
-            ProcessingStatus = SourceProcessingStatus.Complete,
-            AddedAt = DateTime.UtcNow
-        };
+        var newSource = Source.CreateFile(fileName, fileName, shaHashStr);
+        newSource.Content = extractedText;
+        newSource.Summary = summary;
+        newSource.ProcessingStatus = SourceProcessingStatus.Complete;
 
         _db.Sources.Add(newSource);
         _db.DraftSources.Add(new DraftSource

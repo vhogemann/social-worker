@@ -1409,7 +1409,7 @@ public sealed class ChatServiceTests
         }
 
         public Task<ToolExecutionResult> ExecuteRawAsync(
-            string argumentsJson, Guid? draftId, Guid userId, CancellationToken ct)
+            string argumentsJson, ToolExecutionContext context)
         {
             WasExecuted = true;
             return Task.FromResult(new ToolExecutionResult(new { result = "done" }));
@@ -1433,7 +1433,7 @@ public sealed class ChatServiceTests
         public bool RequiresVision => false;
         public JsonElement Parameters { get; }
 
-        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, Guid? draftId, Guid userId, CancellationToken ct)
+        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, ToolExecutionContext context)
         {
             var result = new List<ListSourcesResultItem>
             {
@@ -1457,7 +1457,7 @@ public sealed class ChatServiceTests
         public JsonElement Parameters { get; }
         public List<Guid> FetchedIds { get; } = new();
 
-        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, Guid? draftId, Guid userId, CancellationToken ct)
+        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, ToolExecutionContext context)
         {
             using var doc = JsonDocument.Parse(argumentsJson);
             var id = Guid.Parse(doc.RootElement.GetProperty("id").GetString()!);
@@ -1475,7 +1475,7 @@ public sealed class ChatServiceTests
         public JsonElement Parameters { get; } = JsonDocument.Parse("{}").RootElement.Clone();
         public List<string> Markdowns { get; } = new();
 
-        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, Guid? draftId, Guid userId, CancellationToken ct)
+        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, ToolExecutionContext context)
         {
             using var doc = JsonDocument.Parse(argumentsJson);
             var markdown = doc.RootElement.TryGetProperty("markdown", out var m)
@@ -1494,7 +1494,7 @@ public sealed class ChatServiceTests
         public JsonElement Parameters { get; } = JsonDocument.Parse("{}").RootElement.Clone();
         public int ValidationCalls { get; private set; }
 
-        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, Guid? draftId, Guid userId, CancellationToken ct)
+        public Task<ToolExecutionResult> ExecuteRawAsync(string argumentsJson, ToolExecutionContext context)
         {
             ValidationCalls++;
             using var doc = JsonDocument.Parse(argumentsJson);

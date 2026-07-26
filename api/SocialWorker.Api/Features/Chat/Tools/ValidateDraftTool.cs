@@ -114,7 +114,7 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, Validate
         }
         """).RootElement.Clone();
 
-    public override async Task<ValidateDraftResult> ExecuteAsync(ValidateDraftArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<ValidateDraftResult> ExecuteAsync(ValidateDraftArgs args, Models.ToolExecutionContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -125,26 +125,26 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, Validate
         if (!string.IsNullOrWhiteSpace(args.Content))
         {
             validationContent = args.Content;
-            if (draftId.HasValue)
+            if (context.DraftId.HasValue)
             {
-                mediaAssets = await db.MediaAssets.Where(m => m.DraftId == draftId.Value).ToListAsync(ct);
+                mediaAssets = await db.MediaAssets.Where(m => m.DraftId == context.DraftId.Value).ToListAsync(context.CancellationToken);
             }
         }
         else
         {
-            if (!draftId.HasValue)
+            if (!context.DraftId.HasValue)
             {
                 return BlueskyDraftValidator.CreateFailureResult("No draft ID active.");
             }
 
-            var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+            var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == context.DraftId.Value && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
             if (draft == null)
             {
                 return BlueskyDraftValidator.CreateFailureResult("Draft not found or access denied.");
             }
 
             validationContent = draft.Content ?? "";
-            mediaAssets = await db.MediaAssets.Where(m => m.DraftId == draftId.Value).ToListAsync(ct);
+            mediaAssets = await db.MediaAssets.Where(m => m.DraftId == context.DraftId.Value).ToListAsync(context.CancellationToken);
         }
 
         return _blueskyDraftValidator.Validate(validationContent, mediaAssets);

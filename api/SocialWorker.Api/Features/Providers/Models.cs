@@ -16,7 +16,24 @@ public static class ProviderModels
         bool IsActive,
         bool SupportsVision,
         bool SupportsTools
-    );
+    )
+    {
+        public LlmProviderDto(Data.Entities.LlmProvider p, Infrastructure.Llm.ModelCapabilities caps)
+            : this(
+                p.Id,
+                p.Name,
+                p.ProviderType,
+                p.BaseUrl,
+                !string.IsNullOrEmpty(p.ApiKey),
+                p.Model,
+                p.ContextWindowTokens ?? caps.ContextWindowTokens,
+                p.IsDefault,
+                p.IsActive,
+                caps.SupportsVision,
+                caps.SupportsTools)
+        {
+        }
+    };
 
     public sealed record CreateProviderRequest(
         string Name,
@@ -58,4 +75,16 @@ public static class ProviderModels
         string? Error,
         int? ContextWindowTokens
     );
+
+    public sealed record ProviderOperationResult<TData>(
+        TData? Data,
+        string? Error,
+        bool IsNotFound)
+    {
+        public bool IsSuccess => Error == null && !IsNotFound;
+
+        public static ProviderOperationResult<TData> Ok(TData data) => new(data, null, false);
+        public static ProviderOperationResult<TData> Fail(string error) => new(default, error, false);
+        public static ProviderOperationResult<TData> NotFound() => new(default, null, true);
+    }
 }

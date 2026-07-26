@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Sources;
 
@@ -156,7 +157,7 @@ public static class SourcesEndpoint
             try
             {
                 await sourcesService.DeleteSourceAsync(userId.Value, draftId, sourceId, ct);
-                return Results.Ok(new { success = true });
+                return Results.Ok(new ApiSuccessResponse(true));
             }
             catch (KeyNotFoundException)
             {

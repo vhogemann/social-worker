@@ -64,7 +64,7 @@ public sealed class FormatValidatePlatformContentTool : ChatToolBase<FormatValid
         }
         """).RootElement.Clone();
 
-    public override Task<FormatValidatePlatformContentResult> ExecuteAsync(FormatValidatePlatformContentArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override Task<FormatValidatePlatformContentResult> ExecuteAsync(FormatValidatePlatformContentArgs args, Models.ToolExecutionContext context)
     {
         if (!Enum.TryParse<SocialPlatform>(args.Platform, true, out var platform))
         {

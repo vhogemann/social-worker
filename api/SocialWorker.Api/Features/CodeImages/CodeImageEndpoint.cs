@@ -15,6 +15,10 @@ public static class CodeImageEndpoint
         string Language,
         string? Theme);
 
+    public sealed record CodeImageResponse(
+        [property: System.Text.Json.Serialization.JsonPropertyName("id")] Guid Id,
+        [property: System.Text.Json.Serialization.JsonPropertyName("markdownTag")] string MarkdownTag);
+
     public static void MapCodeImageEndpoints(this WebApplication app)
     {
         app.MapPost("/api/drafts/{draftId:guid}/code-image", async (
@@ -36,7 +40,7 @@ public static class CodeImageEndpoint
             try
             {
                 var result = await codeImageService.RenderAndStoreAsync(userId.Value, draftId, block, theme, ct);
-                return Results.Ok(new { id = result.Id, markdownTag = result.MarkdownTag });
+                return Results.Ok(new CodeImageResponse(result.Id, result.MarkdownTag));
             }
             catch (KeyNotFoundException)
             {

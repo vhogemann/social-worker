@@ -104,7 +104,7 @@ public class ModelCapabilityProbe
                 var baseUri = new Uri(provider.BaseUrl);
                 var apiShowUrl = $"{baseUri.Scheme}://{baseUri.Host}:{baseUri.Port}/api/show";
 
-                var response = await _client.PostAsJsonAsync(apiShowUrl, new { name = model });
+                var response = await _client.PostAsJsonAsync(apiShowUrl, new OllamaShowRequest(model));
                 if (response.IsSuccessStatusCode)
                 {
                     var result = await response.Content.ReadFromJsonAsync<OllamaShowResponse>();
@@ -204,6 +204,9 @@ public class ModelCapabilityProbe
         [JsonPropertyName("input_modalities")]
         public string[]? InputModalities { get; set; }
     }
+
+    private record OllamaShowRequest(
+        [property: JsonPropertyName("name")] string Name);
 
     private class OllamaShowResponse
     {

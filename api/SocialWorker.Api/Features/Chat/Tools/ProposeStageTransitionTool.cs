@@ -43,7 +43,7 @@ public sealed class ProposeStageTransitionTool : ChatToolBase<ProposeStageTransi
         }
         """).RootElement.Clone();
 
-    public override Task<ProposeStageTransitionResult> ExecuteAsync(ProposeStageTransitionArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override Task<ProposeStageTransitionResult> ExecuteAsync(ProposeStageTransitionArgs args, Models.ToolExecutionContext context)
     {
         return Task.FromResult(new ProposeStageTransitionResult(true, args.Platform, args.Stage, args.Reasoning));
     }

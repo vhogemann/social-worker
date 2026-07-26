@@ -31,37 +31,37 @@ public static class ProvidersEndpoint
 
         adminGroup.MapPost("/", async (ProvidersService service, ProviderModels.CreateProviderRequest req, CancellationToken ct) =>
         {
-            var (dto, error) = await service.CreateProviderAsync(req, ct);
-            if (error != null)
+            var result = await service.CreateProviderAsync(req, ct);
+            if (result.Error != null)
             {
-                if (error == "A provider with this name already exists.") return Results.Conflict(error);
-                return Results.BadRequest(error);
+                if (result.Error == "A provider with this name already exists.") return Results.Conflict(result.Error);
+                return Results.BadRequest(result.Error);
             }
 
-            return Results.Ok(dto);
+            return Results.Ok(result.Data);
         });
 
         adminGroup.MapPatch("/{id:guid}", async (ProvidersService service, Guid id, ProviderModels.UpdateProviderRequest req, CancellationToken ct) =>
         {
-            var (dto, error, isNotFound) = await service.UpdateProviderAsync(id, req, ct);
+            var result = await service.UpdateProviderAsync(id, req, ct);
             
-            if (isNotFound) return Results.NotFound();
+            if (result.IsNotFound) return Results.NotFound();
             
-            if (error != null)
+            if (result.Error != null)
             {
-                if (error == "A provider with this name already exists.") return Results.Conflict(error);
-                return Results.BadRequest(error);
+                if (result.Error == "A provider with this name already exists.") return Results.Conflict(result.Error);
+                return Results.BadRequest(result.Error);
             }
 
-            return Results.Ok(dto);
+            return Results.Ok(result.Data);
         });
 
         adminGroup.MapDelete("/{id:guid}", async (ProvidersService service, Guid id, CancellationToken ct) =>
         {
-            var (success, error, isNotFound) = await service.DeleteProviderAsync(id, ct);
+            var result = await service.DeleteProviderAsync(id, ct);
             
-            if (isNotFound) return Results.NotFound();
-            if (error != null) return Results.BadRequest(error);
+            if (result.IsNotFound) return Results.NotFound();
+            if (result.Error != null) return Results.BadRequest(result.Error);
 
             return Results.NoContent();
         });

@@ -57,9 +57,9 @@ public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, AddIma
         }
         """).RootElement.Clone();
 
-    public override async Task<AddImageSourceResult> ExecuteAsync(AddImageSourceArgs args, Guid? draftId, Guid userId, CancellationToken ct)
+    public override async Task<AddImageSourceResult> ExecuteAsync(AddImageSourceArgs args, Models.ToolExecutionContext context)
     {
-        if (!draftId.HasValue)
+        if (!context.DraftId.HasValue)
         {
             return new AddImageSourceResult(false, "No draft ID active.", Error: "No draft ID active.");
         }
@@ -74,7 +74,7 @@ public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, AddIma
         var mediaService = scope.ServiceProvider.GetRequiredService<MediaService>();
         var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
 
-        var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+        var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == context.DraftId.Value && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
         if (draft == null)
         {
             return new AddImageSourceResult(false, "Draft not found or access denied.", Error: "Draft not found or access denied.");
@@ -84,11 +84,11 @@ public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, AddIma
         {
             using var client = httpClientFactory.CreateClient();
             var uploadResult = await mediaService.ImportMediaFromUrlAsync(
-                userId,
-                draftId.Value,
+                context.UserId,
+                context.DraftId.Value,
                 args.Url,
                 client,
-                ct,
+                context.CancellationToken,
                 args.AltText
             );
 

@@ -21,7 +21,22 @@ public sealed record MediaAssetDto(
     long SizeBytes,
     int Width,
     int Height
-);
+)
+{
+    public MediaAssetDto(MediaAsset asset)
+        : this(asset.Id, asset.DraftId, asset.FileName, asset.MimeType, asset.AltText, asset.FilePath, asset.SizeBytes, asset.Width, asset.Height)
+    {
+    }
+}
+
+public sealed record UploadMediaCommand(
+    Guid UserId,
+    Guid DraftId,
+    string FileName,
+    string MimeType,
+    Stream Stream,
+    string? AltText = null,
+    string? MarkdownLinkText = null);
 
 public sealed record UploadMediaResult(Guid Id, string MarkdownTag);
 
@@ -41,24 +56,18 @@ public sealed class MediaService
     }
 
     public async Task<UploadMediaResult> UploadMediaAsync(
-        Guid userId,
-        Guid draftId,
-        string fileName,
-        string mimeType,
-        Stream stream,
-        CancellationToken ct,
-        string? altText = null,
-        string? markdownLinkText = null)
+        UploadMediaCommand cmd,
+        CancellationToken ct = default)
     {
-        var normalizedAltText = NormalizeAltText(altText);
-        var normalizedMarkdownLinkText = NormalizeMarkdownLinkText(markdownLinkText);
+        var normalizedAltText = NormalizeAltText(cmd.AltText);
+        var normalizedMarkdownLinkText = NormalizeMarkdownLinkText(cmd.MarkdownLinkText);
 
-        var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
+        var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == cmd.DraftId && d.UserId == cmd.UserId && d.Status != DraftStatus.Deleted, ct)
             ?? throw new KeyNotFoundException("Draft not found or access denied.");
 
         using var sha256 = System.Security.Cryptography.SHA256.Create();
         var buffer = new MemoryStream();
-        await stream.CopyToAsync(buffer, ct);
+        await cmd.Stream.CopyToAsync(buffer, ct);
         var imageBytes = buffer.ToArray();
 
         string shaHashStr;
@@ -68,7 +77,7 @@ public sealed class MediaService
             shaHashStr = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
         }
 
-        stream = new MemoryStream(imageBytes);
+        var processStream = new MemoryStream(imageBytes);
 
         var existing = await _db.MediaAssets.FirstOrDefaultAsync(m => m.Sha256 == shaHashStr, ct);
         if (existing != null)
@@ -76,8 +85,8 @@ public sealed class MediaService
             var sharedAsset = new MediaAsset
             {
                 Id = Guid.NewGuid(),
-                DraftId = draftId,
-                FileName = fileName,
+                DraftId = cmd.DraftId,
+                FileName = cmd.FileName,
                 MimeType = existing.MimeType,
                 FilePath = existing.FilePath,
                 Sha256 = shaHashStr,
@@ -97,10 +106,10 @@ public sealed class MediaService
         }
 
         var mediaId = Guid.NewGuid();
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var ext = Path.GetExtension(cmd.FileName).ToLowerInvariant();
         if (string.IsNullOrEmpty(ext))
         {
-            ext = mimeType switch
+            ext = cmd.MimeType switch
             {
                 "image/png" => ".png",
                 "image/webp" => ".webp",
@@ -109,19 +118,19 @@ public sealed class MediaService
             };
         }
 
-        var relativePath = Path.Combine(draftId.ToString(), $"{mediaId}{ext}");
+        var relativePath = Path.Combine(cmd.DraftId.ToString(), $"{mediaId}{ext}");
 
-        stream.Position = 0;
-        var processResult = _resizer.ProcessImage(stream, mimeType);
+        processStream.Position = 0;
+        var processResult = _resizer.ProcessImage(processStream, cmd.MimeType);
 
         await _storage.WriteFileAsync(relativePath, processResult.Data);
 
         var mediaAsset = new MediaAsset
         {
             Id = mediaId,
-            DraftId = draftId,
-            FileName = fileName,
-            MimeType = mimeType,
+            DraftId = cmd.DraftId,
+            FileName = cmd.FileName,
+            MimeType = cmd.MimeType,
             FilePath = relativePath,
             Sha256 = shaHashStr,
             SizeBytes = processResult.Data.Length,
@@ -163,17 +172,7 @@ public sealed class MediaService
         asset.AltText = NormalizeAltText(altText);
         await _db.SaveChangesAsync(ct);
 
-        return new MediaAssetDto(
-            asset.Id,
-            asset.DraftId,
-            asset.FileName,
-            asset.MimeType,
-            asset.AltText,
-            asset.FilePath,
-            asset.SizeBytes,
-            asset.Width,
-            asset.Height
-        );
+        return new MediaAssetDto(asset);
     }
 
     private static string? NormalizeAltText(string? altText)
@@ -265,6 +264,7 @@ public sealed class MediaService
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        return await UploadMediaAsync(userId, draftId, fileName, mimeType, stream, ct, altText);
+        var cmd = new UploadMediaCommand(userId, draftId, fileName, mimeType, stream, altText);
+        return await UploadMediaAsync(cmd, ct);
     }
 }
