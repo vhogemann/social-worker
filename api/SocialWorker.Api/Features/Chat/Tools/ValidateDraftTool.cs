@@ -90,12 +90,12 @@ public sealed record ValidateDraftResult(
 
 public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, ValidateDraftResult>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly AppDbContext _db;
     private readonly BlueskyDraftValidator _blueskyDraftValidator;
 
-    public ValidateDraftTool(IServiceScopeFactory scopeFactory, BlueskyDraftValidator blueskyDraftValidator)
+    public ValidateDraftTool(AppDbContext db, BlueskyDraftValidator blueskyDraftValidator)
     {
-        _scopeFactory = scopeFactory;
+        _db = db;
         _blueskyDraftValidator = blueskyDraftValidator;
     }
 
@@ -116,9 +116,6 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, Validate
 
     public override async Task<ValidateDraftResult> ExecuteAsync(ValidateDraftArgs args, Models.ToolExecutionContext context)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
         string validationContent = "";
         var mediaAssets = new List<MediaAsset>();
 
@@ -127,7 +124,7 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, Validate
             validationContent = args.Content;
             if (context.DraftId.HasValue)
             {
-                mediaAssets = await db.MediaAssets.Where(m => m.DraftId == context.DraftId.Value).ToListAsync(context.CancellationToken);
+                mediaAssets = await _db.MediaAssets.Where(m => m.DraftId == context.DraftId.Value).ToListAsync(context.CancellationToken);
             }
         }
         else
@@ -137,14 +134,14 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, Validate
                 return BlueskyDraftValidator.CreateFailureResult("No draft ID active.");
             }
 
-            var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == context.DraftId.Value && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
+            var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == context.DraftId.Value && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
             if (draft == null)
             {
                 return BlueskyDraftValidator.CreateFailureResult("Draft not found or access denied.");
             }
 
             validationContent = draft.Content ?? "";
-            mediaAssets = await db.MediaAssets.Where(m => m.DraftId == context.DraftId.Value).ToListAsync(context.CancellationToken);
+            mediaAssets = await _db.MediaAssets.Where(m => m.DraftId == context.DraftId.Value).ToListAsync(context.CancellationToken);
         }
 
         return _blueskyDraftValidator.Validate(validationContent, mediaAssets);

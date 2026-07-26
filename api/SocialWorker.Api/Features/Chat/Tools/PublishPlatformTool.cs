@@ -34,11 +34,21 @@ public sealed record PublishPlatformToolResult(
 
 public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlatformToolResult>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly AppDbContext _db;
+    private readonly IPublisherResolver _publisherResolver;
+    private readonly BlueskyContentValidator _blueskyContentValidator;
+    private readonly IBlueskyReplyTargetResolver _replyTargetResolver;
 
-    public PublishPlatformTool(IServiceScopeFactory scopeFactory)
+    public PublishPlatformTool(
+        AppDbContext db,
+        IPublisherResolver publisherResolver,
+        BlueskyContentValidator blueskyContentValidator,
+        IBlueskyReplyTargetResolver replyTargetResolver)
     {
-        _scopeFactory = scopeFactory;
+        _db = db;
+        _publisherResolver = publisherResolver;
+        _blueskyContentValidator = blueskyContentValidator;
+        _replyTargetResolver = replyTargetResolver;
     }
 
     public override string Name => "publish";
@@ -63,13 +73,7 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
 
         string platform = args.Platform ?? "";
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var publisherResolver = scope.ServiceProvider.GetRequiredService<IPublisherResolver>();
-        var blueskyContentValidator = scope.ServiceProvider.GetRequiredService<BlueskyContentValidator>();
-        var replyTargetResolver = scope.ServiceProvider.GetRequiredService<IBlueskyReplyTargetResolver>();
-
-        var thread = await db.PlatformThreads
+        var thread = await _db.PlatformThreads
             .FirstOrDefaultAsync(t => t.DraftId == context.DraftId && t.Platform.ToLower() == platform.ToLower(), context.CancellationToken);
 
         if (thread == null)
@@ -77,26 +81,26 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
             return new PublishPlatformToolResult(false, $"No platform thread found for platform '{platform}' in this draft.", Error: $"No platform thread found for platform '{platform}' in this draft.");
         }
 
-        var account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == context.UserId && a.Platform == platform, context.CancellationToken);
+        var account = await _db.Accounts.FirstOrDefaultAsync(a => a.UserId == context.UserId && a.Platform == platform, context.CancellationToken);
         if (account == null)
         {
             return new PublishPlatformToolResult(false, $"No connected account found for platform: {platform}", Error: $"No connected account found for platform: {platform}");
         }
 
-        var publisher = publisherResolver.Resolve(platform);
+        var publisher = _publisherResolver.Resolve(platform);
         if (publisher == null)
         {
             return new PublishPlatformToolResult(false, $"No publisher configured for platform: {platform}", Error: $"No publisher configured for platform: {platform}");
         }
 
         // Validate content before publishing
-        var validationError = ValidateThreadContent(thread.Content ?? "", thread.Platform, blueskyContentValidator);
+        var validationError = ValidateThreadContent(thread.Content ?? "", thread.Platform, _blueskyContentValidator);
         if (validationError != null)
         {
             return new PublishPlatformToolResult(false, validationError, Error: validationError);
         }
 
-        var replyTargetValidationError = await ValidateBlueskyReplyTargetAsync(db, replyTargetResolver, thread, context.CancellationToken);
+        var replyTargetValidationError = await ValidateBlueskyReplyTargetAsync(_db, _replyTargetResolver, thread, context.CancellationToken);
         if (replyTargetValidationError != null)
         {
             return new PublishPlatformToolResult(false, replyTargetValidationError, Error: replyTargetValidationError);
@@ -107,8 +111,8 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
         if (result.Success)
         {
             // Clear any previous posts from this platform thread (in case of republication)
-            var oldPosts = await db.Posts.Where(p => p.PlatformThreadId == thread.Id).ToListAsync(context.CancellationToken);
-            db.Posts.RemoveRange(oldPosts);
+            var oldPosts = await _db.Posts.Where(p => p.PlatformThreadId == thread.Id).ToListAsync(context.CancellationToken);
+            _db.Posts.RemoveRange(oldPosts);
             
             foreach (var publishedPost in result.Posts)
             {
@@ -121,12 +125,12 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
                     RemoteId = publishedPost.RemoteId,
                     Url = publishedPost.Url
                 };
-                db.Posts.Add(post);
+                _db.Posts.Add(post);
             }
             
             thread.Stage = PlatformThreadStage.Sent;
             thread.UpdatedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync(context.CancellationToken);
+            await _db.SaveChangesAsync(context.CancellationToken);
             
             return new PublishPlatformToolResult(
                 true,

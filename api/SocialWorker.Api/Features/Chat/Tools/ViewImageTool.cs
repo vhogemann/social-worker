@@ -42,11 +42,18 @@ public sealed record ViewImageToolResult(IReadOnlyList<ViewImageResultItem> Item
 
 public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolResult>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly AppDbContext _db;
+    private readonly MediaService _mediaService;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public ViewImageTool(IServiceScopeFactory scopeFactory)
+    public ViewImageTool(
+        AppDbContext db,
+        MediaService mediaService,
+        IHttpClientFactory httpClientFactory)
     {
-        _scopeFactory = scopeFactory;
+        _db = db;
+        _mediaService = mediaService;
+        _httpClientFactory = httpClientFactory;
     }
 
     public override string Name => "view_image";
@@ -96,9 +103,6 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolRes
             }
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
         if (isHttpUrl)
         {
             if (!context.DraftId.HasValue)
@@ -106,20 +110,18 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolRes
                 throw new ArgumentException("Viewing an image URL requires an active draft context.");
             }
 
-            var mediaService = scope.ServiceProvider.GetRequiredService<MediaService>();
-            var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-            using var client = httpClientFactory.CreateClient();
-            var importResult = await mediaService.ImportMediaFromUrlAsync(context.UserId, context.DraftId.Value, imageIdStr, client, context.CancellationToken);
+            using var client = _httpClientFactory.CreateClient();
+            var importResult = await _mediaService.ImportMediaFromUrlAsync(context.UserId, context.DraftId.Value, imageIdStr, client, context.CancellationToken);
             imageId = importResult.Id;
         }
 
-        var asset = await db.MediaAssets.FirstOrDefaultAsync(m => m.Id == imageId, context.CancellationToken);
+        var asset = await _db.MediaAssets.FirstOrDefaultAsync(m => m.Id == imageId, context.CancellationToken);
         if (asset == null)
         {
             throw new InvalidOperationException($"Image {imageId} not found");
         }
 
-        var owned = await db.Drafts.AnyAsync(d => d.Id == asset.DraftId && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
+        var owned = await _db.Drafts.AnyAsync(d => d.Id == asset.DraftId && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
         if (!owned)
         {
             throw new UnauthorizedAccessException("Access denied to target image");

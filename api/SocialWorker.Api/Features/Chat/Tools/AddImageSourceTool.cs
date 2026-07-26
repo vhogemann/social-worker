@@ -30,11 +30,18 @@ public sealed record AddImageSourceResult(
 
 public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, AddImageSourceResult>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly AppDbContext _db;
+    private readonly MediaService _mediaService;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public AddImageSourceTool(IServiceScopeFactory scopeFactory)
+    public AddImageSourceTool(
+        AppDbContext db,
+        MediaService mediaService,
+        IHttpClientFactory httpClientFactory)
     {
-        _scopeFactory = scopeFactory;
+        _db = db;
+        _mediaService = mediaService;
+        _httpClientFactory = httpClientFactory;
     }
 
     public override string Name => "add_image_source";
@@ -69,12 +76,7 @@ public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, AddIma
             return new AddImageSourceResult(false, "A valid absolute image URL is required.", Error: "A valid absolute image URL is required.");
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var mediaService = scope.ServiceProvider.GetRequiredService<MediaService>();
-        var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-
-        var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == context.DraftId.Value && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
+        var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == context.DraftId.Value && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
         if (draft == null)
         {
             return new AddImageSourceResult(false, "Draft not found or access denied.", Error: "Draft not found or access denied.");
@@ -82,8 +84,8 @@ public sealed class AddImageSourceTool : ChatToolBase<AddImageSourceArgs, AddIma
 
         try
         {
-            using var client = httpClientFactory.CreateClient();
-            var uploadResult = await mediaService.ImportMediaFromUrlAsync(
+            using var client = _httpClientFactory.CreateClient();
+            var uploadResult = await _mediaService.ImportMediaFromUrlAsync(
                 context.UserId,
                 context.DraftId.Value,
                 args.Url,

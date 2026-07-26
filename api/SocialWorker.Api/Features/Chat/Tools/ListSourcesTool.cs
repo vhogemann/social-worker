@@ -50,11 +50,11 @@ public sealed record ListSourcesResult(IReadOnlyList<ListSourcesResultItem> Item
 
 public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, ListSourcesResult>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly AppDbContext _db;
 
-    public ListSourcesTool(IServiceScopeFactory scopeFactory)
+    public ListSourcesTool(AppDbContext db)
     {
-        _scopeFactory = scopeFactory;
+        _db = db;
     }
 
     public override string Name => "list_sources";
@@ -70,19 +70,16 @@ public sealed class ListSourcesTool : ChatToolBase<ListSourcesArgs, ListSourcesR
 
     public override async Task<ListSourcesResult> ExecuteAsync(ListSourcesArgs args, Models.ToolExecutionContext context)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
         var activeDraftId = context.DraftId.HasValue
             ? context.DraftId.Value
-            : (await db.Drafts.OrderByDescending(d => d.UpdatedAt).FirstOrDefaultAsync(d => d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken))?.Id;
+            : (await _db.Drafts.OrderByDescending(d => d.UpdatedAt).FirstOrDefaultAsync(d => d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken))?.Id;
 
         if (activeDraftId == null)
         {
             return new ListSourcesResult(Array.Empty<ListSourcesResultItem>());
         }
 
-        var rows = await db.Sources
+        var rows = await _db.Sources
             .Where(s => s.DraftSources.Any(ds => ds.DraftId == activeDraftId.Value))
             .ToListAsync(context.CancellationToken);
 

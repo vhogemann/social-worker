@@ -33,11 +33,13 @@ public sealed record SetBlueskyReplyTargetToolResult(
 
 public sealed class SetBlueskyReplyTargetTool : ChatToolBase<SetBlueskyReplyTargetArgs, SetBlueskyReplyTargetToolResult>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBlueskyReplyTargetResolver _resolver;
+    private readonly DraftsService _draftsService;
 
-    public SetBlueskyReplyTargetTool(IServiceScopeFactory scopeFactory)
+    public SetBlueskyReplyTargetTool(IBlueskyReplyTargetResolver resolver, DraftsService draftsService)
     {
-        _scopeFactory = scopeFactory;
+        _resolver = resolver;
+        _draftsService = draftsService;
     }
 
     public override string Name => "set_bluesky_reply_target";
@@ -64,11 +66,7 @@ public sealed class SetBlueskyReplyTargetTool : ChatToolBase<SetBlueskyReplyTarg
             return new SetBlueskyReplyTargetToolResult(false, "No active draft context.", Error: "No active draft context.");
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var resolver = scope.ServiceProvider.GetRequiredService<IBlueskyReplyTargetResolver>();
-        var draftsService = scope.ServiceProvider.GetRequiredService<DraftsService>();
-
-        var resolution = await resolver.ResolveAsync(args.Url, context.CancellationToken);
+        var resolution = await _resolver.ResolveAsync(args.Url, context.CancellationToken);
         if (!resolution.Success)
         {
             return new SetBlueskyReplyTargetToolResult(false, "Could not set Bluesky reply target.", Error: resolution.Error ?? "Failed to resolve Bluesky post.");
@@ -76,7 +74,7 @@ public sealed class SetBlueskyReplyTargetTool : ChatToolBase<SetBlueskyReplyTarg
 
         try
         {
-            var updatedDraft = await draftsService.SetDraftBlueskyReplyTargetAsync(
+            var updatedDraft = await _draftsService.SetDraftBlueskyReplyTargetAsync(
                 context.UserId,
                 context.DraftId.Value,
                 resolution.ReplyRootUri,

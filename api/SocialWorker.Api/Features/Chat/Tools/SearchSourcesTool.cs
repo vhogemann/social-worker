@@ -35,11 +35,11 @@ public sealed record SearchSourcesResult(IReadOnlyList<SearchSourcesResultItem> 
 
 public sealed class SearchSourcesTool : ChatToolBase<SearchSourcesArgs, SearchSourcesResult>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly SourcesService _sourcesService;
 
-    public SearchSourcesTool(IServiceScopeFactory scopeFactory)
+    public SearchSourcesTool(SourcesService sourcesService)
     {
-        _scopeFactory = scopeFactory;
+        _sourcesService = sourcesService;
     }
 
     public override string Name => "search_sources";
@@ -72,10 +72,7 @@ public sealed class SearchSourcesTool : ChatToolBase<SearchSourcesArgs, SearchSo
 
         var limit = Math.Clamp(args.Limit ?? 5, 1, 20);
 
-        using var scope = _scopeFactory.CreateScope();
-        var sourcesService = scope.ServiceProvider.GetRequiredService<SourcesService>();
-
-        var result = await sourcesService.SearchSourcesAsync(
+        var result = await _sourcesService.SearchSourcesAsync(
             context.UserId,
             query,
             page: 1,

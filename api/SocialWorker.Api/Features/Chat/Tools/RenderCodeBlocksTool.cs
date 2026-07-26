@@ -36,11 +36,18 @@ public sealed record RenderCodeBlocksResult(
 
 public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, RenderCodeBlocksResult>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly AppDbContext _db;
+    private readonly CodeImageService _codeImageService;
+    private readonly DraftsService _draftsService;
 
-    public RenderCodeBlocksTool(IServiceScopeFactory scopeFactory)
+    public RenderCodeBlocksTool(
+        AppDbContext db,
+        CodeImageService codeImageService,
+        DraftsService draftsService)
     {
-        _scopeFactory = scopeFactory;
+        _db = db;
+        _codeImageService = codeImageService;
+        _draftsService = draftsService;
     }
 
     public override string Name => "render_code_blocks";
@@ -60,7 +67,7 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, Re
             },
             "blockIndex": {
               "type": "integer",
-              "description": "Zero-based index of the code block to render. If omitted, all code blocks in the draft are rendered."
+              "description": "Optional 0-based index of a specific code block to render. If omitted, renders all code blocks."
             }
           }
         }
@@ -71,13 +78,7 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, Re
         if (!context.DraftId.HasValue)
             return new RenderCodeBlocksResult(false, Array.Empty<RenderedCodeBlockItem>(), 0, "Error: No active draft.", "No active draft.");
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var mediaService = scope.ServiceProvider.GetRequiredService<MediaService>();
-        var renderer = scope.ServiceProvider.GetRequiredService<CodeImageRenderer>();
-        var draftsService = scope.ServiceProvider.GetRequiredService<DraftsService>();
-
-        var draft = await db.Drafts.FirstOrDefaultAsync(
+        var draft = await _db.Drafts.FirstOrDefaultAsync(
             d => d.Id == context.DraftId.Value && d.UserId == context.UserId && d.Status != DraftStatus.Deleted, context.CancellationToken);
         if (draft == null)
             return new RenderCodeBlocksResult(false, Array.Empty<RenderedCodeBlockItem>(), 0, "Error: Draft not found or access denied.", "Draft not found or access denied.");
@@ -89,14 +90,13 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, Re
             return new RenderCodeBlocksResult(false, Array.Empty<RenderedCodeBlockItem>(), 0, "No code blocks found in the draft.", "No code blocks found in the draft.");
 
         var theme = CodeTheme.FromString(args.Theme);
-        var codeImageService = new CodeImageService(mediaService, renderer);
 
         var rendered = new List<(CodeBlock Block, string MarkdownTag, int Index)>();
         for (var i = 0; i < blocks.Count; i++)
         {
             if (args.BlockIndex.HasValue && args.BlockIndex.Value != i) continue;
 
-            var result = await codeImageService.RenderAndStoreAsync(context.UserId, context.DraftId.Value, blocks[i], theme, context.CancellationToken);
+            var result = await _codeImageService.RenderAndStoreAsync(context.UserId, context.DraftId.Value, blocks[i], theme, context.CancellationToken);
             rendered.Add((blocks[i], result.MarkdownTag, i));
         }
 
@@ -112,8 +112,8 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, Re
         draft.Content = content;
         draft.UpdatedAt = DateTime.UtcNow;
 
-        await draftsService.ReconcileSegmentsAsync(draft, content, context.CancellationToken);
-        await db.SaveChangesAsync(context.CancellationToken);
+        await _draftsService.ReconcileSegmentsAsync(draft, content, context.CancellationToken);
+        await _db.SaveChangesAsync(context.CancellationToken);
 
         var sb = new StringBuilder();
         sb.AppendLine($"Rendered {rendered.Count} code block(s) as image(s):");

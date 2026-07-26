@@ -30,11 +30,11 @@ public sealed record AddSourceResult(
 
 public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly SourcesService _sourcesService;
 
-    public AddSourceTool(IServiceScopeFactory scopeFactory)
+    public AddSourceTool(SourcesService sourcesService)
     {
-        _scopeFactory = scopeFactory;
+        _sourcesService = sourcesService;
     }
 
     public override string Name => "add_source";
@@ -79,11 +79,9 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
 
         if (args.SourceId.HasValue)
         {
-            using var linkScope = _scopeFactory.CreateScope();
-            var linkService = linkScope.ServiceProvider.GetRequiredService<SourcesService>();
             try
             {
-                var linked = await linkService.LinkSourceAsync(context.UserId, args.SourceId.Value, context.DraftId.Value, context.CancellationToken);
+                var linked = await _sourcesService.LinkSourceAsync(context.UserId, args.SourceId.Value, context.DraftId.Value, context.CancellationToken);
                 return new AddSourceResult(
                     true,
                     $"Linked existing source '{linked.Title}' ({linked.Kind}) to this draft.",
@@ -119,12 +117,9 @@ public sealed class AddSourceTool : ChatToolBase<AddSourceArgs, AddSourceResult>
             return new AddSourceResult(false, error, Error: error);
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var sourcesService = scope.ServiceProvider.GetRequiredService<SourcesService>();
-
         try
         {
-            var result = await sourcesService.AddUrlSourceAsync(
+            var result = await _sourcesService.AddUrlSourceAsync(
                 context.UserId,
                 context.DraftId.Value,
                 reference,

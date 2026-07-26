@@ -62,7 +62,7 @@ public static class MediaEndpoint
 
         app.MapPost("/api/drafts/{draftId:guid}/media/import-url", async (
             ClaimsPrincipal principal,
-            IServiceScopeFactory scopeFactory,
+            IHttpClientFactory httpClientFactory,
             MediaService mediaService,
             Guid draftId,
             ImportMediaFromUrlRequest req,
@@ -78,9 +78,7 @@ public static class MediaEndpoint
 
             try
             {
-                using var scope = scopeFactory.CreateScope();
-                var factory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-                using var client = factory.CreateClient();
+                using var client = httpClientFactory.CreateClient();
 
                 var result = await mediaService.ImportMediaFromUrlAsync(
                     userId.Value,

@@ -34,11 +34,11 @@ public sealed record FetchSourceResult(
 
 public sealed class FetchSourceTool : ChatToolBase<FetchSourceArgs, FetchSourceResult>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly AppDbContext _db;
 
-    public FetchSourceTool(IServiceScopeFactory scopeFactory)
+    public FetchSourceTool(AppDbContext db)
     {
-        _scopeFactory = scopeFactory;
+        _db = db;
     }
 
     public override string Name => "fetch_source";
@@ -74,16 +74,13 @@ public sealed class FetchSourceTool : ChatToolBase<FetchSourceArgs, FetchSourceR
             throw new ArgumentException("Invalid Guid ID format");
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var source = await db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, context.CancellationToken);
+        var source = await _db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, context.CancellationToken);
         if (source == null)
         {
             throw new InvalidOperationException($"Source {sourceId} not found");
         }
 
-        var owned = await db.DraftSources
+        var owned = await _db.DraftSources
             .AnyAsync(ds => ds.SourceId == source.Id && ds.Draft.UserId == context.UserId && ds.Draft.Status != DraftStatus.Deleted, context.CancellationToken);
         if (!owned)
         {
