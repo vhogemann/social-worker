@@ -10,6 +10,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Validation;
 
 namespace SocialWorker.Api.Features.Drafts;
 
@@ -35,7 +36,7 @@ public static class DraftsEndpoint
 
             var result = await draftsService.CreateDraftAsync(userId.Value, req.Title, req.Content, req.TargetPlatform, ct);
             return Results.Created($"/api/drafts/{result.Id}", result);
-        });
+        }).WithValidation<CreateDraftRequest>();
 
         group.MapPost("/reply-from-url", async (ClaimsPrincipal principal, DraftsService draftsService, IBlueskyReplyTargetResolver resolver, CreateReplyDraftFromUrlRequest req, CancellationToken ct) =>
         {
@@ -55,7 +56,7 @@ public static class DraftsEndpoint
             {
                 return Results.BadRequest(ex.Message);
             }
-        });
+        }).WithValidation<CreateReplyDraftFromUrlRequest>();
 
         group.MapGet("/{id:guid}", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, CancellationToken ct) =>
         {
@@ -87,7 +88,7 @@ public static class DraftsEndpoint
             {
                 return Results.NotFound();
             }
-        });
+        }).WithValidation<UpdateDraftRequest>();
 
         group.MapPatch("/{id:guid}/bluesky-reply-target", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, UpdateDraftBlueskyReplyTargetRequest req, CancellationToken ct) =>
         {
@@ -122,7 +123,7 @@ public static class DraftsEndpoint
             {
                 return Results.BadRequest(ex.Message);
             }
-        });
+        }).WithValidation<UpdateDraftBlueskyReplyTargetRequest>();
 
         group.MapPatch("/{id:guid}/bluesky-reply-target/from-url", async (ClaimsPrincipal principal, DraftsService draftsService, IBlueskyReplyTargetResolver resolver, Guid id, UpdateDraftBlueskyReplyTargetFromUrlRequest req, CancellationToken ct) =>
         {
@@ -146,7 +147,7 @@ public static class DraftsEndpoint
             {
                 return Results.BadRequest(ex.Message);
             }
-        });
+        }).WithValidation<UpdateDraftBlueskyReplyTargetFromUrlRequest>();
 
         group.MapGet("/{id:guid}/threads", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, CancellationToken ct) =>
         {
@@ -169,11 +170,6 @@ public static class DraftsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            if (string.IsNullOrWhiteSpace(req.Platform))
-            {
-                return Results.BadRequest("Platform is required");
-            }
-
             try
             {
                 var result = await draftsService.CreatePlatformThreadAsync(userId.Value, id, req.Platform, ct);
@@ -187,7 +183,7 @@ public static class DraftsEndpoint
             {
                 return Results.Conflict(ex.Message);
             }
-        });
+        }).WithValidation<CreatePlatformThreadRequest>();
 
         group.MapPatch("/{id:guid}/threads/{threadId:guid}", async (
             ClaimsPrincipal principal,

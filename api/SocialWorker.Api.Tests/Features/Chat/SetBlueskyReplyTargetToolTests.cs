@@ -28,7 +28,7 @@ public sealed class SetBlueskyReplyTargetToolTests : SqliteTestBase
         db.Drafts.Add(new Draft { Id = draftId, UserId = userId, Title = "Draft", Status = DraftStatus.Editing });
         await db.SaveChangesAsync();
 
-        var services = BuildServices(db, new StubResolver(_ => new BlueskyReplyTargetResolutionResult(
+        var (tool, resolver) = CreateTool(db, _ => new BlueskyReplyTargetResolutionResult(
             true,
             null,
             "at://did:plc:root/app.bsky.feed.post/1",
@@ -39,10 +39,9 @@ public sealed class SetBlueskyReplyTargetToolTests : SqliteTestBase
             "example.bsky.social",
             "Parent text",
             "https://cdn.bsky.app/avatar.jpg"
-        )));
+        ));
 
-        var tool = new SetBlueskyReplyTargetTool(services.GetRequiredService<IServiceScopeFactory>());
-        var result = await tool.ExecuteAsync(new SetBlueskyReplyTargetArgs("https://bsky.app/profile/example/post/2"), draftId, userId, CancellationToken.None);
+        var result = await tool.ExecuteAsync(new SetBlueskyReplyTargetArgs("https://bsky.app/profile/example/post/2"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
 
         Assert.True(result.Success);
         Assert.Equal("https://bsky.app/profile/example/post/2", result.ReplyParentUrl);
@@ -72,7 +71,7 @@ public sealed class SetBlueskyReplyTargetToolTests : SqliteTestBase
         });
         await db.SaveChangesAsync();
 
-        var services = BuildServices(db, new StubResolver(_ => new BlueskyReplyTargetResolutionResult(
+        var (tool, resolver) = CreateTool(db, _ => new BlueskyReplyTargetResolutionResult(
             true,
             null,
             "at://did:plc:root/app.bsky.feed.post/1",
@@ -83,10 +82,9 @@ public sealed class SetBlueskyReplyTargetToolTests : SqliteTestBase
             "example.bsky.social",
             "Parent text",
             "https://cdn.bsky.app/avatar.jpg"
-        )));
+        ));
 
-        var tool = new SetBlueskyReplyTargetTool(services.GetRequiredService<IServiceScopeFactory>());
-        var result = await tool.ExecuteAsync(new SetBlueskyReplyTargetArgs("https://bsky.app/profile/example/post/2"), draftId, userId, CancellationToken.None);
+        var result = await tool.ExecuteAsync(new SetBlueskyReplyTargetArgs("https://bsky.app/profile/example/post/2"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
 
         Assert.False(result.Success);
         Assert.Contains("already set", result.Error ?? string.Empty, StringComparison.OrdinalIgnoreCase);
@@ -103,27 +101,23 @@ public sealed class SetBlueskyReplyTargetToolTests : SqliteTestBase
         db.Drafts.Add(new Draft { Id = draftId, UserId = userId, Title = "Draft", Status = DraftStatus.Editing });
         await db.SaveChangesAsync();
 
-        var services = BuildServices(db, new StubResolver(_ => new BlueskyReplyTargetResolutionResult(false, "Only strict bsky.app post URLs are supported.")));
+        var (tool, resolver) = CreateTool(db, _ => new BlueskyReplyTargetResolutionResult(false, "Only strict bsky.app post URLs are supported."));
 
-        var tool = new SetBlueskyReplyTargetTool(services.GetRequiredService<IServiceScopeFactory>());
-        var result = await tool.ExecuteAsync(new SetBlueskyReplyTargetArgs("https://example.com/not-allowed"), draftId, userId, CancellationToken.None);
+        var result = await tool.ExecuteAsync(new SetBlueskyReplyTargetArgs("https://example.com/not-allowed"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
 
         Assert.False(result.Success);
         Assert.Contains("strict", result.Error ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         Assert.False(await db.DraftBlueskyMetadata.AnyAsync(m => m.DraftId == draftId));
     }
 
-    private static ServiceProvider BuildServices(AppDbContext db, IBlueskyReplyTargetResolver resolver)
+    private static (SetBlueskyReplyTargetTool Tool, IBlueskyReplyTargetResolver Resolver) CreateTool(AppDbContext db, Func<string, BlueskyReplyTargetResolutionResult> resolve)
     {
-        var services = new ServiceCollection();
-        services.AddSingleton(db);
-        services.AddSingleton(resolver);
+        var resolver = new StubResolver(resolve);
         var queue = new BackgroundJobQueue();
         var sourcesService = TestServiceFactory.CreateSourcesService(db, queue: queue);
         var draftsService = TestServiceFactory.CreateDraftsService(db, new FileStorageProvider(), sourcesService, queue: queue);
-        services.AddSingleton(sourcesService);
-        services.AddSingleton(draftsService);
-        return services.BuildServiceProvider();
+        var tool = new SetBlueskyReplyTargetTool(resolver, draftsService);
+        return (tool, resolver);
     }
 
     private sealed class StubResolver : IBlueskyReplyTargetResolver

@@ -27,12 +27,9 @@ public sealed class FetchSourceToolTests : SqliteTestBase
         db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id });
         await db.SaveChangesAsync();
 
-        var services = new ServiceCollection();
-        services.AddSingleton(db);
-        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
-        var tool = new FetchSourceTool(scopeFactory);
+        var tool = new FetchSourceTool(db);
 
-        var result = await tool.ExecuteAsync(new FetchSourceArgs(source.Id.ToString()), draft.Id, user.Id, CancellationToken.None);
+        var result = await tool.ExecuteAsync(new FetchSourceArgs(source.Id.ToString()), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(user.Id, draft.Id));
 
         Assert.Equal(source.Id, result.Id);
         Assert.Equal("Source content here", result.Content);

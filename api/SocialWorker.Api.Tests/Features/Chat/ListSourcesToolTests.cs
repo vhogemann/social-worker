@@ -30,12 +30,9 @@ public sealed class ListSourcesToolTests : SqliteTestBase
             new DraftSource { DraftId = draft.Id, SourceId = source2.Id });
         await db.SaveChangesAsync();
 
-        var services = new ServiceCollection();
-        services.AddSingleton(db);
-        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
-        var tool = new ListSourcesTool(scopeFactory);
+        var tool = new ListSourcesTool(db);
 
-        var result = await tool.ExecuteAsync(new ListSourcesArgs(), draft.Id, user.Id, CancellationToken.None);
+        var result = await tool.ExecuteAsync(new ListSourcesArgs(), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(user.Id, draft.Id));
 
         Assert.Equal(2, result.Count);
         Assert.Contains(result, s => s.Reference == "https://example.com");

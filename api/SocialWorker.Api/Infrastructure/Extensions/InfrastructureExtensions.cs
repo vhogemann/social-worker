@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using FluentValidation;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Features.Accounts;
 using SocialWorker.Api.Features.Drafts;
@@ -21,6 +22,7 @@ static partial class ServiceCollectionExtensions
             o.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
         builder.Services.AddMemoryCache();
+        builder.Services.AddValidatorsFromAssemblyContaining<Program>();
         builder.Services.AddSingleton<BackgroundJobQueue>();
         builder.Services.AddHostedService<BackgroundJobHostedService>();
 

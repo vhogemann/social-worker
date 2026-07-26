@@ -75,17 +75,10 @@ public sealed class AddImageSourceToolTests : IDisposable
         var resizer = new ImageResizer();
         var mediaService = new MediaService(db, resizer, storage);
 
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton(db);
-        serviceCollection.AddSingleton(mediaService);
-        serviceCollection.AddSingleton<IHttpClientFactory>(mockHttpClientFactory);
-        var serviceProvider = serviceCollection.BuildServiceProvider();
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-
-        var tool = new AddImageSourceTool(scopeFactory);
+        var tool = new AddImageSourceTool(db, mediaService, mockHttpClientFactory);
         var args = new AddImageSourceArgs("https://example.com/pineapple.png", "Pineapple Alt Text");
 
-        var response = await tool.ExecuteAsync(args, draft.Id, userId, CancellationToken.None);
+        var response = await tool.ExecuteAsync(args, SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draft.Id));
 
         Assert.Contains("Successfully imported image", response);
         Assert.Contains("media://", response);

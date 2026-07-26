@@ -31,12 +31,10 @@ public sealed class ViewImageToolTests : SqliteTestBase
     [Fact]
     public async Task ExecuteAsync_Throws_ForInvalidId()
     {
-        var services = new ServiceCollection();
-        var sp = services.BuildServiceProvider();
-        var tool = new ViewImageTool(sp.GetRequiredService<IServiceScopeFactory>());
+        var tool = new ViewImageTool(null!, null!, null!);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            tool.ExecuteAsync(new ViewImageArgs("bad-id"), Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None));
+            tool.ExecuteAsync(new ViewImageArgs("bad-id"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(Guid.NewGuid(), Guid.NewGuid())));
     }
 
     [Fact]
@@ -64,21 +62,13 @@ public sealed class ViewImageToolTests : SqliteTestBase
             return res;
         });
 
-        var services = new ServiceCollection();
-        services.AddSingleton(db);
-        services.AddSingleton(new ImageResizer());
-        services.AddSingleton(new FileStorageProvider());
-        services.AddSingleton<MediaService>();
-        services.AddSingleton<IHttpClientFactory>(new LocalMockHttpClientFactory(new HttpClient(httpHandler)));
-
-        using var provider = services.BuildServiceProvider();
-        var tool = new ViewImageTool(provider.GetRequiredService<IServiceScopeFactory>());
+        var mediaService = new MediaService(db, new ImageResizer(), new FileStorageProvider());
+        var factory = new LocalMockHttpClientFactory(new HttpClient(httpHandler));
+        var tool = new ViewImageTool(db, mediaService, factory);
 
         var result = await tool.ExecuteAsync(
             new ViewImageArgs("https://example.com/heatwave.png"),
-            draft.Id,
-            user.Id,
-            CancellationToken.None);
+            SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(user.Id, draft.Id));
 
         Assert.Equal(2, result.Count);
         Assert.Equal("text", result[0].Type);

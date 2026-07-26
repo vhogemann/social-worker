@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Validation;
 
 namespace SocialWorker.Api.Features.Media;
 
@@ -110,7 +111,7 @@ public static class MediaEndpoint
             {
                 return Results.BadRequest($"Failed to import image: {ex.Message}");
             }
-        }).RequireAuthorization();
+        }).RequireAuthorization().WithValidation<ImportMediaFromUrlRequest>();
 
         app.MapGet("/api/media/{id:guid}", async (MediaService mediaService, Guid id, CancellationToken ct) =>
         {

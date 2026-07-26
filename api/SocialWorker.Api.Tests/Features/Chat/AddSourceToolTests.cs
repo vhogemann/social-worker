@@ -56,19 +56,12 @@ public sealed class AddSourceToolTests : IDisposable
         });
         var client = new HttpClient(httpHandler);
         var scraper = new WebScraperService(client);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
 
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton(db);
-        serviceCollection.AddSingleton(scraper);
-        serviceCollection.AddSingleton<BackgroundJobQueue>();
-        serviceCollection.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
-        var serviceProvider = serviceCollection.BuildServiceProvider();
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-
-        var tool = new AddSourceTool(scopeFactory);
+        var tool = new AddSourceTool(sourcesService);
         var args = new AddSourceArgs("Url", "https://example.com/testpage", null, null, null);
 
-        var response = await tool.ExecuteAsync(args, draft.Id, userId, CancellationToken.None);
+        var response = await tool.ExecuteAsync(args, SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draft.Id));
 
         Assert.Contains("Successfully added source", response);
 
@@ -92,16 +85,10 @@ public sealed class AddSourceToolTests : IDisposable
 
         var client = new HttpClient(new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
         var scraper = new WebScraperService(client);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
 
-        var services = new ServiceCollection();
-        services.AddSingleton(db);
-        services.AddSingleton(scraper);
-        services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
-        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
-
-        var tool = new AddSourceTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new AddSourceArgs("Url", "/relative/path", null, null, null), draft.Id, userId, CancellationToken.None);
+        var tool = new AddSourceTool(sourcesService);
+        var result = await tool.ExecuteAsync(new AddSourceArgs("Url", "/relative/path", null, null, null), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draft.Id));
 
         Assert.StartsWith("Error:", result);
         Assert.Empty(await db.Sources.ToListAsync());
@@ -119,16 +106,10 @@ public sealed class AddSourceToolTests : IDisposable
 
         var client = new HttpClient(new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)));
         var scraper = new WebScraperService(client);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
 
-        var services = new ServiceCollection();
-        services.AddSingleton(db);
-        services.AddSingleton(scraper);
-        services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
-        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
-
-        var tool = new AddSourceTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new AddSourceArgs("Url", "https://example.com/missing", null, null, null), draft.Id, userId, CancellationToken.None);
+        var tool = new AddSourceTool(sourcesService);
+        var result = await tool.ExecuteAsync(new AddSourceArgs("Url", "https://example.com/missing", null, null, null), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draft.Id));
 
         Assert.StartsWith("Error:", result);
         Assert.Empty(await db.Sources.ToListAsync());
@@ -150,15 +131,10 @@ public sealed class AddSourceToolTests : IDisposable
 
         var client = new HttpClient(new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
         var scraper = new WebScraperService(client);
-        var services = new ServiceCollection();
-        services.AddSingleton(db);
-        services.AddSingleton(scraper);
-        services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
-        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+        var sourcesService = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
 
-        var tool = new AddSourceTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new AddSourceArgs(null, null, null, null, source.Id), draft2.Id, userId, CancellationToken.None);
+        var tool = new AddSourceTool(sourcesService);
+        var result = await tool.ExecuteAsync(new AddSourceArgs(null, null, null, null, source.Id), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draft2.Id));
 
         Assert.True(result.Success);
         Assert.Contains("Linked existing source", result.Message);
@@ -179,15 +155,10 @@ public sealed class AddSourceToolTests : IDisposable
 
         var client = new HttpClient(new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
         var scraper = new WebScraperService(client);
-        var services = new ServiceCollection();
-        services.AddSingleton(db);
-        services.AddSingleton(scraper);
-        services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
-        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+        var sourcesService = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
 
-        var tool = new AddSourceTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new AddSourceArgs(null, null, null, null, null), draft.Id, userId, CancellationToken.None);
+        var tool = new AddSourceTool(sourcesService);
+        var result = await tool.ExecuteAsync(new AddSourceArgs(null, null, null, null, null), ToolExecutionContext.Create(userId, draft.Id));
 
         Assert.False(result.Success);
         Assert.Contains("source_id or kind+reference", result.Error);

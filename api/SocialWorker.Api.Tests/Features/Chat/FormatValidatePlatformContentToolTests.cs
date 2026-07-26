@@ -16,9 +16,7 @@ public sealed class FormatValidatePlatformContentToolTests
 
         var result = await tool.ExecuteAsync(
             new FormatValidatePlatformContentArgs("Mastodon", "Hello world", true),
-            null,
-            Guid.NewGuid(),
-            CancellationToken.None);
+            SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(Guid.NewGuid(), null));
 
         Assert.False(result.IsValid);
         Assert.Contains("Invalid platform", result.Errors.Single());
@@ -32,9 +30,7 @@ public sealed class FormatValidatePlatformContentToolTests
 
         var result = await tool.ExecuteAsync(
             new FormatValidatePlatformContentArgs("Twitter", $"**Hook**\n\n{tooLong}", true),
-            null,
-            Guid.NewGuid(),
-            CancellationToken.None);
+            SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(Guid.NewGuid(), null));
 
         Assert.Contains("Hook", result.NormalizedContent);
         Assert.DoesNotContain("**Hook**", result.NormalizedContent, StringComparison.Ordinal);

@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Validation;
 
 namespace SocialWorker.Api.Features.Sources;
 
@@ -205,7 +206,7 @@ public static class SourcesEndpoint
             }
         }).DisableAntiforgery();
 
-        group.MapPost("/sources/import-url", async (
+        group.MapPost("/urls", async (
             ClaimsPrincipal principal,
             SourcesService sourcesService,
             Guid draftId,
@@ -214,11 +215,6 @@ public static class SourcesEndpoint
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
-
-            if (req is null || string.IsNullOrWhiteSpace(req.Url))
-            {
-                return Results.BadRequest("A valid source URL is required.");
-            }
 
             try
             {
@@ -250,7 +246,7 @@ public static class SourcesEndpoint
             {
                 return Results.BadRequest(ex.Message);
             }
-        });
+        }).WithValidation<ImportSourceFromUrlRequest>();
 
         group.MapPost("/sources/{sourceId:guid}/link", async (
             ClaimsPrincipal principal,

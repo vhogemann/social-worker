@@ -29,7 +29,7 @@ public sealed class WebSearchToolTests
         var engine = new MockSearchEngine { ExpectedQuery = "empty test", ResultsToReturn = new() };
         var tool = new WebSearchTool(engine);
 
-        var result = await tool.ExecuteAsync(new WebSearchArgs("empty test"), Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+        var result = await tool.ExecuteAsync(new WebSearchArgs("empty test"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(Guid.NewGuid(), Guid.NewGuid()));
 
         Assert.Equal("No search results found.", result);
     }
@@ -46,7 +46,7 @@ public sealed class WebSearchToolTests
         var engine = new MockSearchEngine { ExpectedQuery = "real query", ResultsToReturn = results };
         var tool = new WebSearchTool(engine);
 
-        var result = await tool.ExecuteAsync(new WebSearchArgs("real query"), Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+        var result = await tool.ExecuteAsync(new WebSearchArgs("real query"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(Guid.NewGuid(), Guid.NewGuid()));
 
         using var doc = JsonDocument.Parse(result);
         var root = doc.RootElement;

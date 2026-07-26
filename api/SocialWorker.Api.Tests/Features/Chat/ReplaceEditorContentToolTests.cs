@@ -18,20 +18,13 @@ public sealed class ReplaceEditorContentToolTests : SqliteTestBase
 {
     private static (AppDbContext Db, ReplaceEditorContentTool Tool) Create(AppDbContext db)
     {
-        var services = new ServiceCollection();
-
         var storage = new FileStorageProvider();
         var queue = new BackgroundJobQueue();
         var scopeFact = new MockScopeFactory(db);
         var sourcesService = TestServiceFactory.CreateSourcesService(db, scopeFactory: scopeFact, queue: queue);
         var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService, scopeFact, queue);
 
-        services.AddSingleton(db);
-        services.AddSingleton<DraftsService>(draftsService);
-        var sp = services.BuildServiceProvider();
-
-        var toolScopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
-        var tool = new ReplaceEditorContentTool(toolScopeFactory);
+        var tool = new ReplaceEditorContentTool(db, draftsService);
         return (db, tool);
     }
 
@@ -48,7 +41,7 @@ public sealed class ReplaceEditorContentToolTests : SqliteTestBase
         db.Drafts.Add(draft);
         await db.SaveChangesAsync();
 
-        var result = await tool.ExecuteAsync(new ReplaceEditorContentArgs("New content"), draft.Id, user.Id, CancellationToken.None);
+        var result = await tool.ExecuteAsync(new ReplaceEditorContentArgs("New content"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(user.Id, draft.Id));
 
         Assert.True(result.Success);
         Assert.Equal("New content", result.Content);

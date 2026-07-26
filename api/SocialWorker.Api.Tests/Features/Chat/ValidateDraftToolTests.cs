@@ -88,13 +88,8 @@ public sealed class ValidateDraftToolTests : IDisposable
         db.MediaAssets.Add(asset);
         await db.SaveChangesAsync();
 
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton(db);
-        var serviceProvider = serviceCollection.BuildServiceProvider();
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-
-        var tool = new ValidateDraftTool(scopeFactory, CreateValidator());
-        var report = await tool.ExecuteAsync(new ValidateDraftArgs(null), draft.Id, userId, CancellationToken.None);
+        var tool = new ValidateDraftTool(db, CreateValidator());
+        var report = await tool.ExecuteAsync(new ValidateDraftArgs(null), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draft.Id));
         var display = report.ToDisplayText();
 
         Assert.Equal(ValidateDraftOverallStatus.Failed, report.OverallStatus);
@@ -119,15 +114,10 @@ public sealed class ValidateDraftToolTests : IDisposable
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton(db);
-        var serviceProvider = serviceCollection.BuildServiceProvider();
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-
-        var tool = new ValidateDraftTool(scopeFactory, CreateValidator());
+        var tool = new ValidateDraftTool(db, CreateValidator());
         var explicitContent = "This is segment 1 under 300 chars.\n---\nThis is segment 2 under 300 chars.";
         
-        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), null, userId, CancellationToken.None);
+        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
         var display = report.ToDisplayText();
 
         Assert.Equal(ValidateDraftOverallStatus.Valid, report.OverallStatus);
@@ -148,15 +138,10 @@ public sealed class ValidateDraftToolTests : IDisposable
         db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
         await db.SaveChangesAsync();
 
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton(db);
-        var serviceProvider = serviceCollection.BuildServiceProvider();
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-
-        var tool = new ValidateDraftTool(scopeFactory, CreateValidator());
+        var tool = new ValidateDraftTool(db, CreateValidator());
         var explicitContent = "[Video Summary Source](https://www.youtube.com/shorts/xL3LA-Ftg3c)";
 
-        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), null, userId, CancellationToken.None);
+        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
         var display = report.ToDisplayText();
 
         Assert.Equal(ValidateDraftOverallStatus.Failed, report.OverallStatus);
@@ -172,15 +157,10 @@ public sealed class ValidateDraftToolTests : IDisposable
         db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
         await db.SaveChangesAsync();
 
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton(db);
-        var serviceProvider = serviceCollection.BuildServiceProvider();
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-
-        var tool = new ValidateDraftTool(scopeFactory, CreateValidator());
+        var tool = new ValidateDraftTool(db, CreateValidator());
         var explicitContent = "![Video Summary Source](https://www.youtube.com/shorts/xL3LA-Ftg3c)";
 
-        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), null, userId, CancellationToken.None);
+        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
 
         Assert.False(report.HasBlockingErrors);
         Assert.DoesNotContain(

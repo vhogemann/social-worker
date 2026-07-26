@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Validation;
 
 namespace SocialWorker.Api.Features.Feeds;
 
@@ -29,7 +30,7 @@ public static class FeedsEndpoint
 
             var result = await discoveryService.DiscoverAsync(req.Url);
             return Results.Ok(result);
-        });
+        }).WithValidation<DiscoverFeedRequest>();
 
         group.MapGet("/", async (
             ClaimsPrincipal principal,
@@ -57,18 +58,13 @@ public static class FeedsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            if (string.IsNullOrWhiteSpace(req.Title) || string.IsNullOrWhiteSpace(req.FeedUrl))
-            {
-                return Results.BadRequest("Title and FeedUrl are required.");
-            }
-
             var subscription = FeedSubscription.Create(userId.Value, req);
 
             db.FeedSubscriptions.Add(subscription);
             await db.SaveChangesAsync(ct);
 
             return Results.Created($"/api/feeds/{subscription.Id}", new FeedSubscriptionDto(subscription));
-        });
+        }).WithValidation<CreateFeedSubscriptionRequest>();
 
         group.MapPut("/{id:guid}", async (
             ClaimsPrincipal principal,

@@ -32,37 +32,31 @@ public sealed class SearchSourcesToolTests : IDisposable
 
     public void Dispose() => _connection.Dispose();
 
-    private (IServiceScopeFactory scopeFactory, AppDbContext db) BuildServices()
+    private (SourcesService sourcesService, AppDbContext db) BuildServices()
     {
         var db = new AppDbContext(_options);
         var client = new System.Net.Http.HttpClient(new MockHttpMessageHandler(_ =>
             new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)));
         var scraper = new WebScraperService(client);
-        var services = new ServiceCollection();
-        services.AddSingleton(db);
-        services.AddSingleton(scraper);
-        services.AddSingleton<BackgroundJobQueue>();
-        services.AddSingleton(TestServiceFactory.CreateSourcesService(db, scraper: scraper));
-        var provider = services.BuildServiceProvider();
-        return (provider.GetRequiredService<IServiceScopeFactory>(), db);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
+        return (sourcesService, db);
     }
 
     [Fact]
-    public async Task ExecuteAsync_Returns_Matching_Sources()
+    public async Task ExecuteAsync_Returns_Matching_Library_Sources()
     {
-        var (scopeFactory, db) = BuildServices();
+        var (sourcesService, db) = BuildServices();
         var userId = Guid.NewGuid();
         db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
         var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft", Status = DraftStatus.Editing };
         db.Drafts.Add(draft);
-
-        var source = new Source { Kind = SourceKind.Url, Reference = "https://example.com", Title = "Climate Policy Report", Content = "Report on climate change policy" };
+        var source = new Source { Kind = SourceKind.Url, Reference = "https://example.com", Title = "Climate Policy Report", Content = "Global warming data" };
         db.Sources.Add(source);
         db.DraftSources.Add(new DraftSource { Draft = draft, Source = source });
         await db.SaveChangesAsync();
 
-        var tool = new SearchSourcesTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new SearchSourcesArgs("climate", null), null, userId, CancellationToken.None);
+        var tool = new SearchSourcesTool(sourcesService);
+        var result = await tool.ExecuteAsync(new SearchSourcesArgs("climate", null), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
 
         Assert.Single(result.Items);
         Assert.Equal("Climate Policy Report", result.Items[0].Title);
@@ -71,7 +65,7 @@ public sealed class SearchSourcesToolTests : IDisposable
     [Fact]
     public async Task ExecuteAsync_Excludes_Sources_Linked_To_Active_Draft()
     {
-        var (scopeFactory, db) = BuildServices();
+        var (sourcesService, db) = BuildServices();
         var userId = Guid.NewGuid();
         db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
         var draft1 = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft 1", Status = DraftStatus.Editing };
@@ -85,8 +79,8 @@ public sealed class SearchSourcesToolTests : IDisposable
         db.DraftSources.Add(new DraftSource { Draft = draft2, Source = unlinkedSource });
         await db.SaveChangesAsync();
 
-        var tool = new SearchSourcesTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new SearchSourcesArgs("content", null), draft1.Id, userId, CancellationToken.None);
+        var tool = new SearchSourcesTool(sourcesService);
+        var result = await tool.ExecuteAsync(new SearchSourcesArgs("content", null), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draft1.Id));
 
         Assert.Single(result.Items);
         Assert.Equal("Unlinked Source", result.Items[0].Title);
@@ -95,13 +89,13 @@ public sealed class SearchSourcesToolTests : IDisposable
     [Fact]
     public async Task ExecuteAsync_Empty_Query_Returns_Empty()
     {
-        var (scopeFactory, db) = BuildServices();
+        var (sourcesService, db) = BuildServices();
         var userId = Guid.NewGuid();
         db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
         await db.SaveChangesAsync();
 
-        var tool = new SearchSourcesTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new SearchSourcesArgs("", null), null, userId, CancellationToken.None);
+        var tool = new SearchSourcesTool(sourcesService);
+        var result = await tool.ExecuteAsync(new SearchSourcesArgs("", null), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
 
         Assert.Empty(result.Items);
     }
@@ -109,7 +103,7 @@ public sealed class SearchSourcesToolTests : IDisposable
     [Fact]
     public async Task ExecuteAsync_No_Match_Returns_Empty()
     {
-        var (scopeFactory, db) = BuildServices();
+        var (sourcesService, db) = BuildServices();
         var userId = Guid.NewGuid();
         db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
         var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft", Status = DraftStatus.Editing };
@@ -119,8 +113,8 @@ public sealed class SearchSourcesToolTests : IDisposable
         db.DraftSources.Add(new DraftSource { Draft = draft, Source = source });
         await db.SaveChangesAsync();
 
-        var tool = new SearchSourcesTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new SearchSourcesArgs("cryptocurrency", null), null, userId, CancellationToken.None);
+        var tool = new SearchSourcesTool(sourcesService);
+        var result = await tool.ExecuteAsync(new SearchSourcesArgs("cryptocurrency", null), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
 
         Assert.Empty(result.Items);
     }
@@ -128,7 +122,7 @@ public sealed class SearchSourcesToolTests : IDisposable
     [Fact]
     public async Task ExecuteAsync_Respects_Limit()
     {
-        var (scopeFactory, db) = BuildServices();
+        var (sourcesService, db) = BuildServices();
         var userId = Guid.NewGuid();
         db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
         var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft", Status = DraftStatus.Editing };
@@ -142,8 +136,8 @@ public sealed class SearchSourcesToolTests : IDisposable
         }
         await db.SaveChangesAsync();
 
-        var tool = new SearchSourcesTool(scopeFactory);
-        var result = await tool.ExecuteAsync(new SearchSourcesArgs("topic", 3), null, userId, CancellationToken.None);
+        var tool = new SearchSourcesTool(sourcesService);
+        var result = await tool.ExecuteAsync(new SearchSourcesArgs("topic", 3), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
 
         Assert.Equal(3, result.Items.Count);
     }

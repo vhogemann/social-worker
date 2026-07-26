@@ -126,6 +126,7 @@ services:
   dotnet:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /src/SocialWorker.Api
+    network_mode: host
     entrypoint: ["dotnet"]
     command: ["--info"]
     volumes:

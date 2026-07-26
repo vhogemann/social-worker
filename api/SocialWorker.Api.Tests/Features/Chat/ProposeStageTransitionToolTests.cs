@@ -13,7 +13,7 @@ public sealed class ProposeStageTransitionToolTests
     {
         var tool = new ProposeStageTransitionTool();
         var args = new ProposeStageTransitionArgs("Bluesky", "Ready", "Ready for review");
-        var result = await tool.ExecuteAsync(args, Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+        var result = await tool.ExecuteAsync(args, SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(Guid.NewGuid(), Guid.NewGuid()));
         Assert.True(result.Success);
         Assert.Equal("Bluesky", result.Platform);
         Assert.Equal("Ready", result.ProposedStage);

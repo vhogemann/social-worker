@@ -110,7 +110,10 @@ public sealed class ChatRoundProcessor
             {
                 if (!ctx.HasListedSources)
                 {
-                    var mustListResult = ToolExecutionResult.Error("Before replace_editor_content, call list_sources and then fetch_source for every listed source ID. list_sources has not been called in this request yet.");
+                    var mustListPayload = new MissingSourcesGatePayload(
+                        "Before replace_editor_content, call list_sources and then fetch_source for every listed source ID. list_sources has not been called in this request yet.",
+                        System.Array.Empty<System.Guid>());
+                    var mustListResult = ToolExecutionResult.Success(mustListPayload);
                     yield return _writer.ToolResult(toolCall.Id, mustListResult.Result);
                     ctx.Payload.Messages.AddRange(mustListResult.ToMessages(toolCall.Id));
                     continue;
@@ -119,7 +122,10 @@ public sealed class ChatRoundProcessor
                 var missingIds = ctx.GetMissingSourceIds();
                 if (missingIds.Count > 0)
                 {
-                    var missingFetchResult = ToolExecutionResult.Error("Before replace_editor_content, call fetch_source for every listed source ID.");
+                    var missingPayload = new MissingSourcesGatePayload(
+                        "Before replace_editor_content, call fetch_source for every listed source ID.",
+                        missingIds.ToArray());
+                    var missingFetchResult = ToolExecutionResult.Success(missingPayload);
                     yield return _writer.ToolResult(toolCall.Id, missingFetchResult.Result);
                     ctx.Payload.Messages.AddRange(missingFetchResult.ToMessages(toolCall.Id));
                     continue;
@@ -348,3 +354,7 @@ public sealed class ChatRoundContext
         return ListedSourceIds.Where(id => !FetchedSourceIds.Contains(id)).ToList();
     }
 }
+
+public sealed record MissingSourcesGatePayload(
+    [property: System.Text.Json.Serialization.JsonPropertyName("error")] string Error,
+    [property: System.Text.Json.Serialization.JsonPropertyName("missingSourceIds")] Guid[] MissingSourceIds);

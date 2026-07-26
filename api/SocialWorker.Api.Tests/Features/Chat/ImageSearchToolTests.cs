@@ -38,7 +38,7 @@ public sealed class ImageSearchToolTests
         };
 
         var tool = new ImageSearchTool(mockEngine);
-        var response = await tool.ExecuteAsync(new ImageSearchArgs("pineapple"), null, Guid.NewGuid(), CancellationToken.None);
+        var response = await tool.ExecuteAsync(new ImageSearchArgs("pineapple"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(Guid.NewGuid(), null));
 
         Assert.Contains("Image search results for: 'pineapple'", response);
         Assert.Contains("1. Pineapple 1", response);

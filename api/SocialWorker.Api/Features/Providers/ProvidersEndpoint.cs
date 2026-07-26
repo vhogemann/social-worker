@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using SocialWorker.Api.Features.Providers.Services;
+using SocialWorker.Api.Infrastructure.Validation;
 
 namespace SocialWorker.Api.Features.Providers;
 
@@ -39,7 +40,7 @@ public static class ProvidersEndpoint
             }
 
             return Results.Ok(result.Data);
-        });
+        }).WithValidation<ProviderModels.CreateProviderRequest>();
 
         adminGroup.MapPatch("/{id:guid}", async (ProvidersService service, Guid id, ProviderModels.UpdateProviderRequest req, CancellationToken ct) =>
         {
@@ -54,7 +55,7 @@ public static class ProvidersEndpoint
             }
 
             return Results.Ok(result.Data);
-        });
+        }).WithValidation<ProviderModels.UpdateProviderRequest>();
 
         adminGroup.MapDelete("/{id:guid}", async (ProvidersService service, Guid id, CancellationToken ct) =>
         {

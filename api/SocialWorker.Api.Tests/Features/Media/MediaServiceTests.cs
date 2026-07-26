@@ -40,8 +40,7 @@ public sealed class MediaServiceTests : SqliteTestBase
         var (_, svc, _, _) = await CreateAsync(db);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            svc.UploadMediaAsync(Guid.NewGuid(), Guid.NewGuid(), "test.png", "image/png",
-                new MemoryStream(TinyPng), CancellationToken.None));
+            svc.UploadMediaAsync(new UploadMediaCommand(Guid.NewGuid(), Guid.NewGuid(), "test.png", "image/png", new MemoryStream(TinyPng)), CancellationToken.None));
     }
 
     [Fact]
@@ -51,8 +50,7 @@ public sealed class MediaServiceTests : SqliteTestBase
         db.Database.EnsureCreated();
         var (_, svc, user, draft) = await CreateAsync(db);
 
-        var result = await svc.UploadMediaAsync(user.Id, draft.Id, "test.png", "image/png",
-            new MemoryStream(TinyPng), CancellationToken.None);
+        var result = await svc.UploadMediaAsync(new UploadMediaCommand(user.Id, draft.Id, "test.png", "image/png", new MemoryStream(TinyPng)), CancellationToken.None);
 
         Assert.StartsWith("![test.png](media://", result.MarkdownTag);
         Assert.NotEqual(Guid.Empty, result.Id);
@@ -65,10 +63,8 @@ public sealed class MediaServiceTests : SqliteTestBase
         db.Database.EnsureCreated();
         var (_, svc, user, draft) = await CreateAsync(db);
 
-        var first = await svc.UploadMediaAsync(user.Id, draft.Id, "a.png", "image/png",
-            new MemoryStream(TinyPng), CancellationToken.None);
-        var second = await svc.UploadMediaAsync(user.Id, draft.Id, "b.png", "image/png",
-            new MemoryStream(TinyPng), CancellationToken.None);
+        var first = await svc.UploadMediaAsync(new UploadMediaCommand(user.Id, draft.Id, "a.png", "image/png", new MemoryStream(TinyPng)), CancellationToken.None);
+        var second = await svc.UploadMediaAsync(new UploadMediaCommand(user.Id, draft.Id, "b.png", "image/png", new MemoryStream(TinyPng)), CancellationToken.None);
 
         var assets = await db.MediaAssets.Where(m => m.DraftId == draft.Id).ToListAsync();
         Assert.Equal(2, assets.Count);
@@ -93,8 +89,7 @@ public sealed class MediaServiceTests : SqliteTestBase
         db.Database.EnsureCreated();
         var (_, svc, user, draft) = await CreateAsync(db);
 
-        var uploaded = await svc.UploadMediaAsync(user.Id, draft.Id, "test.png", "image/png",
-            new MemoryStream(TinyPng), CancellationToken.None);
+        var uploaded = await svc.UploadMediaAsync(new UploadMediaCommand(user.Id, draft.Id, "test.png", "image/png", new MemoryStream(TinyPng)), CancellationToken.None);
 
         var (fullPath, mimeType) = await svc.GetMediaFileAsync(uploaded.Id, CancellationToken.None);
 
@@ -109,8 +104,7 @@ public sealed class MediaServiceTests : SqliteTestBase
         db.Database.EnsureCreated();
         var (_, svc, user, draft) = await CreateAsync(db);
 
-        var uploaded = await svc.UploadMediaAsync(user.Id, draft.Id, "test.png", "image/png",
-            new MemoryStream(TinyPng), CancellationToken.None, altText: "original");
+        var uploaded = await svc.UploadMediaAsync(new UploadMediaCommand(user.Id, draft.Id, "test.png", "image/png", new MemoryStream(TinyPng), AltText: "original"), CancellationToken.None);
 
         var updated = await svc.UpdateMediaAltTextAsync(user.Id, uploaded.Id, "new alt text", CancellationToken.None);
 
@@ -125,14 +119,15 @@ public sealed class MediaServiceTests : SqliteTestBase
         var (_, svc, user, draft) = await CreateAsync(db);
 
         var result = await svc.UploadMediaAsync(
-            user.Id,
-            draft.Id,
-            "test.png",
-            "image/png",
-            new MemoryStream(TinyPng),
-            CancellationToken.None,
-            altText: "stored alt",
-            markdownLinkText: "Preview Label");
+            new UploadMediaCommand(
+                user.Id,
+                draft.Id,
+                "test.png",
+                "image/png",
+                new MemoryStream(TinyPng),
+                AltText: "stored alt",
+                MarkdownLinkText: "Preview Label"),
+            CancellationToken.None);
 
         Assert.StartsWith("![Preview Label](media://", result.MarkdownTag);
 
@@ -148,13 +143,14 @@ public sealed class MediaServiceTests : SqliteTestBase
         var (_, svc, user, draft) = await CreateAsync(db);
 
         var result = await svc.UploadMediaAsync(
-            user.Id,
-            draft.Id,
-            "test.png",
-            "image/png",
-            new MemoryStream(TinyPng),
-            CancellationToken.None,
-            altText: "stored alt");
+            new UploadMediaCommand(
+                user.Id,
+                draft.Id,
+                "test.png",
+                "image/png",
+                new MemoryStream(TinyPng),
+                AltText: "stored alt"),
+            CancellationToken.None);
 
         Assert.StartsWith("![stored alt](media://", result.MarkdownTag);
     }
@@ -166,8 +162,7 @@ public sealed class MediaServiceTests : SqliteTestBase
         db.Database.EnsureCreated();
         var (_, svc, user, draft) = await CreateAsync(db);
 
-        var uploaded = await svc.UploadMediaAsync(user.Id, draft.Id, "test.png", "image/png",
-            new MemoryStream(TinyPng), CancellationToken.None);
+        var uploaded = await svc.UploadMediaAsync(new UploadMediaCommand(user.Id, draft.Id, "test.png", "image/png", new MemoryStream(TinyPng)), CancellationToken.None);
 
         await svc.DeleteMediaAsync(user.Id, uploaded.Id, CancellationToken.None);
 
@@ -181,8 +176,7 @@ public sealed class MediaServiceTests : SqliteTestBase
         db.Database.EnsureCreated();
         var (_, svc, user, draft) = await CreateAsync(db);
 
-        var uploaded = await svc.UploadMediaAsync(user.Id, draft.Id, "test.png", "image/png",
-            new MemoryStream(TinyPng), CancellationToken.None);
+        var uploaded = await svc.UploadMediaAsync(new UploadMediaCommand(user.Id, draft.Id, "test.png", "image/png", new MemoryStream(TinyPng)), CancellationToken.None);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             svc.DeleteMediaAsync(Guid.NewGuid(), uploaded.Id, CancellationToken.None));

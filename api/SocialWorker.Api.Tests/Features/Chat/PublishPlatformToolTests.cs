@@ -18,11 +18,9 @@ public sealed class PublishPlatformToolTests : SqliteTestBase
     [Fact]
     public async Task ExecuteAsync_ReturnsError_WhenNoDraftId()
     {
-        var services = new ServiceCollection();
-        var sp = services.BuildServiceProvider();
-        var tool = new PublishPlatformTool(sp.GetRequiredService<IServiceScopeFactory>());
+        var tool = new PublishPlatformTool(null!, null!, null!, null!);
 
-        var result = await tool.ExecuteAsync(new PublishPlatformArgs("Bluesky"), null, Guid.NewGuid(), CancellationToken.None);
+        var result = await tool.ExecuteAsync(new PublishPlatformArgs("Bluesky"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(Guid.NewGuid(), null));
 
         Assert.Contains("No active draft", result.Error);
     }
@@ -68,7 +66,7 @@ public sealed class PublishPlatformToolTests : SqliteTestBase
         var resolver = new StubReplyTargetResolver(new BlueskyReplyTargetResolutionResult(false, "post not found"));
         var tool = BuildTool(db, publisher, resolver);
 
-        var result = await tool.ExecuteAsync(new PublishPlatformArgs("Bluesky"), draftId, userId, CancellationToken.None);
+        var result = await tool.ExecuteAsync(new PublishPlatformArgs("Bluesky"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
 
         Assert.False(result.Success);
         Assert.Contains("revalidated", result.Error ?? string.Empty, StringComparison.OrdinalIgnoreCase);
@@ -77,12 +75,7 @@ public sealed class PublishPlatformToolTests : SqliteTestBase
 
     private static PublishPlatformTool BuildTool(AppDbContext db, StubPublisher publisher, IBlueskyReplyTargetResolver resolver)
     {
-        var services = new ServiceCollection();
-        services.AddSingleton(db);
-        services.AddSingleton<BlueskyContentValidator>();
-        services.AddSingleton<IPublisherResolver>(new StubPublisherResolver(publisher));
-        services.AddSingleton<IBlueskyReplyTargetResolver>(resolver);
-        return new PublishPlatformTool(services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>());
+        return new PublishPlatformTool(db, new StubPublisherResolver(publisher), new BlueskyContentValidator(), resolver);
     }
 
     private sealed class StubPublisherResolver : IPublisherResolver
