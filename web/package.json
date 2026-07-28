@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@assistant-ui/react": "^0.10.0",
-    "@assistant-ui/react-data-stream": "^0.10.0",
+    "@assistant-ui/react-data-stream": "^0.12.22",
     "@codemirror/commands": "^6.6.0",
     "@codemirror/lang-markdown": "^6.3.0",
     "@codemirror/language": "^6.10.0",
