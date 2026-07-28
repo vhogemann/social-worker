@@ -19,8 +19,8 @@ public sealed class ReplaceEditorContentToolTests : SqliteTestBase
     private static (AppDbContext Db, ReplaceEditorContentTool Tool) Create(AppDbContext db)
     {
         var storage = new FileStorageProvider();
-        var queue = new BackgroundJobQueue();
         var scopeFact = new MockScopeFactory(db);
+        var queue = new BackgroundJobQueue(scopeFact);
         var sourcesService = TestServiceFactory.CreateSourcesService(db, scopeFactory: scopeFact, queue: queue);
         var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService, scopeFact, queue);
 

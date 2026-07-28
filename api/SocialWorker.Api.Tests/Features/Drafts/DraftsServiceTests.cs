@@ -46,8 +46,8 @@ public sealed class DraftsServiceTests : SqliteTestBase
 
         var sourcesService = TestServiceFactory.CreateSourcesService(db);
         var storage = new FileStorageProvider();
-        var queue = new BackgroundJobQueue();
         var scopeFactory = new MockScopeFactory(db);
+        var queue = new BackgroundJobQueue(scopeFactory);
         var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService, scopeFactory, queue);
 
         return (db, draftsService, user);
@@ -204,8 +204,9 @@ public sealed class DraftsServiceTests : SqliteTestBase
         using var db = CreateDbContext();
         db.Database.EnsureCreated();
 
-        var queue = new BackgroundJobQueue();
         var adapter = new SummaryAdapter("Condensed summary of the earlier conversation.");
+        var scopeFactory = new SummaryScopeFactory(db, adapter);
+        var queue = new BackgroundJobQueue(scopeFactory);
         var (service, user, draft) = await CreateSummarizationServiceAsync(db, queue, adapter, model: "llama3.1");
 
         var messages = Enumerable.Range(0, 40)

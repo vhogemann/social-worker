@@ -20,15 +20,15 @@ internal static class TestServiceFactory
         SummarizationService? summarizer = null)
     {
         scopeFactory ??= new EmptyScopeFactory();
-        queue ??= new BackgroundJobQueue();
+        queue ??= new BackgroundJobQueue(scopeFactory);
         scraper ??= new WebScraperService(new HttpClient(new FixedHttpMessageHandler()));
 
-        var transcriptionService = new SourceTranscriptionService(scopeFactory, queue);
+        var transcriptionService = new SourceTranscriptionService(queue);
         var youTubeSourceService = new YouTubeSourceService(db, transcriptionService);
         var urlValidator = new SourceUrlValidator();
         var urlSourceService = new UrlSourceService(db, scraper, summarizer, urlValidator, youTubeSourceService);
         var fileSourceService = new FileSourceService(db, summarizer);
-        var reconciliationService = new SourceReconciliationService(db, scopeFactory, queue);
+        var reconciliationService = new SourceReconciliationService(db, queue);
         var sourceSearchService = new SourceSearchService(db);
 
         return new SourcesService(
@@ -48,9 +48,9 @@ internal static class TestServiceFactory
         BackgroundJobQueue? queue = null)
     {
         scopeFactory ??= new EmptyScopeFactory();
-        queue ??= new BackgroundJobQueue();
+        queue ??= new BackgroundJobQueue(scopeFactory);
         var draftSegmentService = new DraftSegmentService(db);
-        var draftChatSummaryService = new DraftChatSummaryService(scopeFactory, queue);
+        var draftChatSummaryService = new DraftChatSummaryService(queue);
         return new DraftsService(db, storage, sourcesService, draftSegmentService, draftChatSummaryService);
     }
 

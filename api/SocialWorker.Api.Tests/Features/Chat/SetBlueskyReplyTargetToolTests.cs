@@ -113,7 +113,8 @@ public sealed class SetBlueskyReplyTargetToolTests : SqliteTestBase
     private static (SetBlueskyReplyTargetTool Tool, IBlueskyReplyTargetResolver Resolver) CreateTool(AppDbContext db, Func<string, BlueskyReplyTargetResolutionResult> resolve)
     {
         var resolver = new StubResolver(resolve);
-        var queue = new BackgroundJobQueue();
+        var scopeFactory = new MockScopeFactory(db);
+        var queue = new BackgroundJobQueue(scopeFactory);
         var sourcesService = TestServiceFactory.CreateSourcesService(db, queue: queue);
         var draftsService = TestServiceFactory.CreateDraftsService(db, new FileStorageProvider(), sourcesService, queue: queue);
         var tool = new SetBlueskyReplyTargetTool(resolver, draftsService);

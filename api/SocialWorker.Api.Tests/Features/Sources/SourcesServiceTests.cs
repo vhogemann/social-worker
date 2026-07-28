@@ -339,13 +339,13 @@ public sealed class SourcesServiceTests : SqliteTestBase
         db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id, LinkedAt = DateTime.UtcNow });
         await db.SaveChangesAsync();
 
-        var queue = new BackgroundJobQueue();
         var transcriptDir = Path.Combine(Path.GetTempPath(), $"sw-transcripts-{Guid.NewGuid():N}");
         Directory.CreateDirectory(transcriptDir);
         try
         {
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
             var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
+            var queue = new BackgroundJobQueue(scopeFactory);
             var service = TestServiceFactory.CreateSourcesService(db, scopeFactory: scopeFactory, queue: queue);
 
             var status = await service.RetrySourceTranscriptAsync(userId, source.Id, CancellationToken.None);
@@ -392,9 +392,9 @@ public sealed class SourcesServiceTests : SqliteTestBase
                 };
             })));
 
-            var queue = new BackgroundJobQueue();
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
             var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
+            var queue = new BackgroundJobQueue(scopeFactory);
             var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper, scopeFactory: scopeFactory, queue: queue);
 
             var result = await service.AddUrlSourceAsync(
@@ -465,9 +465,9 @@ public sealed class SourcesServiceTests : SqliteTestBase
                 };
             })));
 
-            var queue = new BackgroundJobQueue();
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
             var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
+            var queue = new BackgroundJobQueue(scopeFactory);
             var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper, scopeFactory: scopeFactory, queue: queue);
 
             var result = await service.AddUrlSourceAsync(
