@@ -47,10 +47,8 @@ public sealed class BlueskyApiClient
         CancellationToken ct)
     {
         var req = new BlueskyCreateRecordRequest(did, "app.bsky.feed.post", record);
-        using var message = new HttpRequestMessage(HttpMethod.Post, CreateRecordEndpoint)
-        {
-            Content = JsonContent.Create(req)
-        };
+        using var message = new HttpRequestMessage(HttpMethod.Post, CreateRecordEndpoint);
+        message.Content = JsonContent.Create(req);
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessJwt);
 
         var res = await _http.SendAsync(message, ct);
@@ -78,10 +76,8 @@ public sealed class BlueskyApiClient
         using var content = new ByteArrayContent(bytes);
         content.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
 
-        using var message = new HttpRequestMessage(HttpMethod.Post, UploadBlobEndpoint)
-        {
-            Content = content
-        };
+        using var message = new HttpRequestMessage(HttpMethod.Post, UploadBlobEndpoint);
+        message.Content = content;
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessJwt);
 
         var res = await _http.SendAsync(message, ct);

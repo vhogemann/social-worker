@@ -98,7 +98,7 @@ public sealed class FluentValidationTests
             "UnsupportedType",
             "https://example.com",
             "model",
-            null,
+            string.Empty,
             null);
 
         var result = await validator.ValidateAsync(request);

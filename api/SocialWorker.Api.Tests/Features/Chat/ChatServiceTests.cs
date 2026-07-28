@@ -27,7 +27,7 @@ public sealed class ChatServiceTests
         var writer = new ChatStreamWriter();
         var llmAdapter = adapter ?? new DemoLlmAdapter();
         var log = NullLogger<ChatService>.Instance;
-        var toolList = tools ?? new List<IChatTool>();
+        var toolList = tools?.ToList() ?? new List<IChatTool>();
         var options = Options.Create(chatOptions ?? new ChatOptions());
         var slashCommandService = new ChatSlashCommandService();
         var requestPreparationService = new ChatRequestPreparationService(loader, promptBuilder, toolList, options);
@@ -358,7 +358,7 @@ public sealed class ChatServiceTests
             service,
             MakeRequest("Strict QA: list all sources, fetch_source for every source GUID in this draft, then update content."));
 
-        Assert.True(lines.Any(l => l.StartsWith("a:") && l.Contains("missingSourceIds", StringComparison.Ordinal)));
+        Assert.Contains(lines, l => l.StartsWith("a:") && l.Contains("missingSourceIds", StringComparison.Ordinal));
         Assert.True(replaceTool.WasExecuted);
         Assert.Contains(sourceA, fetchTool.FetchedIds);
         Assert.Contains(sourceB, fetchTool.FetchedIds);
@@ -380,8 +380,8 @@ public sealed class ChatServiceTests
             service,
             MakeRequest("Find an image, inspect it, then embed it in the draft."));
 
-        Assert.True(lines.Any(l => l.StartsWith("a:") && l.Contains("add_image_source", StringComparison.Ordinal)));
-        Assert.True(lines.Any(l => l.StartsWith("a:") && l.Contains("view_image", StringComparison.Ordinal)));
+        Assert.Contains(lines, l => l.StartsWith("a:") && l.Contains("add_image_source", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.StartsWith("a:") && l.Contains("view_image", StringComparison.Ordinal));
         Assert.True(addImageTool.WasExecuted);
         Assert.True(viewImageTool.WasExecuted);
         Assert.True(replaceTool.WasExecuted);
@@ -408,7 +408,7 @@ public sealed class ChatServiceTests
             service,
             MakeRequest("List all sources, fetch_source for each, pick and inspect an image, then embed it in updated content."));
 
-        Assert.True(lines.Any(l => l.StartsWith("a:") && l.Contains("missingSourceIds", StringComparison.Ordinal)));
+        Assert.Contains(lines, l => l.StartsWith("a:") && l.Contains("missingSourceIds", StringComparison.Ordinal));
         Assert.True(addImageTool.WasExecuted);
         Assert.True(viewImageTool.WasExecuted);
         Assert.Contains(sourceA, fetchTool.FetchedIds);
@@ -457,7 +457,7 @@ public sealed class ChatServiceTests
         var text = ExtractText(lines);
         Assert.True(adapter.SawFinalizationInstruction);
         Assert.Equal(2, adapter.CallCount);
-        Assert.Equal(1, replaceTool.Markdowns.Count);
+        Assert.Single(replaceTool.Markdowns);
         Assert.Equal(1, validateTool.ValidationCalls);
         Assert.Contains("Final response after validation.", text, StringComparison.Ordinal);
     }
