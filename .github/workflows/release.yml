@@ -36,7 +36,7 @@ jobs:
 
       - name: Extract Docker metadata for API
         id: meta_api
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.API_IMAGE }}
           tags: |
@@ -55,7 +55,7 @@ jobs:
 
       - name: Extract Docker metadata for web
         id: meta_web
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.WEB_IMAGE }}
           tags: |
