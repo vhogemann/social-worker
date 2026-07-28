@@ -40,9 +40,10 @@ public sealed class CodeImageRenderer : IDisposable
         var runs = CodeTokenizer.Tokenize(code, block.Language, theme);
         var lines = SplitRunsIntoLines(runs);
 
-        using var measurePaint = MakeTextPaint(theme.DefaultText);
-        var charWidth = measurePaint.MeasureText("M");
-        var fontMetrics = measurePaint.FontMetrics;
+        using var measureFont = MakeTextFont(FontSize);
+        using var measurePaint = MakePaint(theme.DefaultText);
+        var charWidth = measureFont.MeasureText("M");
+        var fontMetrics = measureFont.Metrics;
         var ascent = -fontMetrics.Ascent;
         var lineHeight = (float)Math.Ceiling((ascent + fontMetrics.Descent + fontMetrics.Leading) * LineHeightMultiplier);
 
@@ -65,7 +66,7 @@ public sealed class CodeImageRenderer : IDisposable
         canvas.Clear(SKColors.Transparent);
 
         DrawBackground(canvas, theme, canvasWidth, canvasHeight);
-        DrawCode(canvas, lines, theme, measurePaint, lineHeight, ascent, canvasWidth, canvasHeight);
+        DrawCode(canvas, lines, theme, measureFont, lineHeight, ascent, canvasWidth, canvasHeight);
         DrawWatermark(canvas, theme, canvasWidth, canvasHeight, block.Language);
 
         using var image = SKImage.FromBitmap(bitmap);
@@ -90,7 +91,7 @@ public sealed class CodeImageRenderer : IDisposable
         SKCanvas canvas,
         List<List<ColoredRun>> lines,
         CodeTheme theme,
-        SKPaint measurePaint,
+        SKFont measureFont,
         float lineHeight,
         float ascent,
         int canvasWidth,
@@ -104,19 +105,20 @@ public sealed class CodeImageRenderer : IDisposable
             var y = baselineY + i * lineHeight;
 
             // Line number
-            using var numPaint = MakeTextPaint(theme.LineNumberText);
+            using var numPaint = MakePaint(theme.LineNumberText);
+            using var numFont = MakeTextFont(FontSize);
             var numText = (i + 1).ToString();
-            var numWidth = numPaint.MeasureText(numText);
-            canvas.DrawText(numText, HorizontalPadding + LineNumWidth - numWidth - 8f, y, numPaint);
+            var numWidth = numFont.MeasureText(numText);
+            canvas.DrawText(numText, HorizontalPadding + LineNumWidth - numWidth - 8f, y, SKTextAlign.Left, numFont, numPaint);
 
             // Code runs
             var x = codeLeft;
             foreach (var run in lines[i])
             {
                 if (run.Text.Length == 0) continue;
-                using var textPaint = MakeTextPaint(run.Color);
-                canvas.DrawText(run.Text, x, y, textPaint);
-                x += measurePaint.MeasureText(run.Text);
+                using var textPaint = MakePaint(run.Color);
+                canvas.DrawText(run.Text, x, y, SKTextAlign.Left, measureFont, textPaint);
+                x += measureFont.MeasureText(run.Text);
             }
         }
 
@@ -130,22 +132,20 @@ public sealed class CodeImageRenderer : IDisposable
             ? "TEXT"
             : language.Trim().ToUpperInvariant();
 
-        using var watermarkPaint = MakeTextPaint(theme.DefaultText.WithAlpha(132));
-        watermarkPaint.TextSize = WatermarkFontSize;
-        var watermarkWidth = watermarkPaint.MeasureText(watermark);
+        using var watermarkPaint = MakePaint(theme.DefaultText.WithAlpha(132));
+        using var watermarkFont = MakeTextFont(WatermarkFontSize);
+        var watermarkWidth = watermarkFont.MeasureText(watermark);
         var x = canvasWidth - WatermarkInset - watermarkWidth;
         var y = canvasHeight - WatermarkInset - WatermarkBaselineOffset;
-        canvas.DrawText(watermark, x, y, watermarkPaint);
+        canvas.DrawText(watermark, x, y, SKTextAlign.Left, watermarkFont, watermarkPaint);
     }
 
-    private SKPaint MakeTextPaint(SKColor color) => new()
+    private SKFont MakeTextFont(float size) => new(_typeface, size);
+
+    private static SKPaint MakePaint(SKColor color) => new()
     {
         Color = color,
-        Typeface = _typeface,
-        TextSize = FontSize,
         IsAntialias = true,
-        SubpixelText = true,
-        LcdRenderText = true,
     };
 
     private static List<List<ColoredRun>> SplitRunsIntoLines(IReadOnlyList<ColoredRun> runs)

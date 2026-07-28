@@ -150,7 +150,9 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolRes
             newHeight = (int)(newHeight * ratio);
         }
 
-        using var resized = original.Resize(new SKImageInfo(newWidth, newHeight), SKFilterQuality.Medium) ?? original;
+        using var resized = original.Resize(
+            new SKImageInfo(newWidth, newHeight),
+            new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None)) ?? original;
         using var image = SKImage.FromBitmap(resized);
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 80);
         var bytes = data.ToArray();

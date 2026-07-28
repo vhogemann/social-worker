@@ -22,7 +22,9 @@ public sealed class ImageResizer
             int finalHeight = (int)(originalHeight * ratio);
 
             using var original = SKBitmap.Decode(codec);
-            using var resized = original.Resize(new SKImageInfo(finalWidth, finalHeight), SKFilterQuality.High);
+            using var resized = original.Resize(
+                new SKImageInfo(finalWidth, finalHeight),
+                new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None));
             using var image = SKImage.FromBitmap(resized);
 
             var format = mimeType.Contains("png") ? SKEncodedImageFormat.Png :
