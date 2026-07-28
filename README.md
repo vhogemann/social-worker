@@ -2,7 +2,7 @@
 
 A local-first, Docker-only multi-modal assistant for composing and publishing social media **threads**. 
 
-Designed to support creators with LLM assistance, `social-worker` lets you draft threads, attach sources and media, adapt variants to multiple platforms, and publish. Version 1 ships with end-to-end publishing support for Bluesky, with stubs ready for Twitter, LinkedIn, Facebook, and Instagram.
+Designed to support creators with LLM assistance, `social-worker` lets you draft threads, attach sources and media, adapt variants to multiple platforms, and publish. Version 1 ships with end-to-end Bluesky publishing support, with stubs ready for Twitter, LinkedIn, Facebook, and Instagram.
 
 ## Badges
 
@@ -50,6 +50,7 @@ Designed to support creators with LLM assistance, `social-worker` lets you draft
 - **Frontend**: Vite + React + TypeScript + Tailwind. State management via Zustand, server state synchronization via TanStack React Query, and SSE streaming chat via native `EventSource`.
 - **Backend**: .NET 10 ASP.NET Core Minimal APIs + Entity Framework Core + Postgres 16.
 - **AI Integrations**: Built using `Microsoft.Extensions.AI` and the `OpenAI` .NET SDK, supporting OpenAI, OpenRouter, and Ollama.
+- **Dependency Updates**: GitHub Dependabot keeps GitHub Actions, NuGet, and npm dependencies current.
 
 ---
 
@@ -204,10 +205,11 @@ social-worker/
 
 All builds, migration generations, and unit tests must be executed inside Docker to ensure host runtime parity:
 
-- **API Build**: `docker compose exec api dotnet build`
-- **Frontend Build**: `docker compose exec web sh -c "npm run build && npm run typecheck"`
-- **Unit Tests**: `docker compose exec api dotnet test`
-- **EF Core Migrations**: `docker compose exec api dotnet ef migrations add <MigrationName>`
+- **API Build**: `docker compose --profile tooling run --rm dotnet build`
+- **API Test**: `docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj`
+- **Frontend Build and Typecheck**: `docker compose run --rm web sh -c "npm run build && npm run typecheck"`
+- **Frontend Tests**: `docker compose --profile tooling run --rm web-test`
+- **EF Core Migrations**: `docker compose --profile tooling run --rm dotnet ef migrations add <MigrationName>`
 
 ### Database Queries
 
@@ -253,6 +255,7 @@ SW_DB_SERVICE=db SW_DB_NAME=socialworker SW_DB_USER=postgres ./scripts/sql.sh -c
 
 - **Getting Started Guide**: [GETTING_STARTED.md](GETTING_STARTED.md)
 - **Regenerate Guide + Screenshots**: `./scripts/regenerate-getting-started.sh`
+- **Roadmap and plans**: [PLAN.md](PLAN.md) and [planning/PLAN.md](planning/PLAN.md)
 
 ---
 
