@@ -19,6 +19,8 @@ vi.mock("../../api/drafts", async (importOriginal) => {
 });
 
 describe("SourcesLibrary", () => {
+  const routerFuture = { v7_startTransition: true, v7_relativeSplatPath: true };
+
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -75,7 +77,7 @@ describe("SourcesLibrary", () => {
 
   it("renders search results, filters, and page controls", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <SourcesLibrary />
       </MemoryRouter>
     );
@@ -95,7 +97,7 @@ describe("SourcesLibrary", () => {
 
   it("triggers search on query submit", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <SourcesLibrary />
       </MemoryRouter>
     );
@@ -132,7 +134,7 @@ describe("SourcesLibrary", () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <SourcesLibrary />
       </MemoryRouter>
     );

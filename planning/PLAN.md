@@ -18,15 +18,19 @@ This file is the single source of truth for roadmap status and planning links.
 - Sources, media upload, image/code rendering
 - Source library search and cross-draft source linking
 - YouTube transcript extraction via local transcriber service (Docker)
-- Transcript status polling + retry action in UI
+- Source processing status polling + retry action in UI
 - Tabbed YouTube source preview (Video / Transcript)
+- RSS/Atom feed discovery, subscription ingestion, and polling automation
+- Feed panel and subscription management UI
+- Reply target metadata, quick-reply resolution, and reply target card UI
+- Background job queue consolidation for feed/source orchestration
 - Platform variants and Bluesky publishing
 - Auth, providers, brand voice prompts, settings UI
 
 ### Product position
 
 - v1 is usable for draft composition and Bluesky publishing
-- main near-term work is source reuse, quality, and broader publishing reach
+- main near-term work is Bluesky threaded replies, quality, maintainability, and source/search/scraper reliability
 
 ### v1 close-out status (2026-07-14)
 
@@ -52,11 +56,11 @@ Goals:
 Tracked in:
  
 - [archive/SOURCES_LIBRARY_AND_TRANSCRIPTS.md](archive/SOURCES_LIBRARY_AND_TRANSCRIPTS.md)
-- [BLUESKY_SOURCE_THREAD_CONTEXT.md](BLUESKY_SOURCE_THREAD_CONTEXT.md)
+- [archive/BLUESKY_SOURCE_THREAD_CONTEXT.md](archive/BLUESKY_SOURCE_THREAD_CONTEXT.md)
  
 ### 2. Publishing and platform reach
  
-Status: `Now`
+Status: `Completed`
  
 Goals:
  
@@ -65,8 +69,7 @@ Goals:
  
 Tracked in:
  
-- [BLUESKY.md](BLUESKY.md)
-- [THREADED_REPLIES.md](THREADED_REPLIES.md)
+- [archive/THREADED_REPLIES.md](archive/THREADED_REPLIES.md)
  
 Deferred to v3:
 - Twitter/X publisher
@@ -86,13 +89,14 @@ Goals:
 
 Tracked in:
 
+- [TEST_COVERAGE_CLOSEOUT.md](TEST_COVERAGE_CLOSEOUT.md)
 - [TEST_PLAN.md](TEST_PLAN.md)
 - [TECH_DEBT.md](TECH_DEBT.md)
 - [future/E2E_TESTING.md](future/E2E_TESTING.md)
 
 ### 4. Maintainability and platform hardening
 
-Status: `Now / Next`
+Status: `Completed`
 
 Goals:
 
@@ -102,7 +106,7 @@ Goals:
 
 Tracked in:
 
-- [TECH_DEBT.md](TECH_DEBT.md)
+- [archive/TECH_DEBT.md](archive/TECH_DEBT.md)
 
 Reference:
 
@@ -143,13 +147,8 @@ These should remain first-class and be kept current:
  
 | File | Role |
 |---|---|
-| [BLUESKY.md](BLUESKY.md) | primary product roadmap item |
-| [RSS_AUTOMATION.md](RSS_AUTOMATION.md) | RSS/Atom feed automation & subscription ingestion plan |
-| [BLUESKY_SOURCE_THREAD_CONTEXT.md](BLUESKY_SOURCE_THREAD_CONTEXT.md) | external Bluesky source thread-context ingestion plan |
-| [THREADED_REPLIES.md](THREADED_REPLIES.md) | linked-reply draft architecture and UI nesting plan |
 | [TECH_DEBT.md](TECH_DEBT.md) | engineering cleanup and reliability backlog |
 | [TEST_PLAN.md](TEST_PLAN.md) | test strategy and coverage backlog |
-| [SOURCES_SERVICE_REFACTOR.md](SOURCES_SERVICE_REFACTOR.md) | phased extraction plan for source-type-specific logic from SourcesService |
  
 ## Reference-only planning documents
  
@@ -176,9 +175,14 @@ These should remain first-class and be kept current:
 - [archive/THREAD_STAGES.md](archive/THREAD_STAGES.md)
 - [archive/REFACTORING_PLAN.md](archive/REFACTORING_PLAN.md)
 - [archive/TO_REFACTOR.md](archive/TO_REFACTOR.md)
+- [RSS_AUTOMATION.md](RSS_AUTOMATION.md)
+- [SOURCES_SERVICE_REFACTOR.md](SOURCES_SERVICE_REFACTOR.md)
+- [archive/THREADED_REPLIES.md](archive/THREADED_REPLIES.md)
+- [archive/BLUESKY_SOURCE_THREAD_CONTEXT.md](archive/BLUESKY_SOURCE_THREAD_CONTEXT.md)
 
 ### Retained only as historical context
 
+- [BLUESKY.md](BLUESKY.md)
 - [archive/UI-DISCOVERY.md](archive/UI-DISCOVERY.md)
 - [archive/UI-LIBRARIES.md](archive/UI-LIBRARIES.md)
 
@@ -186,9 +190,6 @@ These should remain first-class and be kept current:
  
 ### Near-term
  
-- RSS/Atom feed subscription & draft generation automation
-- Sources library and transcript support
-- Bluesky reply / thread expansion workflow
 - stronger E2E and release confidence
 - source / search / scraper reliability improvements
  

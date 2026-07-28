@@ -1,5 +1,9 @@
 # Bluesky Thread Expansion & DbUp SQL Migrations
 
+Status: Superseded
+Owner: Publishing and composer UX
+Theme: Historical proposal for reply-target metadata and a DbUp migration rewrite
+
 This plan implements database migrations using **DbUp** (a lightweight, ready-to-use raw SQL migration library for .NET) and extracts Bluesky-specific reply/thread-expansion metadata into a dedicated `DraftBlueskyMetadata` entity with a 1:1 relationship to `Draft`.
 
 ## User Review Required

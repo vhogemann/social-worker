@@ -23,9 +23,9 @@ describe("AccountTab", () => {
     useAuthStore.setState({ user: mockUser, updatePreferredProviderId: vi.fn() } as any);
   });
 
-  it("displays user profile information", () => {
+  it("displays user profile information", async () => {
     render(<AccountTab />);
-    expect(screen.getByText("alice")).toBeInTheDocument();
+    expect(await screen.findByText("alice")).toBeInTheDocument();
     expect(screen.getByText("alice@example.com")).toBeInTheDocument();
     expect(screen.getByText("Admin")).toBeInTheDocument();
   });

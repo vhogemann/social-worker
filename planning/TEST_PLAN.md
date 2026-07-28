@@ -2,6 +2,10 @@
 
 Tracking progress on filling test gaps across the codebase.
 
+Status: Active
+Owner: Copilot + user
+Last updated: 2026-07-28
+
 ---
 
 ## Priority tiers
@@ -64,6 +68,8 @@ Tracking progress on filling test gaps across the codebase.
 
 Framework: Vitest + Testing Library + jsdom (already configured). Run via `docker compose exec web npm run test` or `docker compose run --rm web npm run test`.
 
+Most of the frontend test surface is now covered. The remaining open gaps are concentrated in composite components that still need focused store-mocked tests.
+
 ### Priority order
 
 ### P0 — Core stores and API layer (isolated, no DOM)
@@ -99,15 +105,19 @@ Framework: Vitest + Testing Library + jsdom (already configured). Run via `docke
 | Component | File(s) | Approach | Status |
 |---|---|---|---|
 | `ChatPanel` / `Thread` | `ChatPanel/` | Message rendering coverage for post preview parsing, media URI rewriting, and tool activity cards | [x] |
-| `DraftList` | `DraftList/DraftList.tsx` | List, archive, delete, rename, navigate | [ ] |
-| `MarkdownEditor` | `EditorPanel/MarkdownEditor.tsx` | CodeMirror mount, content change, drag-and-drop, paste upload | [ ] |
-| `EditorPanel` | `EditorPanel/EditorPanel.tsx` | Mode toggle, publish button, adapt button, SourcesPanel integration | [ ] |
+| `DraftList` | `DraftList/DraftList.tsx` | List, archive, delete, rename, navigate | [x] |
+| `MarkdownEditor` | `EditorPanel/MarkdownEditor.tsx` | CodeMirror mount, content change, drag-and-drop, paste upload | [x] |
+| `EditorPanel` | `EditorPanel/EditorPanel.tsx` | Mode toggle, publish button, adapt button, SourcesPanel integration | [x] |
 | `SourcesPanel` | `EditorPanel/Sources/SourcesPanel.tsx` | Already has 2 tests — expand, preview source | [x] |
-| `SourceItem` | `EditorPanel/Sources/SourceItem.tsx` | Source display, delete | [ ] |
-| `MediaAssetItem` | `EditorPanel/Sources/MediaAssetItem.tsx` | Media display, alt text, delete | [ ] |
+| `SourceItem` | `EditorPanel/Sources/SourceItem.tsx` | Source display, delete | [x] |
+| `MediaAssetItem` | `EditorPanel/Sources/MediaAssetItem.tsx` | Media display, alt text, delete | [x] |
 | `SourcePreviewModal` | `EditorPanel/Sources/SourcePreviewModal.tsx` | Covered through `SourcesPanel` integration tests (preview render, retry action, YouTube video/transcript tab switching) | [x] |
-| `ThreadPreview` | `EditorPanel/ThreadPreview/` (12 files) | Segment cards, media preview, alt-text editor, copy, YouTube embeds, link cards | [ ] |
-| `AdaptVariantsModal` | `EditorPanel/AdaptVariantsModal.tsx` | Platform selection, generate, progress, results | [ ] |
+| `ThreadPreview` | `EditorPanel/ThreadPreview/` (12 files) | Segment cards, media preview, alt-text editor, copy, YouTube embeds, link cards | [x] |
+| `AdaptVariantsModal` | `EditorPanel/AdaptVariantsModal.tsx` | Platform selection, generate, progress, results | [x] |
+
+### Remaining gaps
+
+- None currently tracked. Re-audit if a new regression or missing edge case appears.
 
 ### Running frontend tests
 

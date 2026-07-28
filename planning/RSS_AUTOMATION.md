@@ -1,5 +1,9 @@
 # RSS/Atom Feed Ingestion & Automation
 
+Status: Implemented
+Owner: Feeds and automation
+Theme: RSS/Atom feed automation
+
 Implement first-level automation by subscribing to external RSS/Atom feeds, periodically polling them, and converting new items into Drafts with feed-specific agent instructions.
 
 ## Decisions & Design Specifications

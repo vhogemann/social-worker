@@ -101,8 +101,10 @@ describe("draftStore", () => {
     });
 
     it("ignores invalid chatHistory without throwing", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       mockFetchDrafts.mockResolvedValueOnce([makeDraft("d1", { chatHistory: "not-json" })]);
       await expect(useDraftStore.getState().loadDrafts()).resolves.toBeUndefined();
+      consoleErrorSpy.mockRestore();
     });
   });
 

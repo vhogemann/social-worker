@@ -22,6 +22,8 @@ vi.mock("../../../api/drafts", async (importOriginal) => {
 });
 
 describe("SourcesPanel", () => {
+  const routerFuture = { v7_startTransition: true, v7_relativeSplatPath: true };
+
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -31,6 +33,19 @@ describe("SourcesPanel", () => {
       summary: "Short summary",
       youtubeVideoId: null,
     });
+    vi.mocked(draftsApi.fetchSources).mockResolvedValue([
+      {
+        id: "source-1",
+        draftId: "draft-1",
+        kind: "Url",
+        reference: "https://example.com",
+        title: "Example Website",
+        summary: "Short summary",
+        processingStatus: "Complete",
+        youtubeVideoId: null,
+        addedAt: "2026-07-10",
+      },
+    ]);
     
     useDraftStore.setState({
       activeDraftId: "draft-1",
@@ -71,15 +86,15 @@ describe("SourcesPanel", () => {
     });
   });
 
-  it("renders the sources list correctly", () => {
+  it("renders the sources list correctly", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <SourcesPanel />
       </MemoryRouter>
     );
     const expandBtn = screen.getByText(/Sources & Images/);
     fireEvent.click(expandBtn);
-    expect(screen.getByText("Example Website")).toBeInTheDocument();
+    expect(await screen.findByText("Example Website")).toBeInTheDocument();
   });
 
   it("opens the preview modal and fetches source details when clicking the preview button", async () => {
@@ -99,7 +114,7 @@ describe("SourcesPanel", () => {
     vi.mocked(draftsApi.fetchSourceDetail).mockResolvedValueOnce(mockDetail);
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <SourcesPanel />
       </MemoryRouter>
     );
@@ -150,7 +165,7 @@ describe("SourcesPanel", () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <SourcesPanel />
       </MemoryRouter>
     );
@@ -214,7 +229,7 @@ describe("SourcesPanel", () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <SourcesPanel />
       </MemoryRouter>
     );
@@ -264,7 +279,7 @@ describe("SourcesPanel", () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <SourcesPanel />
       </MemoryRouter>
     );

@@ -121,7 +121,7 @@ public static class FeedsEndpoint
 
         group.MapPost("/{id:guid}/trigger", async (
             ClaimsPrincipal principal,
-            FeedPollingHostedService pollingService,
+            FeedPollingService pollingService,
             Guid id,
             CancellationToken ct) =>
         {

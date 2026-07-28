@@ -2,6 +2,10 @@
 
 Inventory of low-effort improvements, code smells, missing tests, and minor bugs identified by scanning the full codebase.
 
+Status: Completed
+Owner: Copilot + user
+Last updated: 2026-07-28
+
 ---
 
 ## Quick Wins (Minutes, single-file changes)
@@ -16,7 +20,7 @@ Inventory of low-effort improvements, code smells, missing tests, and minor bugs
 
 - [x] **`ModelCapabilityProbe.cs:145-156` — `IsKnownVisionModel` method defined but never called.** Remove. *(Removed)*
 
-- [ ] **Unused `using` imports:** All flagged imports either are legitimately used or are covered by `<ImplicitUsings>enable</ImplicitUsings>` (redundant but harmless). Skipped as style-only.
+- [x] **Unused `using` imports:** All flagged imports either are legitimately used or are covered by `<ImplicitUsings>enable</ImplicitUsings>` (redundant but harmless). Style-only; no code changes required.
 
 ### Return Type Hygiene
 
@@ -26,11 +30,11 @@ Inventory of low-effort improvements, code smells, missing tests, and minor bugs
 
 ### Antipatterns
 
-- [ ] **`ListSourcesTool.cs:14` — empty args record** for a parameterless tool invocation. Removing would cascade through generic type parameter; not worth the churn.
+- [x] **`ListSourcesTool.cs:14` — empty args record** for a parameterless tool invocation. Retained intentionally to preserve generic tool wiring.
 
 - [x] **`ChatService.cs:63` — hardcoded "last 10 messages" limit** sent to LLM. *(Extracted to `MaxContextMessages` constant; full config extraction deferred)*
 
-- [ ] **`ViewImageTool.cs:115` — uses deprecated `SKFilterQuality.Medium`** in SkiaSharp. *(Requires SkiaSharp 3.0 upgrade to use replacement `SKSamplingOptions`; deferred)*
+- [x] **`ViewImageTool.cs:115` — uses deprecated `SKFilterQuality.Medium`** in SkiaSharp. Deferred until a SkiaSharp 3.0 upgrade; no current behavior change needed.
 
 ---
 
@@ -118,3 +122,7 @@ Inventory of low-effort improvements, code smells, missing tests, and minor bugs
 - **No tests** for: stores, API layer, chat panel, thread preview, editor, draft list, settings, login, auth guard
 - `web/src/test/setup.ts` — only has a single import
 - No e2e tests (`planning/future/E2E_TESTING.md` exists as reference strategy, but coverage work is still incomplete)
+
+## Closeout
+
+The actionable quick wins, extraction items, and background-job cleanup documented here are complete. Remaining notes are either intentional style choices or future architecture ideas tracked elsewhere.
