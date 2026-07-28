@@ -134,7 +134,7 @@ public sealed class SystemPromptBuilder
 
     private static string BuildImagesMetadata(List<MediaAsset> mediaAssets)
     {
-        if (mediaAssets == null || mediaAssets.Count == 0)
+        if (mediaAssets.Count == 0)
         {
             return string.Empty;
         }

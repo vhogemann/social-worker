@@ -77,7 +77,7 @@ public sealed class WebSearchTool : ChatToolBase<WebSearchArgs, WebSearchResult>
         }
 
         var results = await _searchEngine.SearchAsync(args.Query, context.CancellationToken);
-        if (results == null || results.Count == 0)
+        if (results.Count == 0)
         {
             return new WebSearchResult(args.Query, Array.Empty<string>(), Array.Empty<WebSearchResultItem>(), "No search results found.");
         }

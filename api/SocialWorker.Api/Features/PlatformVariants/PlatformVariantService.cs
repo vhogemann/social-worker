@@ -40,7 +40,7 @@ public sealed class PlatformVariantService
             .FirstOrDefaultAsync(d => d.Id == canonicalDraftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
             ?? throw new KeyNotFoundException("Canonical draft not found or access denied.");
 
-        if (targetPlatforms == null || targetPlatforms.Count == 0)
+        if (targetPlatforms.Count == 0)
         {
             throw new ArgumentException("At least one target platform is required.");
         }

@@ -84,7 +84,7 @@ public sealed class ImageSearchTool : ChatToolBase<ImageSearchArgs, ImageSearchR
         }
 
         var results = await _searchEngine.SearchImagesAsync(args.Query, context.CancellationToken);
-        if (results == null || results.Count == 0)
+        if (results.Count == 0)
         {
             return new ImageSearchResult(args.Query, Array.Empty<ImageSearchResultItem>(), Array.Empty<string>(), "No image search results found.");
         }

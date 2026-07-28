@@ -1,6 +1,8 @@
 using System;
 using System.Net.Http;
 using System.Web;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -322,17 +324,20 @@ public sealed class WebScraperService
 
         var title = doc.DocumentNode.SelectSingleNode("//title")?.InnerText?.Trim() ?? url;
 
-        var noiseNodes = doc.DocumentNode.SelectNodes("//script|//style|//nav|//header|//footer|//iframe|//noscript");
-        if (noiseNodes != null)
+        IEnumerable<HtmlNode> noiseNodes = doc.DocumentNode
+            .SelectNodes("//script|//style|//nav|//header|//footer|//iframe|//noscript")
+            ?.Cast<HtmlNode>()
+            ?? Array.Empty<HtmlNode>();
+        foreach (var node in noiseNodes)
         {
-            foreach (var node in noiseNodes)
-            {
-                node.Remove();
-            }
+            node.Remove();
         }
 
-        var textNodes = doc.DocumentNode.SelectNodes("//p|//h1|//h2|//h3|//h4|//li");
-        if (textNodes == null)
+        IEnumerable<HtmlNode> textNodes = doc.DocumentNode
+            .SelectNodes("//p|//h1|//h2|//h3|//h4|//li")
+            ?.Cast<HtmlNode>()
+            ?? Array.Empty<HtmlNode>();
+        if (!textNodes.Any())
         {
             return (title, doc.DocumentNode.InnerText?.Trim() ?? "");
         }

@@ -34,7 +34,7 @@ public static class CodeImageEndpoint
             if (string.IsNullOrWhiteSpace(request.Code))
                 return Results.BadRequest("Code is required.");
 
-            var block = new CodeBlock(request.Language ?? "", request.Code);
+            var block = new CodeBlock(request.Language, request.Code);
             var theme = CodeTheme.FromString(request.Theme);
 
             try

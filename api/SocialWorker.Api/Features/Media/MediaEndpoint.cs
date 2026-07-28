@@ -28,7 +28,7 @@ public static class MediaEndpoint
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            if (file == null || file.Length == 0)
+            if (file.Length == 0)
             {
                 return Results.BadRequest("No file uploaded");
             }
@@ -72,7 +72,7 @@ public static class MediaEndpoint
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            if (req is null || string.IsNullOrWhiteSpace(req.Url))
+            if (string.IsNullOrWhiteSpace(req.Url))
             {
                 return Results.BadRequest("A valid image URL is required.");
             }

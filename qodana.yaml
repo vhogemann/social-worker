@@ -8,3 +8,7 @@ profile:
   name: qodana.recommended
 include:
   - name: CheckDependencyLicenses
+exclude:
+  - name: JsonSchemaCompliance
+    paths:
+      - api/SocialWorker.Api/openapi/social-worker-api-v1.json

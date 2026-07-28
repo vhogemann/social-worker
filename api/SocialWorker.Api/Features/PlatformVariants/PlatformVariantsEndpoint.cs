@@ -27,7 +27,7 @@ public static class PlatformVariantsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            if (req.Platforms == null || req.Platforms.Count == 0)
+            if (req.Platforms.Count == 0)
             {
                 return Results.BadRequest("At least one platform is required.");
             }

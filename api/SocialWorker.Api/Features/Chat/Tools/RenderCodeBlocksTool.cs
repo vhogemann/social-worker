@@ -141,12 +141,12 @@ public sealed class RenderCodeBlocksTool : ChatToolBase<RenderCodeBlocksArgs, Re
         string content,
         List<(CodeBlock Block, string MarkdownTag, int Index)> rendered)
     {
+        var markdownByIndex = rendered.ToDictionary(r => r.Index, r => r.MarkdownTag);
         var matchIndex = 0;
         return FenceRegex.Replace(content, m =>
         {
             var currentIndex = matchIndex++;
-            var hit = rendered.Find(r => r.Index == currentIndex);
-            return hit.MarkdownTag != null ? hit.MarkdownTag : m.Value;
+            return markdownByIndex.TryGetValue(currentIndex, out var markdownTag) ? markdownTag : m.Value;
         });
     }
 }

@@ -37,12 +37,8 @@ public static class CodeTokenizer
 
         var normalized = hint.Trim().ToLowerInvariant();
 
-        try
-        {
-            var lang = Languages.FindById(normalized);
-            if (lang != null) return lang;
-        }
-        catch { }
+        var lang = TryFindById(normalized);
+        if (lang != null) return lang;
 
         var alias = normalized switch
         {
@@ -64,8 +60,19 @@ public static class CodeTokenizer
 
         if (alias == null) return null;
 
-        try { return Languages.FindById(alias); }
-        catch { return null; }
+        return TryFindById(alias);
+    }
+
+    private static ILanguage? TryFindById(string id)
+    {
+        try
+        {
+            return Languages.FindById(id);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private static StyleDictionary BuildDarkStyles()

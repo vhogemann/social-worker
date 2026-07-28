@@ -177,7 +177,7 @@ public static class SourcesEndpoint
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            if (file == null || file.Length == 0)
+            if (file.Length == 0)
             {
                 return Results.BadRequest("No file uploaded");
             }

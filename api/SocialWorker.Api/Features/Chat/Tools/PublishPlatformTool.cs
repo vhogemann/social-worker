@@ -71,7 +71,7 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
         if (context.DraftId == null)
             return new PublishPlatformToolResult(false, "No active draft context.", Error: "No active draft context.");
 
-        string platform = args.Platform ?? "";
+        string platform = args.Platform;
 
         var thread = await _db.PlatformThreads
             .FirstOrDefaultAsync(t => t.DraftId == context.DraftId && t.Platform.ToLower() == platform.ToLower(), context.CancellationToken);

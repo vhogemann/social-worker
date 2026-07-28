@@ -152,7 +152,7 @@ public class FeedSourceIngestionService
 
     public static bool PassesFilters(string title, string description, string? includeFilters, string? excludeFilters)
     {
-        var textToMatch = $"{(title ?? "")} {(description ?? "")}";
+        var textToMatch = $"{title} {description}";
 
         if (!string.IsNullOrWhiteSpace(excludeFilters))
         {

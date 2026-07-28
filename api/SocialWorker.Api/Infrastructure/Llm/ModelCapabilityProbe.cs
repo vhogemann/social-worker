@@ -87,8 +87,9 @@ public class ModelCapabilityProbe
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                _log.LogWarning(ex, "Failed to query OpenRouter model capabilities for {Model}. Falling back to heuristics.", model);
             }
 
             return new ModelCapabilities(

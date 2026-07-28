@@ -77,11 +77,11 @@ public sealed class FormatValidatePlatformContentTool : ChatToolBase<FormatValid
                 new List<string>()));
         }
 
-        var result = _platformContentPolicy.Evaluate(platform, args.Content ?? string.Empty, args.NormalizeFormatting);
+        var result = _platformContentPolicy.Evaluate(platform, args.Content, args.NormalizeFormatting);
         return Task.FromResult(new FormatValidatePlatformContentResult(
             platform.ToString(),
             result.IsValid,
-            args.Content ?? string.Empty,
+          args.Content,
             result.NormalizedContent,
             result.Errors,
             result.Warnings));

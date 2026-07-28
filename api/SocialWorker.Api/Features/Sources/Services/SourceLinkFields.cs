@@ -14,7 +14,7 @@ public static class SourceLinkFields
 {
     public static SourceLinkFieldsResult Build(Guid sourceId, SourceKind kind, string reference, string? title)
     {
-        var safeReference = reference ?? string.Empty;
+        var safeReference = reference;
         var normalizedTitle = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
 
         return kind switch
