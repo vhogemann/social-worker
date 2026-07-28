@@ -20,7 +20,7 @@ test.describe("Chat", () => {
     await input.fill("/validate");
     await page.getByRole("button", { name: "Send" }).click();
 
-    await expect(page.getByText(/Draft Validation Report/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Character Count/i).first()).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(/Overall Status/i).first()).toBeVisible({ timeout: 10000 });
   });
 

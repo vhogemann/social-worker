@@ -34,7 +34,7 @@ export function useChatRuntime() {
     headers,
     body,
     sendExtraMessageFields: true,
-  });
+  }) as unknown as AssistantRuntime;
 }
 
 let runtimeRef: AssistantRuntime | null = null;

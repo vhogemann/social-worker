@@ -15,8 +15,8 @@ function ComposerView({
   chatRef,
   editorRef,
 }: {
-  chatRef: React.RefObject<HTMLDivElement>;
-  editorRef: React.RefObject<HTMLDivElement>;
+  chatRef: React.RefObject<HTMLDivElement | null>;
+  editorRef: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
     <div className="flex-1 min-h-0 flex">
