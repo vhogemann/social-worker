@@ -21,7 +21,7 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.2" />
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
     <PackageReference Include="SkiaSharp" Version="4.150.1" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.150.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.151.0" />
     <PackageReference Include="ColorCode.Core" Version="2.0.15" />
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
     <PackageReference Include="dbup-postgresql" Version="7.0.1" />
