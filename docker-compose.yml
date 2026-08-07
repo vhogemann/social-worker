@@ -61,6 +61,16 @@ services:
       - "8100:80"
     depends_on:
       - api
+    labels:
+      - "traefik.enable=true"
+      # Change this to your preferred domain (e.g. social.plopsaurus.xyz)
+      - "traefik.http.routers.social-worker.rule=Host(`social.plopsaurus.xyz`)"
+      - "traefik.http.routers.social-worker.entrypoints=web"
+      - "traefik.http.services.social-worker.loadbalancer.server.port=80"
+      - "traefik.docker.network=web-gateway"
+    networks:
+      - default
+      - web-gateway
     restart: unless-stopped
 
   searxng:
@@ -138,3 +148,9 @@ volumes:
   pgdata:
   whisper-cache:
   api-dataprotection-keys:
+
+networks:
+  default:
+    name: social-worker_default
+  web-gateway:
+    external: true
