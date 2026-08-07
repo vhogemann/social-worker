@@ -255,7 +255,7 @@ SW_DB_SERVICE=db SW_DB_NAME=socialworker SW_DB_USER=postgres ./scripts/sql.sh -c
 
 - **Getting Started Guide**: [GETTING_STARTED.md](GETTING_STARTED.md)
 - **Regenerate Guide + Screenshots**: `./scripts/regenerate-getting-started.sh`
-- **Roadmap and plans**: [PLAN.md](PLAN.md) and [planning/PLAN.md](planning/PLAN.md)
+- **Roadmap and plans**: [PLAN.md](PLAN.md)
 
 ---
 

@@ -714,4 +714,4 @@ This explicit routing is important for a 4.5B model -- implicit workspace switch
 
 - Sandbox foundation: `planning/future/PYTHON_SANDBOX.md`
 - Telegram bridge: `planning/future/TELEGRAM_INTEGRATION.md`
-- Main plan tracker: `planning/PLAN.md`
+- Main plan tracker: `PLAN.md`

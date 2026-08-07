@@ -254,4 +254,4 @@ async def rate_limited(chat_id: int, coro):
 
 - Virtual workspace model: `planning/future/SELF_EVOLVING_ASSISTANT.md` (Gap 3 section)
 - Sandbox execution: `planning/future/PYTHON_SANDBOX.md`
-- Main plan tracker: `planning/PLAN.md`
+- Main plan tracker: `PLAN.md`

@@ -6,4 +6,4 @@ The backlog captured here has been worked through: the concrete refactors, valid
 
 ## Legacy Notes
 
-See the original planning file for the historical inventory and closeout context.
+See [TECH_DEBT_CLOSEOUT_2026-07-28.md](TECH_DEBT_CLOSEOUT_2026-07-28.md) for the historical inventory and closeout context.

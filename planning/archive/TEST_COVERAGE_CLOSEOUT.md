@@ -1,6 +1,6 @@
 # Test Coverage Closeout Plan
 
-Status: Proposed
+Status: Completed (Archived)
 Owner: Copilot + user
 Theme: Test coverage and release confidence
 
@@ -23,7 +23,7 @@ The core backend test surface is largely covered, and the frontend is close to c
 
 ## Remaining Coverage Targets
 
-Finish the composite frontend items still open in [TEST_PLAN.md](TEST_PLAN.md):
+Finish the composite frontend items that were open in [TEST_PLAN_2026-07-28.md](TEST_PLAN_2026-07-28.md):
 
 - `DraftList` (`web/src/components/DraftList/DraftList.tsx`)
 - `MarkdownEditor` (`web/src/components/EditorPanel/MarkdownEditor.tsx`)
@@ -42,7 +42,7 @@ Finish the composite frontend items still open in [TEST_PLAN.md](TEST_PLAN.md):
 
 ### Phase 2: Refresh coverage tracking
 
-- Mark each finished row in [TEST_PLAN.md](TEST_PLAN.md).
+- Mark each finished row in [TEST_PLAN_2026-07-28.md](TEST_PLAN_2026-07-28.md).
 - Tighten the remaining-gaps list until it is empty.
 - If a component is shown to be already covered indirectly, update the tracker to reflect the actual tested surface instead of leaving stale rows behind.
 
@@ -60,12 +60,12 @@ Finish the composite frontend items still open in [TEST_PLAN.md](TEST_PLAN.md):
 
 ### Phase 4: Closeout
 
-- Archive [TEST_PLAN.md](TEST_PLAN.md) once the remaining gaps are closed and verification is green.
-- Update [planning/PLAN.md](planning/PLAN.md) so quality and release confidence no longer depends on the backlog tracker.
+- Archive [TEST_PLAN_2026-07-28.md](TEST_PLAN_2026-07-28.md) once the remaining gaps are closed and verification is green.
+- Update [../PLAN.md](../PLAN.md) so quality and release confidence no longer depends on the backlog tracker.
 
 ## Acceptance Criteria
 
-- Every row in the remaining-gaps section of [TEST_PLAN.md](TEST_PLAN.md) is closed or explicitly reclassified.
+- Every row in the remaining-gaps section of [TEST_PLAN_2026-07-28.md](TEST_PLAN_2026-07-28.md) is closed or explicitly reclassified.
 - The API build and test suite pass in Docker.
 - The web build, typecheck, and test suite pass in Docker.
 - E2E smoke passes in Docker.

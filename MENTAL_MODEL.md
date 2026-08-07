@@ -76,7 +76,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ## Active roadmap center of gravity
 
-- Canonical roadmap index: planning/PLAN.md
+- Canonical roadmap index: PLAN.md
 - Current emphasis: Bluesky improvements, feed automation, quality/reliability hardening, and maintainability work
 
 ## Keep this file up-to-date
