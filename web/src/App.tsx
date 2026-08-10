@@ -8,8 +8,10 @@ import { EditorPanel } from "./components/EditorPanel/EditorPanel";
 import { DraftList } from "./components/DraftList/DraftList";
 import { SourcesLibrary } from "./components/SourcesLibrary/SourcesLibrary";
 import { FeedsPanel } from "./components/FeedsPanel/FeedsPanel";
+import { PrivacyPolicy } from "./components/PrivacyPolicy";
 import { useDraftStore } from "./store/draftStore";
 import { useEditorStore } from "./store/editorStore";
+
 
 function ComposerView({
   chatRef,
@@ -141,6 +143,7 @@ function AppContent() {
           <Link to="/" className="hover:text-foreground">Composer</Link>
           <Link to="/sources" className="hover:text-foreground">Sources Library</Link>
           <Link to="/feeds" className="hover:text-foreground">Feeds</Link>
+          <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
         </div>
       </header>
       <Routes>
@@ -148,6 +151,7 @@ function AppContent() {
         <Route path="/draft/:draftId" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
         <Route path="/sources" element={<SourcesLibrary />} />
         <Route path="/feeds" element={<FeedsPanel />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
       </Routes>
     </div>
   );
