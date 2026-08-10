@@ -20,6 +20,7 @@ This file is the single source of truth for roadmap status and planning links.
 
 ### Recently closed and archived
 
+- LinkedIn member publishing MVP (single-post contract, mapping, pipeline): [planning/LINKED_IN.md](planning/LINKED_IN.md)
 - Feed automation delivery: [planning/archive/RSS_AUTOMATION.md](planning/archive/RSS_AUTOMATION.md)
 - Sources service extraction and hardening: [planning/archive/SOURCES_SERVICE_REFACTOR.md](planning/archive/SOURCES_SERVICE_REFACTOR.md)
 - Tech-debt closeout inventory: [planning/archive/TECH_DEBT_CLOSEOUT_2026-07-28.md](planning/archive/TECH_DEBT_CLOSEOUT_2026-07-28.md)
@@ -48,7 +49,6 @@ Status: `Planned`
 1. Thread reordering and multi-draft workflow improvements.
 2. Scheduled publishing.
 3. Publishing UX refinements around review/confirm before send.
-4. LinkedIn member publishing MVP (single-post only, no threads), including text/article/image support and YouTube as ARTICLE link-share behavior.
 
 Scope guardrails:
 

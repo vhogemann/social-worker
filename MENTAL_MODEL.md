@@ -8,7 +8,7 @@ Read this first, then use AGENTS.md for stricter policy and workflow rules.
 
 ## Product in one paragraph
 
-social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky is production-ready in v1; other publishers are stubs.
+social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky (threads) and LinkedIn (single-post MVP) are production-ready; other publishers are stubs.
 
 ## System shape
 
