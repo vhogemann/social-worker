@@ -48,6 +48,7 @@ Status: `Planned`
 1. Thread reordering and multi-draft workflow improvements.
 2. Scheduled publishing.
 3. Publishing UX refinements around review/confirm before send.
+4. LinkedIn member publishing MVP (single-post only, no threads), including text/article/image support and YouTube as ARTICLE link-share behavior.
 
 Scope guardrails:
 
@@ -69,6 +70,7 @@ These should remain first-class and be kept current:
 | File | Role |
 |---|---|
 | [PLAN.md](PLAN.md) | canonical active roadmap and execution priorities |
+| [planning/LINKED_IN.md](planning/LINKED_IN.md) | LinkedIn publishing contract, markdown mapping, and conversion pipeline (single-post-only scope) |
 
 ## Reference-only planning documents
 
