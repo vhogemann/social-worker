@@ -2,7 +2,7 @@ import React from "react";
 
 export function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 font-sans py-12 px-6">
+    <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 font-sans py-12 px-6">
       <div className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-8 shadow-sm">
         <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-white mb-2">
           Privacy Policy
