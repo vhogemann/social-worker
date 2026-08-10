@@ -4,20 +4,20 @@
 Implement and verify the conversion pipeline from platform thread content to LinkedIn publish payload.
 
 ## Status
-- State: Not started
-- Owner: TBD
-- Last updated: TBD
+- State: Complete
+- Owner: Antigravity
+- Last updated: 2026-08-10
 
 ## Checklist
-- [ ] Build pipeline step sequence and boundaries.
-- [ ] Add early cardinality gate for non-thread LinkedIn rule.
-- [ ] Add normalization and policy validation stage.
-- [ ] Add media asset lookup and readiness checks.
-- [ ] Add image upload orchestration path.
-- [ ] Add publish request build and send stage.
-- [ ] Add published result mapping to existing PublishedPost output.
-- [ ] Add tests for each stage where feasible.
+- [x] Build pipeline step sequence and boundaries.
+- [x] Add early cardinality gate for non-thread LinkedIn rule.
+- [x] Add normalization and policy validation stage.
+- [x] Add media asset lookup and readiness checks.
+- [x] Add image upload orchestration path.
+- [x] Add publish request build and send stage.
+- [x] Add published result mapping to existing PublishedPost output.
+- [x] Add tests for each stage where feasible.
 
 ## Exit Criteria
-- [ ] Pipeline behavior is deterministic for supported inputs.
-- [ ] Side effects are isolated to upload and publish stages.
+- [x] Pipeline behavior is deterministic for supported inputs.
+- [x] Side effects are isolated to upload and publish stages.
