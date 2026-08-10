@@ -71,6 +71,7 @@ These should remain first-class and be kept current:
 |---|---|
 | [PLAN.md](PLAN.md) | canonical active roadmap and execution priorities |
 | [planning/LINKED_IN.md](planning/LINKED_IN.md) | LinkedIn publishing contract, markdown mapping, and conversion pipeline (single-post-only scope) |
+| [planning/linkedin/FRONTEND_INTEGRATION.md](planning/linkedin/FRONTEND_INTEGRATION.md) | LinkedIn frontend integration design, preview components, and validation rules |
 
 ## Reference-only planning documents
 
