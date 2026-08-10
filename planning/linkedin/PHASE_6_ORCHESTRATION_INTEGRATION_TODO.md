@@ -4,18 +4,18 @@
 Integrate LinkedIn pipeline into existing publisher and validation orchestration paths.
 
 ## Status
-- State: Not started
-- Owner: TBD
-- Last updated: TBD
+- State: Complete
+- Owner: Antigravity
+- Last updated: 2026-08-10
 
 ## Checklist
-- [ ] Replace LinkedIn stub publisher with real implementation path.
-- [ ] Keep IPublisher contract stable.
-- [ ] Route platform validation via existing platform policy mechanisms.
-- [ ] Ensure Bluesky-only checks remain Bluesky-only.
-- [ ] Preserve existing persistence flow for Post records.
-- [ ] Add integration tests for publish endpoint and tool orchestration.
+- [x] Replace LinkedIn stub publisher with real implementation path.
+- [x] Keep IPublisher contract stable.
+- [x] Route platform validation via existing platform policy mechanisms.
+- [x] Ensure Bluesky-only checks remain Bluesky-only.
+- [x] Preserve existing persistence flow for Post records.
+- [x] Add integration tests for publish endpoint and tool orchestration.
 
 ## Exit Criteria
-- [ ] LinkedIn publish flow is integrated without regressions to existing platforms.
-- [ ] Platform-specific validation behavior is enforced correctly.
+- [x] LinkedIn publish flow is integrated without regressions to existing platforms.
+- [x] Platform-specific validation behavior is enforced correctly.

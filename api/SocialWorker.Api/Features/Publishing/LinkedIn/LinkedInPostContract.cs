@@ -46,8 +46,8 @@ public sealed record LinkedInPostContract
     
     // Traceability
     public int SourceSegmentIndex { get; }
-    public int DraftId { get; }
-    public int ThreadId { get; }
+    public Guid DraftId { get; }
+    public Guid ThreadId { get; }
 
     private LinkedInPostContract(
         string authorUrn,
@@ -58,8 +58,8 @@ public sealed record LinkedInPostContract
         LinkedInImagePayload? image,
         LinkedInVideoPayload? video,
         int sourceSegmentIndex,
-        int draftId,
-        int threadId)
+        Guid draftId,
+        Guid threadId)
     {
         AuthorUrn = authorUrn;
         BodyText = bodyText;
@@ -82,8 +82,8 @@ public sealed record LinkedInPostContract
         LinkedInImagePayload? image,
         LinkedInVideoPayload? video,
         int sourceSegmentIndex,
-        int draftId,
-        int threadId)
+        Guid draftId,
+        Guid threadId)
     {
         if (string.IsNullOrWhiteSpace(authorUrn))
         {

@@ -17,8 +17,8 @@ public static class LinkedInMarkdownMapper
         string content,
         string authorUrn,
         string visibility,
-        int draftId,
-        int threadId,
+        Guid draftId,
+        Guid threadId,
         Func<Guid, (string? FilePath, string? MimeType, string? AltText)?> getMediaAsset)
     {
         var segments = DraftSegmentService.SplitMarkdownIntoSegments(content);

@@ -14,8 +14,8 @@ public sealed class LinkedInMarkdownMapperTests
             content: markdown,
             authorUrn: "urn:li:person:123",
             visibility: "PUBLIC",
-            draftId: 1,
-            threadId: 2,
+            draftId: Guid.Empty,
+            threadId: Guid.Empty,
             getMediaAsset: id => null
         );
 
@@ -35,8 +35,8 @@ public sealed class LinkedInMarkdownMapperTests
             content: markdown,
             authorUrn: "urn:li:person:123",
             visibility: "PUBLIC",
-            draftId: 1,
-            threadId: 2,
+            draftId: Guid.Empty,
+            threadId: Guid.Empty,
             getMediaAsset: id => id == mediaId ? ("path/to/file.png", "image/png", "Database Alt Text") : null
         );
 
@@ -56,8 +56,8 @@ public sealed class LinkedInMarkdownMapperTests
             content: markdown,
             authorUrn: "urn:li:person:123",
             visibility: "PUBLIC",
-            draftId: 1,
-            threadId: 2,
+            draftId: Guid.Empty,
+            threadId: Guid.Empty,
             getMediaAsset: id => null
         );
 
@@ -78,8 +78,8 @@ public sealed class LinkedInMarkdownMapperTests
                 content: markdown,
                 authorUrn: "urn:li:person:123",
                 visibility: "PUBLIC",
-                draftId: 1,
-                threadId: 2,
+                draftId: Guid.Empty,
+                threadId: Guid.Empty,
                 getMediaAsset: id => null
             )
         );
@@ -98,8 +98,8 @@ public sealed class LinkedInMarkdownMapperTests
                 content: markdown,
                 authorUrn: "urn:li:person:123",
                 visibility: "PUBLIC",
-                draftId: 1,
-                threadId: 2,
+                draftId: Guid.Empty,
+                threadId: Guid.Empty,
                 getMediaAsset: id => id == mediaId ? ("path", "mime", "alt") : null
             )
         );
@@ -118,8 +118,8 @@ public sealed class LinkedInMarkdownMapperTests
                 content: markdown,
                 authorUrn: "urn:li:person:123",
                 visibility: "PUBLIC",
-                draftId: 1,
-                threadId: 2,
+                draftId: Guid.Empty,
+                threadId: Guid.Empty,
                 getMediaAsset: id => null // simulates missing from DB
             )
         );

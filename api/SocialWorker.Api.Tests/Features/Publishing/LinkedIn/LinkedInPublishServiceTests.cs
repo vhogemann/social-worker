@@ -69,8 +69,8 @@ public sealed class LinkedInPublishServiceTests : SqliteTestBase
             content: "Hello LinkedIn!",
             authorUrn: "urn:li:person:abcdef",
             visibility: "PUBLIC",
-            draftId: 1,
-            threadId: 2,
+            draftId: Guid.Empty,
+            threadId: Guid.Empty,
             token: "my-token",
             ct: default
         );
@@ -148,8 +148,8 @@ public sealed class LinkedInPublishServiceTests : SqliteTestBase
                 content: $"Hello image! ![Cool image](media://{mediaId})",
                 authorUrn: "urn:li:person:abcdef",
                 visibility: "PUBLIC",
-                draftId: 1,
-                threadId: 2,
+                draftId: draft.Id,
+                threadId: Guid.Empty,
                 token: "my-token",
                 ct: default
             );
@@ -178,8 +178,8 @@ public sealed class LinkedInPublishServiceTests : SqliteTestBase
             content: "Segment 1\n---\nSegment 2",
             authorUrn: "urn:li:person:abcdef",
             visibility: "PUBLIC",
-            draftId: 1,
-            threadId: 2,
+            draftId: Guid.Empty,
+            threadId: Guid.Empty,
             token: "my-token",
             ct: default
         );

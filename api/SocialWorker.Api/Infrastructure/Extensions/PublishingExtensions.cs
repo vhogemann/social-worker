@@ -4,6 +4,7 @@ using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
 using SocialWorker.Api.Features.Publishing.Validation;
 using SocialWorker.Api.Features.Chat.Tools;
+using SocialWorker.Api.Features.Publishing.LinkedIn;
 
 namespace SocialWorker.Api.Infrastructure.Extensions;
 
@@ -35,6 +36,8 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<IPublisher, BlueskyPublisher>();
         builder.Services.AddHttpClient<IBlueskyReplyTargetResolver, BlueskyReplyTargetResolver>();
         builder.Services.AddScoped<IPublisher, TwitterPublisher>();
+        builder.Services.AddHttpClient<LinkedInApiClient>();
+        builder.Services.AddScoped<LinkedInPublishService>();
         builder.Services.AddScoped<IPublisher, LinkedInPublisher>();
         builder.Services.AddScoped<IPublisher, FacebookPublisher>();
         builder.Services.AddScoped<IPublisher, InstagramPublisher>();

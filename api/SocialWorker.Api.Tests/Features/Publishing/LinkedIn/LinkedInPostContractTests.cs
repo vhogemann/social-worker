@@ -18,8 +18,8 @@ public sealed class LinkedInPostContractTests
             image: null,
             video: null,
             sourceSegmentIndex: 0,
-            draftId: 42,
-            threadId: 99
+            draftId: Guid.Empty,
+            threadId: Guid.Empty
         );
 
         Assert.Equal("urn:li:person:12345", contract.AuthorUrn);
@@ -42,8 +42,8 @@ public sealed class LinkedInPostContractTests
             image: null,
             video: null,
             sourceSegmentIndex: 0,
-            draftId: 42,
-            threadId: 99
+            draftId: Guid.Empty,
+            threadId: Guid.Empty
         );
 
         Assert.Equal(LinkedInMediaKind.Article, contract.MediaKind);
@@ -64,8 +64,8 @@ public sealed class LinkedInPostContractTests
             image: imagePayload,
             video: null,
             sourceSegmentIndex: 0,
-            draftId: 42,
-            threadId: 99
+            draftId: Guid.Empty,
+            threadId: Guid.Empty
         );
 
         Assert.Equal(LinkedInMediaKind.Image, contract.MediaKind);
@@ -88,8 +88,8 @@ public sealed class LinkedInPostContractTests
                 image: null,
                 video: null,
                 sourceSegmentIndex: 0,
-                draftId: 42,
-                threadId: 99
+                draftId: Guid.Empty,
+                threadId: Guid.Empty
             )
         );
 
@@ -111,8 +111,8 @@ public sealed class LinkedInPostContractTests
                 image: null,
                 video: videoPayload,
                 sourceSegmentIndex: 0,
-                draftId: 42,
-                threadId: 99
+                draftId: Guid.Empty,
+                threadId: Guid.Empty
             )
         );
 
@@ -135,8 +135,8 @@ public sealed class LinkedInPostContractTests
                 image: imagePayload,
                 video: null,
                 sourceSegmentIndex: 0,
-                draftId: 42,
-                threadId: 99
+                draftId: Guid.Empty,
+                threadId: Guid.Empty
             )
         );
 

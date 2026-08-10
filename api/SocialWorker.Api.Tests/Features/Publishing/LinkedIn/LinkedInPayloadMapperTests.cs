@@ -18,8 +18,8 @@ public sealed class LinkedInPayloadMapperTests
             image: null,
             video: null,
             sourceSegmentIndex: 0,
-            draftId: 1,
-            threadId: 2
+            draftId: Guid.Empty,
+            threadId: Guid.Empty
         );
 
         var request = LinkedInPayloadMapper.MapToUgcPostRequest(contract);
@@ -44,8 +44,8 @@ public sealed class LinkedInPayloadMapperTests
             image: null,
             video: null,
             sourceSegmentIndex: 0,
-            draftId: 1,
-            threadId: 2
+            draftId: Guid.Empty,
+            threadId: Guid.Empty
         );
 
         var request = LinkedInPayloadMapper.MapToUgcPostRequest(contract);
@@ -76,8 +76,8 @@ public sealed class LinkedInPayloadMapperTests
             image: image,
             video: null,
             sourceSegmentIndex: 0,
-            draftId: 1,
-            threadId: 2
+            draftId: Guid.Empty,
+            threadId: Guid.Empty
         );
 
         var request = LinkedInPayloadMapper.MapToUgcPostRequest(contract, "urn:li:digitalmediaAsset:999");
@@ -106,8 +106,8 @@ public sealed class LinkedInPayloadMapperTests
             image: image,
             video: null,
             sourceSegmentIndex: 0,
-            draftId: 1,
-            threadId: 2
+            draftId: Guid.Empty,
+            threadId: Guid.Empty
         );
 
         Assert.Throws<InvalidOperationException>(() =>

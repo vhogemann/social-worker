@@ -30,8 +30,8 @@ public sealed class LinkedInPublishService
         string content,
         string authorUrn,
         string visibility,
-        int draftId,
-        int threadId,
+        Guid draftId,
+        Guid threadId,
         string token,
         CancellationToken ct)
     {

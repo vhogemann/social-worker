@@ -19,21 +19,6 @@ public class TwitterPublisher : IPublisher
     }
 }
 
-public class LinkedInPublisher : IPublisher
-{
-    public string Platform => "LinkedIn";
-
-    public Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)
-    {
-        return Task.FromResult(new PublishResult
-        {
-            Success = false,
-            ErrorMessage = "Not Implemented",
-            AuthUrl = "https://www.linkedin.com/oauth/v2/authorization?placeholder"
-        });
-    }
-}
-
 public class FacebookPublisher : IPublisher
 {
     public string Platform => "Facebook";
