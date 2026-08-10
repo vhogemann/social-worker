@@ -75,31 +75,36 @@ export function ConnectionsTab() {
             </label>
             <select
               value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
-              disabled={true}
+              onChange={(e) => {
+                setPlatform(e.target.value);
+                setHandle("");
+                setAppPassword("");
+              }}
+              disabled={isSubmitting}
               className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
             >
               <option value="Bluesky">Bluesky</option>
+              <option value="LinkedIn">LinkedIn</option>
             </select>
           </div>
           
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1">
-              Handle / Username
+              {platform === "LinkedIn" ? "Member URN" : "Handle / Username"}
             </label>
             <input
               type="text"
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
               disabled={isSubmitting}
-              placeholder="e.g. user.bsky.social"
+              placeholder={platform === "LinkedIn" ? "e.g. urn:li:person:abcdef" : "e.g. user.bsky.social"}
               className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
             />
           </div>
 
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1">
-              App Password
+              {platform === "LinkedIn" ? "OAuth Access Token" : "App Password"}
             </label>
             <input
               type="password"
@@ -110,7 +115,9 @@ export function ConnectionsTab() {
               className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
             />
             <p className="mt-1 flex items-center gap-1 text-[10px] text-muted font-mono leading-none">
-              Always use an App Password, never your main account password.
+              {platform === "LinkedIn"
+                ? "Enter your long-lived 3-legged user access token."
+                : "Always use an App Password, never your main account password."}
             </p>
           </div>
 
