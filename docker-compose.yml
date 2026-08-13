@@ -40,6 +40,9 @@ services:
       Transcriber__BaseUrl: http://transcriber:8000
       Transcriber__TimeoutSeconds: ${TRANSCRIBER__TimeoutSeconds:-1800}
       Transcriber__TranscriptsPath: /app/transcripts
+      LinkedIn__ClientId: ${LINKEDIN__CLIENTID:-}
+      LinkedIn__ClientSecret: ${LINKEDIN__CLIENTSECRET:-}
+      LinkedIn__RedirectUri: ${LINKEDIN__REDIRECTURI:-}
       DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-}
     depends_on:
       db:
@@ -85,8 +88,6 @@ services:
     build:
       context: ./transcriber
       dockerfile: Dockerfile
-      args:
-        WHISPER_MODEL: ${TRANSCRIBER__WhisperModel:-base}
     ports:
       - "8102:8000"
     environment:
@@ -99,7 +100,7 @@ services:
       SUMMARY_MAX_CHARS: ${TRANSCRIBER__SummaryMaxChars:-12000}
     volumes:
       - ./transcripts:/transcripts
-      - whisper-cache:/root/.cache/whisper
+      - ${WHISPER_CACHE_DIR:-./whisper-cache}:/root/.cache/whisper
     restart: unless-stopped
 
   e2e:
@@ -146,7 +147,6 @@ services:
 
 volumes:
   pgdata:
-  whisper-cache:
   api-dataprotection-keys:
 
 networks:

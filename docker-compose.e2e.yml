@@ -53,6 +53,9 @@ services:
       Transcriber__BaseUrl: http://transcriber-e2e:8000
       Transcriber__TimeoutSeconds: ${TRANSCRIBER__TimeoutSeconds:-1800}
       Transcriber__TranscriptsPath: /app/transcripts
+      LinkedIn__ClientId: ${LINKEDIN__CLIENTID:-}
+      LinkedIn__ClientSecret: ${LINKEDIN__CLIENTSECRET:-}
+      LinkedIn__RedirectUri: ${LINKEDIN__REDIRECTURI:-}
       DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-getting-started}
     depends_on:
       db-e2e:
@@ -76,8 +79,6 @@ services:
     build:
       context: ./transcriber
       dockerfile: Dockerfile
-      args:
-        WHISPER_MODEL: ${TRANSCRIBER__WhisperModel:-base}
     environment:
       TRANSCRIPTS_DIR: /transcripts
       WHISPER_MODEL: ${TRANSCRIBER__WhisperModel:-base}
@@ -88,6 +89,7 @@ services:
       SUMMARY_MAX_CHARS: ${TRANSCRIBER__SummaryMaxChars:-12000}
     volumes:
       - ./transcripts:/transcripts
+      - ${WHISPER_CACHE_DIR:-./whisper-cache}:/root/.cache/whisper
     restart: unless-stopped
     networks:
       e2e-net:

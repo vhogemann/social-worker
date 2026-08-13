@@ -12,6 +12,7 @@ static partial class ServiceCollectionExtensions
 {
     internal static void AddPublishing(this IHostApplicationBuilder builder)
     {
+        builder.Services.Configure<LinkedInOptions>(builder.Configuration.GetSection(LinkedInOptions.SectionName));
         builder.Services.AddSingleton<PlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, BlueskyPlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, TwitterPlatformContentPolicy>();
@@ -37,6 +38,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddHttpClient<IBlueskyReplyTargetResolver, BlueskyReplyTargetResolver>();
         builder.Services.AddScoped<IPublisher, TwitterPublisher>();
         builder.Services.AddHttpClient<LinkedInApiClient>();
+        builder.Services.AddHttpClient<LinkedInOAuthService>();
         builder.Services.AddScoped<LinkedInPublishService>();
         builder.Services.AddScoped<IPublisher, LinkedInPublisher>();
         builder.Services.AddScoped<IPublisher, FacebookPublisher>();

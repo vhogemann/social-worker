@@ -35,3 +35,24 @@ export async function deleteAccount(id: string): Promise<void> {
   });
   if (!res.ok) throw new Error("Failed to delete account");
 }
+
+export async function getLinkedInAuthUrl(): Promise<{ authUrl: string }> {
+  const res = await apiFetch("/api/accounts/linkedin/auth-url");
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || "Failed to fetch LinkedIn auth URL");
+  }
+  return res.json();
+}
+
+export async function submitLinkedInCallback(code: string): Promise<void> {
+  const res = await apiFetch("/api/accounts/linkedin/callback", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || "Failed to exchange LinkedIn auth code");
+  }
+}
+

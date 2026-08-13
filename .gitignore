@@ -27,6 +27,10 @@ uploads/
 transcripts/
 !transcripts/.gitkeep
 
+# whisper cache
+whisper-cache/
+!whisper-cache/.gitkeep
+
 # e2e
 e2e/node_modules/
 e2e/reports/

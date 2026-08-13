@@ -33,6 +33,7 @@ public sealed class LinkedInShareContent
     public string ShareMediaCategory { get; set; } = "NONE";
 
     [JsonPropertyName("media")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<LinkedInShareMedia>? Media { get; set; }
 }
 
@@ -48,15 +49,19 @@ public sealed class LinkedInShareMedia
     public string Status { get; set; } = "READY";
 
     [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LinkedInTextObject? Description { get; set; }
 
     [JsonPropertyName("originalUrl")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OriginalUrl { get; set; }
 
     [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LinkedInTextObject? Title { get; set; }
 
     [JsonPropertyName("media")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? MediaUrn { get; set; }
 }
 

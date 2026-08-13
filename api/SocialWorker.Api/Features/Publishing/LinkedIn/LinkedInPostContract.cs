@@ -90,6 +90,12 @@ public sealed record LinkedInPostContract
             throw new LinkedInContractException(LinkedInContractError.UnsupportedCombination, "Author URN is required.");
         }
 
+        authorUrn = authorUrn.Trim();
+        if (!authorUrn.StartsWith("urn:li:", StringComparison.OrdinalIgnoreCase))
+        {
+            authorUrn = $"urn:li:person:{authorUrn}";
+        }
+
         if (bodyText == null)
         {
             throw new ArgumentNullException(nameof(bodyText));

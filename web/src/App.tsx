@@ -9,6 +9,7 @@ import { DraftList } from "./components/DraftList/DraftList";
 import { SourcesLibrary } from "./components/SourcesLibrary/SourcesLibrary";
 import { FeedsPanel } from "./components/FeedsPanel/FeedsPanel";
 import { PrivacyPolicy } from "./components/PrivacyPolicy";
+import { LinkedInCallback } from "./components/Settings/LinkedInCallback";
 import { useDraftStore } from "./store/draftStore";
 import { useEditorStore } from "./store/editorStore";
 
@@ -152,6 +153,7 @@ function AppContent() {
         <Route path="/sources" element={<SourcesLibrary />} />
         <Route path="/feeds" element={<FeedsPanel />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/oauth/callback/linkedin" element={<LinkedInCallback />} />
       </Routes>
     </div>
   );

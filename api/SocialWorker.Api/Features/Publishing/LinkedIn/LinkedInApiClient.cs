@@ -35,6 +35,7 @@ public sealed class LinkedInApiClient
         using var message = new HttpRequestMessage(HttpMethod.Post, "https://api.linkedin.com/v2/assets?action=registerUpload");
         message.Content = JsonContent.Create(req);
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        message.Headers.TryAddWithoutValidation("X-Restli-Protocol-Version", "2.0.0");
 
         var res = await _http.SendAsync(message, ct);
         if (!res.IsSuccessStatusCode)

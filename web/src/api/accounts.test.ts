@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { listAccounts, saveAccount, deleteAccount } from "./accounts";
+import { listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl } from "./accounts";
 
 vi.mock("./client", () => ({
   apiFetch: vi.fn(),
@@ -71,6 +71,23 @@ describe("accounts API", () => {
     it("throws on failure", async () => {
       mockApiFetch.mockResolvedValueOnce(new Response("{}", { status: 404 }));
       await expect(deleteAccount("bad")).rejects.toThrow("Failed to delete account");
+    });
+  });
+
+  describe("getLinkedInAuthUrl", () => {
+    it("returns authUrl on success", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ authUrl: "https://linkedin.com/auth" }), { status: 200 })
+      );
+      const res = await getLinkedInAuthUrl();
+      expect(res.authUrl).toBe("https://linkedin.com/auth");
+    });
+
+    it("throws detailed server error message on failure", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "LinkedIn client ID or redirect URI is not configured." }), { status: 400 })
+      );
+      await expect(getLinkedInAuthUrl()).rejects.toThrow("LinkedIn client ID or redirect URI is not configured.");
     });
   });
 });

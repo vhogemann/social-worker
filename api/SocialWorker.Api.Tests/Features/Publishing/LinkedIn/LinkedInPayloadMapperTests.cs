@@ -32,6 +32,47 @@ public sealed class LinkedInPayloadMapperTests
     }
 
     [Fact]
+    public void MapToUgcPostRequest_TextOnly_OmitsMediaPropertyInJson()
+    {
+        var contract = LinkedInPostContract.Create(
+            authorUrn: "urn:li:person:123",
+            bodyText: "Simple text",
+            visibility: "PUBLIC",
+            mediaKind: LinkedInMediaKind.None,
+            article: null,
+            image: null,
+            video: null,
+            sourceSegmentIndex: 0,
+            draftId: Guid.Empty,
+            threadId: Guid.Empty
+        );
+
+        var request = LinkedInPayloadMapper.MapToUgcPostRequest(contract);
+        var json = System.Text.Json.JsonSerializer.Serialize(request);
+
+        Assert.DoesNotContain("\"media\"", json);
+    }
+
+    [Fact]
+    public void Create_NormalizesRawSubToPersonUrn()
+    {
+        var contract = LinkedInPostContract.Create(
+            authorUrn: "12345",
+            bodyText: "Simple text",
+            visibility: "PUBLIC",
+            mediaKind: LinkedInMediaKind.None,
+            article: null,
+            image: null,
+            video: null,
+            sourceSegmentIndex: 0,
+            draftId: Guid.Empty,
+            threadId: Guid.Empty
+        );
+
+        Assert.Equal("urn:li:person:12345", contract.AuthorUrn);
+    }
+
+    [Fact]
     public void MapToUgcPostRequest_Article_MapsCorrectly()
     {
         var article = new LinkedInArticlePayload("https://test.com/post", "My Title", "My Description");

@@ -121,6 +121,7 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total,
           canCreateReplyDraft={canCreateReplyDraft}
           creatingReplyDraft={creatingReplyDraft}
           onCreateReplyDraft={handleCreateReplyDraft}
+          platformName={activeDraft?.targetPlatform}
         />
 
         {cleanText && (

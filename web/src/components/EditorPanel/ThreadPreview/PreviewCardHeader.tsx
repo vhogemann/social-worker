@@ -10,6 +10,7 @@ interface PreviewCardHeaderProps {
   canCreateReplyDraft: boolean;
   creatingReplyDraft: boolean;
   onCreateReplyDraft: () => void;
+  platformName?: string | null;
 }
 
 export const PreviewCardHeader: React.FC<PreviewCardHeaderProps> = ({
@@ -20,6 +21,7 @@ export const PreviewCardHeader: React.FC<PreviewCardHeaderProps> = ({
   canCreateReplyDraft,
   creatingReplyDraft,
   onCreateReplyDraft,
+  platformName,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -85,7 +87,7 @@ export const PreviewCardHeader: React.FC<PreviewCardHeaderProps> = ({
           className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
         >
           <FontAwesomeIcon icon={faUpRightFromSquare} className="w-3.5 h-3.5" />
-          View on Bluesky
+          View on {platformName || "Bluesky"}
         </a>
       )}
     </>
