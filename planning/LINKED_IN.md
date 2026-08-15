@@ -1,6 +1,6 @@
-## Plan: LinkedIn Contract And Markdown Conversion
+## Plan: LinkedIn Contract And Markdown Conversion [COMPLETE]
 
-Define a stable LinkedIn publishing contract before implementation by separating concerns into three layers: internal Markdown thread model, normalized LinkedIn post model, and LinkedIn API payload model. Recommended MVP scope is text, link/article, and image posts; keep video explicitly out of MVP but model-compatible for later addition.
+Define a stable LinkedIn publishing contract by separating concerns into three layers: internal Markdown thread model, normalized LinkedIn post model, and LinkedIn API payload model. MVP scope is text, link/article, and image posts; video is explicitly out of MVP but model-compatible for later addition.
 
 **Steps**
 1. Phase 1 - Lock scope and platform capabilities
