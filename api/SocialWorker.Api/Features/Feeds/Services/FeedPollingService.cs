@@ -49,7 +49,9 @@ public sealed class FeedPollingService
 
     public async Task PollSubscriptionAsync(Guid subscriptionId, CancellationToken ct)
     {
-        var sub = await _db.FeedSubscriptions.FindAsync(new object[] { subscriptionId }, ct);
+        var sub = await _db.FeedSubscriptions
+            .Include(s => s.WorkflowSources)
+            .FirstOrDefaultAsync(s => s.Id == subscriptionId, ct);
         if (sub == null) return;
 
         _logger.LogInformation("Polling feed subscription: {Title} ({Url})", sub.Title, sub.FeedUrl);
@@ -76,28 +78,23 @@ public sealed class FeedPollingService
             if (string.IsNullOrWhiteSpace(item.Link))
                 continue;
 
-            var exists = await _db.FeedIngestionQueueItems
-                .AnyAsync(q => q.FeedSubscriptionId == subscriptionId && q.ItemLink == item.Link, ct);
-            if (exists)
-                continue;
-
-            _db.FeedIngestionQueueItems.Add(new FeedIngestionQueueItem
+            foreach (var wf in sub.WorkflowSources)
             {
-                Id = Guid.NewGuid(),
-                FeedSubscriptionId = subscriptionId,
-                ItemTitle = string.IsNullOrWhiteSpace(item.Title) ? "Untitled Feed Item" : item.Title,
-                ItemLink = item.Link,
-                ItemDescription = item.Description,
-                ItemPublishedAt = item.PublishingDate,
-                Status = FeedQueueItemStatus.Pending,
-                AttemptCount = 0,
-                MaxAttempts = 3,
-                NextAttemptAt = DateTime.UtcNow,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
-            queuedCount++;
-            EnqueueProcessingJob();
+                var exists = await _db.FeedIngestionQueueItems
+                    .AnyAsync(q => q.FeedSubscriptionId == subscriptionId && q.AutomationWorkflowId == wf.AutomationWorkflowId && q.ItemLink == item.Link, ct);
+                if (exists)
+                    continue;
+
+                _db.FeedIngestionQueueItems.Add(FeedIngestionQueueItem.Create(
+                    subscriptionId,
+                    wf.AutomationWorkflowId,
+                    item.Title,
+                    item.Link,
+                    item.Description,
+                    item.PublishingDate));
+                queuedCount++;
+                EnqueueProcessingJob();
+            }
         }
 
         _logger.LogInformation("Queued {Count} feed items for processing for subscription {Title}", queuedCount, sub.Title);

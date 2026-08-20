@@ -30,6 +30,8 @@ public class FeedIngestionQueueProcessor
 
         var queueItem = await _db.FeedIngestionQueueItems
             .Include(q => q.FeedSubscription)
+            .Include(q => q.AutomationWorkflow)
+                .ThenInclude(w => w.Destinations)
             .Where(q => (q.Status == FeedQueueItemStatus.Pending || q.Status == FeedQueueItemStatus.Failed) &&
                         q.AttemptCount < q.MaxAttempts &&
                         q.NextAttemptAt <= now)
@@ -52,6 +54,7 @@ public class FeedIngestionQueueProcessor
         {
             await _orchestrator.ProcessFeedItemAsync(
                 queueItem.FeedSubscription,
+                queueItem.AutomationWorkflow,
                 queueItem.ItemTitle,
                 queueItem.ItemLink,
                 queueItem.ItemDescription ?? string.Empty,

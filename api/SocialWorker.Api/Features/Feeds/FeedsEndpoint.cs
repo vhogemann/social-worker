@@ -89,8 +89,6 @@ public static class FeedsEndpoint
             subscription.Title = req.Title.Trim();
             subscription.FeedUrl = req.FeedUrl.Trim();
             subscription.WebsiteUrl = req.WebsiteUrl?.Trim();
-            subscription.InstructionPrompt = req.InstructionPrompt?.Trim() ?? "Summarize this article as a thread.";
-            subscription.AutoPublish = req.AutoPublish;
             subscription.IncludeFilters = req.IncludeFilters?.Trim();
             subscription.ExcludeFilters = req.ExcludeFilters?.Trim();
 
@@ -128,7 +126,6 @@ public static class FeedsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            // Run polling synchronously for this single subscription so that the user gets immediate response
             await pollingService.PollSubscriptionAsync(id, ct);
             return Results.Ok(new ApiSuccessResponse(true, "Polling triggered successfully."));
         });
@@ -143,6 +140,7 @@ public static class FeedsEndpoint
 
             var items = await db.FeedIngestionQueueItems
                 .Include(q => q.FeedSubscription)
+                .Include(q => q.AutomationWorkflow)
                 .Where(q => q.FeedSubscription.UserId == userId.Value)
                 .OrderByDescending(q => q.CreatedAt)
                 .Take(200)
@@ -150,6 +148,8 @@ public static class FeedsEndpoint
                     q.Id,
                     q.FeedSubscriptionId,
                     q.FeedSubscription.Title,
+                    q.AutomationWorkflowId,
+                    q.AutomationWorkflow.Title,
                     q.ItemTitle,
                     q.ItemLink,
                     q.Status.ToString(),
@@ -222,8 +222,6 @@ public sealed record CreateFeedSubscriptionRequest(
     string Title,
     string FeedUrl,
     string? WebsiteUrl,
-    string InstructionPrompt,
-    bool AutoPublish,
     string? IncludeFilters,
     string? ExcludeFilters);
 
@@ -232,15 +230,13 @@ public sealed record FeedSubscriptionDto(
     string Title,
     string FeedUrl,
     string? WebsiteUrl,
-    string InstructionPrompt,
-    bool AutoPublish,
     DateTime? LastPolledAt,
     string? IncludeFilters,
     string? ExcludeFilters,
     DateTime CreatedAt)
 {
     public FeedSubscriptionDto(Data.Entities.FeedSubscription s)
-        : this(s.Id, s.Title, s.FeedUrl, s.WebsiteUrl, s.InstructionPrompt, s.AutoPublish, s.LastPolledAt, s.IncludeFilters, s.ExcludeFilters, s.CreatedAt)
+        : this(s.Id, s.Title, s.FeedUrl, s.WebsiteUrl, s.LastPolledAt, s.IncludeFilters, s.ExcludeFilters, s.CreatedAt)
     {
     }
 };
@@ -249,6 +245,8 @@ public sealed record FeedQueueItemDto(
     Guid Id,
     Guid FeedSubscriptionId,
     string FeedSubscriptionTitle,
+    Guid AutomationWorkflowId,
+    string AutomationWorkflowTitle,
     string ItemTitle,
     string ItemLink,
     string Status,
@@ -261,7 +259,7 @@ public sealed record FeedQueueItemDto(
     DateTime? CompletedAt)
 {
     public FeedQueueItemDto(Data.Entities.FeedIngestionQueueItem q)
-        : this(q.Id, q.FeedSubscriptionId, q.FeedSubscription?.Title ?? "", q.ItemTitle, q.ItemLink, q.Status.ToString(), q.AttemptCount, q.MaxAttempts, q.NextAttemptAt, q.LastError, q.CreatedAt, q.UpdatedAt, q.CompletedAt)
+        : this(q.Id, q.FeedSubscriptionId, q.FeedSubscription?.Title ?? "", q.AutomationWorkflowId, q.AutomationWorkflow?.Title ?? "", q.ItemTitle, q.ItemLink, q.Status.ToString(), q.AttemptCount, q.MaxAttempts, q.NextAttemptAt, q.LastError, q.CreatedAt, q.UpdatedAt, q.CompletedAt)
     {
     }
 };

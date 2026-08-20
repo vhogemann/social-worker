@@ -20,6 +20,9 @@ public class AppDbContext : DbContext
     public DbSet<DraftBlueskyMetadata> DraftBlueskyMetadata => Set<DraftBlueskyMetadata>();
     public DbSet<FeedSubscription> FeedSubscriptions => Set<FeedSubscription>();
     public DbSet<FeedIngestionQueueItem> FeedIngestionQueueItems => Set<FeedIngestionQueueItem>();
+    public DbSet<AutomationWorkflow> AutomationWorkflows => Set<AutomationWorkflow>();
+    public DbSet<AutomationWorkflowSource> AutomationWorkflowSources => Set<AutomationWorkflowSource>();
+    public DbSet<AutomationWorkflowDestination> AutomationWorkflowDestinations => Set<AutomationWorkflowDestination>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -66,6 +69,11 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.CanonicalDraftId)
                 .OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(x => x.CanonicalDraftId);
+            e.HasOne(x => x.AutomationWorkflow)
+                .WithMany(w => w.Drafts)
+                .HasForeignKey(x => x.AutomationWorkflowId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => x.AutomationWorkflowId);
         });
 
         modelBuilder.Entity<ThreadSegment>(e =>
@@ -210,7 +218,6 @@ public class AppDbContext : DbContext
             e.Property(x => x.Title).HasMaxLength(200);
             e.Property(x => x.FeedUrl).HasMaxLength(500);
             e.Property(x => x.WebsiteUrl).HasMaxLength(500);
-            e.Property(x => x.InstructionPrompt).HasColumnType("text");
             e.Property(x => x.IncludeFilters).HasMaxLength(500);
             e.Property(x => x.ExcludeFilters).HasMaxLength(500);
             e.HasOne(x => x.User)
@@ -218,6 +225,43 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.UserId);
+        });
+
+        modelBuilder.Entity<AutomationWorkflow>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(200);
+            e.Property(x => x.InstructionPrompt).HasColumnType("text");
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.UserId);
+        });
+
+        modelBuilder.Entity<AutomationWorkflowSource>(e =>
+        {
+            e.HasKey(x => new { x.AutomationWorkflowId, x.FeedSubscriptionId });
+            e.HasOne(x => x.AutomationWorkflow)
+                .WithMany(w => w.WorkflowSources)
+                .HasForeignKey(x => x.AutomationWorkflowId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.FeedSubscription)
+                .WithMany(s => s.WorkflowSources)
+                .HasForeignKey(x => x.FeedSubscriptionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.FeedSubscriptionId);
+        });
+
+        modelBuilder.Entity<AutomationWorkflowDestination>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Platform).HasMaxLength(50);
+            e.HasOne(x => x.AutomationWorkflow)
+                .WithMany(w => w.Destinations)
+                .HasForeignKey(x => x.AutomationWorkflowId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.AutomationWorkflowId);
         });
 
         modelBuilder.Entity<FeedIngestionQueueItem>(e =>
@@ -232,8 +276,13 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.FeedSubscriptionId)
                 .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.AutomationWorkflow)
+                .WithMany()
+                .HasForeignKey(x => x.AutomationWorkflowId)
+                .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.FeedSubscriptionId);
-            e.HasIndex(x => new { x.FeedSubscriptionId, x.ItemLink }).IsUnique();
+            e.HasIndex(x => x.AutomationWorkflowId);
+            e.HasIndex(x => new { x.FeedSubscriptionId, x.AutomationWorkflowId, x.ItemLink }).IsUnique();
             e.HasIndex(x => new { x.Status, x.NextAttemptAt });
         });
     }

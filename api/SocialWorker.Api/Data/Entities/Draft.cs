@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using SocialWorker.Api.Data;
 
 namespace SocialWorker.Api.Data.Entities;
@@ -13,6 +15,8 @@ public class Draft
     public SocialPlatform? TargetPlatform { get; set; }
     public Guid? CanonicalDraftId { get; set; }
     public Draft? CanonicalDraft { get; set; }
+    public Guid? AutomationWorkflowId { get; set; }
+    public AutomationWorkflow? AutomationWorkflow { get; set; }
     public ICollection<Draft> Variants { get; set; } = new List<Draft>();
     public ICollection<ThreadSegment> Segments { get; set; } = new List<ThreadSegment>();
     public ICollection<PlatformThread> Threads { get; set; } = new List<PlatformThread>();
@@ -25,7 +29,7 @@ public class Draft
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public static Draft Create(Guid userId, string? title = null, string? content = null, SocialPlatform? targetPlatform = null)
+    public static Draft Create(Guid userId, string? title = null, string? content = null, SocialPlatform? targetPlatform = null, Guid? automationWorkflowId = null)
     {
         return new Draft
         {
@@ -34,6 +38,7 @@ public class Draft
             Title = string.IsNullOrWhiteSpace(title) ? "Untitled" : title.Trim(),
             Content = content,
             TargetPlatform = targetPlatform,
+            AutomationWorkflowId = automationWorkflowId,
             Status = DraftStatus.Editing,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

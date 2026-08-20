@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SocialWorker.Api.Data.Entities;
@@ -23,6 +24,7 @@ public sealed class FeedOrchestrationService
 
     public async Task ProcessFeedItemAsync(
         FeedSubscription subscription,
+        AutomationWorkflow workflow,
         string itemTitle,
         string itemLink,
         string itemDescription,
@@ -41,10 +43,14 @@ public sealed class FeedOrchestrationService
             return;
         }
 
+        var prompt = !string.IsNullOrWhiteSpace(workflow.InstructionPrompt)
+            ? workflow.InstructionPrompt
+            : "Summarize this article as a thread.";
+
         var generationSuccess = await _threadGenerationService.GenerateThreadAsync(
             ingestionResult.Draft,
             itemLink,
-            subscription.InstructionPrompt,
+            prompt,
             subscription.UserId,
             ct);
 
@@ -53,9 +59,11 @@ public sealed class FeedOrchestrationService
             return;
         }
 
+        var autoPublish = workflow.Destinations.Any(d => d.AutoPublish);
+
         await _autoPublishService.PublishIfEnabledAsync(
             ingestionResult.Draft,
-            subscription.AutoPublish,
+            autoPublish,
             subscription.UserId,
             ct);
     }

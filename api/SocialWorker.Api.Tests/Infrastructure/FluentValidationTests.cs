@@ -53,7 +53,7 @@ public sealed class FluentValidationTests
     public async Task CreateFeedSubscriptionRequestValidator_EmptyTitleAndUrl_FailsValidation()
     {
         var validator = new CreateFeedSubscriptionRequestValidator();
-        var request = new CreateFeedSubscriptionRequest("", "", null, "", false, null, null);
+        var request = new CreateFeedSubscriptionRequest("", "", null, null, null);
 
         var result = await validator.ValidateAsync(request);
 
