@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
 import { EditorPanel } from "./EditorPanel";
 import { useDraftStore } from "../../store/draftStore";
 import { useEditorStore } from "../../store/editorStore";
@@ -103,7 +104,11 @@ describe("EditorPanel reply target card", () => {
   });
 
   it("renders reply target card with author and preview text", () => {
-    render(<EditorPanel />);
+    render(
+      <MemoryRouter>
+        <EditorPanel />
+      </MemoryRouter>
+    );
 
     expect(screen.getByTestId("reply-target-card")).toBeInTheDocument();
     expect(screen.getByText("example.bsky.social")).toBeInTheDocument();
@@ -111,7 +116,11 @@ describe("EditorPanel reply target card", () => {
   });
 
   it("renders open-original-post link to canonical URL", () => {
-    render(<EditorPanel />);
+    render(
+      <MemoryRouter>
+        <EditorPanel />
+      </MemoryRouter>
+    );
 
     const link = screen.getByTestId("reply-target-open-link");
     expect(link).toHaveAttribute("href", "https://bsky.app/profile/example/post/2");
@@ -123,7 +132,11 @@ describe("EditorPanel reply target card", () => {
     const publishThread = vi.fn().mockRejectedValue(new Error("Post exceeds 300 character limit."));
     useDraftStore.setState({ publishThread });
 
-    render(<EditorPanel />);
+    render(
+      <MemoryRouter>
+        <EditorPanel />
+      </MemoryRouter>
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
 
