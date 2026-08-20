@@ -8,6 +8,7 @@ import { EditorPanel } from "./components/EditorPanel/EditorPanel";
 import { DraftList } from "./components/DraftList/DraftList";
 import { SourcesLibrary } from "./components/SourcesLibrary/SourcesLibrary";
 import { FeedsPanel } from "./components/FeedsPanel/FeedsPanel";
+import { LogsPanel } from "./components/Logs/LogsPanel";
 import { PrivacyPolicy } from "./components/PrivacyPolicy";
 import { LinkedInCallback } from "./components/Settings/LinkedInCallback";
 import { useDraftStore } from "./store/draftStore";
@@ -144,6 +145,7 @@ function AppContent() {
           <Link to="/" className="hover:text-foreground">Composer</Link>
           <Link to="/sources" className="hover:text-foreground">Sources Library</Link>
           <Link to="/feeds" className="hover:text-foreground">Feeds</Link>
+          <Link to="/logs" className="hover:text-foreground">Logs</Link>
           <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
         </div>
       </header>
@@ -152,6 +154,7 @@ function AppContent() {
         <Route path="/draft/:draftId" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
         <Route path="/sources" element={<SourcesLibrary />} />
         <Route path="/feeds" element={<FeedsPanel />} />
+        <Route path="/logs" element={<LogsPanel />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/oauth/callback/linkedin" element={<LinkedInCallback />} />
       </Routes>
