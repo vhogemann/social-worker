@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
-using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Sources;
 
 namespace SocialWorker.Api.Features.Feeds;
@@ -43,6 +42,7 @@ public class FeedSourceIngestionService
 
     public async Task<FeedSourceIngestionResult> IngestSourceAsync(
         FeedSubscription subscription,
+        AutomationWorkflow workflow,
         string itemTitle,
         string itemLink,
         string itemDescription,
@@ -52,12 +52,12 @@ public class FeedSourceIngestionService
 
         var isDuplicate = await _db.Sources.AnyAsync(s =>
             s.Reference == itemLink &&
-            s.DraftSources.Any(ds => ds.Draft.UserId == userId && ds.Draft.Status != DraftStatus.Deleted),
+            s.DraftSources.Any(ds => ds.Draft.UserId == userId && ds.Draft.AutomationWorkflowId == workflow.Id && ds.Draft.Status != DraftStatus.Deleted),
             ct);
 
         if (isDuplicate)
         {
-            _logger.LogInformation("Skipping duplicate feed item link: {Link}", itemLink);
+            _logger.LogInformation("Skipping duplicate feed item link {Link} for workflow {WorkflowId}", itemLink, workflow.Id);
             return new FeedSourceIngestionResult(IngestionStatus.Duplicate, null, null, "Duplicate feed item.");
         }
 
@@ -71,22 +71,13 @@ public class FeedSourceIngestionService
 
         var draft = new Draft
         {
-            Title = string.IsNullOrWhiteSpace(itemTitle) ? "Untitled Feed Item" : itemTitle,
+            Title = string.IsNullOrWhiteSpace(itemTitle) ? "Untitled Feed Item" : itemTitle.Trim(),
             Status = DraftStatus.Sourcing,
             UserId = userId,
-            TargetPlatform = SocialPlatform.Bluesky
+            TargetPlatform = null,
+            AutomationWorkflowId = workflow.Id
         };
         _db.Drafts.Add(draft);
-        await _db.SaveChangesAsync(ct);
-
-        var thread = new PlatformThread
-        {
-            DraftId = draft.Id,
-            Platform = "Bluesky",
-            Stage = PlatformThreadStage.Draft,
-            Content = string.Empty
-        };
-        _db.PlatformThreads.Add(thread);
         await _db.SaveChangesAsync(ct);
 
         Guid sourceId;
@@ -120,30 +111,21 @@ public class FeedSourceIngestionService
                     return new FeedSourceIngestionResult(IngestionStatus.Failed, draft, sourceId, "YouTube transcription timed out.");
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(5), ct);
-
-                var currentSource = await _db.Sources.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-                if (currentSource == null)
-                {
-                    _logger.LogError("Source {SourceId} was deleted during ingestion waiting.", sourceId);
-                    draft.Status = DraftStatus.Failed;
-                    await _db.SaveChangesAsync(ct);
-                    return new FeedSourceIngestionResult(IngestionStatus.Failed, draft, sourceId, "Source deleted during ingestion.");
-                }
-
-                if (currentSource.ProcessingStatus == SourceProcessingStatus.Complete)
+                await _db.Entry(source).ReloadAsync(ct);
+                if (source.ProcessingStatus == SourceProcessingStatus.Complete)
                 {
                     break;
                 }
-
-                if (currentSource.ProcessingStatus == SourceProcessingStatus.Failed)
+                if (source.ProcessingStatus == SourceProcessingStatus.Failed)
                 {
-                    _logger.LogError("YouTube transcription failed for source {SourceId}.", sourceId);
+                    _logger.LogError("YouTube transcription failed for source {SourceId}", sourceId);
                     draft.Status = DraftStatus.Failed;
                     draft.Title = $"[Failed Ingestion] {draft.Title}";
                     await _db.SaveChangesAsync(ct);
                     return new FeedSourceIngestionResult(IngestionStatus.Failed, draft, sourceId, "YouTube transcription failed.");
                 }
+
+                await Task.Delay(5000, ct);
             }
         }
 
@@ -152,31 +134,28 @@ public class FeedSourceIngestionService
 
     public static bool PassesFilters(string title, string description, string? includeFilters, string? excludeFilters)
     {
-        var textToMatch = $"{title} {description}";
-
-        if (!string.IsNullOrWhiteSpace(excludeFilters))
-        {
-            var excludes = excludeFilters.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            foreach (var exc in excludes)
-            {
-                if (textToMatch.Contains(exc, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-            }
-        }
+        var text = $"{title} {description}".ToLowerInvariant();
 
         if (!string.IsNullOrWhiteSpace(includeFilters))
         {
-            var includes = includeFilters.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            foreach (var inc in includes)
+            var includes = includeFilters.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                         .Select(s => s.ToLowerInvariant())
+                                         .ToList();
+            if (includes.Count > 0 && !includes.Any(inc => text.Contains(inc)))
             {
-                if (textToMatch.Contains(inc, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
+                return false;
             }
-            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(excludeFilters))
+        {
+            var excludes = excludeFilters.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                         .Select(s => s.ToLowerInvariant())
+                                         .ToList();
+            if (excludes.Any(exc => text.Contains(exc)))
+            {
+                return false;
+            }
         }
 
         return true;

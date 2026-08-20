@@ -33,6 +33,7 @@ public sealed class FeedOrchestrationService
     {
         var ingestionResult = await _sourceIngestionService.IngestSourceAsync(
             subscription,
+            workflow,
             itemTitle,
             itemLink,
             itemDescription,
