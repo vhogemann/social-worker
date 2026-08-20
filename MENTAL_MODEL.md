@@ -32,6 +32,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Publishing: api/SocialWorker.Api/Features/Publishing/
 - Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Media/
 - Feed automation: api/SocialWorker.Api/Features/Feeds/
+- Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/
 - Feed ingestion queue worker: api/SocialWorker.Api/Features/Feeds/Services/FeedIngestionQueueHostedService.cs
 - Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/
 
