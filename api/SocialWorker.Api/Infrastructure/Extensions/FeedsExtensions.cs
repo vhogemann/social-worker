@@ -1,4 +1,5 @@
 using SocialWorker.Api.Features.Feeds;
+using SocialWorker.Api.Features.Workflows.Services;
 
 namespace SocialWorker.Api.Infrastructure.Extensions;
 
@@ -11,6 +12,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddHttpClient<FeedDiscoveryService>();
         builder.Services.AddScoped<FeedSourceIngestionService>();
         builder.Services.AddScoped<FeedThreadGenerationService>();
+        builder.Services.AddScoped<DraftValidationService>();
         builder.Services.AddScoped<FeedAutoPublishService>();
         builder.Services.AddScoped<FeedOrchestrationService>();
         builder.Services.AddScoped<FeedIngestionQueueProcessor>();

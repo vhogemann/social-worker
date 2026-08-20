@@ -11,7 +11,6 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Chat.Models;
 using SocialWorker.Api.Features.Chat.Services;
-using SocialWorker.Api.Features.Drafts;
 
 namespace SocialWorker.Api.Features.Feeds;
 
@@ -31,7 +30,17 @@ public class FeedThreadGenerationService
         _logger = logger;
     }
 
-    public async Task<bool> GenerateThreadAsync(
+    public Task<bool> GenerateThreadAsync(
+        Draft draft,
+        string itemLink,
+        string instructionPrompt,
+        Guid userId,
+        CancellationToken ct)
+    {
+        return GenerateCanonicalThreadAsync(draft, itemLink, instructionPrompt, userId, ct);
+    }
+
+    public async Task<bool> GenerateCanonicalThreadAsync(
         Draft draft,
         string itemLink,
         string instructionPrompt,
@@ -99,7 +108,7 @@ public class FeedThreadGenerationService
             var assistantText = assistantTextBuilder.ToString().Trim();
             if (string.IsNullOrWhiteSpace(assistantText))
             {
-                assistantText = "Drafted thread segments based on feed source and instructions.";
+                assistantText = "Drafted canonical thread segments based on feed source and instructions.";
             }
 
             var historyPayload = new ChatModels.ChatHistoryPayload
@@ -143,10 +152,73 @@ public class FeedThreadGenerationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error in headless LLM orchestration for draft {DraftId}", draft.Id);
+            _logger.LogError(ex, "Unexpected error in canonical thread generation for draft {DraftId}", draft.Id);
             draft.Status = DraftStatus.Failed;
             await _db.SaveChangesAsync(ct);
             return false;
+        }
+    }
+
+    public async Task<Draft?> GeneratePlatformVariantDraftAsync(
+        Draft canonicalDraft,
+        AutomationWorkflowDestination destination,
+        Guid userId,
+        CancellationToken ct)
+    {
+        try
+        {
+            Enum.TryParse<SocialPlatform>(destination.Platform, true, out var platform);
+
+            var variantDraft = new Draft
+            {
+                Title = $"{canonicalDraft.Title} ({destination.Platform})",
+                Status = DraftStatus.Formatting,
+                UserId = userId,
+                TargetPlatform = platform,
+                CanonicalDraftId = canonicalDraft.Id,
+                AutomationWorkflowId = canonicalDraft.AutomationWorkflowId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _db.Drafts.Add(variantDraft);
+            await _db.SaveChangesAsync(ct);
+
+            var thread = new PlatformThread
+            {
+                DraftId = variantDraft.Id,
+                Platform = destination.Platform,
+                Stage = PlatformThreadStage.Draft,
+                Content = canonicalDraft.Content ?? string.Empty
+            };
+            _db.PlatformThreads.Add(thread);
+
+            // Copy canonical segments to variant
+            var canonicalSegments = await _db.ThreadSegments
+                .Where(s => s.DraftId == canonicalDraft.Id)
+                .OrderBy(s => s.Position)
+                .ToListAsync(ct);
+
+            foreach (var seg in canonicalSegments)
+            {
+                _db.ThreadSegments.Add(new ThreadSegment
+                {
+                    DraftId = variantDraft.Id,
+                    Position = seg.Position,
+                    Content = seg.Content
+                });
+            }
+
+            variantDraft.Status = DraftStatus.Editing;
+            await _db.SaveChangesAsync(ct);
+
+            return variantDraft;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate platform variant draft for destination {Platform} on canonical draft {DraftId}",
+                destination.Platform, canonicalDraft.Id);
+            return null;
         }
     }
 }
