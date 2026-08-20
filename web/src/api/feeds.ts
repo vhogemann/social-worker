@@ -5,8 +5,6 @@ export interface FeedSubscriptionDto {
   title: string;
   feedUrl: string;
   websiteUrl?: string | null;
-  instructionPrompt: string;
-  autoPublish: boolean;
   lastPolledAt?: string | null;
   includeFilters?: string | null;
   excludeFilters?: string | null;
@@ -25,6 +23,8 @@ export interface FeedQueueItemDto {
   id: string;
   feedSubscriptionId: string;
   feedSubscriptionTitle: string;
+  automationWorkflowId: string;
+  automationWorkflowTitle: string;
   itemTitle: string;
   itemLink: string;
   status: "Pending" | "Processing" | "Succeeded" | "Failed";
@@ -59,8 +59,6 @@ export async function createFeed(sub: {
   title: string;
   feedUrl: string;
   websiteUrl?: string | null;
-  instructionPrompt: string;
-  autoPublish: boolean;
   includeFilters?: string | null;
   excludeFilters?: string | null;
 }): Promise<FeedSubscriptionDto> {
@@ -81,8 +79,6 @@ export async function updateFeed(
     title: string;
     feedUrl: string;
     websiteUrl?: string | null;
-    instructionPrompt: string;
-    autoPublish: boolean;
     includeFilters?: string | null;
     excludeFilters?: string | null;
   }
