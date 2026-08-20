@@ -73,12 +73,15 @@ These should remain first-class and be kept current:
 | [planning/LINKED_IN.md](planning/LINKED_IN.md) | LinkedIn publishing contract, markdown mapping, and conversion pipeline (single-post-only scope) |
 | [planning/linkedin/FRONTEND_INTEGRATION.md](planning/linkedin/FRONTEND_INTEGRATION.md) | LinkedIn frontend integration design, preview components, and validation rules |
 | [planning/linkedin/OAUTH_INTEGRATION.md](planning/linkedin/OAUTH_INTEGRATION.md) | LinkedIn 3-legged OAuth code flow backend and frontend integration |
+| [planning/DECOUPLED_ORCHESTRATION.md](planning/DECOUPLED_ORCHESTRATION.md) | Decoupled feed ingestion and multi-source/multi-destination orchestration workflows |
+| [planning/FRONTEND_ORCHESTRATION.md](planning/FRONTEND_ORCHESTRATION.md) | Frontend UI integration for orchestrations dashboard, many-to-many feed mappings, and recent runs backlog |
 
 ## Reference-only planning documents
 
 ### Future ideas
 
 - [planning/future/E2E_TESTING.md](planning/future/E2E_TESTING.md)
+- [planning/future/GRAPHQL_EVALUATION.md](planning/future/GRAPHQL_EVALUATION.md)
 - [planning/future/PYTHON_SANDBOX.md](planning/future/PYTHON_SANDBOX.md)
 - [planning/future/SELF_EVOLVING_ASSISTANT.md](planning/future/SELF_EVOLVING_ASSISTANT.md)
 - [planning/future/TELEGRAM_INTEGRATION.md](planning/future/TELEGRAM_INTEGRATION.md)
