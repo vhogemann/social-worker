@@ -106,4 +106,35 @@ public sealed class FluentValidationTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.PropertyName == "ProviderType");
     }
+
+    [Fact]
+    public async Task CreateAutomationWorkflowRequestValidator_EmptyTitle_FailsValidation()
+    {
+        var validator = new SocialWorker.Api.Features.Workflows.Validators.CreateAutomationWorkflowRequestValidator();
+        var request = new SocialWorker.Api.Features.Workflows.CreateAutomationWorkflowRequest("", "Prompt", null, null);
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Title");
+    }
+
+    [Fact]
+    public async Task CreateAutomationWorkflowRequestValidator_InvalidDestination_FailsValidation()
+    {
+        var validator = new SocialWorker.Api.Features.Workflows.Validators.CreateAutomationWorkflowRequestValidator();
+        var request = new SocialWorker.Api.Features.Workflows.CreateAutomationWorkflowRequest(
+            "Valid Title",
+            "Prompt",
+            null,
+            new System.Collections.Generic.List<SocialWorker.Api.Features.Workflows.CreateWorkflowDestinationRequest>
+            {
+                new SocialWorker.Api.Features.Workflows.CreateWorkflowDestinationRequest("", true)
+            });
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName.StartsWith("Destinations"));
+    }
 }

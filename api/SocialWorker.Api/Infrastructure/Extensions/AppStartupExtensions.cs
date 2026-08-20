@@ -15,6 +15,7 @@ using SocialWorker.Api.Features.Providers;
 using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Features.Users;
+using SocialWorker.Api.Features.Workflows;
 using SocialWorker.Api.Infrastructure.Auth;
 using SocialWorker.Api.Infrastructure.Llm;
 
@@ -154,5 +155,6 @@ static partial class WebApplicationExtensions
         app.MapCodeImageEndpoints();
         app.MapPlatformVariantsEndpoints();
         app.MapFeedsEndpoints();
+        app.MapWorkflowsEndpoints();
     }
 }
