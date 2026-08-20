@@ -3,6 +3,9 @@ import { loginViaUi } from "../helpers/auth.js";
 
 test.describe("Chat", () => {
   test.beforeEach(async ({ page }) => {
+    page.on("console", (msg: any) => console.log("BROWSER CONSOLE:", msg.text()));
+    page.on("pageerror", (err: any) => console.log("BROWSER ERROR:", err.message));
+    page.on("requestfailed", (req: any) => console.log("REQUEST FAILED:", req.url(), req.failure()?.errorText));
     await loginViaUi(page);
   });
 

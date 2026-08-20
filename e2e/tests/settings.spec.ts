@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { loginViaUi } from "../helpers/auth.js";
+import { loginViaUi, navigateToComposer } from "../helpers/auth.js";
 
 test.describe("Settings: Providers", () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUi(page);
+    await navigateToComposer(page);
   });
 
   test("can add an LLM provider", async ({ page }) => {
@@ -21,6 +22,7 @@ test.describe("Settings: Providers", () => {
 test.describe("Settings: Connections", () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUi(page);
+    await navigateToComposer(page);
   });
 
   test("can connect a Bluesky account", async ({ page }) => {
@@ -38,6 +40,7 @@ test.describe("Settings: Connections", () => {
 test.describe("Settings: Brand Voices", () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUi(page);
+    await navigateToComposer(page);
   });
 
   test("can create a brand voice prompt", async ({ page }) => {

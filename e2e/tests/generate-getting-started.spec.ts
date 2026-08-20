@@ -1,5 +1,5 @@
 import { expect, test, Page, Locator } from "@playwright/test";
-import { loginViaUi } from "../helpers/auth.js";
+import { loginViaUi, navigateToComposer } from "../helpers/auth.js";
 import { loginAsAdmin } from "../helpers/api.js";
 import { seedProvider, seedBrandVoice, seedDraft } from "../helpers/seed.js";
 import * as fs from "fs";
@@ -39,6 +39,7 @@ test("generate getting-started guide", async ({ page }) => {
   );
 
   await loginViaUi(page);
+  await navigateToComposer(page);
   await expect(page.getByText("drafts").first()).toBeVisible({ timeout: 10000 });
 
   const createModal = () => page.getByTestId("create-draft-modal");

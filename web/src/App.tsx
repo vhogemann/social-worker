@@ -65,7 +65,7 @@ function AppContent() {
       
       const state = useDraftStore.getState();
       const match = window.location.pathname.match(/\/draft\/([^/]+)/);
-      const initialDraftId = match ? match[1] : null;
+      const initialDraftId = match ? match[1] : (state.drafts.length > 0 ? state.drafts[0].id : null);
 
       if (initialDraftId) {
         const draft = state.drafts.find((d) => d.id === initialDraftId);
@@ -82,11 +82,11 @@ function AppContent() {
     };
   }, [loadDrafts, applyExternal]);
 
-  // 2. Redirect from "/" or "/index.html" to the active or first draft once loaded
+  // 2. Redirect from "/composer" to the active or first draft once loaded
   useEffect(() => {
     if (!isReady) return;
 
-    if (location.pathname === "/" || location.pathname === "/index.html") {
+    if (location.pathname === "/composer") {
       const state = useDraftStore.getState();
       let targetId = state.activeDraftId;
       if (!targetId && state.drafts.length > 0) {

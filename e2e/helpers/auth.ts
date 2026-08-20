@@ -1,25 +1,33 @@
 import { expect, Page } from "@playwright/test";
 
-export async function loginViaUi(page: Page): Promise<void> {
-  await page.goto("/");
-  await page.getByPlaceholder("Email or username").fill(process.env.ADMIN_USERNAME ?? "admin");
-  await page.locator('input[type="password"]').fill(process.env.ADMIN_PASSWORD ?? "changeme");
+export async function loginViaUi(page: Page, targetUrl = "/composer"): Promise<void> {
+  await page.goto(targetUrl);
 
-  const composer = page.getByPlaceholder(/Ask the assistant/i);
-  const error = page.getByText(/Invalid credentials/i);
+  const navBar = page.getByRole("link", { name: "Composer", exact: true });
 
-  for (let attempt = 0; attempt < 4; attempt++) {
-    await page.getByRole("button", { name: "sign in" }).click();
+  const usernameInput = page.getByPlaceholder("Email or username");
+  const isLoginPage = await usernameInput.isVisible({ timeout: 4000 }).catch(() => false);
 
-    try {
-      await expect(composer).toBeVisible({ timeout: 6000 });
-      return;
-    } catch {
-      if (await error.isVisible().catch(() => false)) {
-        await page.waitForTimeout(1000);
-      }
-    }
+  if (isLoginPage) {
+    await usernameInput.fill(process.env.ADMIN_USERNAME ?? "admin");
+    await page.locator('input[type="password"]').fill(process.env.ADMIN_PASSWORD ?? "changeme");
+    await page.getByRole("button", { name: /sign in/i }).click();
   }
 
-  await expect(composer).toBeVisible({ timeout: 15000 });
+  await expect(navBar).toBeVisible({ timeout: 20000 });
+
+  if (targetUrl.includes("/composer")) {
+    await page.waitForURL(/\/draft\//, { timeout: 15000 });
+    await expect(page.getByText("drafts", { exact: true })).toBeVisible({ timeout: 15000 });
+  }
+}
+
+export async function navigateToComposer(page: Page): Promise<void> {
+  const composerInput = page.getByPlaceholder(/Ask the assistant/i);
+  if (!page.url().includes("/draft/")) {
+    await page.getByRole("link", { name: "Composer", exact: true }).click();
+    await page.waitForURL(/\/draft\//, { timeout: 15000 });
+  }
+  await expect(composerInput).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText("drafts", { exact: true })).toBeVisible({ timeout: 15000 });
 }

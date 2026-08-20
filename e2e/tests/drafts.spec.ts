@@ -1,15 +1,16 @@
 import { expect, test } from "@playwright/test";
-import { loginViaUi } from "../helpers/auth.js";
+import { loginViaUi, navigateToComposer } from "../helpers/auth.js";
 
 test.describe("Drafts", () => {
   test.beforeEach(async ({ page }) => {
     page.on("console", (msg: any) => console.log("BROWSER CONSOLE:", msg.text()));
     page.on("pageerror", (err: any) => console.log("BROWSER ERROR:", err.message));
     await loginViaUi(page);
+    await navigateToComposer(page);
   });
 
   test("sidebar shows drafts header after login", async ({ page }) => {
-    await expect(page.getByText("drafts")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("drafts", { exact: true })).toBeVisible({ timeout: 10000 });
   });
 
   test("can type content in the editor", async ({ page }) => {
