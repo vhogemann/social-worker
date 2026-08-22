@@ -74,6 +74,11 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.AutomationWorkflowId)
                 .OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(x => x.AutomationWorkflowId);
+            e.HasOne(x => x.TargetAccount)
+                .WithMany()
+                .HasForeignKey(x => x.TargetAccountId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => x.TargetAccountId);
         });
 
         modelBuilder.Entity<ThreadSegment>(e =>
@@ -98,6 +103,11 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.DraftId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.DraftId, x.Platform }).IsUnique();
+            e.HasOne(x => x.Account)
+                .WithMany()
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => x.AccountId);
         });
 
         modelBuilder.Entity<Source>(e =>
@@ -160,7 +170,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.Platform).HasMaxLength(100);
             e.Property(x => x.Handle).HasMaxLength(255);
             e.Property(x => x.Status).HasMaxLength(50);
-            e.HasIndex(x => new { x.UserId, x.Platform }).IsUnique();
+            e.HasIndex(x => new { x.UserId, x.Platform, x.Handle }).IsUnique();
             e.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
@@ -262,6 +272,11 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.AutomationWorkflowId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.AutomationWorkflowId);
+            e.HasOne(x => x.Account)
+                .WithMany()
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => x.AccountId);
         });
 
         modelBuilder.Entity<FeedIngestionQueueItem>(e =>

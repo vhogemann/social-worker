@@ -75,6 +75,7 @@ These should remain first-class and be kept current:
 | [planning/linkedin/OAUTH_INTEGRATION.md](planning/linkedin/OAUTH_INTEGRATION.md) | LinkedIn 3-legged OAuth code flow backend and frontend integration |
 | [planning/DECOUPLED_ORCHESTRATION.md](planning/DECOUPLED_ORCHESTRATION.md) | Decoupled feed ingestion and multi-source/multi-destination orchestration workflows |
 | [planning/FRONTEND_ORCHESTRATION.md](planning/FRONTEND_ORCHESTRATION.md) | Frontend UI integration for orchestrations dashboard, many-to-many feed mappings, and recent runs backlog |
+| [planning/MULTI_ACCOUNT_SUPPORT.md](planning/MULTI_ACCOUNT_SUPPORT.md) | Multi-account support per platform across database constraints, account-first draft creation, and publishing |
 
 ## Reference-only planning documents
 

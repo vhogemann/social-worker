@@ -44,7 +44,15 @@ public static class PublishingEndpoint
                 return Results.BadRequest(validationError);
             }
 
-            var account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == thread.Platform, ct);
+            Account? account = null;
+            if (thread.AccountId.HasValue)
+            {
+                account = await db.Accounts.FirstOrDefaultAsync(a => a.Id == thread.AccountId.Value && a.UserId == userId, ct);
+            }
+            if (account == null)
+            {
+                account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == thread.Platform, ct);
+            }
             if (account == null)
             {
                 return Results.BadRequest($"No connected account found for platform: {thread.Platform}");

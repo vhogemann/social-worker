@@ -27,14 +27,17 @@ public static class PlatformVariantsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            if (req.Platforms.Count == 0)
+            var hasAccountIds = req.AccountIds != null && req.AccountIds.Count > 0;
+            var hasPlatforms = req.Platforms != null && req.Platforms.Count > 0;
+
+            if (!hasAccountIds && !hasPlatforms)
             {
-                return Results.BadRequest("At least one platform is required.");
+                return Results.BadRequest("At least one platform or account is required.");
             }
 
             try
             {
-                var result = await variantService.GenerateVariantsAsync(userId.Value, canonicalDraftId, req.Platforms, ct);
+                var result = await variantService.GenerateVariantsAsync(userId.Value, canonicalDraftId, req.Platforms, req.AccountIds, ct);
                 return Results.Ok(result);
             }
             catch (KeyNotFoundException)

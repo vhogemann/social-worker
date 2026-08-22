@@ -118,6 +118,6 @@ describe("MarkdownEditor", () => {
 
     render(<MarkdownEditor />);
 
-    expect(screen.getByText("📁 Fetching Sources...")).toBeInTheDocument();
+    expect(screen.getByText("Fetching Sources...")).toBeInTheDocument();
   });
 });

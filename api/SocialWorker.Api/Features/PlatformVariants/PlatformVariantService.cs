@@ -16,7 +16,8 @@ public sealed record DraftFamilyDto(
 );
 
 public sealed record GenerateVariantsRequest(
-    List<string> Platforms
+    List<string>? Platforms = null,
+    List<Guid>? AccountIds = null
 );
 
 public sealed class PlatformVariantService
@@ -30,87 +31,142 @@ public sealed class PlatformVariantService
         _draftsService = draftsService;
     }
 
-    public async Task<DraftFamilyDto> GenerateVariantsAsync(
+    public Task<DraftFamilyDto> GenerateVariantsAsync(
         Guid userId,
         Guid canonicalDraftId,
         List<string> targetPlatforms,
-        CancellationToken ct)
+        CancellationToken ct = default)
+    {
+        return GenerateVariantsAsync(userId, canonicalDraftId, targetPlatforms, null, ct);
+    }
+
+    public async Task<DraftFamilyDto> GenerateVariantsAsync(
+        Guid userId,
+        Guid canonicalDraftId,
+        List<string>? targetPlatforms,
+        List<Guid>? targetAccountIds,
+        CancellationToken ct = default)
     {
         var canonical = await _db.Drafts
             .FirstOrDefaultAsync(d => d.Id == canonicalDraftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
             ?? throw new KeyNotFoundException("Canonical draft not found or access denied.");
 
-        if (targetPlatforms.Count == 0)
+        var hasAccountIds = targetAccountIds != null && targetAccountIds.Count > 0;
+        var hasPlatforms = targetPlatforms != null && targetPlatforms.Count > 0;
+
+        if (!hasAccountIds && !hasPlatforms)
         {
-            throw new ArgumentException("At least one target platform is required.");
+            throw new ArgumentException("At least one target platform or account is required.");
         }
 
         var variants = new List<DraftDto>();
 
-        foreach (var platformStr in targetPlatforms)
+        if (hasAccountIds)
         {
-            if (!Enum.TryParse<SocialPlatform>(platformStr, true, out var platform))
+            var accounts = await _db.Accounts
+                .Where(a => targetAccountIds!.Contains(a.Id) && a.UserId == userId)
+                .ToListAsync(ct);
+
+            foreach (var account in accounts)
             {
-                continue;
-            }
-
-            if (platform == canonical.TargetPlatform)
-            {
-                continue;
-            }
-
-            var platformName = platform.ToString();
-            var existingVariant = await _db.Drafts
-                .AnyAsync(d => d.CanonicalDraftId == canonicalDraftId && d.TargetPlatform == platform && d.Status != DraftStatus.Deleted, ct);
-            if (existingVariant)
-            {
-                continue;
-            }
-
-            var variant = new Draft
-            {
-                Title = $"{canonical.Title} ({platformName})",
-                Content = canonical.Content,
-                UserId = userId,
-                TargetPlatform = platform,
-                CanonicalDraftId = canonicalDraftId,
-                Status = DraftStatus.Editing
-            };
-            _db.Drafts.Add(variant);
-            await _db.SaveChangesAsync(ct);
-
-            var thread = new PlatformThread
-            {
-                DraftId = variant.Id,
-                Platform = platformName,
-                Stage = PlatformThreadStage.Draft,
-                Content = canonical.Content
-            };
-            _db.PlatformThreads.Add(thread);
-            await _db.SaveChangesAsync(ct);
-
-            await _draftsService.ReconcileSegmentsAsync(variant, canonical.Content ?? "", ct);
-            await _db.SaveChangesAsync(ct);
-
-            variants.Add(new DraftDto(
-                variant.Id,
-                variant.Title,
-                variant.Status.ToString(),
-                variant.Content,
-                variant.TargetPlatform?.ToString(),
-                variant.CanonicalDraftId,
-                new List<PlatformThreadDto>
+                if (account.Id == canonical.TargetAccountId)
                 {
-                    new(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>())
-                },
-                new List<MediaAssetMiniDto>(),
-                null,
-                variant.ChatHistory,
-                variant.ChatSummary,
-                variant.LastSummarizedMessageCount,
-                variant.CreatedAt,
-                variant.UpdatedAt
-            ));
+                    continue;
+                }
+
+                if (!Enum.TryParse<SocialPlatform>(account.Platform, true, out var platform))
+                {
+                    continue;
+                }
+
+                var existingVariant = await _db.Drafts
+                    .AnyAsync(d => d.CanonicalDraftId == canonicalDraftId && d.TargetAccountId == account.Id && d.Status != DraftStatus.Deleted, ct);
+                if (existingVariant)
+                {
+                    continue;
+                }
+
+                var variant = new Draft
+                {
+                    Title = $"{canonical.Title} ({account.Platform} - {account.Handle})",
+                    Content = canonical.Content,
+                    UserId = userId,
+                    TargetPlatform = platform,
+                    TargetAccountId = account.Id,
+                    CanonicalDraftId = canonicalDraftId,
+                    Status = DraftStatus.Editing
+                };
+                _db.Drafts.Add(variant);
+                await _db.SaveChangesAsync(ct);
+
+                var thread = new PlatformThread
+                {
+                    DraftId = variant.Id,
+                    Platform = account.Platform,
+                    AccountId = account.Id,
+                    Stage = PlatformThreadStage.Draft,
+                    Content = canonical.Content
+                };
+                _db.PlatformThreads.Add(thread);
+                await _db.SaveChangesAsync(ct);
+
+                await _draftsService.ReconcileSegmentsAsync(variant, canonical.Content ?? "", ct);
+                await _db.SaveChangesAsync(ct);
+
+                var vDto = await _draftsService.GetDraftByIdAsync(userId, variant.Id, ct);
+                variants.Add(vDto);
+            }
+        }
+        else if (hasPlatforms)
+        {
+            foreach (var platformStr in targetPlatforms!)
+            {
+                if (!Enum.TryParse<SocialPlatform>(platformStr, true, out var platform))
+                {
+                    continue;
+                }
+
+                if (platform == canonical.TargetPlatform)
+                {
+                    continue;
+                }
+
+                var platformName = platform.ToString();
+                var existingVariant = await _db.Drafts
+                    .AnyAsync(d => d.CanonicalDraftId == canonicalDraftId && d.TargetPlatform == platform && d.Status != DraftStatus.Deleted, ct);
+                if (existingVariant)
+                {
+                    continue;
+                }
+
+                var variant = new Draft
+                {
+                    Title = $"{canonical.Title} ({platformName})",
+                    Content = canonical.Content,
+                    UserId = userId,
+                    TargetPlatform = platform,
+                    CanonicalDraftId = canonicalDraftId,
+                    Status = DraftStatus.Editing
+                };
+                _db.Drafts.Add(variant);
+                await _db.SaveChangesAsync(ct);
+
+                var thread = new PlatformThread
+                {
+                    DraftId = variant.Id,
+                    Platform = platformName,
+                    Stage = PlatformThreadStage.Draft,
+                    Content = canonical.Content
+                };
+                _db.PlatformThreads.Add(thread);
+                await _db.SaveChangesAsync(ct);
+
+                await _draftsService.ReconcileSegmentsAsync(variant, canonical.Content ?? "", ct);
+                await _db.SaveChangesAsync(ct);
+
+                var vDto = await _draftsService.GetDraftByIdAsync(userId, variant.Id, ct);
+                variants.Add(vDto);
+            }
         }
 
         var canonicalDto = await _draftsService.GetDraftByIdAsync(userId, canonicalDraftId, ct);

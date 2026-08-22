@@ -184,22 +184,22 @@ export function MarkdownEditor() {
       onPaste={handlePaste}
     >
       {errorMsg && (
-        <div className="absolute top-2 left-3 right-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs px-3 py-2 rounded-xl z-20 shadow-lg flex items-center justify-between transition-all select-none">
+        <div className="absolute top-2 left-3 right-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-3 py-2 rounded-xl z-20 shadow-lg flex items-center justify-between transition-all select-none">
           <span className="truncate pr-4">{errorMsg}</span>
-          <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-red-600 transition text-[10px] font-bold">
+          <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-red-300 transition text-[10px] font-bold">
             ✕
           </button>
         </div>
       )}
       {isLocked && (
-        <div className="absolute inset-0 bg-zinc-950/40 backdrop-blur-[1px] flex flex-col items-center justify-center z-20 transition-all select-none">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-xl max-w-sm text-center flex flex-col items-center gap-4">
-            <div className="w-10 h-10 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
+        <div className="absolute inset-0 bg-bg/60 backdrop-blur-[1px] flex flex-col items-center justify-center z-20 transition-all select-none">
+          <div className="bg-panel border border-border rounded-2xl p-6 shadow-xl max-w-sm text-center flex flex-col items-center gap-4">
+            <div className="w-10 h-10 border-4 border-muted/30 border-t-accent rounded-full animate-spin" />
             <div>
-              <h3 className="font-semibold text-zinc-950 dark:text-zinc-50 text-sm">
-                {activeDraft?.status === "Sourcing" ? "📁 Fetching Sources..." : "⚙️ Formatting Thread..."}
+              <h3 className="font-semibold text-foreground text-sm">
+                {activeDraft?.status === "Sourcing" ? "Fetching Sources..." : "Formatting Thread..."}
               </h3>
-              <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+              <p className="text-xs text-muted mt-1 leading-relaxed">
                 The draft is temporarily locked while background metadata operations are in progress.
               </p>
             </div>

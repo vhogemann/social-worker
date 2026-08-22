@@ -36,7 +36,7 @@ export const SourcePreviewModal: React.FC<SourcePreviewModalProps> = ({
   }, [isYouTubeSource, title, subtitle]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" data-testid="source-preview-modal-overlay">
+    <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" data-testid="source-preview-modal-overlay">
       <div className="bg-panel border border-border w-full max-w-2xl h-[500px] rounded-2xl shadow-2xl overflow-hidden flex flex-col font-sans" data-testid="source-preview-modal">
         <div className="px-6 py-4 border-b border-border/60 flex items-center justify-between">
           <div className="min-w-0 flex-1 pr-4">
@@ -54,7 +54,7 @@ export const SourcePreviewModal: React.FC<SourcePreviewModalProps> = ({
                   href={item.source.reference}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[10px] text-indigo-500 hover:text-indigo-400 font-mono underline shrink-0"
+                  className="text-[10px] text-accent hover:underline font-mono shrink-0"
                 >
                   Open Original
                 </a>
@@ -63,7 +63,7 @@ export const SourcePreviewModal: React.FC<SourcePreviewModalProps> = ({
                 <button
                   onClick={onRetryTranscription}
                   disabled={retryingTranscription}
-                  className="rounded-md border border-zinc-300 px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-600 transition hover:border-zinc-400 hover:text-zinc-800 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
+                  className="rounded-md border border-border px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-muted transition hover:border-border-light hover:text-foreground disabled:opacity-50"
                 >
                   {retryingTranscription ? "Retrying..." : "Retry Transcription"}
                 </button>
@@ -86,7 +86,7 @@ export const SourcePreviewModal: React.FC<SourcePreviewModalProps> = ({
             <ImagePreview asset={item.asset} />
           ) : item.loading ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted">
-              <div className="w-6 h-6 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-muted/30 border-t-accent rounded-full animate-spin" />
               <span className="text-xs font-mono">Loading full contents...</span>
             </div>
           ) : (
@@ -94,7 +94,7 @@ export const SourcePreviewModal: React.FC<SourcePreviewModalProps> = ({
               {summary ? (
                 <div className="mb-4 rounded-xl border border-border/40 bg-bg/30 p-3">
                   <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-muted">Summary</div>
-                  <div className="text-xs text-zinc-300 leading-relaxed">{summary}</div>
+                  <div className="text-xs text-foreground leading-relaxed">{summary}</div>
                 </div>
               ) : null}
 
@@ -104,7 +104,7 @@ export const SourcePreviewModal: React.FC<SourcePreviewModalProps> = ({
                     <button
                       className={`rounded-md px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider transition ${
                         activeYouTubeTab === "video"
-                          ? "bg-zinc-800 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                          ? "bg-border text-foreground font-semibold shadow-sm"
                           : "text-muted hover:text-foreground"
                       }`}
                       onClick={() => setActiveYouTubeTab("video")}
@@ -114,7 +114,7 @@ export const SourcePreviewModal: React.FC<SourcePreviewModalProps> = ({
                     <button
                       className={`rounded-md px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider transition ${
                         activeYouTubeTab === "transcript"
-                          ? "bg-zinc-800 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                          ? "bg-border text-foreground font-semibold shadow-sm"
                           : "text-muted hover:text-foreground"
                       }`}
                       onClick={() => setActiveYouTubeTab("transcript")}

@@ -63,11 +63,11 @@ export const SourcesPanel: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {uploading && (
-            <div className="w-3.5 h-3.5 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin shrink-0" />
+            <div className="w-3.5 h-3.5 border-2 border-muted/30 border-t-accent rounded-full animate-spin shrink-0" />
           )}
           <label
             htmlFor="attach-source-file"
-            className="flex items-center gap-1 px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-[10px] font-semibold rounded-lg shadow-sm cursor-pointer transition select-none text-zinc-700 dark:text-zinc-300"
+            className="flex items-center gap-1 px-2.5 py-1 bg-border/60 hover:bg-border border border-border text-[10px] font-semibold rounded-lg shadow-sm cursor-pointer transition select-none text-foreground"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -98,7 +98,7 @@ export const SourcesPanel: React.FC = () => {
 
       {expanded && (
         <div className="px-4 pb-4 max-h-40 overflow-y-auto border-t border-border/40 pt-3">
-          <div className="mb-3 rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="mb-3 rounded-xl border border-border bg-bg/50 p-2">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-[10px] font-mono uppercase tracking-wider text-muted">Search source library</span>
               <Link to="/sources" className="text-[10px] font-mono text-accent hover:underline">Open Full Library &rarr;</Link>
@@ -113,7 +113,7 @@ export const SourcesPanel: React.FC = () => {
                   }
                 }}
                 placeholder="Find reusable sources across drafts"
-                className="flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-800 outline-none focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
+                className="flex-1 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
               />
               <button
                 onClick={() => void handleSearchLibrary()}
@@ -129,18 +129,18 @@ export const SourcesPanel: React.FC = () => {
                 {libraryResults.map((result) => {
                   const alreadyLinked = sources.some((source) => source.id === result.id);
                   return (
-                    <div key={result.id} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
+                    <div key={result.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-panel p-2">
                       <div className="min-w-0">
-                        <div className="truncate text-[11px] font-semibold text-zinc-800 dark:text-zinc-200">{result.title || result.reference}</div>
-                        <div className="truncate text-[10px] text-zinc-500 dark:text-zinc-500">{result.reference}</div>
+                        <div className="truncate text-[11px] font-semibold text-foreground">{result.title || result.reference}</div>
+                        <div className="truncate text-[10px] text-muted">{result.reference}</div>
                         {result.summary ? (
-                          <div className="mt-1 line-clamp-2 text-[10px] text-zinc-500 dark:text-zinc-400">{result.summary}</div>
+                          <div className="mt-1 line-clamp-2 text-[10px] text-muted">{result.summary}</div>
                         ) : null}
                       </div>
                       <button
                         onClick={() => void handleLinkSource(result.id)}
                         disabled={alreadyLinked || linkingSourceId === result.id}
-                        className="rounded-lg border border-zinc-200 px-2 py-1 text-[10px] font-semibold text-zinc-700 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300"
+                        className="rounded-lg border border-border px-2 py-1 text-[10px] font-semibold text-muted hover:text-foreground disabled:opacity-50"
                       >
                         {alreadyLinked ? "Linked" : linkingSourceId === result.id ? "Linking..." : "Link"}
                       </button>
@@ -152,7 +152,7 @@ export const SourcesPanel: React.FC = () => {
           </div>
 
           {sources.length === 0 && mediaAssets.length === 0 ? (
-            <div className="text-[11px] text-zinc-500 italic py-2">
+            <div className="text-[11px] text-muted italic py-2">
               No sources or attached images detected. Drag/paste images or attach files.
             </div>
           ) : (

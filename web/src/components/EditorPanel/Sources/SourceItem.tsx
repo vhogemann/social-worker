@@ -15,7 +15,7 @@ export const SourceItem: React.FC<SourceItemProps> = ({
   onDelete,
 }) => {
   return (
-    <div className="flex items-center justify-between gap-3 p-2 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition group">
+    <div className="flex items-center justify-between gap-3 p-2 rounded-xl bg-panel border border-border hover:border-zinc-700 transition group">
       <div className="flex items-center gap-2 min-w-0">
         {source.kind === "Url" || source.kind === "YouTube" ? (
           <svg
@@ -24,7 +24,7 @@ export const SourceItem: React.FC<SourceItemProps> = ({
             viewBox="0 0 24 24"
             strokeWidth={1.8}
             stroke="currentColor"
-            className="w-4 h-4 text-indigo-500 shrink-0"
+            className="w-4 h-4 text-accent shrink-0"
           >
             <path
               strokeLinecap="round"
@@ -39,7 +39,7 @@ export const SourceItem: React.FC<SourceItemProps> = ({
             viewBox="0 0 24 24"
             strokeWidth={1.8}
             stroke="currentColor"
-            className="w-4 h-4 text-emerald-500 shrink-0"
+            className="w-4 h-4 text-emerald-400 shrink-0"
           >
             <path
               strokeLinecap="round"
@@ -50,19 +50,19 @@ export const SourceItem: React.FC<SourceItemProps> = ({
         )}
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 truncate leading-tight">
+            <span className="text-[11px] font-semibold text-foreground truncate leading-tight">
               {source.title || source.reference}
             </span>
             {source.processingStatus ? (
-              <span className="rounded-full border border-zinc-200 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+              <span className="rounded-full border border-border px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider text-muted">
                 {source.processingStatus}
               </span>
             ) : null}
             {source.title === "Fetching..." && (
-              <div className="w-2.5 h-2.5 border border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin shrink-0" />
+              <div className="w-2.5 h-2.5 border border-muted/30 border-t-accent rounded-full animate-spin shrink-0" />
             )}
           </div>
-          <span className="text-[9px] text-zinc-400 dark:text-zinc-500 truncate leading-none mt-0.5">
+          <span className="text-[9px] text-muted truncate leading-none mt-0.5">
             {source.reference}
           </span>
         </div>
@@ -72,7 +72,7 @@ export const SourceItem: React.FC<SourceItemProps> = ({
         <button
           onClick={() => onInsert(source)}
           disabled={source.title === "Fetching..."}
-          className="text-zinc-400 hover:text-indigo-500 disabled:opacity-30 disabled:pointer-events-none transition p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-900 select-none"
+          className="text-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition p-1 rounded hover:bg-bg select-none"
           title="Insert link into editor"
         >
           <svg
@@ -93,7 +93,7 @@ export const SourceItem: React.FC<SourceItemProps> = ({
         <button
           onClick={() => onPreview(source)}
           disabled={source.title === "Fetching..."}
-          className="text-zinc-400 hover:text-indigo-500 disabled:opacity-30 disabled:pointer-events-none transition p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-900 select-none"
+          className="text-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition p-1 rounded hover:bg-bg select-none"
           title="Preview source content"
         >
           <svg
@@ -118,7 +118,7 @@ export const SourceItem: React.FC<SourceItemProps> = ({
         </button>
         <button
           onClick={() => onDelete(source)}
-          className="text-zinc-400 hover:text-red-500 dark:hover:text-red-400 transition p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-900 select-none"
+          className="text-muted hover:text-red-400 transition p-1 rounded hover:bg-bg select-none"
           title="Remove link reference from draft"
         >
           <svg

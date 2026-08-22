@@ -20,7 +20,7 @@ namespace SocialWorker.Api.Features.Drafts;
 
 public sealed record PostDto(Guid Id, Guid PlatformThreadId, int SegmentIndex, string Platform, string? RemoteId, string? Url);
 
-public sealed record PlatformThreadDto(Guid Id, Guid DraftId, string Platform, string Stage, string? Content, List<PostDto> Posts);
+public sealed record PlatformThreadDto(Guid Id, Guid DraftId, string Platform, string Stage, string? Content, List<PostDto> Posts, Guid? AccountId = null, string? AccountHandle = null);
 
 public sealed record MediaAssetMiniDto(
     Guid Id,
@@ -60,7 +60,9 @@ public sealed record DraftDto(
     string? ChatSummary,
     int LastSummarizedMessageCount,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    Guid? TargetAccountId = null,
+    string? TargetAccountHandle = null
 );
 
 public sealed class DraftsService
@@ -98,7 +100,9 @@ public sealed class DraftsService
                 t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
                 posts.Where(p => p.PlatformThreadId == t.Id)
                      .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
-                     .ToList()))
+                     .ToList(),
+                t.AccountId,
+                t.Account?.Handle))
                 .ToList(),
             media.Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt))
                 .ToList(),
@@ -117,13 +121,16 @@ public sealed class DraftsService
             draft.ChatSummary,
             draft.LastSummarizedMessageCount,
             draft.CreatedAt,
-            draft.UpdatedAt
+            draft.UpdatedAt,
+            draft.TargetAccountId,
+            draft.TargetAccount?.Handle
         );
     }
 
     public async Task<List<DraftDto>> GetDraftsForUserAsync(Guid userId, CancellationToken ct)
     {
         var drafts = await _db.Drafts
+            .Include(d => d.TargetAccount)
             .Where(d => d.UserId == userId && d.Status != DraftStatus.Deleted)
             .OrderByDescending(d => d.UpdatedAt)
             .ToListAsync(ct);
@@ -131,6 +138,7 @@ public sealed class DraftsService
         var draftIds = drafts.Select(d => d.Id).ToList();
 
         var threads = await _db.PlatformThreads
+            .Include(t => t.Account)
             .Where(t => draftIds.Contains(t.DraftId))
             .ToListAsync(ct);
 
@@ -158,15 +166,27 @@ public sealed class DraftsService
         }).ToList();
     }
 
-    public async Task<DraftDto> CreateDraftAsync(Guid userId, string? title, string? content, string? targetPlatform, CancellationToken ct)
+    public async Task<DraftDto> CreateDraftAsync(Guid userId, string? title = null, string? content = null, string? targetPlatform = null, Guid? targetAccountId = null, CancellationToken ct = default)
     {
         SocialPlatform? platform = null;
-        if (!string.IsNullOrWhiteSpace(targetPlatform) && Enum.TryParse<SocialPlatform>(targetPlatform, true, out var parsed))
+        Account? targetAccount = null;
+
+        if (targetAccountId.HasValue)
+        {
+            targetAccount = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == targetAccountId.Value && a.UserId == userId, ct);
+            if (targetAccount != null && Enum.TryParse<SocialPlatform>(targetAccount.Platform, true, out var pFromAcc))
+            {
+                platform = pFromAcc;
+            }
+        }
+
+        if (platform == null && !string.IsNullOrWhiteSpace(targetPlatform) && Enum.TryParse<SocialPlatform>(targetPlatform, true, out var parsed))
         {
             platform = parsed;
         }
 
-        var draft = Draft.Create(userId, title, content, platform ?? SocialPlatform.Bluesky);
+        var draft = Draft.Create(userId, title, content, platform ?? SocialPlatform.Bluesky, targetAccountId: targetAccount?.Id);
+        draft.TargetAccount = targetAccount;
         _db.Drafts.Add(draft);
         await _db.SaveChangesAsync(ct);
 
@@ -175,6 +195,8 @@ public sealed class DraftsService
         {
             DraftId = draft.Id,
             Platform = platformName,
+            AccountId = targetAccount?.Id,
+            Account = targetAccount,
             Stage = PlatformThreadStage.Draft,
             Content = content
         };
@@ -193,10 +215,11 @@ public sealed class DraftsService
     public async Task<DraftDto> GetDraftByIdAsync(Guid userId, Guid id, CancellationToken ct)
     {
         var draft = await _db.Drafts
+            .Include(d => d.TargetAccount)
             .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
             ?? throw new KeyNotFoundException("Draft not found or access denied.");
 
-        var threads = await _db.PlatformThreads.Where(t => t.DraftId == id).ToListAsync(ct);
+        var threads = await _db.PlatformThreads.Include(t => t.Account).Where(t => t.DraftId == id).ToListAsync(ct);
         var threadIds = threads.Select(t => t.Id).ToList();
         var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
@@ -280,7 +303,7 @@ public sealed class DraftsService
         draft.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        var threads = await _db.PlatformThreads.Where(t => t.DraftId == id).ToListAsync(ct);
+        var threads = await _db.PlatformThreads.Include(t => t.Account).Where(t => t.DraftId == id).ToListAsync(ct);
         var threadIds = threads.Select(t => t.Id).ToList();
         var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
@@ -367,25 +390,12 @@ public sealed class DraftsService
         draft.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        return await GetDraftByIdAsync(userId, draftId, ct);
-    }
+        var threads = await _db.PlatformThreads.Include(t => t.Account).Where(t => t.DraftId == draftId).ToListAsync(ct);
+        var threadIds = threads.Select(t => t.Id).ToList();
+        var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
+        var media = await _db.MediaAssets.Where(m => m.DraftId == draftId).ToListAsync(ct);
 
-    public async Task<DraftDto> CreateReplyDraftFromBlueskyPostUrlAsync(
-        Guid userId,
-        string url,
-        string? title,
-        string? content,
-        IBlueskyReplyTargetResolver resolver,
-        CancellationToken ct)
-    {
-        var created = await CreateDraftAsync(userId, title, content, "Bluesky", ct);
-
-        return await SetDraftBlueskyReplyTargetFromUrlAsync(
-            userId,
-            created.Id,
-            url,
-            resolver,
-            ct);
+        return ToDto(draft, threads, posts, media, metadata);
     }
 
     public async Task<DraftDto> SetDraftBlueskyReplyTargetFromUrlAsync(
@@ -395,10 +405,19 @@ public sealed class DraftsService
         IBlueskyReplyTargetResolver resolver,
         CancellationToken ct)
     {
+        var draft = await _db.Drafts
+            .FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
+            ?? throw new KeyNotFoundException("Draft not found or access denied.");
+
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            throw new ArgumentException("URL is required.", nameof(url));
+        }
+
         var resolution = await resolver.ResolveAsync(url, ct);
         if (!resolution.Success)
         {
-            throw new ArgumentException(resolution.Error ?? "Could not resolve Bluesky post URL.");
+            throw new ArgumentException(resolution.Error ?? "Could not resolve Bluesky post details.");
         }
 
         return await SetDraftBlueskyReplyTargetAsync(
@@ -415,6 +434,24 @@ public sealed class DraftsService
             ct);
     }
 
+    public async Task<DraftDto> CreateReplyDraftFromBlueskyPostUrlAsync(
+        Guid userId,
+        string url,
+        string? title,
+        string? content,
+        IBlueskyReplyTargetResolver resolver,
+        CancellationToken ct)
+    {
+        var created = await CreateDraftAsync(userId, title, content, "Bluesky", null, ct);
+
+        return await SetDraftBlueskyReplyTargetFromUrlAsync(
+            userId,
+            created.Id,
+            url,
+            resolver,
+            ct);
+    }
+
     public async Task<List<PlatformThreadDto>> GetPlatformThreadsForDraftAsync(Guid userId, Guid id, CancellationToken ct)
     {
         var draftExists = await _db.Drafts.AnyAsync(d => d.Id == id && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
@@ -424,6 +461,7 @@ public sealed class DraftsService
         }
 
         var threads = await _db.PlatformThreads
+            .Include(t => t.Account)
             .Where(t => t.DraftId == id)
             .ToListAsync(ct);
 
@@ -433,10 +471,12 @@ public sealed class DraftsService
         return threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
             posts.Where(p => p.PlatformThreadId == t.Id)
                  .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
-                 .ToList())).ToList();
+                 .ToList(),
+            t.AccountId,
+            t.Account?.Handle)).ToList();
     }
 
-    public async Task<PlatformThreadDto> CreatePlatformThreadAsync(Guid userId, Guid id, string platform, CancellationToken ct)
+    public async Task<PlatformThreadDto> CreatePlatformThreadAsync(Guid userId, Guid id, string platform, Guid? accountId = null, CancellationToken ct = default)
     {
         var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
             ?? throw new KeyNotFoundException("Draft not found or access denied.");
@@ -446,7 +486,13 @@ public sealed class DraftsService
             throw new ArgumentException("Platform is required.");
         }
 
-        var exists = await _db.PlatformThreads.AnyAsync(t => t.DraftId == id && t.Platform == platform, ct);
+        Account? account = null;
+        if (accountId.HasValue)
+        {
+            account = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == accountId.Value && a.UserId == userId, ct);
+        }
+
+        var exists = await _db.PlatformThreads.AnyAsync(t => t.DraftId == id && t.Platform == platform && t.AccountId == accountId, ct);
         if (exists)
         {
             throw new InvalidOperationException($"A thread variant for platform '{platform}' already exists.");
@@ -456,6 +502,8 @@ public sealed class DraftsService
         {
             DraftId = id,
             Platform = platform,
+            AccountId = account?.Id,
+            Account = account,
             Stage = PlatformThreadStage.Draft,
             Content = draft.Content
         };
@@ -463,7 +511,7 @@ public sealed class DraftsService
         _db.PlatformThreads.Add(thread);
         await _db.SaveChangesAsync(ct);
 
-        return new PlatformThreadDto(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>());
+        return new PlatformThreadDto(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>(), thread.AccountId, thread.Account?.Handle);
     }
 
     public async Task<PlatformThreadDto> UpdatePlatformThreadAsync(
@@ -480,7 +528,7 @@ public sealed class DraftsService
             throw new KeyNotFoundException("Draft not found or access denied.");
         }
 
-        var thread = await _db.PlatformThreads.FirstOrDefaultAsync(t => t.Id == threadId && t.DraftId == id, ct)
+        var thread = await _db.PlatformThreads.Include(t => t.Account).FirstOrDefaultAsync(t => t.Id == threadId && t.DraftId == id, ct)
             ?? throw new KeyNotFoundException("Thread not found.");
 
         if (content is not null)
@@ -498,7 +546,9 @@ public sealed class DraftsService
 
         var posts = await _db.Posts.Where(p => p.PlatformThreadId == threadId).ToListAsync(ct);
         return new PlatformThreadDto(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content,
-            posts.Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url)).ToList());
+            posts.Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url)).ToList(),
+            thread.AccountId,
+            thread.Account?.Handle);
     }
 
     public Task ReconcileSegmentsAsync(Draft draft, string markdown, CancellationToken ct = default)

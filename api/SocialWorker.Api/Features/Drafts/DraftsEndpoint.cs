@@ -34,7 +34,7 @@ public static class DraftsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            var result = await draftsService.CreateDraftAsync(userId.Value, req.Title, req.Content, req.TargetPlatform, ct);
+            var result = await draftsService.CreateDraftAsync(userId.Value, req.Title, req.Content, req.TargetPlatform, req.TargetAccountId, ct);
             return Results.Created($"/api/drafts/{result.Id}", result);
         }).WithValidation<CreateDraftRequest>();
 
@@ -172,7 +172,7 @@ public static class DraftsEndpoint
 
             try
             {
-                var result = await draftsService.CreatePlatformThreadAsync(userId.Value, id, req.Platform, ct);
+                var result = await draftsService.CreatePlatformThreadAsync(userId.Value, id, req.Platform, req.AccountId, ct);
                 return Results.Created($"/api/drafts/{id}/threads/{result.Id}", result);
             }
             catch (KeyNotFoundException)
@@ -216,7 +216,7 @@ public static class DraftsEndpoint
     public static SegmentMediaAnalysis AnalyzeSegmentMedia(string segmentContent) => DraftSegmentService.AnalyzeSegmentMedia(segmentContent);
 }
 
-public sealed record CreateDraftRequest(string? Title, string? Content, string? TargetPlatform = null);
+public sealed record CreateDraftRequest(string? Title, string? Content, string? TargetPlatform = null, Guid? TargetAccountId = null);
 
 public sealed record CreateReplyDraftFromUrlRequest(string Url, string? Title = null, string? Content = null);
 
@@ -240,7 +240,7 @@ public sealed record UpdateDraftBlueskyReplyTargetRequest(
 
 public sealed record UpdateDraftBlueskyReplyTargetFromUrlRequest(string Url);
 
-public sealed record CreatePlatformThreadRequest(string Platform);
+public sealed record CreatePlatformThreadRequest(string Platform, Guid? AccountId = null);
 
 public sealed record UpdatePlatformThreadRequest(
     string? Stage = null,

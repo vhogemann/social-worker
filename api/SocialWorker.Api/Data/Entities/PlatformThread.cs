@@ -9,6 +9,8 @@ public class PlatformThread
     public Guid DraftId { get; set; }
     public Draft Draft { get; set; } = null!;
     public string Platform { get; set; } = "";
+    public Guid? AccountId { get; set; }
+    public Account? Account { get; set; }
     public PlatformThreadStage Stage { get; set; } = PlatformThreadStage.Draft;
     public string? Content { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

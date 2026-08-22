@@ -12,7 +12,7 @@ interface DraftStore {
   loadDrafts: () => Promise<void>;
   loadPlatformCapabilities: () => Promise<void>;
   supportsReplyTargetForPlatform: (platform: string | null | undefined) => boolean;
-  createDraft: (title?: string, content?: string, targetPlatform?: string) => Promise<DraftDto>;
+  createDraft: (title?: string, content?: string, targetPlatform?: string, targetAccountId?: string) => Promise<DraftDto>;
   createReplyDraftFromBlueskyPostUrl: (url: string, title?: string, content?: string) => Promise<DraftDto>;
   switchDraft: (id: string) => Promise<DraftDto>;
   updateDraftTitle: (id: string, title: string) => Promise<void>;
@@ -21,7 +21,7 @@ interface DraftStore {
   unarchiveDraft: (id: string) => Promise<void>;
   deleteDraft: (id: string) => Promise<void>;
   setActivePlatform: (platform: string) => void;
-  createThreadVariant: (draftId: string, platform: string) => Promise<void>;
+  createThreadVariant: (draftId: string, platform: string, accountId?: string) => Promise<void>;
   updateThreadStage: (draftId: string, threadId: string, stage: string) => Promise<void>;
   updateThreadContent: (draftId: string, threadId: string, content: string) => Promise<void>;
   publishThread: (draftId: string, threadId: string) => Promise<any>;
@@ -67,8 +67,8 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     return capabilities.some((c) => c.platform.toLowerCase() === platform.toLowerCase() && c.supportsReplyTarget);
   },
 
-  createDraft: async (title, content, targetPlatform) => {
-    const draft = await createDraft(title, content, targetPlatform);
+  createDraft: async (title, content, targetPlatform, targetAccountId) => {
+    const draft = await createDraft(title, content, targetPlatform, targetAccountId);
     set((s) => ({ drafts: [draft, ...s.drafts], activeDraftId: draft.id }));
     return draft;
   },
@@ -143,8 +143,8 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   setActivePlatform: (platform) => set({ activePlatform: platform }),
 
-  createThreadVariant: async (draftId, platform) => {
-    const thread = await createPlatformThread(draftId, platform);
+  createThreadVariant: async (draftId, platform, accountId) => {
+    const thread = await createPlatformThread(draftId, platform, accountId);
     set((s) => ({
       drafts: s.drafts.map((d) =>
         d.id === draftId ? { ...d, threads: [...d.threads, thread] } : d

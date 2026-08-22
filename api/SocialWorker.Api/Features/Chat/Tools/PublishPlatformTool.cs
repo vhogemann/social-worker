@@ -81,7 +81,15 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
             return new PublishPlatformToolResult(false, $"No platform thread found for platform '{platform}' in this draft.", Error: $"No platform thread found for platform '{platform}' in this draft.");
         }
 
-        var account = await _db.Accounts.FirstOrDefaultAsync(a => a.UserId == context.UserId && a.Platform == platform, context.CancellationToken);
+        Account? account = null;
+        if (thread.AccountId.HasValue)
+        {
+            account = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == thread.AccountId.Value && a.UserId == context.UserId, context.CancellationToken);
+        }
+        if (account == null)
+        {
+            account = await _db.Accounts.FirstOrDefaultAsync(a => a.UserId == context.UserId && a.Platform == platform, context.CancellationToken);
+        }
         if (account == null)
         {
             return new PublishPlatformToolResult(false, $"No connected account found for platform: {platform}", Error: $"No connected account found for platform: {platform}");

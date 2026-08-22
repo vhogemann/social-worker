@@ -134,4 +134,36 @@ public sealed class AccountsEndpointTests : SqliteTestBase
         var decryptedToken = SocialWorker.Api.Infrastructure.Security.CryptoHelper.DecryptString(savedAccount.CredentialsEncrypted, ValidKey);
         Assert.Equal("my-access-token", decryptedToken);
     }
+
+    [Fact]
+    public async Task MultiAccount_CanSaveMultipleHandlesForSamePlatform()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+
+        var account1 = new Account
+        {
+            UserId = user.Id,
+            Platform = "Bluesky",
+            Handle = "personal.bsky.social",
+            CredentialsEncrypted = SocialWorker.Api.Infrastructure.Security.CryptoHelper.EncryptString("pass1", ValidKey),
+            Status = "Active"
+        };
+        var account2 = new Account
+        {
+            UserId = user.Id,
+            Platform = "Bluesky",
+            Handle = "tech.bsky.social",
+            CredentialsEncrypted = SocialWorker.Api.Infrastructure.Security.CryptoHelper.EncryptString("pass2", ValidKey),
+            Status = "Active"
+        };
+
+        db.Accounts.AddRange(account1, account2);
+        await db.SaveChangesAsync();
+
+        var bskyAccounts = await db.Accounts.Where(a => a.UserId == user.Id && a.Platform == "Bluesky").ToListAsync();
+        Assert.Equal(2, bskyAccounts.Count);
+        Assert.Contains(bskyAccounts, a => a.Handle == "personal.bsky.social");
+        Assert.Contains(bskyAccounts, a => a.Handle == "tech.bsky.social");
+    }
 }

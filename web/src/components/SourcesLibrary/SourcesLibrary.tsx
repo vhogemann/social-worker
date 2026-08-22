@@ -145,7 +145,7 @@ export const SourcesLibrary: React.FC = () => {
           </div>
           <Link
             to="/"
-            className="flex items-center gap-2 px-4 py-2 bg-panel border border-border hover:bg-zinc-800 text-xs font-semibold rounded-lg shadow-sm transition text-zinc-300"
+            className="flex items-center gap-2 px-4 py-2 bg-panel border border-border hover:bg-border/60 text-xs font-semibold rounded-lg shadow-sm transition text-muted hover:text-foreground"
           >
             &larr; Back to Composer
           </Link>
@@ -191,7 +191,7 @@ export const SourcesLibrary: React.FC = () => {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted transition hover:bg-zinc-800"
+              className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted transition hover:bg-border/60 hover:text-foreground"
             >
               Reset
             </button>
@@ -280,7 +280,7 @@ export const SourcesLibrary: React.FC = () => {
                       </p>
 
                       {item.summary && (
-                        <p className="text-[11px] text-zinc-400 line-clamp-3 leading-relaxed mb-4">
+                        <p className="text-[11px] text-muted line-clamp-3 leading-relaxed mb-4">
                           {item.summary}
                         </p>
                       )}
@@ -288,7 +288,7 @@ export const SourcesLibrary: React.FC = () => {
 
                     {/* Footer link action */}
                     <div className="mt-auto pt-3 border-t border-border/40 flex items-center justify-between gap-3">
-                      <span className="text-[10px] text-indigo-500 font-semibold group-hover:underline">
+                      <span className="text-[10px] text-accent font-semibold group-hover:underline">
                         View detail &rarr;
                       </span>
 
@@ -299,7 +299,7 @@ export const SourcesLibrary: React.FC = () => {
                             void handleLinkSource(item.id);
                           }}
                           disabled={isLinked || linkingSourceId === item.id}
-                          className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-border bg-bg hover:bg-zinc-800 text-zinc-300 disabled:opacity-40 transition"
+                          className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-border bg-bg hover:bg-border/60 text-muted hover:text-foreground disabled:opacity-40 transition"
                         >
                           {isLinked ? "Linked" : linkingSourceId === item.id ? "Linking..." : "Link to Draft"}
                         </button>
@@ -318,7 +318,7 @@ export const SourcesLibrary: React.FC = () => {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-4 py-2 border border-border bg-panel hover:bg-zinc-800 rounded-lg text-xs font-semibold disabled:opacity-40 transition"
+              className="px-4 py-2 border border-border bg-panel hover:bg-border/60 text-muted hover:text-foreground rounded-lg text-xs font-semibold disabled:opacity-40 transition"
             >
               &larr; Previous
             </button>
@@ -328,7 +328,7 @@ export const SourcesLibrary: React.FC = () => {
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-4 py-2 border border-border bg-panel hover:bg-zinc-800 rounded-lg text-xs font-semibold disabled:opacity-40 transition"
+              className="px-4 py-2 border border-border bg-panel hover:bg-border/60 text-muted hover:text-foreground rounded-lg text-xs font-semibold disabled:opacity-40 transition"
             >
               Next &rarr;
             </button>

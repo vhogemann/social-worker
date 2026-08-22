@@ -13,6 +13,8 @@ public class Draft
     public Guid UserId { get; set; }
     public AppUser User { get; set; } = null!;
     public SocialPlatform? TargetPlatform { get; set; }
+    public Guid? TargetAccountId { get; set; }
+    public Account? TargetAccount { get; set; }
     public Guid? CanonicalDraftId { get; set; }
     public Draft? CanonicalDraft { get; set; }
     public Guid? AutomationWorkflowId { get; set; }
@@ -29,7 +31,7 @@ public class Draft
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public static Draft Create(Guid userId, string? title = null, string? content = null, SocialPlatform? targetPlatform = null, Guid? automationWorkflowId = null)
+    public static Draft Create(Guid userId, string? title = null, string? content = null, SocialPlatform? targetPlatform = null, Guid? automationWorkflowId = null, Guid? targetAccountId = null)
     {
         return new Draft
         {
@@ -38,6 +40,7 @@ public class Draft
             Title = string.IsNullOrWhiteSpace(title) ? "Untitled" : title.Trim(),
             Content = content,
             TargetPlatform = targetPlatform,
+            TargetAccountId = targetAccountId,
             AutomationWorkflowId = automationWorkflowId,
             Status = DraftStatus.Editing,
             CreatedAt = DateTime.UtcNow,

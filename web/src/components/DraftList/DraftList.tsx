@@ -1,34 +1,15 @@
 import { useMemo } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus, faTrashCan, faBoxArchive, faPenToSquare, faArrowRotateLeft, faLink, faGear } from "@fortawesome/free-solid-svg-icons";
-import { faBluesky, faXTwitter, faLinkedin, faFacebook, faInstagram } from "@fortawesome/free-brands-svg-icons";
-import { SettingsModal } from "../Settings/SettingsModal";
+import { faPlus, faTrashCan, faBoxArchive, faPenToSquare, faArrowRotateLeft, faLink } from "@fortawesome/free-solid-svg-icons";
+import { PLATFORM_BADGE_COLORS, PLATFORM_ICONS } from "../../config/platformBadges";
 import { CreateDraftModal } from "./CreateDraftModal";
 import { useDraftListManager } from "./useDraftListManager";
-
-const PLATFORM_BADGE_COLORS: Record<string, string> = {
-  Bluesky: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
-  Twitter: "bg-blue-400/15 text-blue-600 dark:text-blue-400",
-  LinkedIn: "bg-blue-700/15 text-blue-800 dark:text-blue-300",
-  Facebook: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
-  Instagram: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
-};
-
-const PLATFORM_ICONS: Record<string, any> = {
-  Bluesky: faBluesky,
-  Twitter: faXTwitter,
-  LinkedIn: faLinkedin,
-  Facebook: faFacebook,
-  Instagram: faInstagram,
-};
 
 export function DraftList() {
   const {
     activeDraftId,
     archiveDraft,
     unarchiveDraft,
-    settingsOpen,
-    setSettingsOpen,
     editingTitleId,
     setEditingTitleId,
     editTitleValue,
@@ -122,6 +103,7 @@ export function DraftList() {
                           <span className={`inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-sans font-medium ${PLATFORM_BADGE_COLORS[d.targetPlatform] || "text-muted"}`}>
                             {PLATFORM_ICONS[d.targetPlatform] && <FontAwesomeIcon icon={PLATFORM_ICONS[d.targetPlatform]} className="w-3 h-3" />}
                             {d.targetPlatform}
+                            {d.targetAccountHandle && <span className="opacity-75 font-mono">@{d.targetAccountHandle.replace(/^@/, '')}</span>}
                           </span>
                         )}
                       </div>
@@ -180,6 +162,7 @@ export function DraftList() {
                             <span className={`inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-sans font-medium ${PLATFORM_BADGE_COLORS[v.targetPlatform] || "text-muted"}`}>
                               {PLATFORM_ICONS[v.targetPlatform] && <FontAwesomeIcon icon={PLATFORM_ICONS[v.targetPlatform]} className="w-3 h-3" />}
                               {v.targetPlatform}
+                              {v.targetAccountHandle && <span className="opacity-75 font-mono">@{v.targetAccountHandle.replace(/^@/, '')}</span>}
                             </span>
                           )}
                           <span className="text-[10px] text-muted font-sans">variant</span>
@@ -198,14 +181,7 @@ export function DraftList() {
           </div>
         )}
       </div>
-      <div className="px-3 py-2 border-t border-border flex items-center justify-between shrink-0">
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="text-xs font-mono text-muted hover:text-foreground focus:outline-none flex items-center gap-1"
-        >
-          <FontAwesomeIcon icon={faGear} className="w-3 h-3" />
-          settings
-        </button>
+      <div className="px-3 py-2 border-t border-border flex items-center justify-end shrink-0">
         <button
           onClick={() => setShowArchived(!showArchived)}
           className={`text-[10px] font-mono border px-1.5 py-0.5 rounded transition-all focus:outline-none ${
@@ -222,7 +198,6 @@ export function DraftList() {
         onClose={() => setCreateModalOpen(false)}
         onCreate={handleNew}
       />
-      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

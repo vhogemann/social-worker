@@ -55,11 +55,10 @@ public static class AccountsEndpoint
             }
 
             var existing = await db.Accounts
-                .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == req.Platform);
+                .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == req.Platform && a.Handle == req.Handle);
 
             if (existing != null)
             {
-                existing.Handle = req.Handle;
                 existing.CredentialsEncrypted = CryptoHelper.EncryptString(req.AppPassword, encryptionKey);
                 existing.UpdatedAt = DateTime.UtcNow;
                 existing.Status = "Active";
@@ -132,11 +131,10 @@ public static class AccountsEndpoint
             }
 
             var existing = await db.Accounts
-                .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == "LinkedIn");
+                .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == "LinkedIn" && a.Handle == authorUrn);
 
             if (existing != null)
             {
-                existing.Handle = authorUrn;
                 existing.CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey);
                 existing.UpdatedAt = DateTime.UtcNow;
                 existing.Status = "Active";

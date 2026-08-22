@@ -14,6 +14,7 @@ api/.dotnet/
 # node
 web/node_modules/
 web/dist/
+*.tsbuildinfo
 
 # os
 .DS_Store

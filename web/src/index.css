@@ -12,6 +12,32 @@ body,
 
 body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #f4f4f6;
+  background-color: #0f1115;
+}
+
+/* Global Dark Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #262a36 #0f1115;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f1115;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #262a36;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #33394a;
 }
 
 .cm-editor {
@@ -28,12 +54,3 @@ body {
   outline: none;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-spin-slow {
-  animation: spin 1.5s linear infinite;
-}

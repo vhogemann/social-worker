@@ -16,6 +16,8 @@ export interface PlatformThreadDto {
   stage: string;
   content: string | null;
   posts: PostDto[];
+  accountId?: string | null;
+  accountHandle?: string | null;
 }
 
 export interface SourceDto {
@@ -87,6 +89,8 @@ export interface DraftDto {
   status: string;
   content: string | null;
   targetPlatform: string | null;
+  targetAccountId?: string | null;
+  targetAccountHandle?: string | null;
   canonicalDraftId: string | null;
   threads: PlatformThreadDto[];
   blueskyReplyTarget?: {
@@ -114,10 +118,10 @@ export async function fetchDrafts(): Promise<DraftDto[]> {
   return res.json();
 }
 
-export async function createDraft(title?: string, content?: string, targetPlatform?: string): Promise<DraftDto> {
+export async function createDraft(title?: string, content?: string, targetPlatform?: string, targetAccountId?: string): Promise<DraftDto> {
   const res = await apiFetch("/api/drafts", {
     method: "POST",
-    body: JSON.stringify({ title, content, targetPlatform }),
+    body: JSON.stringify({ title, content, targetPlatform, targetAccountId }),
   });
   if (!res.ok) throw new Error(`createDraft failed: ${res.status}`);
   return res.json();
@@ -178,10 +182,10 @@ export async function fetchPlatformThreads(draftId: string): Promise<PlatformThr
   return res.json();
 }
 
-export async function createPlatformThread(draftId: string, platform: string): Promise<PlatformThreadDto> {
+export async function createPlatformThread(draftId: string, platform: string, accountId?: string): Promise<PlatformThreadDto> {
   const res = await apiFetch(`/api/drafts/${draftId}/threads`, {
     method: "POST",
-    body: JSON.stringify({ platform }),
+    body: JSON.stringify({ platform, accountId }),
   });
   if (!res.ok) throw new Error(`createPlatformThread failed: ${res.status}`);
   return res.json();
@@ -404,10 +408,10 @@ export async function deleteMediaAsset(id: string): Promise<{ success: boolean }
   return res.json();
 }
 
-export async function generateVariants(draftId: string, platforms: string[]): Promise<{ canonical: DraftDto; variants: DraftDto[] }> {
+export async function generateVariants(draftId: string, platforms?: string[], accountIds?: string[]): Promise<{ canonical: DraftDto; variants: DraftDto[] }> {
   const res = await apiFetch(`/api/drafts/${draftId}/generate-variants`, {
     method: "POST",
-    body: JSON.stringify({ platforms }),
+    body: JSON.stringify({ platforms, accountIds }),
   });
   if (!res.ok) throw new Error(`generateVariants failed: ${res.status}`);
   return res.json();

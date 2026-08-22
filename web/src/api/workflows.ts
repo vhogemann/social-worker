@@ -10,6 +10,8 @@ export interface WorkflowDestinationDto {
   id: string;
   platform: string;
   autoPublish: boolean;
+  accountId?: string | null;
+  accountHandle?: string | null;
 }
 
 export interface AutomationWorkflowDto {
@@ -25,6 +27,7 @@ export interface AutomationWorkflowDto {
 export interface CreateWorkflowDestinationRequest {
   platform: string;
   autoPublish: boolean;
+  accountId?: string | null;
 }
 
 export interface CreateAutomationWorkflowRequest {

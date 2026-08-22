@@ -35,6 +35,7 @@ public static class WorkflowsEndpoint
                 .Include(w => w.WorkflowSources)
                     .ThenInclude(ws => ws.FeedSubscription)
                 .Include(w => w.Destinations)
+                    .ThenInclude(d => d.Account)
                 .OrderByDescending(w => w.CreatedAt)
                 .ToListAsync(ct);
 
@@ -73,7 +74,7 @@ public static class WorkflowsEndpoint
                 {
                     if (!string.IsNullOrWhiteSpace(dest.Platform))
                     {
-                        workflow.Destinations.Add(AutomationWorkflowDestination.Create(workflow.Id, dest.Platform, dest.AutoPublish));
+                        workflow.Destinations.Add(AutomationWorkflowDestination.Create(workflow.Id, dest.Platform, dest.AutoPublish, dest.AccountId));
                     }
                 }
             }
@@ -85,6 +86,7 @@ public static class WorkflowsEndpoint
                 .Include(w => w.WorkflowSources)
                     .ThenInclude(ws => ws.FeedSubscription)
                 .Include(w => w.Destinations)
+                    .ThenInclude(d => d.Account)
                 .FirstAsync(w => w.Id == workflow.Id, ct);
 
             return Results.Created($"/api/workflows/{workflow.Id}", new AutomationWorkflowDto(created));
@@ -103,6 +105,7 @@ public static class WorkflowsEndpoint
                 .Include(w => w.WorkflowSources)
                     .ThenInclude(ws => ws.FeedSubscription)
                 .Include(w => w.Destinations)
+                    .ThenInclude(d => d.Account)
                 .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId.Value, ct);
 
             if (workflow == null) return Results.NotFound();
@@ -125,13 +128,11 @@ public static class WorkflowsEndpoint
 
             if (workflow == null) return Results.NotFound();
 
-            workflow.Title = req.Title.Trim();
-            workflow.InstructionPrompt = string.IsNullOrWhiteSpace(req.InstructionPrompt)
-                ? "Summarize this article as a thread."
-                : req.InstructionPrompt.Trim();
+            workflow.Title = string.IsNullOrWhiteSpace(req.Title) ? "Untitled Workflow" : req.Title.Trim();
+            workflow.InstructionPrompt = req.InstructionPrompt ?? "";
             workflow.UpdatedAt = DateTime.UtcNow;
 
-            // Sync sources
+            // Sync feed subscriptions
             var existingSources = await db.AutomationWorkflowSources
                 .Where(s => s.AutomationWorkflowId == id)
                 .ToListAsync(ct);
@@ -162,7 +163,7 @@ public static class WorkflowsEndpoint
                 {
                     if (!string.IsNullOrWhiteSpace(dest.Platform))
                     {
-                        db.AutomationWorkflowDestinations.Add(AutomationWorkflowDestination.Create(workflow.Id, dest.Platform, dest.AutoPublish));
+                        db.AutomationWorkflowDestinations.Add(AutomationWorkflowDestination.Create(workflow.Id, dest.Platform, dest.AutoPublish, dest.AccountId));
                     }
                 }
             }
@@ -173,6 +174,7 @@ public static class WorkflowsEndpoint
                 .Include(w => w.WorkflowSources)
                     .ThenInclude(ws => ws.FeedSubscription)
                 .Include(w => w.Destinations)
+                    .ThenInclude(d => d.Account)
                 .FirstAsync(w => w.Id == workflow.Id, ct);
 
             return Results.Ok(new AutomationWorkflowDto(updated));
@@ -226,10 +228,10 @@ public static class WorkflowsEndpoint
 
 public sealed record WorkflowSourceDto(Guid FeedSubscriptionId, string Title, string FeedUrl);
 
-public sealed record WorkflowDestinationDto(Guid Id, string Platform, bool AutoPublish)
+public sealed record WorkflowDestinationDto(Guid Id, string Platform, bool AutoPublish, Guid? AccountId = null, string? AccountHandle = null)
 {
     public WorkflowDestinationDto(AutomationWorkflowDestination d)
-        : this(d.Id, d.Platform, d.AutoPublish)
+        : this(d.Id, d.Platform, d.AutoPublish, d.AccountId, d.Account?.Handle)
     {
     }
 }
@@ -259,7 +261,7 @@ public sealed record AutomationWorkflowDto(
     }
 }
 
-public sealed record CreateWorkflowDestinationRequest(string Platform, bool AutoPublish);
+public sealed record CreateWorkflowDestinationRequest(string Platform, bool AutoPublish, Guid? AccountId = null);
 
 public sealed record CreateAutomationWorkflowRequest(
     string Title,

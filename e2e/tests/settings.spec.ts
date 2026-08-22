@@ -8,8 +8,8 @@ test.describe("Settings: Providers", () => {
   });
 
   test("can add an LLM provider", async ({ page }) => {
-    await page.getByRole("button", { name: /settings/i }).click();
-    await page.getByRole("button", { name: "providers" }).click();
+    await page.getByRole("link", { name: /^settings$/i }).click();
+    await page.getByRole("link", { name: /providers/i }).click();
 
     await page.getByPlaceholder(/e\.?g\.? openrouter claude/i).fill("OpenRouter Claude");
     await page.getByPlaceholder(/e\.?g\.? anthropic/i).fill("anthropic/claude-3.5-sonnet");
@@ -26,8 +26,8 @@ test.describe("Settings: Connections", () => {
   });
 
   test("can connect a Bluesky account", async ({ page }) => {
-    await page.getByRole("button", { name: /settings/i }).click();
-    await page.getByRole("button", { name: "connections" }).click();
+    await page.getByRole("link", { name: /^settings$/i }).click();
+    await page.getByRole("link", { name: /connections/i }).click();
 
     await page.getByPlaceholder(/user\.bsky\.social/i).fill("demo.bsky.social");
     await page.locator('input[type="password"]').nth(0).fill("test-app-password");
@@ -44,8 +44,8 @@ test.describe("Settings: Brand Voices", () => {
   });
 
   test("can create a brand voice prompt", async ({ page }) => {
-    await page.getByRole("button", { name: /settings/i }).click();
-    await page.getByRole("button", { name: "brand voices" }).click();
+    await page.getByRole("link", { name: /^settings$/i }).click();
+    await page.getByRole("link", { name: /brand voices/i }).click();
 
     await page.getByRole("button", { name: /new voice/i }).click();
     await page.locator('input[placeholder*="Friendly"]').fill("Professional Tone");

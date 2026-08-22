@@ -18,7 +18,6 @@ export function useDraftListManager() {
   const deleteDraft = useDraftStore((s) => s.deleteDraft);
   const updateDraftTitle = useDraftStore((s) => s.updateDraftTitle);
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editTitleValue, setEditTitleValue] = useState("");
   const [showArchived, setShowArchived] = useState(false);
@@ -39,12 +38,12 @@ export function useDraftListManager() {
     navigate(`/draft/${id}`);
   };
 
-  const handleNew = async (title?: string, targetPlatform?: string) => {
+  const handleNew = async (title?: string, targetPlatform?: string, targetAccountId?: string) => {
     if (activeDraftId) {
       saveCurrentChat(activeDraftId);
       await saveDraftContent(activeDraftId, useEditorStore.getState().doc);
     }
-    const draft = await createDraft(title, undefined, targetPlatform);
+    const draft = await createDraft(title, undefined, targetPlatform, targetAccountId);
     navigate(`/draft/${draft.id}`);
   };
 
@@ -102,8 +101,6 @@ export function useDraftListManager() {
     activeDraftId,
     archiveDraft,
     unarchiveDraft,
-    settingsOpen,
-    setSettingsOpen,
     editingTitleId,
     setEditingTitleId,
     editTitleValue,

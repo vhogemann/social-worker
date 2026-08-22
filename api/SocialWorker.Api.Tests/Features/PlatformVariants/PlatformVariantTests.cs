@@ -342,4 +342,38 @@ public sealed class PlatformVariantTests : SqliteTestBase
         Assert.Equal("Segment B", segments[1].Content);
         Assert.Equal("Segment C", segments[2].Content);
     }
+
+    [Fact]
+    public async Task GenerateVariantsAsync_WithAccountIds_CreatesAccountSpecificVariants()
+    {
+        var acc1 = new Account
+        {
+            UserId = _user.Id,
+            Platform = "Bluesky",
+            Handle = "personal.bsky.social",
+            CredentialsEncrypted = "enc",
+            Status = "Active"
+        };
+        var acc2 = new Account
+        {
+            UserId = _user.Id,
+            Platform = "LinkedIn",
+            Handle = "urn:li:person:123",
+            CredentialsEncrypted = "enc",
+            Status = "Active"
+        };
+        _db.Accounts.AddRange(acc1, acc2);
+        await _db.SaveChangesAsync();
+
+        var canonical = await _draftsService.CreateDraftAsync(_user.Id, "Original", "Hello world", "Bluesky", acc1.Id, default);
+
+        var result = await _variantService.GenerateVariantsAsync(
+            _user.Id, canonical.Id, null, new List<Guid> { acc2.Id }, default);
+
+        Assert.Single(result.Variants);
+        var variant = result.Variants[0];
+        Assert.Equal(acc2.Id, variant.TargetAccountId);
+        Assert.Equal("LinkedIn", variant.TargetPlatform);
+        Assert.Contains("urn:li:person:123", variant.Title);
+    }
 }

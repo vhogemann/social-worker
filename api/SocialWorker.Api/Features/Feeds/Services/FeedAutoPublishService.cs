@@ -55,7 +55,19 @@ public class FeedAutoPublishService
                     continue;
                 }
 
-                var account = await _db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == dest.Platform, ct);
+                Account? account = null;
+                if (dest.AccountId.HasValue)
+                {
+                    account = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == dest.AccountId.Value && a.UserId == userId, ct);
+                }
+                if (account == null && thread.AccountId.HasValue)
+                {
+                    account = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == thread.AccountId.Value && a.UserId == userId, ct);
+                }
+                if (account == null)
+                {
+                    account = await _db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == dest.Platform, ct);
+                }
                 if (account == null)
                 {
                     _logger.LogError("AutoPublish enabled for {Platform} but no connected account found for user {UserId}", dest.Platform, userId);

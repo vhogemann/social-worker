@@ -70,13 +70,13 @@ export function EditorPanel() {
             </span>
           )}
         </span>
-        <div className="flex items-center bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-0.5 font-sans lowercase">
+        <div className="flex items-center bg-bg border border-border rounded-lg p-0.5 font-sans lowercase">
           <button
             onClick={() => setPanelMode("edit")}
             className={`px-3 py-1 rounded-md text-xs font-medium transition duration-150 select-none ${
               mode === "edit"
-                ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                ? "bg-border text-foreground shadow-sm font-semibold"
+                : "text-muted hover:text-foreground"
             }`}
           >
             edit
@@ -85,8 +85,8 @@ export function EditorPanel() {
             onClick={() => setPanelMode("preview")}
             className={`px-3 py-1 rounded-md text-xs font-medium transition duration-150 select-none ${
               mode === "preview"
-                ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                ? "bg-border text-foreground shadow-sm font-semibold"
+                : "text-muted hover:text-foreground"
             }`}
           >
             preview
@@ -102,7 +102,7 @@ export function EditorPanel() {
           {isCanonical && !isSent && (
             <button
               onClick={() => setAdaptModalOpen(true)}
-              className="px-3 py-1 bg-zinc-600 hover:bg-zinc-700 text-white rounded-md text-xs font-semibold uppercase tracking-wider transition-colors"
+              className="px-3 py-1 bg-border hover:bg-border-light text-foreground rounded-md text-xs font-semibold uppercase tracking-wider transition-colors"
             >
               Adapt
             </button>
@@ -111,7 +111,7 @@ export function EditorPanel() {
             <button
               onClick={handlePublish}
               disabled={isPublishing}
-              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md text-xs font-semibold uppercase tracking-wider transition-colors"
+              className="px-3 py-1 bg-accent text-bg hover:opacity-90 disabled:opacity-50 rounded-md text-xs font-semibold uppercase tracking-wider transition-opacity"
             >
               {isPublishing ? "Publishing..." : "Publish"}
             </button>

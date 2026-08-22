@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 import { ChatProvider } from "./api/chat";
 import { ChatPanel } from "./components/ChatPanel/ChatPanel";
 import { EditorPanel } from "./components/EditorPanel/EditorPanel";
@@ -12,6 +12,7 @@ import { FeedsPanel } from "./components/FeedsPanel/FeedsPanel";
 import { LogsPanel } from "./components/Logs/LogsPanel";
 import { PrivacyPolicy } from "./components/PrivacyPolicy";
 import { LinkedInCallback } from "./components/Settings/LinkedInCallback";
+import { SettingsPage } from "./components/Settings/SettingsPage";
 import { useDraftStore } from "./store/draftStore";
 import { useEditorStore } from "./store/editorStore";
 
@@ -142,13 +143,14 @@ function AppContent() {
         <div>
           social-worker <span className="text-accent">·</span> mvp
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
           <Link to="/" className="hover:text-foreground">Workflows</Link>
           <Link to="/composer" className="hover:text-foreground">Composer</Link>
           <Link to="/sources" className="hover:text-foreground">Sources Library</Link>
           <Link to="/feeds" className="hover:text-foreground">Feeds</Link>
           <Link to="/logs" className="hover:text-foreground">Logs</Link>
           <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
+          <Link to="/settings" className="hover:text-foreground">Settings</Link>
         </div>
       </header>
       <Routes>
@@ -159,6 +161,8 @@ function AppContent() {
         <Route path="/feeds" element={<FeedsPanel />} />
         <Route path="/logs" element={<LogsPanel />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/settings" element={<Navigate to="/settings/account" replace />} />
+        <Route path="/settings/:tab" element={<SettingsPage />} />
         <Route path="/oauth/callback/linkedin" element={<LinkedInCallback />} />
       </Routes>
     </div>

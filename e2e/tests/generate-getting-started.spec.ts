@@ -44,7 +44,7 @@ test("generate getting-started guide", async ({ page }) => {
 
   const createModal = () => page.getByTestId("create-draft-modal");
   const adaptModal = () => page.getByTestId("adapt-variants-modal");
-  const settingsModal = () => page.getByTestId("settings-modal");
+  const settingsPage = () => page.getByTestId("settings-page");
   const chatPanel = () => page.getByTestId("chat-panel");
   const editorPanel = () => page.getByTestId("editor-panel");
   const sourcePreview = () => page.getByTestId("source-preview-modal");
@@ -138,11 +138,11 @@ test("generate getting-started guide", async ({ page }) => {
       title: "Settings",
       description: "Open Settings to manage providers, connected accounts, and brand voice configuration from one place.",
       fn: async () => {
-        await page.getByRole("button", { name: /settings/i }).click();
-        await page.getByRole("button", { name: /providers/i }).click();
+        await page.getByRole("link", { name: /^settings$/i }).click();
+        await page.getByRole("link", { name: /providers/i }).click();
         await expect(page.getByText(/llm provider configuration/i)).toBeVisible();
       },
-      target: settingsModal,
+      target: settingsPage,
     },
   ];
 

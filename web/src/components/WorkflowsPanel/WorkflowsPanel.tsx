@@ -41,7 +41,7 @@ export const WorkflowsPanel: React.FC = () => {
   const [title, setTitle] = useState("");
   const [instructionPrompt, setInstructionPrompt] = useState("Summarize this article as an engaging thread.");
   const [selectedFeedIds, setSelectedFeedIds] = useState<string[]>([]);
-  const [destinations, setDestinations] = useState<{ platform: string; autoPublish: boolean }[]>([]);
+  const [destinations, setDestinations] = useState<{ platform: string; autoPublish: boolean; accountId?: string; accountHandle?: string }[]>([]);
 
   const loadData = async () => {
     setLoading(true);
@@ -73,9 +73,8 @@ export const WorkflowsPanel: React.FC = () => {
     setSelectedFeedIds(availableFeeds.map((f) => f.id)); // default select all feeds
     
     // Default destinations for connected accounts
-    const activePlatforms = Array.from(new Set(connectedAccounts.map((a) => a.platform)));
-    if (activePlatforms.length > 0) {
-      setDestinations(activePlatforms.map((p) => ({ platform: p, autoPublish: false })));
+    if (connectedAccounts.length > 0) {
+      setDestinations(connectedAccounts.map((a) => ({ platform: a.platform, autoPublish: false, accountId: a.id, accountHandle: a.handle })));
     } else {
       setDestinations([{ platform: "Bluesky", autoPublish: false }]);
     }
@@ -88,7 +87,12 @@ export const WorkflowsPanel: React.FC = () => {
     setTitle(wf.title);
     setInstructionPrompt(wf.instructionPrompt || "");
     setSelectedFeedIds(wf.sources.map((s) => s.feedSubscriptionId));
-    setDestinations(wf.destinations.map((d) => ({ platform: d.platform, autoPublish: d.autoPublish })));
+    setDestinations(wf.destinations.map((d) => ({
+      platform: d.platform,
+      autoPublish: d.autoPublish,
+      accountId: d.accountId ?? undefined,
+      accountHandle: d.accountHandle ?? undefined
+    })));
     setIsModalOpen(true);
   };
 
@@ -98,20 +102,23 @@ export const WorkflowsPanel: React.FC = () => {
     );
   };
 
-  const handleToggleDestination = (platform: string) => {
+  const handleToggleDestination = (platform: string, accountId?: string, accountHandle?: string) => {
     setDestinations((prev) => {
-      const exists = prev.some((d) => d.platform === platform);
+      const exists = prev.some((d) => accountId ? d.accountId === accountId : d.platform === platform);
       if (exists) {
-        return prev.filter((d) => d.platform !== platform);
+        return prev.filter((d) => accountId ? d.accountId !== accountId : d.platform !== platform);
       } else {
-        return [...prev, { platform, autoPublish: false }];
+        return [...prev, { platform, autoPublish: false, accountId, accountHandle }];
       }
     });
   };
 
-  const handleToggleAutoPublish = (platform: string) => {
+  const handleToggleAutoPublish = (platform: string, accountId?: string) => {
     setDestinations((prev) =>
-      prev.map((d) => (d.platform === platform ? { ...d, autoPublish: !d.autoPublish } : d))
+      prev.map((d) => {
+        const matches = accountId ? d.accountId === accountId : d.platform === platform;
+        return matches ? { ...d, autoPublish: !d.autoPublish } : d;
+      })
     );
   };
 
@@ -124,7 +131,7 @@ export const WorkflowsPanel: React.FC = () => {
       title: title.trim(),
       instructionPrompt: instructionPrompt.trim() || undefined,
       feedSubscriptionIds: selectedFeedIds,
-      destinations: destinations.map((d) => ({ platform: d.platform, autoPublish: d.autoPublish }))
+      destinations: destinations.map((d) => ({ platform: d.platform, autoPublish: d.autoPublish, accountId: d.accountId }))
     };
 
     try {
@@ -279,6 +286,7 @@ export const WorkflowsPanel: React.FC = () => {
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-bg border border-border text-[11px] text-foreground font-mono"
                           >
                             <span>{dest.platform}</span>
+                            {dest.accountHandle && <span className="opacity-75 font-mono text-[10px]">@{dest.accountHandle}</span>}
                             {dest.autoPublish && (
                               <span className="text-[8px] bg-accent/20 text-accent font-semibold px-1 py-0.2 rounded uppercase">
                                 Auto-Publish
@@ -298,15 +306,20 @@ export const WorkflowsPanel: React.FC = () => {
                     disabled={triggeringId === wf.id}
                     className="px-3 py-1 rounded-lg bg-panel border border-border hover:border-accent text-foreground text-xs font-mono flex items-center gap-1.5 transition disabled:opacity-50"
                   >
-                    <FontAwesomeIcon icon={faBolt} className="text-accent" spin={triggeringId === wf.id} />
-                    <span>{triggeringId === wf.id ? "Running..." : "Trigger"}</span>
+                    {triggeringId === wf.id ? (
+                      <FontAwesomeIcon icon={faSpinner} spin className="text-[10px]" />
+                    ) : (
+                      <FontAwesomeIcon icon={faBolt} className="text-[10px] text-accent" />
+                    )}
+                    <span>Trigger Now</span>
                   </button>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleOpenEditModal(wf)}
-                      className="px-2.5 py-1 rounded border border-border hover:bg-bg text-muted hover:text-foreground text-xs transition"
+                      className="px-2 py-1 rounded border border-border hover:border-accent text-muted hover:text-foreground text-xs transition"
+                      title="Edit workflow"
                     >
-                      Edit
+                      <FontAwesomeIcon icon={faEdit} />
                     </button>
                     <button
                       onClick={() => handleDelete(wf.id)}
@@ -409,40 +422,69 @@ export const WorkflowsPanel: React.FC = () => {
                     Publishing Destinations & Auto-Publish
                   </label>
                   <div className="space-y-2 bg-bg border border-border rounded-lg p-3">
-                    {activeAccountPlatforms.map((platform) => {
-                      const currentDest = destinations.find((d) => d.platform === platform);
-                      const isEnabled = !!currentDest;
-                      const isAutoPublish = currentDest?.autoPublish ?? false;
+                    {connectedAccounts.length > 0 ? (
+                      connectedAccounts.map((acc) => {
+                        const currentDest = destinations.find((d) => d.accountId === acc.id);
+                        const isEnabled = !!currentDest;
+                        const isAutoPublish = currentDest?.autoPublish ?? false;
 
-                      return (
-                        <div
-                          key={platform}
-                          className="flex justify-between items-center p-2 rounded-lg bg-panel border border-border/70"
-                        >
-                          <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={isEnabled}
-                              onChange={() => handleToggleDestination(platform)}
-                              className="rounded border-border text-accent bg-bg focus:ring-0"
-                            />
-                            <span className="text-xs text-foreground font-semibold">{platform}</span>
-                          </label>
-
-                          {isEnabled && (
-                            <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
+                        return (
+                          <div
+                            key={acc.id}
+                            className="flex justify-between items-center p-2 rounded-lg bg-panel border border-border/70"
+                          >
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
                               <input
                                 type="checkbox"
-                                checked={isAutoPublish}
-                                onChange={() => handleToggleAutoPublish(platform)}
+                                checked={isEnabled}
+                                onChange={() => handleToggleDestination(acc.platform, acc.id, acc.handle)}
                                 className="rounded border-border text-accent bg-bg focus:ring-0"
                               />
-                              <span className="text-[11px] text-muted font-mono">Auto-Publish</span>
+                              <span className="text-xs text-foreground font-semibold">{acc.platform}</span>
+                              <span className="text-[10px] text-muted font-mono">@{acc.handle}</span>
                             </label>
-                          )}
-                        </div>
-                      );
-                    })}
+
+                            {isEnabled && (
+                              <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked={isAutoPublish}
+                                  onChange={() => handleToggleAutoPublish(acc.platform, acc.id)}
+                                  className="rounded border-border text-accent bg-bg focus:ring-0"
+                                />
+                                <span className="text-[11px] text-muted font-mono">Auto-Publish</span>
+                              </label>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div
+                        key="Bluesky"
+                        className="flex justify-between items-center p-2 rounded-lg bg-panel border border-border/70"
+                      >
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={destinations.some((d) => d.platform === "Bluesky")}
+                            onChange={() => handleToggleDestination("Bluesky")}
+                            className="rounded border-border text-accent bg-bg focus:ring-0"
+                          />
+                          <span className="text-xs text-foreground font-semibold">Bluesky</span>
+                        </label>
+                        {destinations.some((d) => d.platform === "Bluesky") && (
+                          <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
+                            <input
+                              type="checkbox"
+                              checked={destinations.find((d) => d.platform === "Bluesky")?.autoPublish ?? false}
+                              onChange={() => handleToggleAutoPublish("Bluesky")}
+                              className="rounded border-border text-accent bg-bg focus:ring-0"
+                            />
+                            <span className="text-[11px] text-muted font-mono">Auto-Publish</span>
+                          </label>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

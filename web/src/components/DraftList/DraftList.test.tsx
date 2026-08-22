@@ -9,10 +9,6 @@ vi.mock("./useDraftListManager", () => ({
   useDraftListManager: () => mockUseDraftListManager(),
 }));
 
-vi.mock("../Settings/SettingsModal", () => ({
-  SettingsModal: () => <div data-testid="settings-modal" />,
-}));
-
 vi.mock("./CreateDraftModal", () => ({
   CreateDraftModal: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div data-testid="create-draft-modal" /> : null),
 }));
@@ -21,7 +17,6 @@ describe("DraftList", () => {
   const handleSelect = vi.fn();
   const archiveDraft = vi.fn();
   const unarchiveDraft = vi.fn();
-  const setSettingsOpen = vi.fn();
   const setEditingTitleId = vi.fn();
   const setEditTitleValue = vi.fn();
   const setShowArchived = vi.fn();
@@ -37,8 +32,6 @@ describe("DraftList", () => {
       activeDraftId: "draft-1",
       archiveDraft,
       unarchiveDraft,
-      settingsOpen: false,
-      setSettingsOpen,
       editingTitleId: null,
       setEditingTitleId,
       editTitleValue: "",
@@ -77,14 +70,12 @@ describe("DraftList", () => {
     fireEvent.doubleClick(screen.getByText("Active Draft"));
     fireEvent.click(screen.getByTitle("Archive Draft"));
     fireEvent.click(screen.getAllByTitle("Delete Draft")[0]);
-    fireEvent.click(screen.getByText("settings"));
     fireEvent.click(screen.getByText("new"));
 
     expect(handleSelect).toHaveBeenCalledWith("draft-1");
     expect(startEditTitle).toHaveBeenCalledWith("draft-1", "Active Draft");
     expect(archiveDraft).toHaveBeenCalledWith("draft-1");
     expect(handleDelete).toHaveBeenCalledWith("draft-1");
-    expect(setSettingsOpen).toHaveBeenCalledWith(true);
     expect(setCreateModalOpen).toHaveBeenCalledWith(true);
   });
 });
