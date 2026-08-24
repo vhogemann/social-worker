@@ -137,8 +137,6 @@ Safer update flow for running containers:
 
 This performs `docker compose down --remove-orphans` followed by `docker compose up -d --build`.
 
-For a UI walkthrough with screenshots, see [GETTING_STARTED.md](GETTING_STARTED.md).
-
 ### 2. Run Only (Prebuilt Images, No Local Build)
 
 If you just want to run the app and not develop it locally, use the prebuilt images:
@@ -253,8 +251,6 @@ SW_DB_SERVICE=db SW_DB_NAME=socialworker SW_DB_USER=postgres ./scripts/sql.sh -c
 
 ## Documentation
 
-- **Getting Started Guide**: [GETTING_STARTED.md](GETTING_STARTED.md)
-- **Regenerate Guide + Screenshots**: `./scripts/regenerate-getting-started.sh`
 - **Roadmap and plans**: [PLAN.md](PLAN.md)
 
 ---

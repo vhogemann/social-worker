@@ -122,7 +122,6 @@ services:
     volumes:
       - ./e2e/reports:/e2e/reports
       - ./e2e/screenshots:/e2e/screenshots
-      - ./e2e/output:/e2e/output
 
   web-test:
     image: node:22-alpine

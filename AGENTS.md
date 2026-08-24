@@ -179,11 +179,6 @@ DEMO_LLM_PROFILE=getting-started docker compose -f docker-compose.e2e.yml run --
 # run a single test file
 DEMO_LLM_PROFILE=getting-started docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test tests/chat.spec.ts
 
-# regenerate the getting-started guide
-docker compose -f docker-compose.e2e.yml build e2e
-DEMO_LLM_PROFILE=getting-started docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test tests/generate-getting-started.spec.ts
-cp e2e/output/GETTING_STARTED.md GETTING_STARTED.md
-
 # re-run without rebuilding
 DEMO_LLM_PROFILE=getting-started docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test
 ```

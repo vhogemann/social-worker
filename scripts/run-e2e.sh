@@ -19,7 +19,7 @@ Examples:
   ./scripts/run-e2e.sh
   ./scripts/run-e2e.sh tests/chat.spec.ts
   ./scripts/run-e2e.sh -- --grep "slash validate"
-  ./scripts/run-e2e.sh --build --keep-up tests/generate-getting-started.spec.ts
+  ./scripts/run-e2e.sh --build --keep-up tests/smoke.spec.ts
 EOF
 }
 
