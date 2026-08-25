@@ -144,6 +144,16 @@ services:
     profiles:
       - tooling
 
+  image-engine-test:
+    image: node:22-alpine
+    working_dir: /app
+    entrypoint: ["sh", "-lc"]
+    command: ["npm install && npm run test"]
+    volumes:
+      - ./image-engine:/app
+    profiles:
+      - tooling
+
   dotnet:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /src/SocialWorker.Api
