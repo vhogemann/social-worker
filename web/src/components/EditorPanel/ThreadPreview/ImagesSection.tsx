@@ -19,11 +19,11 @@ export const ImagesSection: React.FC<ImagesSectionProps> = ({ images, onRevert }
         const currentAlt = asset?.altText ?? img.alt ?? "";
 
         return (
-          <div key={img.id} className="mt-3 relative group/img rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
+          <div key={img.id} className="mt-3 relative group/img rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900">
             <img
               src={`/api/media/${img.id}`}
               alt={currentAlt}
-              className="max-h-72 w-full object-cover"
+              className="w-full h-auto max-h-[560px] object-cover block rounded-xl"
             />
             <AltTextEditor
               mediaId={img.id}
