@@ -83,8 +83,8 @@ export function AiTemplateGenerateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+      <div className="bg-panel border border-border rounded-lg shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] text-foreground">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-panel">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
             <span className="text-accent font-mono">✦</span> Generate Template with AI
           </h2>
@@ -97,9 +97,9 @@ export function AiTemplateGenerateModal({
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-panel">
           {error && (
-            <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-sm rounded">
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded">
               {error}
             </div>
           )}
@@ -113,7 +113,7 @@ export function AiTemplateGenerateModal({
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="e.g. Modern dark quote card with neon blue accents, elegant typography, author handle at the bottom, and high contrast."
               rows={3}
-              className="w-full bg-background border border-border rounded p-3 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent resize-none"
+              className="w-full bg-bg border border-border rounded p-3 text-xs text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent resize-none"
               disabled={isGenerating}
             />
           </div>
@@ -128,8 +128,8 @@ export function AiTemplateGenerateModal({
                 onClick={() => setAspectRatio("square")}
                 className={`px-3 py-2 border rounded text-xs font-mono transition-colors ${
                   aspectRatio === "square"
-                    ? "border-accent bg-accent/10 text-accent font-semibold"
-                    : "border-border text-muted hover:text-foreground hover:bg-muted/10"
+                    ? "border-accent bg-accent/20 text-accent font-semibold"
+                    : "border-border text-muted hover:text-foreground hover:bg-bg"
                 }`}
               >
                 Square (1:1 · 1080x1080)
@@ -139,8 +139,8 @@ export function AiTemplateGenerateModal({
                 onClick={() => setAspectRatio("portrait")}
                 className={`px-3 py-2 border rounded text-xs font-mono transition-colors ${
                   aspectRatio === "portrait"
-                    ? "border-accent bg-accent/10 text-accent font-semibold"
-                    : "border-border text-muted hover:text-foreground hover:bg-muted/10"
+                    ? "border-accent bg-accent/20 text-accent font-semibold"
+                    : "border-border text-muted hover:text-foreground hover:bg-bg"
                 }`}
               >
                 Portrait (4:5 · 1080x1350)
@@ -150,8 +150,8 @@ export function AiTemplateGenerateModal({
                 onClick={() => setAspectRatio("landscape")}
                 className={`px-3 py-2 border rounded text-xs font-mono transition-colors ${
                   aspectRatio === "landscape"
-                    ? "border-accent bg-accent/10 text-accent font-semibold"
-                    : "border-border text-muted hover:text-foreground hover:bg-muted/10"
+                    ? "border-accent bg-accent/20 text-accent font-semibold"
+                    : "border-border text-muted hover:text-foreground hover:bg-bg"
                 }`}
               >
                 Banner (16:9 · 1200x630)
@@ -160,7 +160,7 @@ export function AiTemplateGenerateModal({
           </div>
 
           {result && (
-            <div className="border border-border bg-background rounded-lg p-4 space-y-4">
+            <div className="border border-border bg-panel-light rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-sm text-foreground">{result.name}</h3>
@@ -168,13 +168,13 @@ export function AiTemplateGenerateModal({
                     <p className="text-xs text-muted mt-0.5">{result.description}</p>
                   )}
                 </div>
-                <span className="text-xs font-mono px-2 py-0.5 rounded bg-muted/20 text-muted">
+                <span className="text-xs font-mono px-2 py-0.5 rounded bg-bg text-muted border border-border">
                   {result.width}x{result.height}
                 </span>
               </div>
 
               {result.previewBase64 && (
-                <div className="flex justify-center bg-black/40 rounded p-2 border border-border/50">
+                <div className="flex justify-center bg-bg rounded p-2 border border-border">
                   <img
                     src={`data:image/png;base64,${result.previewBase64}`}
                     alt={result.name}
@@ -186,7 +186,7 @@ export function AiTemplateGenerateModal({
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-border bg-muted/5 flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-border bg-panel flex items-center justify-between">
           <button
             type="button"
             onClick={onClose}
@@ -201,7 +201,7 @@ export function AiTemplateGenerateModal({
                 <button
                   type="button"
                   onClick={() => onEditInStudio(result)}
-                  className="px-4 py-2 border border-border hover:bg-muted/20 rounded text-xs font-mono text-foreground"
+                  className="px-4 py-2 border border-border hover:bg-bg rounded text-xs font-mono text-foreground"
                 >
                   Edit in Studio
                 </button>

@@ -183,14 +183,14 @@ export function TemplateEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-card border border-border rounded-lg shadow-2xl w-full max-w-6xl h-[92vh] flex flex-col overflow-hidden">
+      <div className="bg-panel border border-border rounded-lg shadow-2xl w-full max-w-6xl h-[92vh] flex flex-col overflow-hidden text-foreground">
         {/* Header */}
-        <div className="px-6 py-3 border-b border-border flex items-center justify-between shrink-0">
+        <div className="px-6 py-3 border-b border-border flex items-center justify-between shrink-0 bg-panel">
           <div className="flex items-center gap-3">
             <h2 className="text-base font-semibold text-foreground">
               {(template as TemplateDto)?.id ? "Edit Template" : "Template Studio Editor"}
             </h2>
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-muted/20 text-muted">
+            <span className="text-xs font-mono px-2 py-0.5 rounded bg-bg text-muted border border-border">
               {width}x{height}
             </span>
           </div>
@@ -206,9 +206,9 @@ export function TemplateEditorModal({
         {/* Content Body: Split View */}
         <div className="flex-1 min-h-0 flex overflow-hidden">
           {/* Left Column: Schema & Metadata */}
-          <div className="w-1/2 border-r border-border p-5 flex flex-col overflow-y-auto space-y-4">
+          <div className="w-1/2 border-r border-border p-5 flex flex-col overflow-y-auto space-y-4 bg-panel">
             {error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-sm rounded shrink-0">
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded shrink-0">
                 {error}
               </div>
             )}
@@ -224,7 +224,7 @@ export function TemplateEditorModal({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Modern Quote Card"
-                  className="w-full bg-background border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent"
+                  className="w-full bg-bg border border-border rounded px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-accent"
                 />
               </div>
 
@@ -238,7 +238,7 @@ export function TemplateEditorModal({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g. High contrast square quote"
-                  className="w-full bg-background border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent"
+                  className="w-full bg-bg border border-border rounded px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-accent"
                 />
               </div>
             </div>
@@ -253,7 +253,7 @@ export function TemplateEditorModal({
                   type="number"
                   value={width}
                   onChange={(e) => setWidth(parseInt(e.target.value) || 1080)}
-                  className="w-full bg-background border border-border rounded px-3 py-1.5 text-sm text-foreground font-mono focus:outline-none focus:border-accent"
+                  className="w-full bg-bg border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:border-accent"
                 />
               </div>
 
@@ -266,7 +266,7 @@ export function TemplateEditorModal({
                   type="number"
                   value={height}
                   onChange={(e) => setHeight(parseInt(e.target.value) || 1080)}
-                  className="w-full bg-background border border-border rounded px-3 py-1.5 text-sm text-foreground font-mono focus:outline-none focus:border-accent"
+                  className="w-full bg-bg border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:border-accent"
                 />
               </div>
             </div>
@@ -290,14 +290,14 @@ export function TemplateEditorModal({
                 value={schemaJson}
                 onChange={(e) => setSchemaJson(e.target.value)}
                 rows={16}
-                className="flex-1 w-full bg-background/80 border border-border rounded p-3 font-mono text-xs text-foreground focus:outline-none focus:border-accent resize-none leading-relaxed"
+                className="flex-1 w-full bg-bg border border-border rounded p-3 font-mono text-xs text-foreground focus:outline-none focus:border-accent resize-none leading-relaxed"
                 spellCheck={false}
               />
             </div>
           </div>
 
           {/* Right Column: Live Render Canvas & Slot Test Values */}
-          <div className="w-1/2 p-5 flex flex-col overflow-y-auto bg-muted/5 space-y-4">
+          <div className="w-1/2 p-5 flex flex-col overflow-y-auto bg-panel-light space-y-4">
             <div className="flex items-center justify-between shrink-0">
               <span className="text-xs font-mono uppercase tracking-wider text-muted">
                 Live Test Render
@@ -306,20 +306,20 @@ export function TemplateEditorModal({
                 type="button"
                 onClick={handleRenderPreview}
                 disabled={isRendering}
-                className="px-3 py-1 bg-muted/20 hover:bg-muted/30 border border-border text-foreground text-xs font-mono rounded flex items-center gap-1.5 disabled:opacity-50"
+                className="px-3 py-1 bg-panel hover:bg-bg border border-border text-foreground text-xs font-mono rounded flex items-center gap-1.5 disabled:opacity-50"
               >
                 {isRendering ? <span className="animate-spin">⟳</span> : "⟳"} Refresh Preview
               </button>
             </div>
 
             {renderError && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs font-mono rounded shrink-0">
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono rounded shrink-0">
                 {renderError}
               </div>
             )}
 
             {/* Preview Viewport */}
-            <div className="flex-1 flex items-center justify-center bg-black/50 border border-border rounded-lg p-3 min-h-[320px] overflow-hidden">
+            <div className="flex-1 flex items-center justify-center bg-bg border border-border rounded-lg p-3 min-h-[320px] overflow-hidden">
               {previewBlobUrl ? (
                 <img
                   src={previewBlobUrl}
@@ -335,7 +335,7 @@ export function TemplateEditorModal({
 
             {/* Interactive Slot Value Test Inputs */}
             {Object.keys(slotInputs).length > 0 && (
-              <div className="border border-border bg-card rounded-lg p-3 space-y-2 shrink-0">
+              <div className="border border-border bg-panel rounded-lg p-3 space-y-2 shrink-0">
                 <span className="text-xs font-mono uppercase text-muted block mb-1 font-semibold">
                   Test Slot Values
                 </span>
@@ -349,7 +349,7 @@ export function TemplateEditorModal({
                         type="text"
                         value={slotVal}
                         onChange={(e) => setSlotInputs({ ...slotInputs, [slotKey]: e.target.value })}
-                        className="flex-1 bg-background border border-border rounded px-2 py-1 text-xs text-foreground font-mono focus:outline-none focus:border-accent"
+                        className="flex-1 bg-bg border border-border rounded px-2 py-1 text-xs text-foreground font-mono focus:outline-none focus:border-accent"
                       />
                     </div>
                   ))}
@@ -360,7 +360,7 @@ export function TemplateEditorModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-border bg-muted/5 flex items-center justify-between shrink-0">
+        <div className="px-6 py-3 border-t border-border bg-panel flex items-center justify-between shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -373,7 +373,7 @@ export function TemplateEditorModal({
               type="button"
               onClick={handleRenderPreview}
               disabled={isRendering}
-              className="px-4 py-2 border border-border hover:bg-muted/20 rounded text-xs font-mono text-foreground"
+              className="px-4 py-2 border border-border hover:bg-bg rounded text-xs font-mono text-foreground"
             >
               Test Render
             </button>

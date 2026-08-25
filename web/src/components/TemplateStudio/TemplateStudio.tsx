@@ -111,7 +111,7 @@ export function TemplateStudio() {
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-background overflow-y-auto">
+    <div className="flex-1 min-h-0 flex flex-col bg-bg overflow-y-auto text-foreground">
       {/* Top action bar */}
       <div className="px-8 py-6 border-b border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
@@ -127,14 +127,14 @@ export function TemplateStudio() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search templates..."
-            className="bg-card border border-border rounded px-3 py-1.5 text-xs text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent w-full md:w-56"
+            className="bg-panel border border-border rounded px-3 py-1.5 text-xs text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent w-full md:w-56"
           />
 
           <button
             type="button"
             onClick={handleRestoreDefaults}
             disabled={isRestoring}
-            className="px-3 py-1.5 border border-border hover:bg-muted/20 text-muted hover:text-foreground text-xs font-mono rounded shrink-0 transition-colors"
+            className="px-3 py-1.5 border border-border hover:bg-panel text-muted hover:text-foreground text-xs font-mono rounded shrink-0 transition-colors"
             title="Restore missing default templates"
           >
             {isRestoring ? "Restoring..." : "Restore Defaults"}
@@ -164,7 +164,7 @@ export function TemplateStudio() {
       {/* Main Grid View */}
       <div className="p-8 flex-1">
         {error && (
-          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 text-destructive text-sm rounded">
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded">
             {error}
           </div>
         )}
@@ -174,7 +174,7 @@ export function TemplateStudio() {
             Loading templates...
           </div>
         ) : templates.length === 0 ? (
-          <div className="border border-dashed border-border rounded-xl p-16 text-center max-w-lg mx-auto">
+          <div className="border border-dashed border-border rounded-xl p-16 text-center max-w-lg mx-auto bg-panel">
             <p className="text-sm text-foreground font-semibold">No templates found</p>
             <p className="text-xs text-muted mt-1 mb-4">
               Get started by creating a new template, generating one with AI, or restoring defaults.
@@ -183,7 +183,7 @@ export function TemplateStudio() {
               <button
                 type="button"
                 onClick={handleRestoreDefaults}
-                className="px-3 py-1.5 border border-border text-xs font-mono rounded hover:bg-muted/10"
+                className="px-3 py-1.5 border border-border text-xs font-mono rounded hover:bg-bg"
               >
                 Restore Defaults
               </button>
@@ -203,7 +203,7 @@ export function TemplateStudio() {
               return (
                 <div
                   key={t.id}
-                  className="bg-card border border-border rounded-xl overflow-hidden shadow-sm hover:border-accent/50 transition-all flex flex-col group"
+                  className="bg-panel border border-border rounded-xl overflow-hidden shadow-sm hover:border-accent/50 transition-all flex flex-col group"
                 >
                   {/* Card Thumbnail Preview */}
                   <div className="relative aspect-video bg-black/60 flex items-center justify-center overflow-hidden border-b border-border/60">
