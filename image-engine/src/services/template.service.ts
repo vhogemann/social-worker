@@ -18,24 +18,25 @@ export function initFonts() {
     }
   }
 
-  try {
-    const interPkg = require.resolve('@fontsource/inter/package.json');
-    const interFiles = path.join(path.dirname(interPkg), 'files');
-    if (fs.existsSync(interFiles)) {
-      GlobalFonts.loadFontsFromDir(interFiles);
-    }
-  } catch {
-    // Fallback
-  }
+  const searchAssetDirs = [
+    path.resolve(process.cwd(), 'assets/fonts'),
+    path.resolve(process.cwd(), 'dist/assets/fonts'),
+    path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../assets/fonts'),
+  ];
 
-  try {
-    const monoPkg = require.resolve('@fontsource/jetbrains-mono/package.json');
-    const monoFiles = path.join(path.dirname(monoPkg), 'files');
-    if (fs.existsSync(monoFiles)) {
-      GlobalFonts.loadFontsFromDir(monoFiles);
+  for (const assetDir of searchAssetDirs) {
+    if (fs.existsSync(assetDir)) {
+      const interPath = path.join(assetDir, 'Inter-Variable.ttf');
+      if (fs.existsSync(interPath)) {
+        GlobalFonts.registerFromPath(interPath, 'Inter');
+      }
+
+      const monoPath = path.join(assetDir, 'JetBrainsMono-Variable.ttf');
+      if (fs.existsSync(monoPath)) {
+        GlobalFonts.registerFromPath(monoPath, 'JetBrains Mono');
+      }
+      break;
     }
-  } catch {
-    // Fallback
   }
 }
 

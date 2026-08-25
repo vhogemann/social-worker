@@ -1,12 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
+import fs from 'fs';
+import path from 'path';
+import { createRequire } from 'module';
 import { GlobalFonts } from '@napi-rs/canvas';
 import { renderTemplate } from '../src/services/template.service.js';
 import { Template } from '../src/types/schema.js';
 
+const require = createRequire(import.meta.url);
+
 describe('Template Rendering Service', () => {
-  it('checks available fonts and verifies text pixels are rendered', async () => {
-    expect(GlobalFonts.families.length).toBeGreaterThan(0);
+  it('registers Inter and JetBrains Mono fonts and renders unicode text', async () => {
+    const families = GlobalFonts.families.map((f) => f.family);
+    expect(families.some((f) => f.includes('Inter'))).toBe(true);
 
     const blankTemplate: Template = {
       name: 'blank',
@@ -28,12 +34,11 @@ describe('Template Rendering Service', () => {
     };
 
     const blankBuf = await renderTemplate(blankTemplate, {});
-    const textBuf = await renderTemplate(textTemplate, { t: 'TEST' });
+    const textBuf = await renderTemplate(textTemplate, { t: 'Somewhere, something incredible — Carl Sagan' });
 
     const blankRaw = await sharp(blankBuf).raw().toBuffer();
     const textRaw = await sharp(textBuf).raw().toBuffer();
 
-    // Text buffer must have white pixels (different from pure black canvas)
     expect(blankRaw.equals(textRaw)).toBe(false);
   });
 
