@@ -51,12 +51,12 @@ describe("BrandVoicesTab", () => {
     expect(await screen.findByText("Failed to load brand voices")).toBeInTheDocument();
   });
 
-  it("shows add form when clicking Add button", async () => {
+  it("shows add modal when clicking New Voice button", async () => {
     render(<BrandVoicesTab />);
-    await screen.findByRole("button", { name: /new voice/i });
+    const buttons = await screen.findAllByRole("button", { name: /new voice/i });
+    fireEvent.click(buttons[0]);
 
-    fireEvent.click(screen.getByRole("button", { name: /new voice/i }));
-
+    expect(screen.getByText("New Brand Voice")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("e.g. Friendly & Informal")).toBeInTheDocument();
   });
 
@@ -68,8 +68,8 @@ describe("BrandVoicesTab", () => {
     mockCreateBrandVoice.mockResolvedValueOnce(newVoice);
     render(<BrandVoicesTab />);
 
-    await screen.findByRole("button", { name: /new voice/i });
-    fireEvent.click(screen.getByRole("button", { name: /new voice/i }));
+    const buttons = await screen.findAllByRole("button", { name: /new voice/i });
+    fireEvent.click(buttons[0]);
 
     await userEvent.type(screen.getByPlaceholderText("e.g. Friendly & Informal"), "Casual");
     await userEvent.type(screen.getByPlaceholderText(/write in a relaxed/i), "Write casually.");
@@ -89,8 +89,8 @@ describe("BrandVoicesTab", () => {
     mockDeleteBrandVoice.mockResolvedValueOnce(undefined);
     render(<BrandVoicesTab />);
 
-    await screen.findByText("Tech Writer");
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByText("Tech Writer")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /delete/i }));
 
     await waitFor(() => expect(mockDeleteBrandVoice).toHaveBeenCalledWith("bv1"));
     await waitFor(() => expect(screen.queryByText("Tech Writer")).not.toBeInTheDocument());
@@ -104,8 +104,9 @@ describe("BrandVoicesTab", () => {
     mockUpdateBrandVoice.mockResolvedValueOnce(undefined);
     render(<BrandVoicesTab />);
 
-    await screen.findByText("Casual");
-    fireEvent.click(screen.getAllByRole("button", { name: "Set Default" })[0]);
+    expect(await screen.findByText("Casual")).toBeInTheDocument();
+    const setDefBtns = screen.getAllByRole("button", { name: /set default/i });
+    fireEvent.click(setDefBtns[0]);
 
     await waitFor(() => expect(mockUpdateBrandVoice).toHaveBeenCalledWith("bv1", expect.objectContaining({ isDefault: true })));
   });

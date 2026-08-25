@@ -11,6 +11,7 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Chat.Models;
 using SocialWorker.Api.Features.Chat.Services;
+using SocialWorker.Api.Features.Drafts;
 
 namespace SocialWorker.Api.Features.Feeds;
 
@@ -148,6 +149,9 @@ public class FeedThreadGenerationService
             finalDraft.Status = DraftStatus.Editing;
             await _db.SaveChangesAsync(ct);
 
+            draft.Content = finalDraft.Content;
+            draft.Status = finalDraft.Status;
+
             return true;
         }
         catch (Exception ex)
@@ -167,16 +171,21 @@ public class FeedThreadGenerationService
     {
         try
         {
+            // Ensure fresh canonical draft content is loaded
+            var freshCanonical = await _db.Drafts
+                .FirstOrDefaultAsync(d => d.Id == canonicalDraft.Id, ct) ?? canonicalDraft;
+
             Enum.TryParse<SocialPlatform>(destination.Platform, true, out var platform);
 
             var variantDraft = new Draft
             {
-                Title = $"{canonicalDraft.Title} ({destination.Platform})",
+                Title = $"{freshCanonical.Title} ({destination.Platform})",
+                Content = freshCanonical.Content,
                 Status = DraftStatus.Formatting,
                 UserId = userId,
                 TargetPlatform = platform,
-                CanonicalDraftId = canonicalDraft.Id,
-                AutomationWorkflowId = canonicalDraft.AutomationWorkflowId,
+                CanonicalDraftId = freshCanonical.Id,
+                AutomationWorkflowId = freshCanonical.AutomationWorkflowId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -189,24 +198,40 @@ public class FeedThreadGenerationService
                 DraftId = variantDraft.Id,
                 Platform = destination.Platform,
                 Stage = PlatformThreadStage.Draft,
-                Content = canonicalDraft.Content ?? string.Empty
+                Content = freshCanonical.Content ?? string.Empty
             };
             _db.PlatformThreads.Add(thread);
 
             // Copy canonical segments to variant
             var canonicalSegments = await _db.ThreadSegments
-                .Where(s => s.DraftId == canonicalDraft.Id)
+                .Where(s => s.DraftId == freshCanonical.Id)
                 .OrderBy(s => s.Position)
                 .ToListAsync(ct);
 
-            foreach (var seg in canonicalSegments)
+            if (canonicalSegments.Count > 0)
             {
-                _db.ThreadSegments.Add(new ThreadSegment
+                foreach (var seg in canonicalSegments)
                 {
-                    DraftId = variantDraft.Id,
-                    Position = seg.Position,
-                    Content = seg.Content
-                });
+                    _db.ThreadSegments.Add(new ThreadSegment
+                    {
+                        DraftId = variantDraft.Id,
+                        Position = seg.Position,
+                        Content = seg.Content
+                    });
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(freshCanonical.Content))
+            {
+                var segments = DraftSegmentService.SplitMarkdownIntoSegments(freshCanonical.Content);
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    _db.ThreadSegments.Add(new ThreadSegment
+                    {
+                        DraftId = variantDraft.Id,
+                        Position = i,
+                        Content = segments[i]
+                    });
+                }
             }
 
             variantDraft.Status = DraftStatus.Editing;

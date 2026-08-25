@@ -89,11 +89,11 @@ export function useProvidersManager() {
     setError(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<boolean> => {
     e.preventDefault();
     if (!name.trim() || !baseUrl.trim() || !model.trim()) {
       setError("Name, Base URL, and Model are required.");
-      return;
+      return false;
     }
 
     setLoading(true);
@@ -133,8 +133,10 @@ export function useProvidersManager() {
       setTestResult(null);
 
       await fetchProviders();
+      return true;
     } catch (err: any) {
       setError(err.message || "Failed to save provider");
+      return false;
     } finally {
       setLoading(false);
     }

@@ -9,7 +9,7 @@ using SocialWorker.Api.Features.Publishing.Validation;
 
 namespace SocialWorker.Api.Features.Publishing.Bluesky.Validation;
 
-public sealed class BlueskyDraftValidator
+public sealed class BlueskyDraftValidator : IDraftValidator
 {
     private readonly BlueskyContentValidator _contentValidator;
     private readonly IReadOnlyList<IValidateDraftRule<BlueskySegmentValidation>> _rules;

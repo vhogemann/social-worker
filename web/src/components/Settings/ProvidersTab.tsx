@@ -1,4 +1,20 @@
+import { useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faPlus,
+  faMicrochip,
+  faPen,
+  faTrashCan,
+  faVial,
+  faStar,
+  faPowerOff,
+  faCheck,
+} from "@fortawesome/free-solid-svg-icons";
 import { useProvidersManager } from "./useProvidersManager";
+import { Modal } from "../common/Modal";
+import { SettingsSection } from "./common/SettingsSection";
+import { SettingsEmptyState } from "./common/SettingsEmptyState";
+import { SettingsAlert } from "./common/SettingsAlert";
 
 export function ProvidersTab() {
   const {
@@ -29,112 +45,173 @@ export function ProvidersTab() {
     handleTestConnection,
     handleToggleActive,
     handleSetDefault,
-    handleDelete
+    handleDelete,
   } = useProvidersManager();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const confirmDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this provider?")) return;
     await handleDelete(id);
   };
 
+  const handleOpenAdd = () => {
+    handleCancelEdit();
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (p: Parameters<typeof handleStartEdit>[0]) => {
+    handleStartEdit(p);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    if (loading || testing) return;
+    setIsModalOpen(false);
+    handleCancelEdit();
+  };
+
+  const onFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = await handleSubmit(e);
+    if (success) {
+      setIsModalOpen(false);
+    }
+  };
+
   return (
     <div className="space-y-6 font-sans">
-      {error && (
-        <div className="p-3 bg-red-950/40 border border-red-800 text-red-400 text-xs rounded font-mono">
-          {error}
-        </div>
+      {error && !isModalOpen && (
+        <SettingsAlert type="error" message={error} onDismiss={() => setError(null)} />
       )}
 
-      <div className="bg-bg/40 border border-border rounded overflow-hidden">
-        <div className="px-4 py-3 border-b border-border bg-bg/20">
-          <h3 className="text-xs font-mono uppercase tracking-wider text-muted">
-            configured llm providers
-          </h3>
-        </div>
-        <div className="divide-y divide-border">
-          {providers.map((p) => (
-            <div key={p.id} className="p-4 flex items-center justify-between hover:bg-bg/20 transition-colors">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">{p.name}</span>
-                  {p.isDefault && (
-                    <span className="bg-accent/15 text-accent border border-accent/30 text-[10px] font-mono px-1.5 py-0.5 rounded uppercase tracking-wider">
-                      default
+      <SettingsSection
+        title="Configured LLM Providers"
+        description="Manage AI models and endpoints used for drafting, brainstorming, and workflow automation."
+        action={
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="inline-flex items-center gap-1.5 bg-accent text-bg font-medium text-xs py-1.5 px-3.5 rounded hover:opacity-90 transition-opacity font-mono uppercase tracking-wider shadow-sm"
+          >
+            <FontAwesomeIcon icon={faPlus} className="w-3 h-3" />
+            <span>Add Provider</span>
+          </button>
+        }
+      >
+        {loading && providers.length === 0 ? (
+          <div className="p-6 text-center text-xs text-muted font-mono">
+            Loading LLM providers...
+          </div>
+        ) : providers.length === 0 ? (
+          <SettingsEmptyState
+            icon={faMicrochip}
+            title="No LLM providers configured"
+            description="Add an OpenRouter or local Ollama provider to power AI text generation and thread workflows."
+            actionLabel="+ Add Provider"
+            onAction={handleOpenAdd}
+          />
+        ) : (
+          <div className="space-y-2.5">
+            {providers.map((p) => (
+              <div
+                key={p.id}
+                className="p-4 border border-border bg-bg/20 rounded-lg hover:border-border/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
+              >
+                <div className="space-y-1.5 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-foreground">{p.name}</span>
+                    {p.isDefault && (
+                      <span className="text-[10px] font-mono uppercase tracking-wider bg-accent/15 text-accent border border-accent/30 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                        <FontAwesomeIcon icon={faStar} className="w-2.5 h-2.5" />
+                        <span>Default</span>
+                      </span>
+                    )}
+                    <span
+                      className={`text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                        p.isActive
+                          ? "bg-green-950/30 border-green-800/40 text-green-400"
+                          : "bg-border/20 border-border text-muted"
+                      }`}
+                    >
+                      {p.isActive ? "active" : "inactive"}
                     </span>
-                  )}
-                  {!p.isActive && (
-                    <span className="bg-muted/10 text-muted border border-muted/20 text-[10px] font-mono px-1.5 py-0.5 rounded uppercase tracking-wider">
-                      inactive
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-muted font-mono space-y-0.5">
-                  <div>Type: <span className="text-foreground">{p.providerType}</span></div>
-                  <div className="truncate max-w-lg">Base URL: <span className="text-foreground">{p.baseUrl}</span></div>
-                  <div>Model: <span className="text-foreground">{p.model}</span></div>
-                  <div>Context Window: <span className="text-foreground">{p.contextWindowTokens ? p.contextWindowTokens.toLocaleString() : "unknown"}</span></div>
-                  <div>Key Configured: <span className="text-foreground">{p.apiKeySet ? "Yes" : "No"}</span></div>
-                  <div className="flex gap-2.5 mt-1">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono uppercase tracking-wider ${p.supportsVision ? 'bg-indigo-950/30 text-indigo-400 border border-indigo-900/30' : 'bg-zinc-950/30 text-zinc-500 border border-zinc-900/30'}`}>
-                      vision: {p.supportsVision ? 'yes' : 'no'}
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono uppercase tracking-wider ${p.supportsTools ? 'bg-indigo-950/30 text-indigo-400 border border-indigo-900/30' : 'bg-zinc-950/30 text-zinc-500 border border-zinc-900/30'}`}>
-                      tools: {p.supportsTools ? 'yes' : 'no'}
+                    <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-panel border border-border text-muted">
+                      {p.providerType}
                     </span>
                   </div>
+
+                  <div className="text-xs text-muted font-mono flex items-center gap-3 flex-wrap">
+                    <span className="text-foreground/90 font-medium">{p.model}</span>
+                    <span>•</span>
+                    <span className="truncate max-w-xs">{p.baseUrl}</span>
+                    {p.contextWindowTokens && (
+                      <>
+                        <span>•</span>
+                        <span>{p.contextWindowTokens.toLocaleString()} tokens</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                  {!p.isDefault && (
+                    <button
+                      onClick={() => handleSetDefault(p)}
+                      title="Set as system default provider"
+                      className="px-2.5 py-1 text-[11px] font-mono border border-border text-muted hover:text-foreground hover:bg-border/20 rounded uppercase tracking-wider transition-colors inline-flex items-center gap-1"
+                    >
+                      <FontAwesomeIcon icon={faCheck} className="w-2.5 h-2.5" />
+                      <span>make default</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleToggleActive(p)}
+                    disabled={p.isDefault}
+                    className={`px-2.5 py-1 text-[11px] font-mono border rounded uppercase tracking-wider transition-colors disabled:opacity-50 inline-flex items-center gap-1 ${
+                      p.isActive
+                        ? "border-amber-900/30 text-amber-400 hover:bg-amber-950/20"
+                        : "border-green-900/30 text-green-400 hover:bg-green-950/20"
+                    }`}
+                  >
+                    <FontAwesomeIcon icon={faPowerOff} className="w-2.5 h-2.5" />
+                    <span>{p.isActive ? "deactivate" : "activate"}</span>
+                  </button>
+                  <button
+                    onClick={() => handleOpenEdit(p)}
+                    className="px-2.5 py-1 text-[11px] font-mono border border-border text-muted hover:text-foreground hover:bg-border/20 rounded uppercase tracking-wider transition-colors inline-flex items-center gap-1"
+                  >
+                    <FontAwesomeIcon icon={faPen} className="w-2.5 h-2.5" />
+                    <span>edit</span>
+                  </button>
+                  <button
+                    onClick={() => { void confirmDelete(p.id); }}
+                    disabled={p.isDefault}
+                    className="px-2.5 py-1 text-[11px] font-mono border border-red-900/30 text-red-400 hover:text-red-300 hover:bg-red-950/20 rounded uppercase tracking-wider transition-colors disabled:opacity-50 inline-flex items-center gap-1"
+                  >
+                    <FontAwesomeIcon icon={faTrashCan} className="w-2.5 h-2.5" />
+                    <span>delete</span>
+                  </button>
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+      </SettingsSection>
 
-              <div className="flex items-center gap-2">
-                {!p.isDefault && (
-                  <button
-                    onClick={() => handleSetDefault(p)}
-                    className="px-2.5 py-1 text-[11px] font-mono border border-border text-muted hover:text-foreground hover:bg-border/20 rounded uppercase tracking-wider transition-colors"
-                  >
-                    make default
-                  </button>
-                )}
-                <button
-                  onClick={() => handleToggleActive(p)}
-                  disabled={p.isDefault}
-                  className={`px-2.5 py-1 text-[11px] font-mono border rounded uppercase tracking-wider transition-colors disabled:opacity-50 ${
-                    p.isActive
-                      ? "border-amber-900/30 text-amber-400 hover:bg-amber-950/20"
-                      : "border-green-900/30 text-green-400 hover:bg-green-950/20"
-                  }`}
-                >
-                  {p.isActive ? "deactivate" : "activate"}
-                </button>
-                <button
-                  onClick={() => handleStartEdit(p)}
-                  className="px-2.5 py-1 text-[11px] font-mono border border-border text-muted hover:text-foreground hover:bg-border/20 rounded uppercase tracking-wider transition-colors"
-                >
-                  edit
-                </button>
-                <button
-                  onClick={() => { void confirmDelete(p.id); }}
-                  disabled={p.isDefault}
-                  className="px-2.5 py-1 text-[11px] font-mono border border-red-900/30 text-red-400 hover:text-red-300 hover:bg-red-950/20 rounded uppercase tracking-wider transition-colors disabled:opacity-50"
-                >
-                  delete
-                </button>
-              </div>
-            </div>
-          ))}
-          {providers.length === 0 && (
-            <div className="p-6 text-center text-xs text-muted font-mono">
-              No LLM providers configured.
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Provider Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        title={editingId ? `Edit AI Provider: ${providers.find((p) => p.id === editingId)?.name || ""}` : "Add AI Provider"}
+        description="Configure an OpenAI-compatible API endpoint, local Ollama instance, or OpenRouter model."
+        maxWidth="lg"
+      >
+        {error && (
+          <SettingsAlert type="error" message={error} onDismiss={() => setError(null)} />
+        )}
 
-      <div className="bg-bg/40 border border-border p-4 rounded">
-        <h3 className="text-xs font-mono uppercase tracking-wider text-muted mb-3">
-          {editingId ? `edit ai provider: ${providers.find(p => p.id === editingId)?.name}` : "add new ai provider"}
-        </h3>
-
-        <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
+        <form onSubmit={onFormSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1">
               Provider Name
@@ -145,11 +222,11 @@ export function ProvidersTab() {
               onChange={(e) => setName(e.target.value)}
               disabled={loading}
               placeholder="e.g. OpenRouter Claude"
-              className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
+              className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1">
                 Provider Type
@@ -158,7 +235,7 @@ export function ProvidersTab() {
                 value={providerType}
                 onChange={(e) => handleTypeChange(e.target.value)}
                 disabled={loading}
-                className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
+                className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
               >
                 <option value="OpenRouter">OpenRouter</option>
                 <option value="Ollama">Ollama</option>
@@ -172,11 +249,14 @@ export function ProvidersTab() {
               <input
                 type="text"
                 value={model}
-                onChange={(e) => { setModel(e.target.value); setTestResult(null); }}
+                onChange={(e) => {
+                  setModel(e.target.value);
+                  setTestResult(null);
+                }}
                 disabled={loading}
                 placeholder="e.g. anthropic/claude-3.5-sonnet"
                 list="models-list"
-                className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
+                className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
               />
               <datalist id="models-list">
                 {suggestedModels.map((m) => (
@@ -195,9 +275,9 @@ export function ProvidersTab() {
               value={contextWindowTokens}
               onChange={(e) => setContextWindowTokens(e.target.value)}
               disabled={loading}
-              placeholder="Leave blank to infer"
+              placeholder="Leave blank to infer automatically"
               min="1"
-              className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
+              className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
             />
           </div>
 
@@ -208,9 +288,12 @@ export function ProvidersTab() {
             <input
               type="text"
               value={baseUrl}
-              onChange={(e) => { setBaseUrl(e.target.value); setTestResult(null); }}
+              onChange={(e) => {
+                setBaseUrl(e.target.value);
+                setTestResult(null);
+              }}
               disabled={loading}
-              className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-mono"
+              className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-mono"
             />
           </div>
 
@@ -222,53 +305,56 @@ export function ProvidersTab() {
               <input
                 type="password"
                 value={apiKey}
-                onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
+                onChange={(e) => {
+                  setApiKey(e.target.value);
+                  setTestResult(null);
+                }}
                 disabled={loading}
-                placeholder="Write-only API key"
-                className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
+                placeholder={editingId ? "Leave blank to keep existing key" : "Write-only API key"}
+                className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
               />
             </div>
           )}
 
           {testResult && (
-            <div className={`p-3 border text-xs rounded font-mono ${
-              testResult.success
-                ? "bg-green-950/20 border-green-800 text-green-400"
-                : "bg-red-950/20 border-red-900/40 text-red-400"
-            }`}>
-              {testResult.message}
-            </div>
+            <SettingsAlert
+              type={testResult.success ? "success" : "error"}
+              message={testResult.message}
+              onDismiss={() => setTestResult(null)}
+            />
           )}
 
-          <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={loading || testing}
-              className="bg-accent text-bg font-medium text-xs py-1.5 px-4 rounded hover:opacity-90 transition-opacity disabled:opacity-50 font-mono uppercase tracking-wider"
-            >
-              {loading ? "saving..." : (editingId ? "save changes" : "add provider")}
-            </button>
-            {editingId && (
-              <button
-                type="button"
-                onClick={handleCancelEdit}
-                disabled={loading || testing}
-                className="border border-border text-foreground font-medium text-xs py-1.5 px-4 rounded hover:bg-border/20 transition-colors disabled:opacity-50 font-mono uppercase tracking-wider"
-              >
-                cancel
-              </button>
-            )}
+          <div className="flex items-center justify-between gap-3 pt-3 border-t border-border flex-wrap">
             <button
               type="button"
               onClick={handleTestConnection}
               disabled={loading || testing}
-              className="border border-border text-foreground font-medium text-xs py-1.5 px-4 rounded hover:bg-border/20 transition-colors disabled:opacity-50 font-mono uppercase tracking-wider"
+              className="border border-border text-foreground font-medium text-xs py-2 px-3.5 rounded-lg hover:bg-border/20 transition-colors disabled:opacity-50 font-mono uppercase tracking-wider inline-flex items-center gap-1.5"
             >
-              {testing ? "testing..." : "test connection"}
+              <FontAwesomeIcon icon={faVial} className="w-3 h-3 text-accent" />
+              <span>{testing ? "testing..." : "test connection"}</span>
             </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                disabled={loading || testing}
+                className="border border-border text-foreground font-medium text-xs py-2 px-4 rounded-lg hover:bg-border/20 transition-colors disabled:opacity-50 font-mono uppercase tracking-wider"
+              >
+                cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading || testing}
+                className="bg-accent text-bg font-medium text-xs py-2 px-4 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 font-mono uppercase tracking-wider shadow-sm"
+              >
+                {loading ? "saving..." : editingId ? "save changes" : "add provider"}
+              </button>
+            </div>
           </div>
         </form>
-      </div>
+      </Modal>
     </div>
   );
 }

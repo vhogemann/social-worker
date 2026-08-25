@@ -39,9 +39,9 @@ public sealed class ValidateDraftToolTests : IDisposable
         _connection.Dispose();
     }
 
-    private static BlueskyDraftValidator CreateValidator()
+    private static IDraftValidatorResolver CreateResolver()
     {
-        return new BlueskyDraftValidator(
+        var blueskyValidator = new BlueskyDraftValidator(
             new BlueskyContentValidator(),
             new IValidateDraftRule<BlueskySegmentValidation>[]
             {
@@ -56,10 +56,16 @@ public sealed class ValidateDraftToolTests : IDisposable
                 new BlueskyYouTubeEmbedSyntaxRule(),
                 new BlueskyTitleLikeOpenerRule()
             });
+
+        return new DraftValidatorResolver(
+            new CanonicalDraftValidator(),
+            blueskyValidator,
+            new SocialWorker.Api.Features.Publishing.LinkedIn.LinkedInDraftValidator(),
+            new PlatformContentPolicy());
     }
 
     [Fact]
-    public async Task ExecuteAsync_Returns_Validation_Report_With_Errors_And_Warnings()
+    public async Task ExecuteAsync_Returns_Validation_Report_With_Errors_And_Warnings_For_Bluesky()
     {
         using var db = new AppDbContext(_options);
         var userId = Guid.NewGuid();
@@ -72,6 +78,7 @@ public sealed class ValidateDraftToolTests : IDisposable
             Id = Guid.NewGuid(),
             UserId = userId,
             Title = "Draft",
+            TargetPlatform = SocialPlatform.Bluesky,
             Content = $"This is post 1. Valid.\n---\nThis is post 2 with an image: ![](media://{mediaId}) and a youtube link https://youtube.com/watch?v=123. It also has a lot of text repeating so that it easily goes over the 300 characters limit. Let's repeat: It also has a lot of text repeating so that it easily goes over the 300 characters limit. Let's repeat again: It also has a lot of text repeating so that it easily goes over the 300 characters limit."
         };
         var asset = new MediaAsset
@@ -88,7 +95,7 @@ public sealed class ValidateDraftToolTests : IDisposable
         db.MediaAssets.Add(asset);
         await db.SaveChangesAsync();
 
-        var tool = new ValidateDraftTool(db, CreateValidator());
+        var tool = new ValidateDraftTool(db, CreateResolver());
         var report = await tool.ExecuteAsync(new ValidateDraftArgs(null), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draft.Id));
         var display = report.ToDisplayText();
 
@@ -106,6 +113,34 @@ public sealed class ValidateDraftToolTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_CanonicalDraft_Allows_LongContent_And_RichMarkdown()
+    {
+        using var db = new AppDbContext(_options);
+        var userId = Guid.NewGuid();
+        var user = new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" };
+        db.Users.Add(user);
+
+        var draft = new Draft
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Title = "Canonical Draft",
+            TargetPlatform = null, // Canonical
+            Content = $"# Header 1\n\nThis is a long-form canonical post that exceeds 300 characters with **bold formatting** and *italics* and lists.\n\n- Item 1\n- Item 2\n\n{new string('A', 500)}"
+        };
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var tool = new ValidateDraftTool(db, CreateResolver());
+        var report = await tool.ExecuteAsync(new ValidateDraftArgs(null), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draft.Id));
+
+        Assert.Equal(ValidateDraftOverallStatus.Valid, report.OverallStatus);
+        Assert.False(report.HasBlockingErrors);
+        Assert.Single(report.Posts);
+        Assert.Empty(report.Posts[0].Issues);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_Validates_Explicit_Content_Successfully()
     {
         using var db = new AppDbContext(_options);
@@ -114,8 +149,8 @@ public sealed class ValidateDraftToolTests : IDisposable
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var tool = new ValidateDraftTool(db, CreateValidator());
-        var explicitContent = "This is segment 1 under 300 chars.\n---\nThis is segment 2 under 300 chars.";
+        var tool = new ValidateDraftTool(db, CreateResolver());
+        var explicitContent = "This is segment 1.\n---\nThis is segment 2.";
         
         var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
         var display = report.ToDisplayText();
@@ -131,17 +166,35 @@ public sealed class ValidateDraftToolTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReturnsError_For_NonEmbed_YouTube_Markdown_Link()
+    public async Task ExecuteAsync_LinkedIn_Explicit_Platform_Enforces_LinkedIn_Rules()
     {
         using var db = new AppDbContext(_options);
         var userId = Guid.NewGuid();
         db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
         await db.SaveChangesAsync();
 
-        var tool = new ValidateDraftTool(db, CreateValidator());
+        var tool = new ValidateDraftTool(db, CreateResolver());
+        var explicitContent = "Segment 1\n---\nSegment 2";
+
+        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent, "LinkedIn"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
+
+        Assert.Equal(ValidateDraftOverallStatus.Failed, report.OverallStatus);
+        Assert.True(report.HasBlockingErrors);
+        Assert.Contains(report.Posts[0].Issues, i => i.Message.Contains("multi-post threads"));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReturnsError_For_NonEmbed_YouTube_Markdown_Link_On_Bluesky()
+    {
+        using var db = new AppDbContext(_options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        await db.SaveChangesAsync();
+
+        var tool = new ValidateDraftTool(db, CreateResolver());
         var explicitContent = "[Video Summary Source](https://www.youtube.com/shorts/xL3LA-Ftg3c)";
 
-        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
+        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent, "Bluesky"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
         var display = report.ToDisplayText();
 
         Assert.Equal(ValidateDraftOverallStatus.Failed, report.OverallStatus);
@@ -150,17 +203,17 @@ public sealed class ValidateDraftToolTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecuteAsync_Allows_YouTube_Embed_Syntax()
+    public async Task ExecuteAsync_Allows_YouTube_Embed_Syntax_On_Bluesky()
     {
         using var db = new AppDbContext(_options);
         var userId = Guid.NewGuid();
         db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
         await db.SaveChangesAsync();
 
-        var tool = new ValidateDraftTool(db, CreateValidator());
+        var tool = new ValidateDraftTool(db, CreateResolver());
         var explicitContent = "![Video Summary Source](https://www.youtube.com/shorts/xL3LA-Ftg3c)";
 
-        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
+        var report = await tool.ExecuteAsync(new ValidateDraftArgs(explicitContent, "Bluesky"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, null));
 
         Assert.False(report.HasBlockingErrors);
         Assert.DoesNotContain(

@@ -47,12 +47,14 @@ describe("UsersTab", () => {
     expect(await screen.findByText("Failed to load users")).toBeInTheDocument();
   });
 
-  it("shows add user form when clicking add user button", async () => {
+  it("shows add user modal when clicking add user button", async () => {
     render(<UsersTab />);
     await waitFor(() => expect(mockListUsers).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /\+ add user/i }));
+    const addBtns = await screen.findAllByRole("button", { name: /\+? ?add user/i });
+    fireEvent.click(addBtns[0]);
 
+    expect(screen.getByText("Create User Account")).toBeInTheDocument();
     expect(screen.getAllByRole("textbox")[0]).toBeInTheDocument();
   });
 
@@ -65,7 +67,8 @@ describe("UsersTab", () => {
     const { container } = render(<UsersTab />);
     await waitFor(() => expect(mockListUsers).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /\+ add user/i }));
+    const addBtns = await screen.findAllByRole("button", { name: /\+? ?add user/i });
+    fireEvent.click(addBtns[0]);
 
     const textboxes = screen.getAllByRole("textbox");
     await userEvent.type(textboxes[0], "bob");
@@ -88,19 +91,21 @@ describe("UsersTab", () => {
     mockUpdateUser.mockResolvedValueOnce(undefined);
     render(<UsersTab />);
 
-    await screen.findByText("alice");
-    fireEvent.click(screen.getByRole("button", { name: "active" }));
+    expect(await screen.findByText("alice")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /active/i }));
 
     await waitFor(() => expect(mockUpdateUser).toHaveBeenCalledWith("u1", { isActive: false }));
   });
 
-  it("shows reset password form and submits new password", async () => {
+  it("shows reset password modal and submits new password", async () => {
     mockListUsers.mockResolvedValueOnce([makeUser()]);
     mockResetUserPassword.mockResolvedValueOnce(undefined);
     const { container } = render(<UsersTab />);
 
-    await screen.findByText("alice");
+    expect(await screen.findByText("alice")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /reset pass/i }));
+
+    expect(screen.getByText(/reset password: alice/i)).toBeInTheDocument();
 
     const passwordInput = container.querySelector('input[type="password"]');
     fireEvent.change(passwordInput!, { target: { value: "newpass" } });

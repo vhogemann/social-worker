@@ -59,9 +59,15 @@ describe("ProvidersTab", () => {
 
   it("shows validation error when submitting form with missing required fields", async () => {
     render(<ProvidersTab />);
-    await screen.findByRole("button", { name: /add provider/i });
+    
+    // Open Add Provider modal
+    const addBtns = await screen.findAllByRole("button", { name: /\+? ?add provider/i });
+    fireEvent.click(addBtns[0]);
 
-    fireEvent.click(screen.getByRole("button", { name: /add provider/i }));
+    expect(screen.getByText("Add AI Provider")).toBeInTheDocument();
+
+    const submitBtns = screen.getAllByRole("button", { name: /add provider/i });
+    fireEvent.click(submitBtns[submitBtns.length - 1]);
 
     expect(await screen.findByText(/name, base url, and model are required/i)).toBeInTheDocument();
     expect(mockCreateProvider).not.toHaveBeenCalled();
@@ -74,19 +80,27 @@ describe("ProvidersTab", () => {
       .mockResolvedValueOnce([newProvider]);
     mockCreateProvider.mockResolvedValueOnce(newProvider);
     render(<ProvidersTab />);
-    await screen.findByRole("button", { name: /add provider/i });
+    
+    // Open Add Provider modal
+    const addBtns = await screen.findAllByRole("button", { name: /\+? ?add provider/i });
+    fireEvent.click(addBtns[0]);
 
     await userEvent.type(screen.getByPlaceholderText("e.g. OpenRouter Claude"), "My Provider");
     await userEvent.type(screen.getByPlaceholderText("e.g. anthropic/claude-3.5-sonnet"), "claude-3-5-sonnet");
 
-    fireEvent.click(screen.getByRole("button", { name: /add provider/i }));
+    const submitBtns = screen.getAllByRole("button", { name: /add provider/i });
+    fireEvent.click(submitBtns[submitBtns.length - 1]);
+
     expect(await screen.findByText("My Provider")).toBeInTheDocument();
   });
 
   it("shows success message when test connection succeeds", async () => {
     mockTestProvider.mockResolvedValueOnce({ success: true, error: null, contextWindowTokens: 131072 });
     render(<ProvidersTab />);
-    await screen.findByRole("button", { name: /test connection/i });
+    
+    // Open Add Provider modal
+    const addBtns = await screen.findAllByRole("button", { name: /\+? ?add provider/i });
+    fireEvent.click(addBtns[0]);
 
     await userEvent.type(screen.getByPlaceholderText("e.g. anthropic/claude-3.5-sonnet"), "claude-3-5-sonnet");
     fireEvent.click(screen.getByRole("button", { name: /test connection/i }));
@@ -97,7 +111,10 @@ describe("ProvidersTab", () => {
   it("shows failure message when test connection fails", async () => {
     mockTestProvider.mockResolvedValueOnce({ success: false, error: "Invalid API key" });
     render(<ProvidersTab />);
-    await screen.findByRole("button", { name: /test connection/i });
+    
+    // Open Add Provider modal
+    const addBtns = await screen.findAllByRole("button", { name: /\+? ?add provider/i });
+    fireEvent.click(addBtns[0]);
 
     await userEvent.type(screen.getByPlaceholderText("e.g. anthropic/claude-3.5-sonnet"), "any-model");
     fireEvent.click(screen.getByRole("button", { name: /test connection/i }));

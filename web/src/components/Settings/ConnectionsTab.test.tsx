@@ -8,6 +8,7 @@ vi.mock("../../api/accounts", () => ({
   listAccounts: vi.fn(),
   saveAccount: vi.fn(),
   deleteAccount: vi.fn(),
+  getLinkedInAuthUrl: vi.fn(),
 }));
 
 import { listAccounts, saveAccount, deleteAccount } from "../../api/accounts";
@@ -49,12 +50,16 @@ describe("ConnectionsTab", () => {
     expect(await screen.findByText("Network error")).toBeInTheDocument();
   });
 
-  it("does not submit when required fields are empty", async () => {
+  it("opens modal and does not submit when required fields are empty", async () => {
     render(<ConnectionsTab />);
-    await screen.findByText("Bluesky");
+    
+    // Open modal
+    const addBtn = await screen.findByRole("button", { name: /\+? ?add connection/i });
+    fireEvent.click(addBtn);
+
+    expect(screen.getByText("Add Social Connection")).toBeInTheDocument();
 
     fireEvent.submit(screen.getByRole("button", { name: /save connection/i }));
-
     await waitFor(() => expect(mockSaveAccount).not.toHaveBeenCalled());
   });
 
@@ -64,7 +69,10 @@ describe("ConnectionsTab", () => {
       .mockResolvedValueOnce([makeAccount("a2")]);
     mockSaveAccount.mockResolvedValueOnce(undefined);
     render(<ConnectionsTab />);
-    await screen.findByText("Bluesky");
+
+    // Open modal
+    const addBtn = await screen.findByRole("button", { name: /\+? ?add connection/i });
+    fireEvent.click(addBtn);
 
     await userEvent.type(screen.getByPlaceholderText("e.g. user.bsky.social"), "alice.bsky.social");
     await userEvent.type(screen.getByPlaceholderText("••••••••••••"), "app-pw");
@@ -95,7 +103,10 @@ describe("ConnectionsTab", () => {
   it("shows error when saveAccount fails", async () => {
     mockSaveAccount.mockRejectedValueOnce(new Error("Failed to save connection"));
     render(<ConnectionsTab />);
-    await screen.findByText("Bluesky");
+
+    // Open modal
+    const addBtn = await screen.findByRole("button", { name: /\+? ?add connection/i });
+    fireEvent.click(addBtn);
 
     await userEvent.type(screen.getByPlaceholderText("e.g. user.bsky.social"), "x");
     await userEvent.type(screen.getByPlaceholderText("••••••••••••"), "y");

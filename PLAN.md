@@ -70,12 +70,21 @@ These should remain first-class and be kept current:
 | File | Role |
 |---|---|
 | [PLAN.md](PLAN.md) | canonical active roadmap and execution priorities |
+| [planning/COMMERCIAL_STRATEGY_MASTER.md](planning/COMMERCIAL_STRATEGY_MASTER.md) | Master commercial strategy, competitive brief, running cost model, and launch roadmap |
+| [planning/COMPETITIVE_BENCHMARK.md](planning/COMPETITIVE_BENCHMARK.md) | Competitive benchmark analysis vs. Postiz, Mixpost, Typefully, Taplio, and Buffer/Hootsuite |
+| [planning/OPERATING_COST_ESTIMATE.md](planning/OPERATING_COST_ESTIMATE.md) | 1-year operational cost estimate and margin breakdown for independent launch (3-4 clients) |
+| [planning/COMMERCIAL_EVALUATION.md](planning/COMMERCIAL_EVALUATION.md) | Commercial feasibility study for on-premises B2B enterprise sales and codebase/IP asset buyout |
+| [planning/SCHEDULED_PUBLISHING.md](planning/SCHEDULED_PUBLISHING.md) | Scheduled publishing engine architecture, hosted worker execution, queue state model, and UI integration |
+| [planning/TWITTER_SUPPORT.md](planning/TWITTER_SUPPORT.md) | Twitter / X OAuth 2.0 PKCE connector, API v2 thread chaining, and validation specification |
 | [planning/LINKED_IN.md](planning/LINKED_IN.md) | LinkedIn publishing contract, markdown mapping, and conversion pipeline (single-post-only scope) |
 | [planning/linkedin/FRONTEND_INTEGRATION.md](planning/linkedin/FRONTEND_INTEGRATION.md) | LinkedIn frontend integration design, preview components, and validation rules |
 | [planning/linkedin/OAUTH_INTEGRATION.md](planning/linkedin/OAUTH_INTEGRATION.md) | LinkedIn 3-legged OAuth code flow backend and frontend integration |
 | [planning/DECOUPLED_ORCHESTRATION.md](planning/DECOUPLED_ORCHESTRATION.md) | Decoupled feed ingestion and multi-source/multi-destination orchestration workflows |
 | [planning/FRONTEND_ORCHESTRATION.md](planning/FRONTEND_ORCHESTRATION.md) | Frontend UI integration for orchestrations dashboard, many-to-many feed mappings, and recent runs backlog |
 | [planning/MULTI_ACCOUNT_SUPPORT.md](planning/MULTI_ACCOUNT_SUPPORT.md) | Multi-account support per platform across database constraints, account-first draft creation, and publishing |
+| [planning/FACEBOOK_SUPPORT.md](planning/FACEBOOK_SUPPORT.md) | Facebook Pages OAuth integration, token exchange, and post/comment/media publishing pipeline |
+| [planning/INSTAGRAM_SUPPORT.md](planning/INSTAGRAM_SUPPORT.md) | Instagram Professional/Creator publishing container pipeline, image validation, and OAuth integration |
+| [planning/IMAGE_ENGINE.md](planning/IMAGE_ENGINE.md) | Image Engine microservice (Sharp + @napi-rs/canvas), data-driven JSON layer tree templates, Instagram image composition, and partial SkiaSharp extraction |
 
 ## Reference-only planning documents
 
@@ -83,6 +92,7 @@ These should remain first-class and be kept current:
 
 - [planning/future/E2E_TESTING.md](planning/future/E2E_TESTING.md)
 - [planning/future/GRAPHQL_EVALUATION.md](planning/future/GRAPHQL_EVALUATION.md)
+- [planning/future/IMAGE_ENGINE_EXTENSIONS.md](planning/future/IMAGE_ENGINE_EXTENSIONS.md)
 - [planning/future/PYTHON_SANDBOX.md](planning/future/PYTHON_SANDBOX.md)
 - [planning/future/SELF_EVOLVING_ASSISTANT.md](planning/future/SELF_EVOLVING_ASSISTANT.md)
 - [planning/future/TELEGRAM_INTEGRATION.md](planning/future/TELEGRAM_INTEGRATION.md)

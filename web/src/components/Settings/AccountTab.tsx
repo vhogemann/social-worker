@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "../../store/authStore";
 import { changePassword, setPreferredProvider } from "../../api/auth";
 import { listAvailableProviders, type AvailableProviderDto } from "../../api/providers";
+import { SettingsSection } from "./common/SettingsSection";
+import { SettingsAlert } from "./common/SettingsAlert";
 
 export function AccountTab() {
   const user = useAuthStore((s) => s.user);
@@ -12,6 +14,7 @@ export function AccountTab() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [providerError, setProviderError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,43 +51,52 @@ export function AccountTab() {
 
   return (
     <div className="space-y-6 font-sans">
-      <div className="bg-bg/40 border border-border p-4 rounded">
-        <h3 className="text-xs font-mono uppercase tracking-wider text-muted mb-3">
-          user profile
-        </h3>
-        <div className="grid grid-cols-2 gap-4 text-sm font-mono">
-          <div>
-            <div className="text-xs text-muted mb-0.5">USERNAME</div>
-            <div className="text-foreground">{user?.username}</div>
+      <SettingsSection
+        title="User Profile"
+        description="Your personal account identity and authorization role."
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm font-mono">
+          <div className="p-3 bg-bg/20 border border-border rounded-lg">
+            <div className="text-[10px] text-muted uppercase tracking-wider mb-1">USERNAME</div>
+            <div className="text-foreground font-sans font-medium">{user?.username}</div>
           </div>
-          <div>
-            <div className="text-xs text-muted mb-0.5">EMAIL</div>
-            <div className="text-foreground">{user?.email}</div>
+          <div className="p-3 bg-bg/20 border border-border rounded-lg">
+            <div className="text-[10px] text-muted uppercase tracking-wider mb-1">EMAIL</div>
+            <div className="text-foreground truncate">{user?.email}</div>
           </div>
-          <div>
-            <div className="text-xs text-muted mb-0.5">ROLE</div>
-            <div className="text-accent uppercase">{user?.role}</div>
+          <div className="p-3 bg-bg/20 border border-border rounded-lg">
+            <div className="text-[10px] text-muted uppercase tracking-wider mb-1">ROLE</div>
+            <div className="text-accent uppercase font-semibold">{user?.role}</div>
           </div>
         </div>
-      </div>
+      </SettingsSection>
 
-      <div className="bg-bg/40 border border-border p-4 rounded">
-        <h3 className="text-xs font-mono uppercase tracking-wider text-muted mb-3">
-          preferred ai provider
-        </h3>
-        <div className="max-w-sm space-y-2">
+      <SettingsSection
+        title="Preferred AI Provider"
+        description="Select the AI model and provider to use for assistant chat sessions."
+      >
+        {providerError && (
+          <SettingsAlert
+            type="error"
+            message={providerError}
+            onDismiss={() => setProviderError(null)}
+            className="mb-4"
+          />
+        )}
+        <div className="max-w-md space-y-2">
           <select
             value={user?.preferredProviderId || ""}
             onChange={async (e) => {
               const val = e.target.value || null;
+              setProviderError(null);
               try {
                 await setPreferredProvider(val);
                 updatePreferredProviderId(val);
               } catch (err: any) {
-                alert(err.message || "Failed to update preferred provider");
+                setProviderError(err.message || "Failed to update preferred provider");
               }
             }}
-            className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent font-sans"
+            className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent font-sans"
           >
             <option value="">System Default</option>
             {providers.map((p) => (
@@ -93,27 +105,32 @@ export function AccountTab() {
               </option>
             ))}
           </select>
-          <p className="text-xs text-muted font-mono leading-relaxed">
-            Select the AI model and provider to use for assistant chat. Defaults to the system administrator's configured default provider.
+          <p className="text-xs text-muted font-sans leading-relaxed">
+            Overrides the system default provider for your account during draft composition and chat.
           </p>
         </div>
-      </div>
+      </SettingsSection>
 
-      <div className="bg-bg/40 border border-border p-4 rounded">
-        <h3 className="text-xs font-mono uppercase tracking-wider text-muted mb-3">
-          change password
-        </h3>
-
+      <SettingsSection
+        title="Change Password"
+        description="Update your credentials to maintain account security."
+      >
         {error && (
-          <div className="mb-4 p-3 bg-red-950/40 border border-red-800 text-red-400 text-xs rounded font-mono">
-            {error}
-          </div>
+          <SettingsAlert
+            type="error"
+            message={error}
+            onDismiss={() => setError(null)}
+            className="mb-4"
+          />
         )}
 
         {success && (
-          <div className="mb-4 p-3 bg-green-950/40 border border-green-800 text-green-400 text-xs rounded font-mono">
-            {success}
-          </div>
+          <SettingsAlert
+            type="success"
+            message={success}
+            onDismiss={() => setSuccess(null)}
+            className="mb-4"
+          />
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 max-w-sm">
@@ -126,7 +143,7 @@ export function AccountTab() {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               disabled={loading}
-              className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
+              className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
             />
           </div>
 
@@ -139,7 +156,7 @@ export function AccountTab() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               disabled={loading}
-              className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
+              className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
             />
           </div>
 
@@ -152,19 +169,19 @@ export function AccountTab() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={loading}
-              className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
+              className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="bg-accent text-bg font-medium text-xs py-1.5 px-4 rounded hover:opacity-90 transition-opacity disabled:opacity-50 font-mono uppercase tracking-wider"
+            className="bg-accent text-bg font-medium text-xs py-2 px-4 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 font-mono uppercase tracking-wider shadow-sm"
           >
             {loading ? "updating..." : "update password"}
           </button>
         </form>
-      </div>
+      </SettingsSection>
     </div>
   );
 }
