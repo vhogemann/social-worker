@@ -55,7 +55,7 @@ public sealed class CreateTemplateTool : ChatToolBase<CreateTemplateArgs, Create
     public override string Name => "create_template";
     public override string Description =>
         "Creates and saves a new graphic template into the system template library by specifying its name, canvas dimensions, slots, and layer definitions. " +
-        "Verifies rendering with image-engine before saving and returns a preview image.";
+        "Automatically validates rendering with image-engine before saving and returns an attached test-preview image.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {
@@ -63,27 +63,27 @@ public sealed class CreateTemplateTool : ChatToolBase<CreateTemplateArgs, Create
           "properties": {
             "name": {
               "type": "string",
-              "description": "The display name for the template (e.g. 'Dark Minimal Quote')."
+              "description": "The display name for the template (e.g. 'Cyber Alert Card', 'Minimal Quote')."
             },
             "description": {
               "type": "string",
-              "description": "Optional description of what the template looks like and when to use it."
+              "description": "Optional description of the visual layout and intended social post use-case."
             },
             "width": {
               "type": "integer",
-              "description": "Canvas width in pixels (default: 1080)."
+              "description": "Canvas width in pixels (typically 1080)."
             },
             "height": {
               "type": "integer",
-              "description": "Canvas height in pixels (default: 1080 for square, 1350 for portrait)."
+              "description": "Canvas height in pixels (1080 for square, 1350 for 4:5 portrait)."
             },
             "schema": {
               "type": "string",
-              "description": "The full declarative JSON schema definition containing 'name', 'width', 'height', 'slots', and 'layers'."
+              "description": "The full declarative JSON schema definition containing 'name', 'width', 'height', 'slots' (array of {name, type, required, description}), and 'layers' (ordered array of {type: 'rect'|'circle'|'image'|'text', fill, stroke, strokeWidth, borderRadius, x, y, w, h, slot, fontSize, fontFamily, fontWeight, color, align, maxWidth, lineHeight, prefix, suffix, textTransform, fit})."
             },
             "test_slots": {
               "type": "object",
-              "description": "Optional slot values to use for test-rendering a preview image.",
+              "description": "Optional sample slot values to render the initial preview image (e.g. {'quote_text': 'Design is intelligence made visible.'}).",
               "additionalProperties": { "type": "string" }
             }
           },

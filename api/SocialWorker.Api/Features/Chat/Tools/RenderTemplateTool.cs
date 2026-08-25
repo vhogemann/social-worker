@@ -52,8 +52,9 @@ public sealed class RenderTemplateTool : ChatToolBase<RenderTemplateArgs, Render
 
     public override string Name => "render_template";
     public override string Description =>
-        "Renders a graphic template with supplied slot values (text overlays, images, watermarks). " +
-        "Automatically attaches the rendered PNG image to the active draft and returns a markdown media link (media://{id}).";
+        "Renders a graphic card template with supplied slot values (quotes, metrics, titles, and background images). " +
+        "Automatically attaches the rendered PNG image to the active draft and returns a markdown media link tag (e.g. ![Alt](media://{guid})). " +
+        "After calling this tool, insert the returned markdown tag into your draft using replace_editor_content.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {
@@ -61,19 +62,19 @@ public sealed class RenderTemplateTool : ChatToolBase<RenderTemplateArgs, Render
           "properties": {
             "template_id": {
               "type": "string",
-              "description": "The GUID or exact name of the template to render."
+              "description": "The exact GUID or exact Name of the template to render (from list_templates, e.g. 'Quote Card (Portrait)', 'Stat Highlight', 'Code Snippet Card')."
             },
             "slots": {
               "type": "object",
-              "description": "Key-value mapping of slot names to text values or media references (e.g. 'quote_text': 'Hello world', 'background_image': 'media://019f...').",
+              "description": "Key-value mapping of slot names to text values or media references. For images, pass media://<guid> (from add_image_source) or file://<guid>. (e.g. {'quote_text': 'Simplicity is prerequisite for reliability.', 'author': 'Dijkstra', 'background_image': 'media://4f3...'})",
               "additionalProperties": { "type": "string" }
             },
             "alt_text": {
               "type": "string",
-              "description": "Optional alt text description for the rendered image."
+              "description": "Optional descriptive alt text for accessibility and markdown preview."
             }
           },
-          "required": ["template_id"]
+          "required": ["template_id", "slots"]
         }
         """).RootElement.Clone();
 

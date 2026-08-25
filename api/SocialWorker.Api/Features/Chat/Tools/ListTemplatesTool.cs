@@ -64,7 +64,9 @@ public sealed class ListTemplatesTool : ChatToolBase<ListTemplatesArgs, ListTemp
     }
 
     public override string Name => "list_templates";
-    public override string Description => "Lists available image rendering templates, canvas dimensions, and customizable slot parameters so you can select and fill templates.";
+    public override string Description =>
+        "Lists available image templates in the library along with their exact slot names (e.g. 'quote_text', 'metric_value', 'background_image'), slot types, and canvas dimensions. " +
+        "Always call this first before render_template to discover exact slot parameter names and requirements.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {
@@ -72,7 +74,7 @@ public sealed class ListTemplatesTool : ChatToolBase<ListTemplatesArgs, ListTemp
           "properties": {
             "search": {
               "type": "string",
-              "description": "Optional keyword to filter templates by name or description."
+              "description": "Optional keyword to filter templates by name or description (e.g. 'quote', 'metric', 'code', 'announcement')."
             }
           }
         }
