@@ -53,6 +53,7 @@ services:
       Transcriber__BaseUrl: http://transcriber-e2e:8000
       Transcriber__TimeoutSeconds: ${TRANSCRIBER__TimeoutSeconds:-1800}
       Transcriber__TranscriptsPath: /app/transcripts
+      ImageEngine__BaseUrl: http://image-engine-e2e:8000
       LinkedIn__ClientId: ${LINKEDIN__CLIENTID:-}
       LinkedIn__ClientSecret: ${LINKEDIN__CLIENTSECRET:-}
       LinkedIn__RedirectUri: ${LINKEDIN__REDIRECTURI:-}
@@ -63,6 +64,8 @@ services:
       searxng-e2e:
         condition: service_started
       transcriber-e2e:
+        condition: service_started
+      image-engine-e2e:
         condition: service_started
     volumes:
       - ./uploads:/app/uploads
@@ -95,6 +98,17 @@ services:
       e2e-net:
         aliases:
           - transcriber
+
+  image-engine-e2e:
+    image: social-worker-image-engine-e2e
+    build:
+      context: ./image-engine
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      e2e-net:
+        aliases:
+          - image-engine
 
   web-e2e:
     image: social-worker-web-e2e

@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddLlm();
 builder.AddChat();
 builder.AddSources();
+builder.AddImageEngine();
 builder.AddMedia();
 builder.AddPublishing();
 builder.AddSearch();

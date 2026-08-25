@@ -11,6 +11,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Tests.Features.ImageEngine;
 using Xunit;
 
 namespace SocialWorker.Api.Tests.Features.Chat;
@@ -31,7 +32,7 @@ public sealed class ViewImageToolTests : SqliteTestBase
     [Fact]
     public async Task ExecuteAsync_Throws_ForInvalidId()
     {
-        var tool = new ViewImageTool(null!, null!, null!);
+        var tool = new ViewImageTool(null!, null!, null!, null!);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             tool.ExecuteAsync(new ViewImageArgs("bad-id"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(Guid.NewGuid(), Guid.NewGuid())));
@@ -62,9 +63,10 @@ public sealed class ViewImageToolTests : SqliteTestBase
             return res;
         });
 
-        var mediaService = new MediaService(db, new ImageResizer(), new FileStorageProvider());
+        var fakeEngine = new FakeImageEngineClient();
+        var mediaService = new MediaService(db, fakeEngine, new FileStorageProvider());
         var factory = new LocalMockHttpClientFactory(new HttpClient(httpHandler));
-        var tool = new ViewImageTool(db, mediaService, factory);
+        var tool = new ViewImageTool(db, mediaService, factory, fakeEngine);
 
         var result = await tool.ExecuteAsync(
             new ViewImageArgs("https://example.com/heatwave.png"),
@@ -74,7 +76,7 @@ public sealed class ViewImageToolTests : SqliteTestBase
         Assert.Equal("text", result[0].Type);
         Assert.Contains("Image:", result[0].Text ?? string.Empty);
         Assert.Equal("image_url", result[1].Type);
-        Assert.StartsWith("data:image/jpeg;base64,", result[1].ImageUrl?.Url ?? string.Empty, StringComparison.Ordinal);
+        Assert.StartsWith("data:image/", result[1].ImageUrl?.Url ?? string.Empty, StringComparison.Ordinal);
 
         var storedAsset = await db.MediaAssets.FirstOrDefaultAsync(m => m.DraftId == draft.Id);
         Assert.NotNull(storedAsset);

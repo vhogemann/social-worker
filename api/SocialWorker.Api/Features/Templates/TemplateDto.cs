@@ -1,0 +1,49 @@
+using System;
+using System.Collections.Generic;
+using SocialWorker.Api.Data.Entities;
+
+namespace SocialWorker.Api.Features.Templates;
+
+public sealed record TemplateDto(
+    Guid Id,
+    string Name,
+    string? Description,
+    int Width,
+    int Height,
+    string Schema,
+    Guid? ThumbnailMediaAssetId,
+    DateTime CreatedAt,
+    DateTime UpdatedAt)
+{
+    public TemplateDto(Template template) : this(
+        template.Id,
+        template.Name,
+        template.Description,
+        template.Width,
+        template.Height,
+        template.Schema,
+        template.ThumbnailMediaAssetId,
+        template.CreatedAt,
+        template.UpdatedAt)
+    {
+    }
+}
+
+public sealed record CreateTemplateRequest(
+    string Name,
+    string? Description,
+    int Width,
+    int Height,
+    string Schema,
+    Guid? ThumbnailMediaAssetId = null);
+
+public sealed record UpdateTemplateRequest(
+    string Name,
+    string? Description,
+    int Width,
+    int Height,
+    string Schema,
+    Guid? ThumbnailMediaAssetId = null);
+
+public sealed record RenderTemplateTestRequest(
+    Dictionary<string, string>? Slots = null);

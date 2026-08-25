@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.ImageEngine;
 
 namespace SocialWorker.Api.Features.Media;
 
@@ -45,13 +46,13 @@ public sealed class MediaService
     private const int MaxAltTextLength = 1000;
 
     private readonly AppDbContext _db;
-    private readonly ImageResizer _resizer;
+    private readonly IImageEngineClient _imageEngine;
     private readonly FileStorageProvider _storage;
 
-    public MediaService(AppDbContext db, ImageResizer resizer, FileStorageProvider storage)
+    public MediaService(AppDbContext db, IImageEngineClient imageEngine, FileStorageProvider storage)
     {
         _db = db;
-        _resizer = resizer;
+        _imageEngine = imageEngine;
         _storage = storage;
     }
 
@@ -121,7 +122,7 @@ public sealed class MediaService
         var relativePath = Path.Combine(cmd.DraftId.ToString(), $"{mediaId}{ext}");
 
         processStream.Position = 0;
-        var processResult = _resizer.ProcessImage(processStream, cmd.MimeType);
+        var processResult = await _imageEngine.ResizeImageAsync(processStream, cmd.MimeType, maxDimension: 1200, ct: ct);
 
         await _storage.WriteFileAsync(relativePath, processResult.Data);
 

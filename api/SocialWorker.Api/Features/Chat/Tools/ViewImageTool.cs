@@ -7,9 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using SkiaSharp;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.ImageEngine;
 using SocialWorker.Api.Features.Media;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
@@ -45,15 +45,18 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolRes
     private readonly AppDbContext _db;
     private readonly MediaService _mediaService;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IImageEngineClient _imageEngine;
 
     public ViewImageTool(
         AppDbContext db,
         MediaService mediaService,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IImageEngineClient imageEngine)
     {
         _db = db;
         _mediaService = mediaService;
         _httpClientFactory = httpClientFactory;
+        _imageEngine = imageEngine;
     }
 
     public override string Name => "view_image";
@@ -127,41 +130,20 @@ public sealed class ViewImageTool : ChatToolBase<ViewImageArgs, ViewImageToolRes
             throw new UnauthorizedAccessException("Access denied to target image");
         }
 
-        var fullPath = Path.Combine("/app/uploads", asset.FilePath);
+        var (fullPath, _) = await _mediaService.GetMediaFileAsync(imageId, context.CancellationToken);
         if (!File.Exists(fullPath))
         {
             throw new FileNotFoundException("Image file not found on disk");
         }
 
-        using var original = SKBitmap.Decode(fullPath);
-        if (original == null)
-        {
-            throw new InvalidDataException("Failed to decode bitmap from file");
-        }
-
-        int maxDim = 512;
-        int newWidth = original.Width;
-        int newHeight = original.Height;
-
-        if (newWidth > maxDim || newHeight > maxDim)
-        {
-            double ratio = Math.Min((double)maxDim / newWidth, (double)maxDim / newHeight);
-            newWidth = (int)(newWidth * ratio);
-            newHeight = (int)(newHeight * ratio);
-        }
-
-        using var resized = original.Resize(
-            new SKImageInfo(newWidth, newHeight),
-            new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None)) ?? original;
-        using var image = SKImage.FromBitmap(resized);
-        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 80);
-        var bytes = data.ToArray();
-        var base64 = Convert.ToBase64String(bytes);
+        using var fileStream = File.OpenRead(fullPath);
+        var resizeResult = await _imageEngine.ResizeImageAsync(fileStream, asset.MimeType, maxDimension: 512, ct: context.CancellationToken);
+        var base64 = Convert.ToBase64String(resizeResult.Data);
 
         var items = new List<ViewImageResultItem>
         {
             new ViewImageResultItem("text", $"Image: {asset.FileName} ({asset.Width}x{asset.Height}). Current alt text: {asset.AltText ?? "(none)"}", null),
-            new ViewImageResultItem("image_url", null, new ViewImageResultImageUrl($"data:image/jpeg;base64,{base64}"))
+            new ViewImageResultItem("image_url", null, new ViewImageResultImageUrl($"data:{resizeResult.MimeType};base64,{base64}"))
         };
 
         var summary = $"Image inspected: {asset.FileName} ({asset.Width}x{asset.Height}).";

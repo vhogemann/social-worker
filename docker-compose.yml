@@ -40,6 +40,7 @@ services:
       Transcriber__BaseUrl: http://transcriber:8000
       Transcriber__TimeoutSeconds: ${TRANSCRIBER__TimeoutSeconds:-1800}
       Transcriber__TranscriptsPath: /app/transcripts
+      ImageEngine__BaseUrl: http://image-engine:8000
       LinkedIn__ClientId: ${LINKEDIN__CLIENTID:-}
       LinkedIn__ClientSecret: ${LINKEDIN__CLIENTSECRET:-}
       LinkedIn__RedirectUri: ${LINKEDIN__REDIRECTURI:-}
@@ -48,6 +49,8 @@ services:
       db:
         condition: service_healthy
       transcriber:
+        condition: service_started
+      image-engine:
         condition: service_started
     volumes:
       - ./uploads:/app/uploads
@@ -101,6 +104,14 @@ services:
     volumes:
       - ./transcripts:/transcripts
       - ${WHISPER_CACHE_DIR:-./whisper-cache}:/root/.cache/whisper
+    restart: unless-stopped
+
+  image-engine:
+    build:
+      context: ./image-engine
+      dockerfile: Dockerfile
+    ports:
+      - "8103:8000"
     restart: unless-stopped
 
   e2e:

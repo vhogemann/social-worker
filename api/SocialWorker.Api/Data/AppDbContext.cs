@@ -23,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<AutomationWorkflow> AutomationWorkflows => Set<AutomationWorkflow>();
     public DbSet<AutomationWorkflowSource> AutomationWorkflowSources => Set<AutomationWorkflowSource>();
     public DbSet<AutomationWorkflowDestination> AutomationWorkflowDestinations => Set<AutomationWorkflowDestination>();
+    public DbSet<Template> Templates => Set<Template>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -299,6 +300,19 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.AutomationWorkflowId);
             e.HasIndex(x => new { x.FeedSubscriptionId, x.AutomationWorkflowId, x.ItemLink }).IsUnique();
             e.HasIndex(x => new { x.Status, x.NextAttemptAt });
+        });
+
+        modelBuilder.Entity<Template>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(150);
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.Property(x => x.Schema).HasColumnType("text");
+            e.HasOne(x => x.ThumbnailMediaAsset)
+                .WithMany()
+                .HasForeignKey(x => x.ThumbnailMediaAssetId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => x.Name);
         });
     }
 }

@@ -6,11 +6,27 @@ namespace SocialWorker.Api.Features.Media;
 
 public sealed class FileStorageProvider
 {
-    private const string UploadsRoot = "/app/uploads";
+    private readonly string _uploadsRoot;
+
+    public FileStorageProvider(string? uploadsRoot = null)
+    {
+        if (!string.IsNullOrWhiteSpace(uploadsRoot))
+        {
+            _uploadsRoot = uploadsRoot;
+        }
+        else if (Directory.Exists("/app/uploads"))
+        {
+            _uploadsRoot = "/app/uploads";
+        }
+        else
+        {
+            _uploadsRoot = Path.Combine(Path.GetTempPath(), "social-worker-uploads");
+        }
+    }
 
     public string GetFullPath(string relativePath)
     {
-        return Path.Combine(UploadsRoot, relativePath);
+        return Path.Combine(_uploadsRoot, relativePath);
     }
 
     public bool FileExists(string relativePath)

@@ -72,8 +72,8 @@ public sealed class AddImageSourceToolTests : IDisposable
         var mockHttpClientFactory = new MockHttpClientFactory(client);
 
         var storage = new FileStorageProvider();
-        var resizer = new ImageResizer();
-        var mediaService = new MediaService(db, resizer, storage);
+        var fakeEngine = new SocialWorker.Api.Tests.Features.ImageEngine.FakeImageEngineClient();
+        var mediaService = new MediaService(db, fakeEngine, storage);
 
         var tool = new AddImageSourceTool(db, mediaService, mockHttpClientFactory);
         var args = new AddImageSourceArgs("https://example.com/pineapple.png", "Pineapple Alt Text");

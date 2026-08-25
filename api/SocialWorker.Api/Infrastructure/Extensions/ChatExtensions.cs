@@ -33,5 +33,7 @@ static partial class ServiceCollectionExtensions
         // builder.Services.AddScoped<IChatTool, GeneratePlatformVariantsTool>();
         builder.Services.AddScoped<IChatTool, SearchSourcesTool>();
         builder.Services.AddScoped<IChatTool, SetBlueskyReplyTargetTool>();
+        builder.Services.AddScoped<IChatTool, ListTemplatesTool>();
+        builder.Services.AddScoped<IChatTool, RenderTemplateTool>();
     }
 }

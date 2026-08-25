@@ -7,6 +7,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.CodeImages;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Tests.Features.ImageEngine;
 using Xunit;
 
 namespace SocialWorker.Api.Tests;
@@ -27,9 +28,9 @@ public sealed class CodeImageServiceTests : SqliteTestBase
         db.Drafts.Add(draft);
         await db.SaveChangesAsync();
 
-        var resizer = new ImageResizer();
+        var imageEngine = new FakeImageEngineClient();
         var storage = new FileStorageProvider();
-        var media = new MediaService(db, resizer, storage);
+        var media = new MediaService(db, imageEngine, storage);
         var renderer = new CodeImageRenderer();
         var svc = new CodeImageService(media, renderer);
 
@@ -52,9 +53,9 @@ public sealed class CodeImageServiceTests : SqliteTestBase
         db.Drafts.Add(draft);
         await db.SaveChangesAsync();
 
-        var resizer = new ImageResizer();
+        var imageEngine = new FakeImageEngineClient();
         var storage = new FileStorageProvider();
-        var media = new MediaService(db, resizer, storage);
+        var media = new MediaService(db, imageEngine, storage);
         using var renderer = new CodeImageRenderer();
         var svc = new CodeImageService(media, renderer);
 
@@ -81,9 +82,9 @@ public sealed class CodeImageServiceTests : SqliteTestBase
         db.Drafts.Add(draft);
         await db.SaveChangesAsync();
 
-        var resizer = new ImageResizer();
+        var imageEngine = new FakeImageEngineClient();
         var storage = new FileStorageProvider();
-        var media = new MediaService(db, resizer, storage);
+        var media = new MediaService(db, imageEngine, storage);
         using var renderer = new CodeImageRenderer();
         var svc = new CodeImageService(media, renderer);
 

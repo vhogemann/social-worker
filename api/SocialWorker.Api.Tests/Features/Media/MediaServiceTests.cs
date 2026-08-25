@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Tests.Features.ImageEngine;
 using Xunit;
 
 namespace SocialWorker.Api.Tests;
@@ -26,9 +27,9 @@ public sealed class MediaServiceTests : SqliteTestBase
         db.Drafts.Add(draft);
         await db.SaveChangesAsync();
 
-        var resizer = new ImageResizer();
+        var imageEngine = new FakeImageEngineClient();
         var storage = new FileStorageProvider();
-        var svc = new MediaService(db, resizer, storage);
+        var svc = new MediaService(db, imageEngine, storage);
         return (db, svc, user, draft);
     }
 

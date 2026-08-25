@@ -7,7 +7,6 @@ static partial class ServiceCollectionExtensions
 {
     internal static void AddMedia(this IHostApplicationBuilder builder)
     {
-        builder.Services.AddSingleton<ImageResizer>();
         builder.Services.AddSingleton<FileStorageProvider>();
         builder.Services.AddScoped<MediaService>();
         builder.Services.AddSingleton<CodeImageRenderer>();
