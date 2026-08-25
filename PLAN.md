@@ -20,6 +20,7 @@ This file is the single source of truth for roadmap status and planning links.
 
 ### Recently closed and archived
 
+- Image Engine microservice & template rendering delivery (Node.js 22 + Sharp + @napi-rs/canvas, .NET client, templates CRUD, LLM tools): [planning/IMAGE_ENGINE.md](planning/IMAGE_ENGINE.md)
 - LinkedIn member publishing MVP (single-post contract, mapping, pipeline): [planning/LINKED_IN.md](planning/LINKED_IN.md)
 - Feed automation delivery: [planning/archive/RSS_AUTOMATION.md](planning/archive/RSS_AUTOMATION.md)
 - Sources service extraction and hardening: [planning/archive/SOURCES_SERVICE_REFACTOR.md](planning/archive/SOURCES_SERVICE_REFACTOR.md)

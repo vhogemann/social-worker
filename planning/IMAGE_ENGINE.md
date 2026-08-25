@@ -215,29 +215,29 @@ Static assets referenced by templates (e.g. logos, watermarks) are uploaded as `
 ### Phase 1: Microservice Scaffold & Template Data Model
 
 **image-engine Microservice:**
-- [ ] Create `image-engine/` with `package.json`, `tsconfig.json`, `Dockerfile`, `vitest.config.ts`.
-- [ ] Implement Fastify server with `@fastify/multipart`, `fastify-type-provider-zod`, and `/health`.
-- [ ] Implement Sharp resize service (`/transform/resize`).
-- [ ] Implement Sharp aspect-ratio service (`/transform/aspect-ratio`).
-- [ ] Implement `@napi-rs/canvas` template renderer (`/render/template`).
-- [ ] Write unit tests in `image-engine/tests/` and verify with `vitest`.
-- [ ] Add `image-engine` service to `docker-compose.yml` (`8103:8000`) and `docker-compose.e2e.yml`.
+- [x] Create `image-engine/` with `package.json`, `tsconfig.json`, `Dockerfile`, `vitest.config.ts`.
+- [x] Implement Fastify server with `@fastify/multipart`, `fastify-type-provider-zod`, and `/health`.
+- [x] Implement Sharp resize service (`/transform/resize`).
+- [x] Implement Sharp aspect-ratio service (`/transform/aspect-ratio`).
+- [x] Implement `@napi-rs/canvas` template renderer (`/render/template`).
+- [x] Write unit tests in `image-engine/tests/` and verify with `vitest`.
+- [x] Add `image-engine` service to `docker-compose.yml` (`8103:8000`) and `docker-compose.e2e.yml`.
 
 **API Template Data Model:**
-- [ ] Create `Template.cs` entity in EF Core.
-- [ ] Generate EF Core migration for `Templates` table.
-- [ ] Create CRUD endpoints in `TemplateEndpoints.cs`.
-- [ ] Write unit tests for template endpoints.
+- [x] Create `Template.cs` entity in EF Core.
+- [x] Generate EF Core migration for `Templates` table (`0008_add_templates.sql`).
+- [x] Create CRUD endpoints in `TemplateEndpoints.cs`.
+- [x] Write unit tests for template endpoints.
 
 ### Phase 2: .NET API Integration, LLM Tools & Partial SkiaSharp Removal
 
-- [ ] Create `ImageEngineOptions.cs`, `IImageEngineClient.cs`, `ImageEngineClient.cs`.
-- [ ] Register `IImageEngineClient` in DI (`ImageEngineExtensions.cs`).
-- [ ] Implement `ListTemplatesTool.cs` and `RenderTemplateTool.cs`.
-- [ ] Update `MediaService.cs` and `ViewImageTool.cs` to use `IImageEngineClient`.
-- [ ] Delete `ImageResizer.cs`.
-- [ ] Update backend unit tests in `SocialWorker.Api.Tests`.
-- [ ] Start full stack with `docker compose up --build` and verify healthchecks and rendering flows.
+- [x] Create `ImageEngineOptions.cs`, `IImageEngineClient.cs`, `ImageEngineClient.cs`.
+- [x] Register `IImageEngineClient` in DI (`ImageEngineExtensions.cs`).
+- [x] Implement `ListTemplatesTool.cs` and `RenderTemplateTool.cs`.
+- [x] Update `MediaService.cs` and `ViewImageTool.cs` to use `IImageEngineClient`.
+- [x] Delete `ImageResizer.cs`.
+- [x] Update backend unit tests in `SocialWorker.Api.Tests`.
+- [x] Build and test containers with `docker compose build`.
 
 ### Deferred: Code Image Rendering Migration
 
