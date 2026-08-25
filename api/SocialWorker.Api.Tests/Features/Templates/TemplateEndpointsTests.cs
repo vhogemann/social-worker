@@ -94,4 +94,43 @@ public sealed class TemplateEndpointsTests : SqliteTestBase
         var queried = await db.Templates.FirstOrDefaultAsync(t => t.Id == template.Id);
         Assert.Null(queried);
     }
+
+    [Fact]
+    public async Task CanRestoreDefaultTemplates()
+    {
+        await using var db = CreateDbContext();
+
+        var defaultTemplates = SocialWorker.Api.Data.Seed.TemplateSeedData.GetDefaultTemplates();
+        var existingIds = await db.Templates.Select(t => t.Id).ToListAsync();
+
+        var toAdd = defaultTemplates.Where(d => !existingIds.Contains(d.Id)).ToList();
+        db.Templates.AddRange(toAdd);
+        await db.SaveChangesAsync();
+
+        var count = await db.Templates.CountAsync();
+        Assert.Equal(6, count);
+    }
+
+    [Fact]
+    public void GenerateSampleSlots_ExtractsSlotsFromSchema()
+    {
+        var schema = """
+        {
+          "name": "Test",
+          "slots": [
+            { "name": "quote_text", "type": "text" },
+            { "name": "author", "type": "text" },
+            { "name": "metric_val", "type": "text" },
+            { "name": "custom_field", "type": "text", "defaultValue": "Fixed Default" }
+          ]
+        }
+        """;
+
+        var slots = SocialWorker.Api.Features.Templates.Services.TemplateGeneratorService.GenerateSampleSlots(schema);
+
+        Assert.Equal("Fixed Default", slots["custom_field"]);
+        Assert.Equal("Simplicity is prerequisite for reliability.", slots["quote_text"]);
+        Assert.Equal("Edsger W. Dijkstra", slots["author"]);
+        Assert.Equal("94.8%", slots["metric_val"]);
+    }
 }

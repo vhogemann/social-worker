@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -9,7 +10,12 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Data.Seed;
+using SocialWorker.Api.Features.Chat.Adapters;
 using SocialWorker.Api.Features.ImageEngine;
+using SocialWorker.Api.Features.Templates.Services;
+using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Llm;
 
 namespace SocialWorker.Api.Features.Templates;
 
@@ -116,11 +122,88 @@ public static class TemplateEndpoints
             var template = await db.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
             if (template == null) return Results.NotFound("Template not found.");
 
-            var slots = req?.Slots ?? new Dictionary<string, string>();
+            var slots = req?.Slots ?? TemplateGeneratorService.GenerateSampleSlots(template.Schema);
             var images = new Dictionary<string, (System.IO.Stream Stream, string FileName, string MimeType)>();
 
             var pngBytes = await imageEngine.RenderTemplateAsync(template.Schema, slots, images, ct);
             return Results.File(pngBytes, "image/png");
         });
+
+        group.MapPost("/preview", async (
+            PreviewTemplateApiRequest req,
+            IImageEngineClient imageEngine,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Schema))
+                return Results.BadRequest("Template schema is required.");
+
+            var slots = req.Slots ?? TemplateGeneratorService.GenerateSampleSlots(req.Schema);
+            var images = new Dictionary<string, (System.IO.Stream Stream, string FileName, string MimeType)>();
+
+            try
+            {
+                var pngBytes = await imageEngine.RenderTemplateAsync(req.Schema, slots, images, ct);
+                return Results.File(pngBytes, "image/png");
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest($"Render preview failed: {ex.Message}");
+            }
+        });
+
+        group.MapPost("/generate", async (
+            GenerateTemplateApiRequest req,
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            LlmProviderService providerService,
+            TemplateGeneratorService generator,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Prompt))
+                return Results.BadRequest("Prompt is required.");
+
+            var userId = principal.GetUserId();
+            AppUser? user = null;
+            if (userId.HasValue)
+            {
+                user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId.Value, ct);
+            }
+
+            var provider = user != null ? await providerService.GetProviderForUserAsync(db, user, ct) : null;
+            provider ??= await db.LlmProviders.FirstOrDefaultAsync(p => p.IsDefault && p.IsActive, ct);
+
+            if (provider == null)
+            {
+                return Results.BadRequest("No active LLM provider configured.");
+            }
+
+            var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
+            try
+            {
+                var result = await generator.GenerateTemplateAsync(req.Prompt, credentials, req.Width, req.Height, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest($"Failed to generate template: {ex.Message}");
+            }
+        }).RequireAuthorization();
+
+        group.MapPost("/restore-defaults", async (AppDbContext db, CancellationToken ct) =>
+        {
+            var defaultTemplates = TemplateSeedData.GetDefaultTemplates();
+            var existingIds = await db.Templates.Select(t => t.Id).ToListAsync(ct);
+
+            var toAdd = defaultTemplates.Where(d => !existingIds.Contains(d.Id)).ToList();
+            if (toAdd.Count > 0)
+            {
+                db.Templates.AddRange(toAdd);
+                await db.SaveChangesAsync(ct);
+            }
+
+            var allTemplates = await db.Templates.AsNoTracking().OrderBy(t => t.Name).Select(t => new TemplateDto(t)).ToListAsync(ct);
+            return Results.Ok(allTemplates);
+        }).RequireAuthorization();
     }
 }
+

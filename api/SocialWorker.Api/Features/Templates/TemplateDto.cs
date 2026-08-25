@@ -12,6 +12,7 @@ public sealed record TemplateDto(
     int Height,
     string Schema,
     Guid? ThumbnailMediaAssetId,
+    string ThumbnailUrl,
     DateTime CreatedAt,
     DateTime UpdatedAt)
 {
@@ -23,6 +24,9 @@ public sealed record TemplateDto(
         template.Height,
         template.Schema,
         template.ThumbnailMediaAssetId,
+        template.ThumbnailMediaAssetId.HasValue
+            ? $"/api/media/{template.ThumbnailMediaAssetId.Value}"
+            : $"/api/templates/{template.Id}/render",
         template.CreatedAt,
         template.UpdatedAt)
     {

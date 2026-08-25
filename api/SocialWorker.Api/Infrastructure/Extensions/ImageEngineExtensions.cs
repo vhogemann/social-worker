@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using SocialWorker.Api.Features.ImageEngine;
+using SocialWorker.Api.Features.Templates.Services;
 
 namespace SocialWorker.Api.Infrastructure.Extensions;
 
@@ -18,5 +19,7 @@ static partial class ServiceCollectionExtensions
             client.BaseAddress = new Uri(options.BaseUrl);
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
         });
+
+        builder.Services.AddScoped<TemplateGeneratorService>();
     }
 }

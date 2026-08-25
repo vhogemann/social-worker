@@ -182,6 +182,13 @@ public sealed class RenderTemplateTool : ChatToolBase<RenderTemplateArgs, Render
 
             var uploadResult = await _mediaService.UploadMediaAsync(uploadCmd, context.CancellationToken);
 
+            if (!template.ThumbnailMediaAssetId.HasValue)
+            {
+                template.ThumbnailMediaAssetId = uploadResult.Id;
+                template.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(context.CancellationToken);
+            }
+
             var message = $"Successfully rendered template '{template.Name}' and attached image:\n{uploadResult.MarkdownTag}";
             return new RenderTemplateToolResult(true, uploadResult.Id, uploadResult.MarkdownTag, message);
         }
