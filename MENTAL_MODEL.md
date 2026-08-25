@@ -31,6 +31,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Draft lifecycle: api/SocialWorker.Api/Features/Drafts/
 - Publishing: api/SocialWorker.Api/Features/Publishing/
 - Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Media/
+- Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
 - Feed automation: api/SocialWorker.Api/Features/Feeds/
 - Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/
 - Feed ingestion queue worker: api/SocialWorker.Api/Features/Feeds/Services/FeedIngestionQueueHostedService.cs
@@ -39,6 +40,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ### Frontend entry and state
 
 - App shell + routes + panel layout: web/src/App.tsx
+- Template Studio: web/src/components/TemplateStudio/
 - Draft state/orchestration: web/src/store/draftStore.ts
 - Chat state and activity cards: web/src/store/chatStore.ts
 - API contract clients: web/src/api/

@@ -13,6 +13,7 @@ import { LogsPanel } from "./components/Logs/LogsPanel";
 import { PrivacyPolicy } from "./components/PrivacyPolicy";
 import { LinkedInCallback } from "./components/Settings/LinkedInCallback";
 import { SettingsPage } from "./components/Settings/SettingsPage";
+import { TemplateStudio } from "./components/TemplateStudio/TemplateStudio";
 import { useDraftStore } from "./store/draftStore";
 import { useEditorStore } from "./store/editorStore";
 
@@ -146,6 +147,7 @@ function AppContent() {
         <div className="flex gap-4 items-center">
           <Link to="/" className="hover:text-foreground">Workflows</Link>
           <Link to="/composer" className="hover:text-foreground">Composer</Link>
+          <Link to="/templates" className="hover:text-foreground">Templates</Link>
           <Link to="/sources" className="hover:text-foreground">Sources Library</Link>
           <Link to="/feeds" className="hover:text-foreground">Feeds</Link>
           <Link to="/logs" className="hover:text-foreground">Logs</Link>
@@ -157,6 +159,7 @@ function AppContent() {
         <Route path="/" element={<WorkflowsPanel />} />
         <Route path="/composer" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
         <Route path="/draft/:draftId" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
+        <Route path="/templates" element={<TemplateStudio />} />
         <Route path="/sources" element={<SourcesLibrary />} />
         <Route path="/feeds" element={<FeedsPanel />} />
         <Route path="/logs" element={<LogsPanel />} />

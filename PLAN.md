@@ -86,6 +86,7 @@ These should remain first-class and be kept current:
 | [planning/FACEBOOK_SUPPORT.md](planning/FACEBOOK_SUPPORT.md) | Facebook Pages OAuth integration, token exchange, and post/comment/media publishing pipeline |
 | [planning/INSTAGRAM_SUPPORT.md](planning/INSTAGRAM_SUPPORT.md) | Instagram Professional/Creator publishing container pipeline, image validation, and OAuth integration |
 | [planning/IMAGE_ENGINE.md](planning/IMAGE_ENGINE.md) | Image Engine microservice (Sharp + @napi-rs/canvas), data-driven JSON layer tree templates, Instagram image composition, and partial SkiaSharp extraction |
+| [planning/TEMPLATE_STUDIO.md](planning/TEMPLATE_STUDIO.md) | Template Studio UI, AI template generation, 1-shot auto-repair, and seed templates library |
 
 ## Reference-only planning documents
 
