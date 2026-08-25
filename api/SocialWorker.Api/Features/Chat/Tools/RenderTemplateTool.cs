@@ -115,7 +115,8 @@ public sealed class RenderTemplateTool : ChatToolBase<RenderTemplateArgs, Render
             return new RenderTemplateToolResult(false, null, null, $"Error: Template '{args.TemplateId}' not found.", "Template not found.");
         }
 
-        var inputSlots = args.Slots ?? new Dictionary<string, string>();
+        var rawInputSlots = args.Slots ?? new Dictionary<string, string>();
+        var inputSlots = NormalizeInputSlots(rawInputSlots, template.Schema);
         var resolvedSlots = new Dictionary<string, string>();
         var images = new Dictionary<string, (Stream Stream, string FileName, string MimeType)>();
         var streamsToDispose = new List<Stream>();
@@ -209,5 +210,68 @@ public sealed class RenderTemplateTool : ChatToolBase<RenderTemplateArgs, Render
                 }
             }
         }
+    }
+
+    private static Dictionary<string, string> NormalizeInputSlots(
+        Dictionary<string, string> inputSlots,
+        string schemaJson)
+    {
+        var normalized = new Dictionary<string, string>(inputSlots, StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(schemaJson);
+            if (doc.RootElement.TryGetProperty("slots", out var slotsEl) && slotsEl.ValueKind == JsonValueKind.Array)
+            {
+                var canonicalSlots = new List<string>();
+                foreach (var s in slotsEl.EnumerateArray())
+                {
+                    if (s.TryGetProperty("name", out var n) && n.GetString() is { } name && !string.IsNullOrWhiteSpace(name))
+                    {
+                        canonicalSlots.Add(name);
+                    }
+                }
+
+                foreach (var canonical in canonicalSlots)
+                {
+                    if (normalized.ContainsKey(canonical))
+                        continue;
+
+                    var cleanCanonical = canonical.Replace("_", "").Replace("-", "");
+                    var foundKey = normalized.Keys.FirstOrDefault(k =>
+                        k.Replace("_", "").Replace("-", "").Equals(cleanCanonical, StringComparison.OrdinalIgnoreCase));
+
+                    if (foundKey == null)
+                    {
+                        if (canonical.Equals("quote_text", StringComparison.OrdinalIgnoreCase) || canonical.Equals("quote", StringComparison.OrdinalIgnoreCase))
+                        {
+                            foundKey = normalized.Keys.FirstOrDefault(k => k.Equals("quote", StringComparison.OrdinalIgnoreCase) || k.Equals("quote_text", StringComparison.OrdinalIgnoreCase) || k.Equals("text", StringComparison.OrdinalIgnoreCase));
+                        }
+                        else if (canonical.Equals("background_image", StringComparison.OrdinalIgnoreCase) || canonical.Equals("bg", StringComparison.OrdinalIgnoreCase))
+                        {
+                            foundKey = normalized.Keys.FirstOrDefault(k => k.Equals("image", StringComparison.OrdinalIgnoreCase) || k.Equals("background_image", StringComparison.OrdinalIgnoreCase) || k.Equals("bg", StringComparison.OrdinalIgnoreCase) || k.Equals("background", StringComparison.OrdinalIgnoreCase));
+                        }
+                        else if (canonical.Equals("headline", StringComparison.OrdinalIgnoreCase) || canonical.Equals("slide_title", StringComparison.OrdinalIgnoreCase))
+                        {
+                            foundKey = normalized.Keys.FirstOrDefault(k => k.Equals("title", StringComparison.OrdinalIgnoreCase) || k.Equals("headline", StringComparison.OrdinalIgnoreCase) || k.Equals("header", StringComparison.OrdinalIgnoreCase));
+                        }
+                        else if (canonical.Equals("body_text", StringComparison.OrdinalIgnoreCase) || canonical.Equals("slide_body", StringComparison.OrdinalIgnoreCase))
+                        {
+                            foundKey = normalized.Keys.FirstOrDefault(k => k.Equals("body", StringComparison.OrdinalIgnoreCase) || k.Equals("body_text", StringComparison.OrdinalIgnoreCase) || k.Equals("content", StringComparison.OrdinalIgnoreCase) || k.Equals("description", StringComparison.OrdinalIgnoreCase));
+                        }
+                    }
+
+                    if (foundKey != null && normalized.TryGetValue(foundKey, out var val))
+                    {
+                        normalized[canonical] = val;
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return normalized;
     }
 }
