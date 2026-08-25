@@ -7,6 +7,7 @@ COPY src/ ./src/
 RUN npm run build
 
 FROM node:22-alpine AS runtime
+RUN apk add --no-cache font-noto font-dejavu font-freefont fontconfig
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev

@@ -1,9 +1,42 @@
 import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
+import { GlobalFonts } from '@napi-rs/canvas';
 import { renderTemplate } from '../src/services/template.service.js';
 import { Template } from '../src/types/schema.js';
 
-describe('Template Renderer Service', () => {
+describe('Template Rendering Service', () => {
+  it('checks available fonts and verifies text pixels are rendered', async () => {
+    expect(GlobalFonts.families.length).toBeGreaterThan(0);
+
+    const blankTemplate: Template = {
+      name: 'blank',
+      width: 200,
+      height: 200,
+      slots: [],
+      layers: [{ type: 'rect', fill: '#000000', x: 0, y: 0, w: '100%', h: '100%' }],
+    };
+
+    const textTemplate: Template = {
+      name: 'with_text',
+      width: 200,
+      height: 200,
+      slots: [{ name: 't', type: 'text' }],
+      layers: [
+        { type: 'rect', fill: '#000000', x: 0, y: 0, w: '100%', h: '100%' },
+        { type: 'text', slot: 't', x: 20, y: 50, fontSize: 32, color: '#ffffff' },
+      ],
+    };
+
+    const blankBuf = await renderTemplate(blankTemplate, {});
+    const textBuf = await renderTemplate(textTemplate, { t: 'TEST' });
+
+    const blankRaw = await sharp(blankBuf).raw().toBuffer();
+    const textRaw = await sharp(textBuf).raw().toBuffer();
+
+    // Text buffer must have white pixels (different from pure black canvas)
+    expect(blankRaw.equals(textRaw)).toBe(false);
+  });
+
   it('renders a declarative template with background, rect, and wrapped text', async () => {
     const bgImage = await sharp({
       create: {

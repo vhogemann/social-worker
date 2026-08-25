@@ -1,5 +1,45 @@
-import { createCanvas, loadImage, SKRSContext2D } from '@napi-rs/canvas';
+import { createCanvas, loadImage, SKRSContext2D, GlobalFonts } from '@napi-rs/canvas';
 import { Template, Layer, TextLayer, RectLayer, CircleLayer, ImageLayer } from '../types/schema.js';
+import fs from 'fs';
+import path from 'path';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+
+export function initFonts() {
+  const fontDirs = ['/usr/share/fonts', '/usr/local/share/fonts'];
+  for (const dir of fontDirs) {
+    if (fs.existsSync(dir)) {
+      try {
+        GlobalFonts.loadFontsFromDir(dir);
+      } catch {
+        // Ignore directory load error
+      }
+    }
+  }
+
+  try {
+    const interPkg = require.resolve('@fontsource/inter/package.json');
+    const interFiles = path.join(path.dirname(interPkg), 'files');
+    if (fs.existsSync(interFiles)) {
+      GlobalFonts.loadFontsFromDir(interFiles);
+    }
+  } catch {
+    // Fallback
+  }
+
+  try {
+    const monoPkg = require.resolve('@fontsource/jetbrains-mono/package.json');
+    const monoFiles = path.join(path.dirname(monoPkg), 'files');
+    if (fs.existsSync(monoFiles)) {
+      GlobalFonts.loadFontsFromDir(monoFiles);
+    }
+  } catch {
+    // Fallback
+  }
+}
+
+initFonts();
 
 export async function renderTemplate(
   template: Template,
@@ -198,9 +238,14 @@ function renderText(
   }
 
   const fontSize = layer.fontSize || 32;
-  const fontFamily = layer.fontFamily || 'Inter, sans-serif';
+  let fontFamily = (layer.fontFamily || 'Inter').split(',')[0].trim().replace(/['"]/g, '');
+  if (fontFamily.toLowerCase() === 'monospace') {
+    fontFamily = 'JetBrains Mono';
+  } else if (!fontFamily || fontFamily.toLowerCase() === 'sans-serif') {
+    fontFamily = 'Inter';
+  }
   const fontWeight = layer.fontWeight || 'normal';
-  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  ctx.font = `${fontWeight} ${fontSize}px "${fontFamily}"`;
   ctx.fillStyle = layer.color || '#ffffff';
   ctx.textAlign = layer.align || 'left';
   ctx.textBaseline = 'top';
