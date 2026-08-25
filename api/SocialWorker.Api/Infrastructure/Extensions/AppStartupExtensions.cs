@@ -2,6 +2,7 @@ using DbUp;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Data.Seed;
 using SocialWorker.Api.Features.Accounts;
 using SocialWorker.Api.Features.Auth;
 using SocialWorker.Api.Features.Chat;
@@ -57,6 +58,7 @@ static class AppStartupExtensions
 
         await SeedAdminUserAsync(scope.ServiceProvider, db);
         await SeedDefaultLlmProviderAsync(scope.ServiceProvider, db);
+        await SeedDefaultTemplatesAsync(db);
         await RecoverStuckDraftsAsync(db);
     }
 
@@ -118,6 +120,18 @@ static class AppStartupExtensions
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedDefaultTemplatesAsync(AppDbContext db)
+    {
+        if (await db.Templates.AnyAsync())
+        {
+            return;
+        }
+
+        var defaults = TemplateSeedData.GetDefaultTemplates();
+        db.Templates.AddRange(defaults);
         await db.SaveChangesAsync();
     }
 
