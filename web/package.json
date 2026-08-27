@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "konva": "^9.3.18",
-    "@assistant-ui/react": "^0.10.0",
+    "@assistant-ui/react": "^0.15.16",
     "@assistant-ui/react-data-stream": "^0.10.0",
     "@codemirror/commands": "^6.6.0",
     "@codemirror/lang-markdown": "^6.3.0",
