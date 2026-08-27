@@ -268,8 +268,12 @@ public sealed class PlatformVariantTests : SqliteTestBase
 
         var allDrafts = await _draftsService.GetDraftsForUserAsync(_user.Id, default);
 
-        var variant = allDrafts.FirstOrDefault(d => d.TargetPlatform == "Twitter");
-        Assert.NotNull(variant);
+        var canonicalInList = allDrafts.FirstOrDefault(d => d.Id == canonical.Id);
+        Assert.NotNull(canonicalInList);
+        Assert.NotNull(canonicalInList.Variants);
+        Assert.Single(canonicalInList.Variants);
+        var variant = canonicalInList.Variants[0];
+        Assert.Equal("Twitter", variant.TargetPlatform);
         Assert.Equal(canonical.Id, variant.CanonicalDraftId);
     }
 

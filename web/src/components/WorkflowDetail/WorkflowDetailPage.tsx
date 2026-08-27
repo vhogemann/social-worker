@@ -152,6 +152,7 @@ export const WorkflowDetailPage: React.FC = () => {
 
         {/* Main Content: Generated Drafts Grid */}
         <WorkflowDraftsList
+          workflowId={workflow.id}
           drafts={drafts}
           isTriggering={triggering}
           onTrigger={handleTrigger}

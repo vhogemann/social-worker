@@ -39,7 +39,10 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Frontend entry and state
 
+- App shell & routing: web/src/App.tsx, web/src/components/Navigation/AppHeader.tsx
 - Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/
+- Drafts Library Page: web/src/components/Drafts/DraftsPage.tsx
+- Full-width 2-pane Composer: web/src/components/Composer/ComposerPage.tsx
 - Navigation & Breadcrumbs: web/src/components/Navigation/
 - Template Studio & WYSIWYG Editor: web/src/components/TemplateStudio/
 - Draft state/orchestration: web/src/store/draftStore.ts

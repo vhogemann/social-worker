@@ -62,7 +62,10 @@ public sealed record DraftDto(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     Guid? TargetAccountId = null,
-    string? TargetAccountHandle = null
+    string? TargetAccountHandle = null,
+    Guid? AutomationWorkflowId = null,
+    string? AutomationWorkflowTitle = null,
+    List<DraftDto>? Variants = null
 );
 
 public sealed class DraftsService
@@ -87,7 +90,13 @@ public sealed class DraftsService
         _draftChatSummaryService = draftChatSummaryService;
     }
 
-    private static DraftDto ToDto(Draft draft, List<PlatformThread> threads, List<Post> posts, List<MediaAsset> media, DraftBlueskyMetadata? blueskyMetadata = null)
+    private static DraftDto ToDto(
+        Draft draft,
+        List<PlatformThread> threads,
+        List<Post> posts,
+        List<MediaAsset> media,
+        DraftBlueskyMetadata? blueskyMetadata = null,
+        List<DraftDto>? variants = null)
     {
         return new DraftDto(
             draft.Id,
@@ -123,7 +132,10 @@ public sealed class DraftsService
             draft.CreatedAt,
             draft.UpdatedAt,
             draft.TargetAccountId,
-            draft.TargetAccount?.Handle
+            draft.TargetAccount?.Handle,
+            draft.AutomationWorkflowId,
+            draft.AutomationWorkflow?.Title,
+            variants ?? new List<DraftDto>()
         );
     }
 
@@ -131,6 +143,7 @@ public sealed class DraftsService
     {
         var drafts = await _db.Drafts
             .Include(d => d.TargetAccount)
+            .Include(d => d.AutomationWorkflow)
             .Where(d => d.UserId == userId && d.Status != DraftStatus.Deleted)
             .OrderByDescending(d => d.UpdatedAt)
             .ToListAsync(ct);
@@ -155,15 +168,29 @@ public sealed class DraftsService
             .Where(p => threadIds.Contains(p.PlatformThreadId))
             .ToListAsync(ct);
 
-        return drafts.Select(d =>
+        var allDtos = drafts.Select(d =>
         {
             var draftThreads = threads.Where(t => t.DraftId == d.Id).ToList();
-            var threadIds = draftThreads.Select(t => t.Id).ToList();
-            var draftPosts = posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToList();
+            var draftThreadIds = draftThreads.Select(t => t.Id).ToList();
+            var draftPosts = posts.Where(p => draftThreadIds.Contains(p.PlatformThreadId)).ToList();
             var draftMedia = media.Where(m => m.DraftId == d.Id).ToList();
             var draftBlueskyMetadata = blueskyMetadata.FirstOrDefault(m => m.DraftId == d.Id);
             return ToDto(d, draftThreads, draftPosts, draftMedia, draftBlueskyMetadata);
         }).ToList();
+
+        var variantsByCanonical = allDtos
+            .Where(d => d.CanonicalDraftId.HasValue)
+            .GroupBy(d => d.CanonicalDraftId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        return allDtos
+            .Where(d => !d.CanonicalDraftId.HasValue)
+            .Select(d =>
+            {
+                var vars = variantsByCanonical.TryGetValue(d.Id, out var list) ? list : new List<DraftDto>();
+                return d with { Variants = vars };
+            })
+            .ToList();
     }
 
     public async Task<DraftDto> CreateDraftAsync(Guid userId, string? title = null, string? content = null, string? targetPlatform = null, Guid? targetAccountId = null, CancellationToken ct = default)
@@ -216,6 +243,7 @@ public sealed class DraftsService
     {
         var draft = await _db.Drafts
             .Include(d => d.TargetAccount)
+            .Include(d => d.AutomationWorkflow)
             .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId && d.Status != DraftStatus.Deleted, ct)
             ?? throw new KeyNotFoundException("Draft not found or access denied.");
 
@@ -225,7 +253,32 @@ public sealed class DraftsService
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
         var blueskyMetadata = await _db.DraftBlueskyMetadata.FirstOrDefaultAsync(m => m.DraftId == id, ct);
 
-        return ToDto(draft, threads, posts, media, blueskyMetadata);
+        var variants = new List<DraftDto>();
+        if (!draft.CanonicalDraftId.HasValue)
+        {
+            var childVariants = await _db.Drafts
+                .Include(d => d.TargetAccount)
+                .Include(d => d.AutomationWorkflow)
+                .Where(d => d.CanonicalDraftId == id && d.UserId == userId && d.Status != DraftStatus.Deleted)
+                .ToListAsync(ct);
+
+            var variantIds = childVariants.Select(v => v.Id).ToList();
+            var variantThreads = await _db.PlatformThreads.Include(t => t.Account).Where(t => variantIds.Contains(t.DraftId)).ToListAsync(ct);
+            var variantThreadIds = variantThreads.Select(t => t.Id).ToList();
+            var variantPosts = await _db.Posts.Where(p => variantThreadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
+            var variantMedia = await _db.MediaAssets.Where(m => m.DraftId.HasValue && variantIds.Contains(m.DraftId.Value)).ToListAsync(ct);
+
+            variants = childVariants.Select(v =>
+            {
+                var vThreads = variantThreads.Where(t => t.DraftId == v.Id).ToList();
+                var vThreadIds = vThreads.Select(t => t.Id).ToList();
+                var vPosts = variantPosts.Where(p => vThreadIds.Contains(p.PlatformThreadId)).ToList();
+                var vMedia = variantMedia.Where(m => m.DraftId == v.Id).ToList();
+                return ToDto(v, vThreads, vPosts, vMedia);
+            }).ToList();
+        }
+
+        return ToDto(draft, threads, posts, media, blueskyMetadata, variants);
     }
 
     public async Task<DraftDto> UpdateDraftAsync(

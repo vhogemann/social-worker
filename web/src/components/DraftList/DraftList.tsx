@@ -1,11 +1,12 @@
-import { useMemo } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus, faTrashCan, faBoxArchive, faPenToSquare, faArrowRotateLeft, faLink } from "@fortawesome/free-solid-svg-icons";
-import { PLATFORM_BADGE_COLORS, PLATFORM_ICONS } from "../../config/platformBadges";
+import React, { useMemo } from "react";
 import { CreateDraftModal } from "./CreateDraftModal";
 import { useDraftListManager } from "./useDraftListManager";
+import { DraftListHeader } from "./DraftListHeader";
+import { DraftListItem } from "./DraftListItem";
+import { DraftVariantItem } from "./DraftVariantItem";
+import { DraftListFooter } from "./DraftListFooter";
 
-export function DraftList() {
+export const DraftList: React.FC = () => {
   const {
     activeDraftId,
     archiveDraft,
@@ -30,9 +31,7 @@ export function DraftList() {
   const variantsByCanonical = useMemo(() => {
     const grouped = new Map<string, typeof variantDrafts>();
     for (const variant of variantDrafts) {
-      if (!variant.canonicalDraftId) {
-        continue;
-      }
+      if (!variant.canonicalDraftId) continue;
       const current = grouped.get(variant.canonicalDraftId) || [];
       grouped.set(variant.canonicalDraftId, [...current, variant]);
     }
@@ -40,135 +39,40 @@ export function DraftList() {
   }, [variantDrafts]);
 
   return (
-    <div className="w-56 flex flex-col h-full bg-panel border-r border-border shrink-0">
-      <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-        <span className="text-xs font-mono text-muted uppercase tracking-wider">
-          {showArchived ? "archived" : "drafts"}
-        </span>
-        {!showArchived && (
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className="text-xs font-mono text-accent hover:opacity-80 flex items-center gap-1"
-          >
-            <FontAwesomeIcon icon={faPlus} className="w-3 h-3" />
-            new
-          </button>
-        )}
-      </div>
+    <div className="w-56 flex flex-col h-full bg-panel border-r border-border shrink-0" data-testid="draft-list">
+      <DraftListHeader
+        showArchived={showArchived}
+        onOpenCreateModal={() => setCreateModalOpen(true)}
+      />
+
       <div className="flex-1 overflow-y-auto divide-y divide-border">
         {canonicalDrafts.map((d) => {
           const variants = variantsByCanonical.get(d.id) || [];
           return (
             <div key={d.id}>
-              <div
-                className={`group relative w-full hover:bg-border/40 transition-colors ${
-                  d.id === activeDraftId ? "bg-border/40" : ""
-                }`}
-              >
-                {d.id === activeDraftId && (
-                  <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-accent" />
-                )}
-                <button
-                  onClick={() => handleSelect(d.id)}
-                  onDoubleClick={() => startEditTitle(d.id, d.title)}
-                  className="w-full text-left px-3 py-2 pr-12 focus:outline-none"
-                >
-                  {editingTitleId === d.id ? (
-                    <input
-                      type="text"
-                      value={editTitleValue}
-                      onChange={(e) => setEditTitleValue(e.target.value)}
-                      onKeyDown={async (e) => {
-                        if (e.key === "Enter") {
-                          await handleSaveTitle(d.id);
-                        } else if (e.key === "Escape") {
-                          setEditingTitleId(null);
-                        }
-                      }}
-                      onBlur={async () => {
-                        await handleSaveTitle(d.id);
-                      }}
-                      className="bg-bg border border-accent rounded px-1 py-0.5 text-xs text-foreground focus:outline-none w-full font-sans"
-                      autoFocus
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <>
-                      <div className={`text-sm truncate ${d.id === activeDraftId ? "text-accent font-medium" : "font-medium"}`}>
-                        {d.title}
-                      </div>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <span className="text-xs font-mono text-muted lowercase">{d.status}</span>
-                        {d.targetPlatform && (
-                          <span className={`inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-sans font-medium ${PLATFORM_BADGE_COLORS[d.targetPlatform] || "text-muted"}`}>
-                            {PLATFORM_ICONS[d.targetPlatform] && <FontAwesomeIcon icon={PLATFORM_ICONS[d.targetPlatform]} className="w-3 h-3" />}
-                            {d.targetPlatform}
-                            {d.targetAccountHandle && <span className="opacity-75 font-mono">@{d.targetAccountHandle.replace(/^@/, '')}</span>}
-                          </span>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </button>
-                {editingTitleId !== d.id && (
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1.5 bg-panel/95 py-0.5 px-1 rounded border border-border/80 shadow-sm">
-                    {d.status === "Archived" ? (
-                      <>
-                        <button onClick={(e) => { e.stopPropagation(); unarchiveDraft(d.id); }} title="Restore Draft" className="text-muted hover:text-foreground">
-                          <FontAwesomeIcon icon={faArrowRotateLeft} className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(d.id); }} title="Delete Draft" className="text-red-400 hover:text-red-300">
-                          <FontAwesomeIcon icon={faTrashCan} className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={(e) => { e.stopPropagation(); startEditTitle(d.id, d.title); }} title="Rename Draft" className="text-muted hover:text-foreground">
-                          <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); archiveDraft(d.id); }} title="Archive Draft" className="text-muted hover:text-foreground">
-                          <FontAwesomeIcon icon={faBoxArchive} className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(d.id); }} title="Delete Draft" className="text-red-400 hover:text-red-300">
-                          <FontAwesomeIcon icon={faTrashCan} className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+              <DraftListItem
+                draft={d}
+                isActive={d.id === activeDraftId}
+                isEditing={editingTitleId === d.id}
+                editTitleValue={editTitleValue}
+                onSelect={handleSelect}
+                onStartEditTitle={startEditTitle}
+                onChangeEditTitle={setEditTitleValue}
+                onSaveTitle={handleSaveTitle}
+                onCancelEditTitle={() => setEditingTitleId(null)}
+                onArchive={archiveDraft}
+                onUnarchive={unarchiveDraft}
+                onDelete={handleDelete}
+              />
               {variants.length > 0 && (
                 <div className="ml-3 border-l border-border/50">
                   {variants.map((v) => (
-                    <div
+                    <DraftVariantItem
                       key={v.id}
-                      className={`group relative w-full hover:bg-border/40 transition-colors ${
-                        v.id === activeDraftId ? "bg-border/40" : ""
-                      }`}
-                    >
-                      {v.id === activeDraftId && (
-                        <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-accent" />
-                      )}
-                      <button
-                        onClick={() => handleSelect(v.id)}
-                        className="w-full text-left px-3 py-1.5 pr-12 focus:outline-none"
-                      >
-                        <div className={`flex items-center gap-1 text-sm truncate ${v.id === activeDraftId ? "text-accent" : "text-foreground/70"}`}>
-                          <FontAwesomeIcon icon={faLink} className="w-3 h-3 shrink-0 text-muted" />
-                          <span className="truncate">{v.title}</span>
-                        </div>
-                        <div className="flex items-center gap-1 mt-0.5 ml-4">
-                          {v.targetPlatform && (
-                            <span className={`inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-sans font-medium ${PLATFORM_BADGE_COLORS[v.targetPlatform] || "text-muted"}`}>
-                              {PLATFORM_ICONS[v.targetPlatform] && <FontAwesomeIcon icon={PLATFORM_ICONS[v.targetPlatform]} className="w-3 h-3" />}
-                              {v.targetPlatform}
-                              {v.targetAccountHandle && <span className="opacity-75 font-mono">@{v.targetAccountHandle.replace(/^@/, '')}</span>}
-                            </span>
-                          )}
-                          <span className="text-[10px] text-muted font-sans">variant</span>
-                        </div>
-                      </button>
-                    </div>
+                      variant={v}
+                      isActive={v.id === activeDraftId}
+                      onSelect={handleSelect}
+                    />
                   ))}
                 </div>
               )}
@@ -176,23 +80,17 @@ export function DraftList() {
           );
         })}
         {canonicalDrafts.length === 0 && (
-          <div className="px-3 py-4 text-xs text-muted text-center">
+          <div className="px-3 py-4 text-xs text-muted text-center font-mono">
             {showArchived ? "No archived drafts" : "No drafts yet"}
           </div>
         )}
       </div>
-      <div className="px-3 py-2 border-t border-border flex items-center justify-end shrink-0">
-        <button
-          onClick={() => setShowArchived(!showArchived)}
-          className={`text-[10px] font-mono border px-1.5 py-0.5 rounded transition-all focus:outline-none ${
-            showArchived
-              ? "bg-accent/15 border-accent text-accent"
-              : "border-border text-muted hover:text-foreground"
-          }`}
-        >
-          {showArchived ? "show active" : "show archived"}
-        </button>
-      </div>
+
+      <DraftListFooter
+        showArchived={showArchived}
+        onToggleShowArchived={() => setShowArchived(!showArchived)}
+      />
+
       <CreateDraftModal
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
@@ -200,4 +98,4 @@ export function DraftList() {
       />
     </div>
   );
-}
+};

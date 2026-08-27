@@ -108,6 +108,9 @@ export interface DraftDto {
   chatHistory?: string | null;
   chatSummary?: string | null;
   lastSummarizedMessageCount?: number;
+  automationWorkflowId?: string | null;
+  automationWorkflowTitle?: string | null;
+  variants?: DraftDto[];
   createdAt: string;
   updatedAt: string;
 }
@@ -118,10 +121,22 @@ export async function fetchDrafts(): Promise<DraftDto[]> {
   return res.json();
 }
 
-export async function createDraft(title?: string, content?: string, targetPlatform?: string, targetAccountId?: string): Promise<DraftDto> {
+export async function createDraft(
+  title?: string,
+  content?: string,
+  targetPlatform?: string,
+  targetAccountId?: string,
+  automationWorkflowId?: string
+): Promise<DraftDto> {
   const res = await apiFetch("/api/drafts", {
     method: "POST",
-    body: JSON.stringify({ title, content, targetPlatform, targetAccountId }),
+    body: JSON.stringify({
+      title,
+      content,
+      targetPlatform,
+      targetAccountId,
+      automationWorkflowId
+    }),
   });
   if (!res.ok) throw new Error(`createDraft failed: ${res.status}`);
   return res.json();

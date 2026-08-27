@@ -33,9 +33,10 @@ This file is the single source of truth for roadmap status and planning links.
 
 Status: `Active`
 
-1. Reliability hardening for source/search/scraper pipeline.
-2. E2E signal quality and release confidence (flake triage + stable smoke gates).
-3. Tighten operational runbook quality (startup, verification, troubleshooting).
+1. Drafts Page card grid, full-width 2-pane Composer, and workflow-grounded routing: [planning/DRAFTS_PAGE_AND_WORKFLOW_ROUTING.md](planning/DRAFTS_PAGE_AND_WORKFLOW_ROUTING.md)
+2. Reliability hardening for source/search/scraper pipeline.
+3. E2E signal quality and release confidence (flake triage + stable smoke gates).
+4. Tighten operational runbook quality (startup, verification, troubleshooting).
 
 Definition of done for this phase:
 

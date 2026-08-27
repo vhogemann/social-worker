@@ -1,31 +1,57 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBolt, faFileLines } from "@fortawesome/free-solid-svg-icons";
+import { faBolt, faFileLines, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { type WorkflowDraftSummaryDto } from "../../api/workflows";
 import { Button } from "../common/Button";
 import { EmptyState } from "../common/EmptyState";
 import { Badge } from "../common/Badge";
 
 export interface WorkflowDraftsListProps {
+  workflowId?: string;
   drafts: WorkflowDraftSummaryDto[];
   isTriggering?: boolean;
   onTrigger: () => void;
 }
 
 export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
+  workflowId,
   drafts,
   isTriggering = false,
-  onTrigger
+  onTrigger,
 }) => {
   const navigate = useNavigate();
 
+  const handleOpenDraft = (draftId: string) => {
+    if (workflowId) {
+      navigate(`/workflows/${workflowId}/draft/${draftId}`);
+    } else {
+      navigate(`/draft/${draftId}`);
+    }
+  };
+
+  const handleCreateNewDraft = () => {
+    if (workflowId) {
+      navigate(`/workflows/${workflowId}/draft`);
+    } else {
+      navigate(`/drafts`);
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" data-testid="workflow-drafts-list">
       <div className="flex justify-between items-center">
         <h2 className="text-sm font-bold text-foreground">
           Generated Drafts <span className="text-muted font-normal">({drafts.length})</span>
         </h2>
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={faPlus}
+          onClick={handleCreateNewDraft}
+        >
+          New Draft
+        </Button>
       </div>
 
       {drafts.length === 0 ? (
@@ -50,8 +76,9 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
           {drafts.map((draft) => (
             <div
               key={draft.id}
-              onClick={() => navigate(`/draft/${draft.id}`)}
+              onClick={() => handleOpenDraft(draft.id)}
               className="bg-panel border border-border rounded-xl p-5 flex flex-col justify-between transition hover:border-zinc-600 hover:shadow-md cursor-pointer group"
+              data-testid="workflow-draft-card"
             >
               <div className="flex flex-col gap-3">
                 <div className="flex justify-between items-start gap-2">

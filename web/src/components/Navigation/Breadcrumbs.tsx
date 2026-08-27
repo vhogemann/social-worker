@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faChevronRight } from "@fortawesome/free-solid-svg-icons";
 import { useDraftStore } from "../../store/draftStore";
@@ -30,7 +30,25 @@ export const Breadcrumbs: React.FC = () => {
   const templateName = useTemplateEditorStore((s) => s.name);
 
   const getItems = (): BreadcrumbItem[] => {
-    // 1. Workflows
+    // 1. Workflow-scoped drafts: /workflows/:workflowId/draft or /workflows/:workflowId/draft/:draftId
+    if (path.startsWith("/workflows/") && path.includes("/draft")) {
+      const parts = path.split("/");
+      const workflowId = parts[2];
+      const draftId = parts[4];
+      const draft = draftId
+        ? drafts.find((d) => d.id === draftId) || (activeDraftId ? drafts.find((d) => d.id === activeDraftId) : null)
+        : null;
+      const workflowTitle = activeWorkflow?.title || draft?.automationWorkflowTitle || "Workflow";
+      const draftTitle = draft?.title || "Draft";
+
+      return [
+        { label: "Workflows", to: "/" },
+        { label: workflowTitle, to: `/workflows/${workflowId}` },
+        { label: draftTitle }
+      ];
+    }
+
+    // 2. Workflows & Workflow Detail
     if (path === "/" || path === "/workflows") {
       return [{ label: "Workflows" }];
     }
@@ -43,9 +61,9 @@ export const Breadcrumbs: React.FC = () => {
       ];
     }
 
-    // 2. Composer / Drafts
-    if (path === "/composer") {
-      return [{ label: "Composer" }];
+    // 3. Drafts & Standalone Composer
+    if (path === "/drafts") {
+      return [{ label: "Drafts" }];
     }
 
     if (path.startsWith("/draft/")) {
@@ -53,12 +71,19 @@ export const Breadcrumbs: React.FC = () => {
       const draft = drafts.find((d) => d.id === draftId) || (activeDraftId ? drafts.find((d) => d.id === activeDraftId) : null);
       const title = draft?.title || "Draft";
       return [
-        { label: "Composer", to: "/composer" },
+        { label: "Drafts", to: "/drafts" },
         { label: title }
       ];
     }
 
-    // 3. Templates
+    if (path === "/composer") {
+      return [
+        { label: "Drafts", to: "/drafts" },
+        { label: "Composer" }
+      ];
+    }
+
+    // 4. Templates
     if (path === "/templates") {
       return [{ label: "Templates" }];
     }
@@ -77,7 +102,7 @@ export const Breadcrumbs: React.FC = () => {
       ];
     }
 
-    // 4. Settings
+    // 5. Settings
     if (path.startsWith("/settings")) {
       const tab = path.replace("/settings/", "").replace("/settings", "") || "account";
       const tabLabel = SETTINGS_TAB_LABELS[tab] || "Settings";
@@ -90,7 +115,7 @@ export const Breadcrumbs: React.FC = () => {
       ];
     }
 
-    // 5. Standalone
+    // 6. Standalone pages
     if (path === "/sources") return [{ label: "Sources Library" }];
     if (path === "/logs") return [{ label: "Logs" }];
     if (path === "/privacy") return [{ label: "Privacy" }];
@@ -99,34 +124,35 @@ export const Breadcrumbs: React.FC = () => {
   };
 
   const items = getItems();
-
-  if (items.length === 0) return null;
+  if (items.length <= 1) return null;
 
   return (
-    <nav aria-label="Breadcrumbs" className="flex items-center gap-1.5 text-xs font-mono select-none" data-testid="breadcrumbs">
-      <span className="text-border">/</span>
-      {items.map((item, idx) => {
-        const isLast = idx === items.length - 1;
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs">
+      {items.map((item, index) => {
+        const isLast = index === items.length - 1;
         return (
-          <React.Fragment key={idx}>
+          <React.Fragment key={index}>
+            {index > 0 && (
+              <FontAwesomeIcon
+                icon={faChevronRight}
+                className="w-2.5 h-2.5 text-muted/60"
+              />
+            )}
             {item.to && !isLast ? (
               <Link
                 to={item.to}
-                className="text-muted hover:text-foreground transition truncate max-w-[180px]"
+                className="hover:text-foreground transition max-w-[150px] truncate"
               >
                 {item.label}
               </Link>
             ) : (
               <span
-                className={`truncate max-w-[220px] ${
+                className={`${
                   isLast ? "text-foreground font-medium" : "text-muted"
-                }`}
+                } max-w-[180px] truncate`}
               >
                 {item.label}
               </span>
-            )}
-            {!isLast && (
-              <span className="text-border">/</span>
             )}
           </React.Fragment>
         );

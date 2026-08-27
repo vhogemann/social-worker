@@ -1,207 +1,46 @@
-import { useEffect, useRef, useState } from "react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { useHotkey } from "@tanstack/react-hotkeys";
-import { BrowserRouter, Routes, Route, Link, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ChatProvider } from "./api/chat";
-import { ChatPanel } from "./components/ChatPanel/ChatPanel";
-import { EditorPanel } from "./components/EditorPanel/EditorPanel";
-import { DraftList } from "./components/DraftList/DraftList";
-import { SourcesLibrary } from "./components/SourcesLibrary/SourcesLibrary";
-import { WorkflowsPanel } from "./components/WorkflowsPanel/WorkflowsPanel";
-import { LogsPanel } from "./components/Logs/LogsPanel";
-import { PrivacyPolicy } from "./components/PrivacyPolicy";
-import { LinkedInCallback } from "./components/Settings/LinkedInCallback";
-import { SettingsPage } from "./components/Settings/SettingsPage";
-import { TemplateStudio } from "./components/TemplateStudio/TemplateStudio";
-import { TemplateEditorPage } from "./components/TemplateStudio/TemplateEditorPage";
+import { AppHeader } from "./components/Navigation/AppHeader";
+import { WorkflowsPage } from "./components/WorkflowsPanel/WorkflowsPage";
 import { WorkflowDetailPage } from "./components/WorkflowDetail/WorkflowDetailPage";
-import { Breadcrumbs } from "./components/Navigation/Breadcrumbs";
-import { useDraftStore } from "./store/draftStore";
-import { useEditorStore } from "./store/editorStore";
-
-
-function ComposerView({
-  chatRef,
-  editorRef,
-}: {
-  chatRef: React.RefObject<HTMLDivElement | null>;
-  editorRef: React.RefObject<HTMLDivElement | null>;
-}) {
-  return (
-    <div className="flex-1 min-h-0 flex">
-      <DraftList />
-      <div className="flex-1 min-w-0">
-        <PanelGroup direction="horizontal">
-          <Panel defaultSize={45} minSize={25}>
-            <div ref={chatRef} tabIndex={-1} className="h-full overflow-hidden focus:outline-none">
-              <ChatPanel />
-            </div>
-          </Panel>
-          <PanelResizeHandle className="w-1 bg-border hover:bg-accent transition-colors" />
-          <Panel defaultSize={55} minSize={25}>
-            <div ref={editorRef} tabIndex={-1} className="h-full overflow-hidden focus:outline-none">
-              <EditorPanel />
-            </div>
-          </Panel>
-        </PanelGroup>
-      </div>
-    </div>
-  );
-}
-
-function AppContent() {
-  const chatRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<HTMLDivElement>(null);
-  const loadDrafts = useDraftStore((s) => s.loadDrafts);
-  const applyExternal = useEditorStore((s) => s.applyExternal);
-  const [isReady, setIsReady] = useState(false);
-
-  const navigate = useNavigate();
-  const location = useLocation();
-  const match = location.pathname.match(/\/draft\/([^/]+)/);
-  const draftId = match ? match[1] : null;
-
-  // 1. Load drafts once on mount and initialize active draft if path matches
-  useEffect(() => {
-    let cancelled = false;
-    void loadDrafts().then(() => {
-      if (cancelled) return;
-      
-      const state = useDraftStore.getState();
-      const match = window.location.pathname.match(/\/draft\/([^/]+)/);
-      const initialDraftId = match ? match[1] : (state.drafts.length > 0 ? state.drafts[0].id : null);
-
-      if (initialDraftId) {
-        const draft = state.drafts.find((d) => d.id === initialDraftId);
-        if (draft) {
-          useDraftStore.setState({ activeDraftId: initialDraftId });
-          applyExternal(draft.content ?? "");
-        }
-      }
-
-      setIsReady(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [loadDrafts, applyExternal]);
-
-  // 2. Redirect from "/composer" to the active or first draft once loaded
-  useEffect(() => {
-    if (!isReady) return;
-
-    if (location.pathname === "/composer") {
-      const state = useDraftStore.getState();
-      let targetId = state.activeDraftId;
-      if (!targetId && state.drafts.length > 0) {
-        targetId = state.drafts[0].id;
-      }
-      if (!targetId) {
-        void state.createDraft().then((draft) => {
-          navigate(`/draft/${draft.id}`, { replace: true });
-        });
-      } else {
-        navigate(`/draft/${targetId}`, { replace: true });
-      }
-    }
-  }, [isReady, location.pathname, navigate]);
-
-  // 3. Synchronize draft active state when draftId parameter in route changes
-  useEffect(() => {
-    if (!isReady || !draftId) return;
-
-    const state = useDraftStore.getState();
-    const draft = state.drafts.find((d) => d.id === draftId);
-    if (draft) {
-      useDraftStore.setState({ activeDraftId: draftId });
-      applyExternal(draft.content ?? "");
-    } else {
-      void useDraftStore.getState().switchDraft(draftId).then((loaded) => {
-        applyExternal(loaded.content ?? "");
-      }).catch(() => {
-        navigate("/", { replace: true });
-      });
-    }
-  }, [draftId, isReady, applyExternal, navigate]);
-
-  useHotkey("Mod+J", () => chatRef.current?.focus());
-  useHotkey("Mod+K", () => editorRef.current?.focus());
-
-  if (!isReady) {
-    return (
-      <div className="h-screen flex flex-col overflow-hidden">
-        <header className="shrink-0 px-4 py-2 border-b border-border text-xs font-mono text-muted">
-          social-worker <span className="text-accent">·</span> mvp
-        </header>
-        <div className="flex-1 flex items-center justify-center text-xs font-mono text-muted">
-          loading draft...
-        </div>
-      </div>
-    );
-  }
-
-  const navItems = [
-    { label: "Workflows", to: "/", match: ["/", "/workflows"] },
-    { label: "Composer", to: "/composer", match: ["/composer", "/draft"] },
-    { label: "Templates", to: "/templates", match: ["/templates"] },
-    { label: "Settings", to: "/settings", match: ["/settings"] },
-  ];
-
-  return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      <header className="shrink-0 px-4 py-2 border-b border-border text-xs font-mono text-muted flex items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0">
-          <Link to="/" className="text-foreground font-semibold hover:text-accent transition shrink-0">
-            social-worker
-          </Link>
-          <Breadcrumbs />
-        </div>
-        <div className="flex gap-4 items-center shrink-0">
-          {navItems.map((item) => {
-            const isActive = item.match.some((prefix) =>
-              prefix === "/" ? location.pathname === "/" : location.pathname.startsWith(prefix)
-            );
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={`transition ${
-                  isActive
-                    ? "text-accent font-semibold"
-                    : "hover:text-foreground"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      </header>
-      <Routes>
-        <Route path="/" element={<WorkflowsPanel />} />
-        <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
-        <Route path="/composer" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
-        <Route path="/draft/:draftId" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
-        <Route path="/templates" element={<TemplateStudio />} />
-        <Route path="/templates/editor" element={<TemplateEditorPage />} />
-        <Route path="/templates/editor/:id" element={<TemplateEditorPage />} />
-        <Route path="/sources" element={<SourcesLibrary />} />
-        <Route path="/feeds" element={<Navigate to="/settings/feeds" replace />} />
-        <Route path="/logs" element={<LogsPanel />} />
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/settings" element={<Navigate to="/settings/account" replace />} />
-        <Route path="/settings/:tab" element={<SettingsPage />} />
-        <Route path="/oauth/callback/linkedin" element={<LinkedInCallback />} />
-      </Routes>
-    </div>
-  );
-}
+import { DraftsPage } from "./components/Drafts/DraftsPage";
+import { ComposerPage } from "./components/Composer/ComposerPage";
+import { TemplateStudioPage } from "./components/TemplateStudio/TemplateStudioPage";
+import { TemplateEditorPage } from "./components/TemplateStudio/TemplateEditorPage";
+import { SourcesLibraryPage } from "./components/SourcesLibrary/SourcesLibraryPage";
+import { LogsPage } from "./components/Logs/LogsPage";
+import { PrivacyPolicyPage } from "./components/Privacy/PrivacyPolicyPage";
+import { SettingsPage } from "./components/Settings/SettingsPage";
+import { LinkedInCallbackPage } from "./components/Settings/LinkedInCallbackPage";
 
 export default function App() {
   return (
     <BrowserRouter>
       <ChatProvider>
-        <AppContent />
+        <div className="h-screen flex flex-col overflow-hidden">
+          <AppHeader />
+          <Routes>
+            <Route path="/" element={<WorkflowsPage />} />
+            <Route path="/workflows" element={<Navigate to="/" replace />} />
+            <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
+            <Route path="/workflows/:workflowId/draft" element={<ComposerPage />} />
+            <Route path="/workflows/:workflowId/draft/:draftId" element={<ComposerPage />} />
+            <Route path="/drafts" element={<DraftsPage />} />
+            <Route path="/composer" element={<ComposerPage />} />
+            <Route path="/draft/:draftId" element={<ComposerPage />} />
+            <Route path="/templates" element={<TemplateStudioPage />} />
+            <Route path="/templates/editor" element={<TemplateEditorPage />} />
+            <Route path="/templates/editor/:id" element={<TemplateEditorPage />} />
+            <Route path="/sources" element={<SourcesLibraryPage />} />
+            <Route path="/feeds" element={<Navigate to="/settings/feeds" replace />} />
+            <Route path="/logs" element={<LogsPage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/settings" element={<Navigate to="/settings/account" replace />} />
+            <Route path="/settings/:tab" element={<SettingsPage />} />
+            <Route path="/oauth/callback/linkedin" element={<LinkedInCallbackPage />} />
+          </Routes>
+        </div>
       </ChatProvider>
     </BrowserRouter>
   );

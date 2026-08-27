@@ -12,7 +12,7 @@ interface DraftStore {
   loadDrafts: () => Promise<void>;
   loadPlatformCapabilities: () => Promise<void>;
   supportsReplyTargetForPlatform: (platform: string | null | undefined) => boolean;
-  createDraft: (title?: string, content?: string, targetPlatform?: string, targetAccountId?: string) => Promise<DraftDto>;
+  createDraft: (title?: string, content?: string, targetPlatform?: string, targetAccountId?: string, automationWorkflowId?: string) => Promise<DraftDto>;
   createReplyDraftFromBlueskyPostUrl: (url: string, title?: string, content?: string) => Promise<DraftDto>;
   switchDraft: (id: string) => Promise<DraftDto>;
   updateDraftTitle: (id: string, title: string) => Promise<void>;
@@ -67,8 +67,8 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     return capabilities.some((c) => c.platform.toLowerCase() === platform.toLowerCase() && c.supportsReplyTarget);
   },
 
-  createDraft: async (title, content, targetPlatform, targetAccountId) => {
-    const draft = await createDraft(title, content, targetPlatform, targetAccountId);
+  createDraft: async (title, content, targetPlatform, targetAccountId, automationWorkflowId) => {
+    const draft = await createDraft(title, content, targetPlatform, targetAccountId, automationWorkflowId);
     set((s) => ({ drafts: [draft, ...s.drafts], activeDraftId: draft.id }));
     return draft;
   },

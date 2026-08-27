@@ -51,21 +51,22 @@ describe("Breadcrumbs", () => {
     );
   };
 
-  it("renders Workflows breadcrumb for root path", () => {
-    renderWithRoute("/");
-    expect(screen.getByTestId("breadcrumbs")).toBeInTheDocument();
-    expect(screen.getByText("Workflows")).toBeInTheDocument();
-  });
-
   it("renders Workflows parent link and workflow title for /workflows/:id", () => {
     renderWithRoute("/workflows/wf-1");
     expect(screen.getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/");
     expect(screen.getByText("Daily Tech Highlights")).toBeInTheDocument();
   });
 
-  it("renders Composer and draft title for /draft/:id", () => {
+  it("renders Workflows > WorkflowTitle > DraftTitle for /workflows/:wfId/draft/:id", () => {
+    renderWithRoute("/workflows/wf-1/draft/draft-1");
+    expect(screen.getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Daily Tech Highlights" })).toHaveAttribute("href", "/workflows/wf-1");
+    expect(screen.getByText("Deep Dive into .NET 10")).toBeInTheDocument();
+  });
+
+  it("renders Drafts and draft title for /draft/:id", () => {
     renderWithRoute("/draft/draft-1");
-    expect(screen.getByRole("link", { name: "Composer" })).toHaveAttribute("href", "/composer");
+    expect(screen.getByRole("link", { name: "Drafts" })).toHaveAttribute("href", "/drafts");
     expect(screen.getByText("Deep Dive into .NET 10")).toBeInTheDocument();
   });
 
