@@ -133,4 +133,14 @@ public sealed class TemplateEndpointsTests : SqliteTestBase
         Assert.Equal("Edsger W. Dijkstra", slots["author"]);
         Assert.Equal("94.8%", slots["metric_val"]);
     }
+
+    [Fact]
+    public void GenerateSampleSlots_HandlesEmptyOrInvalidSchemaGracefully()
+    {
+        var slotsEmpty = SocialWorker.Api.Features.Templates.Services.TemplateGeneratorService.GenerateSampleSlots("");
+        Assert.NotNull(slotsEmpty);
+
+        var slotsInvalid = SocialWorker.Api.Features.Templates.Services.TemplateGeneratorService.GenerateSampleSlots("invalid json");
+        Assert.NotNull(slotsInvalid);
+    }
 }

@@ -105,9 +105,25 @@ public sealed class ImageEngineClient : IImageEngineClient
             foreach (var kvp in images)
             {
                 var (imgStream, fileName, mime) = kvp.Value;
-                var sc = new StreamContent(imgStream);
-                sc.Headers.ContentType = new MediaTypeHeaderValue(string.IsNullOrWhiteSpace(mime) ? "image/png" : mime);
-                content.Add(sc, kvp.Key, string.IsNullOrWhiteSpace(fileName) ? $"{kvp.Key}.png" : fileName);
+                byte[] bytes;
+                if (imgStream is MemoryStream ms)
+                {
+                    bytes = ms.ToArray();
+                }
+                else
+                {
+                    using var tempMs = new MemoryStream();
+                    if (imgStream.CanSeek)
+                    {
+                        imgStream.Position = 0;
+                    }
+                    await imgStream.CopyToAsync(tempMs, ct);
+                    bytes = tempMs.ToArray();
+                }
+
+                var byteContent = new ByteArrayContent(bytes);
+                byteContent.Headers.ContentType = new MediaTypeHeaderValue(string.IsNullOrWhiteSpace(mime) ? "image/png" : mime);
+                content.Add(byteContent, kvp.Key, string.IsNullOrWhiteSpace(fileName) ? $"{kvp.Key}.png" : fileName);
             }
         }
 

@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import {
   fetchWorkflows,
+  fetchWorkflow,
+  fetchWorkflowDrafts,
+  fetchWorkflowQueue,
   createWorkflow,
   updateWorkflow,
   deleteWorkflow,
@@ -97,6 +100,58 @@ describe("workflows API", () => {
         "/api/workflows/w1",
         expect.objectContaining({ method: "DELETE" })
       );
+    });
+  });
+
+  describe("fetchWorkflow", () => {
+    it("returns a single workflow on success", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify(makeWorkflow("w1")), { status: 200 })
+      );
+      const result = await fetchWorkflow("w1");
+      expect(result.id).toBe("w1");
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/workflows/w1");
+    });
+
+    it("throws on failure", async () => {
+      mockApiFetch.mockResolvedValueOnce(new Response("{}", { status: 404 }));
+      await expect(fetchWorkflow("w999")).rejects.toThrow("fetchWorkflow failed: 404");
+    });
+  });
+
+  describe("fetchWorkflowDrafts", () => {
+    it("returns draft summaries for a workflow", async () => {
+      const mockDrafts = [
+        {
+          id: "d1",
+          title: "Draft Title",
+          status: "Formatting",
+          targetPlatform: null,
+          threads: [{ platform: "Bluesky", stage: "Sent", accountHandle: "test.bsky.social" }],
+          createdAt: "2026-01-01T00:00:00Z",
+          updatedAt: "2026-01-01T00:00:00Z"
+        }
+      ];
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify(mockDrafts), { status: 200 })
+      );
+
+      const result = await fetchWorkflowDrafts("w1");
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toBe("Draft Title");
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/workflows/w1/drafts");
+    });
+  });
+
+  describe("fetchWorkflowQueue", () => {
+    it("calls queue endpoint with workflowId query param", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify([]), { status: 200 })
+      );
+
+      const result = await fetchWorkflowQueue("w1");
+      expect(result).toEqual([]);
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/feeds/queue?workflowId=w1");
     });
   });
 

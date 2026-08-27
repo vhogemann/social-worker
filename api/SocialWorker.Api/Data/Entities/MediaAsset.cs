@@ -5,8 +5,8 @@ namespace SocialWorker.Api.Data.Entities;
 public class MediaAsset
 {
     public Guid Id { get; set; }
-    public Guid DraftId { get; set; }
-    public Draft Draft { get; set; } = null!;
+    public Guid? DraftId { get; set; }
+    public Draft? Draft { get; set; }
     public string FileName { get; set; } = "";
     public string MimeType { get; set; } = "";
     public string? AltText { get; set; }

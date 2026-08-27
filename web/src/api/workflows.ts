@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import type { FeedQueueItemDto } from "./feeds";
 
 export interface WorkflowSourceDto {
   feedSubscriptionId: string;
@@ -24,6 +25,22 @@ export interface AutomationWorkflowDto {
   updatedAt: string;
 }
 
+export interface WorkflowDraftThreadDto {
+  platform: string;
+  stage: string;
+  accountHandle?: string | null;
+}
+
+export interface WorkflowDraftSummaryDto {
+  id: string;
+  title: string;
+  status: string;
+  targetPlatform?: string | null;
+  threads: WorkflowDraftThreadDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CreateWorkflowDestinationRequest {
   platform: string;
   autoPublish: boolean;
@@ -40,6 +57,24 @@ export interface CreateAutomationWorkflowRequest {
 export async function fetchWorkflows(): Promise<AutomationWorkflowDto[]> {
   const res = await apiFetch("/api/workflows");
   if (!res.ok) throw new Error(`fetchWorkflows failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchWorkflow(id: string): Promise<AutomationWorkflowDto> {
+  const res = await apiFetch(`/api/workflows/${id}`);
+  if (!res.ok) throw new Error(`fetchWorkflow failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchWorkflowDrafts(workflowId: string): Promise<WorkflowDraftSummaryDto[]> {
+  const res = await apiFetch(`/api/workflows/${workflowId}/drafts`);
+  if (!res.ok) throw new Error(`fetchWorkflowDrafts failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchWorkflowQueue(workflowId: string): Promise<FeedQueueItemDto[]> {
+  const res = await apiFetch(`/api/feeds/queue?workflowId=${workflowId}`);
+  if (!res.ok) throw new Error(`fetchWorkflowQueue failed: ${res.status}`);
   return res.json();
 }
 

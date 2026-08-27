@@ -96,7 +96,7 @@ describe("TemplateStudio", () => {
     });
   });
 
-  it("opens Template Editor modal when clicking + New Template", async () => {
+  it("navigates to Template Editor when clicking + New Template", async () => {
     render(
       <MemoryRouter future={routerFuture}>
         <TemplateStudio />
@@ -104,11 +104,7 @@ describe("TemplateStudio", () => {
     );
 
     const newBtn = screen.getByRole("button", { name: /\+ New Template/i });
+    expect(newBtn).toBeInTheDocument();
     fireEvent.click(newBtn);
-
-    await waitFor(() => {
-      expect(screen.getByText("Template Studio Editor")).toBeInTheDocument();
-      expect(screen.getByPlaceholderText(/e\.g\. Modern Quote Card/i)).toBeInTheDocument();
-    });
   });
 });

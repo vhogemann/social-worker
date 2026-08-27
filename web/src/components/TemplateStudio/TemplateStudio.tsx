@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   fetchTemplates,
   deleteTemplate,
@@ -8,18 +9,15 @@ import {
   GeneratedTemplateResponse,
 } from "../../api/templates";
 import { AiTemplateGenerateModal } from "./AiTemplateGenerateModal";
-import { TemplateEditorModal } from "./TemplateEditorModal";
 
 export function TemplateStudio() {
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState<TemplateDto[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Modals state
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [isEditorModalOpen, setIsEditorModalOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<(TemplateDto | GeneratedTemplateResponse) | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
 
   const loadTemplates = async () => {
@@ -94,8 +92,7 @@ export function TemplateStudio() {
 
   const handleEditInStudio = (generated: GeneratedTemplateResponse) => {
     setIsAiModalOpen(false);
-    setEditingTemplate(generated);
-    setIsEditorModalOpen(true);
+    navigate("/templates/editor", { state: { generatedSchema: generated } });
   };
 
   const parseSlots = (schemaJson: string) => {
@@ -150,10 +147,7 @@ export function TemplateStudio() {
 
           <button
             type="button"
-            onClick={() => {
-              setEditingTemplate(null);
-              setIsEditorModalOpen(true);
-            }}
+            onClick={() => navigate("/templates/editor")}
             className="px-3 py-1.5 bg-accent text-accent-foreground font-medium rounded text-xs font-mono hover:opacity-90 shrink-0"
           >
             + New Template
@@ -213,7 +207,6 @@ export function TemplateStudio() {
                       className="w-full h-full object-cover transition-transform group-hover:scale-105"
                       loading="lazy"
                       onError={(e) => {
-                        // Fallback image if render failed
                         (e.target as HTMLElement).style.display = "none";
                       }}
                     />
@@ -256,10 +249,7 @@ export function TemplateStudio() {
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            setEditingTemplate(t);
-                            setIsEditorModalOpen(true);
-                          }}
+                          onClick={() => navigate(`/templates/editor/${t.id}`)}
                           className="text-accent hover:underline"
                         >
                           Edit
@@ -291,22 +281,12 @@ export function TemplateStudio() {
         )}
       </div>
 
-      {/* Modals */}
+      {/* AI Generate Modal */}
       <AiTemplateGenerateModal
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
         onSaved={handleSaved}
         onEditInStudio={handleEditInStudio}
-      />
-
-      <TemplateEditorModal
-        isOpen={isEditorModalOpen}
-        template={editingTemplate}
-        onClose={() => {
-          setIsEditorModalOpen(false);
-          setEditingTemplate(null);
-        }}
-        onSaved={handleSaved}
       />
     </div>
   );

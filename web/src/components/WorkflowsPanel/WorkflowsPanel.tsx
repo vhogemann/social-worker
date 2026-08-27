@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBolt,
@@ -28,6 +28,7 @@ import { fetchFeeds, type FeedSubscriptionDto } from "../../api/feeds";
 import { listAccounts, type AccountDto } from "../../api/accounts";
 
 export const WorkflowsPanel: React.FC = () => {
+  const navigate = useNavigate();
   const [workflows, setWorkflows] = useState<AutomationWorkflowDto[]>([]);
   const [availableFeeds, setAvailableFeeds] = useState<FeedSubscriptionDto[]>([]);
   const [connectedAccounts, setConnectedAccounts] = useState<AccountDto[]>([]);
@@ -238,11 +239,14 @@ export const WorkflowsPanel: React.FC = () => {
             {workflows.map((wf) => (
               <div
                 key={wf.id}
-                className="bg-panel border border-border rounded-xl p-5 flex flex-col justify-between transition hover:border-zinc-700 shadow-sm"
+                onClick={() => navigate(`/workflows/${wf.id}`)}
+                className="bg-panel border border-border rounded-xl p-5 flex flex-col justify-between transition hover:border-zinc-600 hover:shadow-md cursor-pointer group shadow-sm"
               >
                 <div className="flex flex-col gap-3">
                   <div className="flex justify-between items-start">
-                    <h3 className="text-sm font-bold text-foreground line-clamp-1">{wf.title}</h3>
+                    <h3 className="text-sm font-bold text-foreground line-clamp-1 group-hover:text-accent transition">
+                      {wf.title}
+                    </h3>
                   </div>
 
                   <p className="text-xs text-muted font-sans line-clamp-2 bg-bg/50 p-2.5 rounded-lg border border-border/50">
@@ -302,7 +306,10 @@ export const WorkflowsPanel: React.FC = () => {
                 {/* Actions */}
                 <div className="flex justify-between items-center border-t border-border pt-4 mt-4">
                   <button
-                    onClick={() => handleTrigger(wf.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTrigger(wf.id);
+                    }}
                     disabled={triggeringId === wf.id}
                     className="px-3 py-1 rounded-lg bg-panel border border-border hover:border-accent text-foreground text-xs font-mono flex items-center gap-1.5 transition disabled:opacity-50"
                   >
@@ -315,14 +322,20 @@ export const WorkflowsPanel: React.FC = () => {
                   </button>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleOpenEditModal(wf)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditModal(wf);
+                      }}
                       className="px-2 py-1 rounded border border-border hover:border-accent text-muted hover:text-foreground text-xs transition"
                       title="Edit workflow"
                     >
                       <FontAwesomeIcon icon={faEdit} />
                     </button>
                     <button
-                      onClick={() => handleDelete(wf.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(wf.id);
+                      }}
                       className="px-2 py-1 rounded border border-border hover:bg-red-500/10 text-muted hover:text-red-400 text-xs transition"
                       title="Delete workflow"
                     >
@@ -385,8 +398,8 @@ export const WorkflowsPanel: React.FC = () => {
                   {availableFeeds.length === 0 ? (
                     <div className="p-3 bg-bg border border-border rounded-lg text-xs text-muted">
                       No feed subscriptions found.{" "}
-                      <Link to="/feeds" className="text-accent underline">
-                        Add a feed first
+                      <Link to="/settings/feeds" className="text-accent underline">
+                        Configure in Settings
                       </Link>
                       .
                     </div>

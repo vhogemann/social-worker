@@ -133,15 +133,23 @@ public static class FeedsEndpoint
         group.MapGet("/queue", async (
             ClaimsPrincipal principal,
             AppDbContext db,
+            Guid? workflowId,
             CancellationToken ct) =>
         {
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            var items = await db.FeedIngestionQueueItems
+            var query = db.FeedIngestionQueueItems
                 .Include(q => q.FeedSubscription)
                 .Include(q => q.AutomationWorkflow)
-                .Where(q => q.FeedSubscription.UserId == userId.Value)
+                .Where(q => q.FeedSubscription.UserId == userId.Value);
+
+            if (workflowId.HasValue)
+            {
+                query = query.Where(q => q.AutomationWorkflowId == workflowId.Value);
+            }
+
+            var items = await query
                 .OrderByDescending(q => q.CreatedAt)
                 .Take(200)
                 .Select(q => new FeedQueueItemDto(

@@ -104,6 +104,41 @@ public sealed class ImageEngineClientTests
     }
 
     [Fact]
+    public async Task RenderTemplateAsync_WithImages_SendsMultipartCorrectly()
+    {
+        var expectedBytes = new byte[] { 200, 201 };
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            Assert.Equal(HttpMethod.Post, req.Method);
+            Assert.Equal("/render/template", req.RequestUri!.AbsolutePath);
+            Assert.NotNull(req.Content);
+
+            var readBytes = req.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+            Assert.NotEmpty(readBytes);
+
+            var res = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(expectedBytes)
+            };
+            res.Content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+            return res;
+        });
+
+        var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost:8103") };
+        var engineClient = new ImageEngineClient(client, NullLogger<ImageEngineClient>.Instance);
+
+        var sharedStream = new MemoryStream(new byte[] { 1, 2, 3, 4, 5 });
+        var images = new Dictionary<string, (Stream Stream, string FileName, string MimeType)>
+        {
+            { "slot1", (sharedStream, "img1.png", "image/png") },
+            { "slot2", (sharedStream, "img2.png", "image/png") }
+        };
+
+        var result = await engineClient.RenderTemplateAsync("{}", null, images, CancellationToken.None);
+        Assert.Equal(expectedBytes, result);
+    }
+
+    [Fact]
     public async Task HealthCheckAsync_ReturnsTrue_On200()
     {
         var handler = new MockHttpMessageHandler(req =>

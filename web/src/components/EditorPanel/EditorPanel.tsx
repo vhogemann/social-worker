@@ -93,12 +93,6 @@ export function EditorPanel() {
           </button>
         </div>
         <div className="flex items-center gap-2 ml-auto">
-          <Link
-            to="/"
-            className="px-2.5 py-1 bg-border/60 hover:bg-border text-muted hover:text-foreground rounded-md text-[11px] font-mono normal-case transition"
-          >
-            ← Workflows
-          </Link>
           {isCanonical && !isSent && (
             <button
               onClick={() => setAdaptModalOpen(true)}

@@ -150,6 +150,7 @@ public class AppDbContext : DbContext
             e.HasOne(x => x.Draft)
                 .WithMany(d => d.MediaAssets)
                 .HasForeignKey(x => x.DraftId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

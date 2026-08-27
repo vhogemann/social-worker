@@ -26,15 +26,34 @@ export function initFonts() {
 
   for (const assetDir of searchAssetDirs) {
     if (fs.existsSync(assetDir)) {
-      const interPath = path.join(assetDir, 'Inter-Variable.ttf');
-      if (fs.existsSync(interPath)) {
-        GlobalFonts.registerFromPath(interPath, 'Inter');
-      }
-
-      const monoPath = path.join(assetDir, 'JetBrainsMono-Variable.ttf');
-      if (fs.existsSync(monoPath)) {
-        GlobalFonts.registerFromPath(monoPath, 'JetBrains Mono');
-      }
+      try {
+        const files = fs.readdirSync(assetDir);
+        for (const file of files) {
+          if (file.endsWith('.ttf') || file.endsWith('.otf')) {
+            const filePath = path.join(assetDir, file);
+            try {
+              if (file.startsWith('Inter')) GlobalFonts.registerFromPath(filePath, 'Inter');
+              else if (file.startsWith('JetBrainsMono')) GlobalFonts.registerFromPath(filePath, 'JetBrains Mono');
+              else if (file.startsWith('PlusJakartaSans')) GlobalFonts.registerFromPath(filePath, 'Plus Jakarta Sans');
+              else if (file.startsWith('Montserrat')) GlobalFonts.registerFromPath(filePath, 'Montserrat');
+              else if (file.startsWith('SpaceGrotesk')) GlobalFonts.registerFromPath(filePath, 'Space Grotesk');
+              else if (file.startsWith('BebasNeue')) GlobalFonts.registerFromPath(filePath, 'Bebas Neue');
+              else if (file.startsWith('Oswald')) GlobalFonts.registerFromPath(filePath, 'Oswald');
+              else if (file.startsWith('Righteous')) GlobalFonts.registerFromPath(filePath, 'Righteous');
+              else if (file.startsWith('PlayfairDisplay')) GlobalFonts.registerFromPath(filePath, 'Playfair Display');
+              else if (file.startsWith('Lora')) GlobalFonts.registerFromPath(filePath, 'Lora');
+              else if (file.startsWith('Merriweather')) GlobalFonts.registerFromPath(filePath, 'Merriweather');
+              else if (file.startsWith('FiraCode')) GlobalFonts.registerFromPath(filePath, 'Fira Code');
+              else if (file.startsWith('SpaceMono')) GlobalFonts.registerFromPath(filePath, 'Space Mono');
+              else if (file.startsWith('Caveat')) GlobalFonts.registerFromPath(filePath, 'Caveat');
+              else if (file.startsWith('PermanentMarker')) GlobalFonts.registerFromPath(filePath, 'Permanent Marker');
+              else GlobalFonts.registerFromPath(filePath);
+            } catch (err) {
+              console.warn(`Could not register font file ${file}:`, err);
+            }
+          }
+        }
+      } catch {}
       break;
     }
   }
@@ -239,12 +258,38 @@ function renderText(
   }
 
   const fontSize = layer.fontSize || 32;
-  let fontFamily = (layer.fontFamily || 'Inter').split(',')[0].trim().replace(/['"]/g, '');
-  if (fontFamily.toLowerCase() === 'monospace') {
+  const rawFamily = (layer.fontFamily || 'Inter').split(',')[0].trim().replace(/['"]/g, '');
+  const lowerFamily = rawFamily.toLowerCase();
+
+  const fontMap: Record<string, string> = {
+    'inter': 'Inter',
+    'jetbrains mono': 'JetBrains Mono',
+    'plus jakarta sans': 'Plus Jakarta Sans',
+    'montserrat': 'Montserrat',
+    'space grotesk': 'Space Grotesk',
+    'bebas neue': 'Bebas Neue',
+    'oswald': 'Oswald',
+    'righteous': 'Righteous',
+    'playfair display': 'Playfair Display',
+    'lora': 'Lora',
+    'merriweather': 'Merriweather',
+    'fira code': 'Fira Code',
+    'space mono': 'Space Mono',
+    'caveat': 'Caveat',
+    'permanent marker': 'Permanent Marker',
+  };
+
+  let fontFamily = fontMap[lowerFamily] || rawFamily;
+  if (lowerFamily === 'monospace') {
     fontFamily = 'JetBrains Mono';
-  } else if (!fontFamily || fontFamily.toLowerCase() === 'sans-serif') {
+  } else if (!fontFamily || lowerFamily === 'sans-serif') {
     fontFamily = 'Inter';
+  } else if (lowerFamily === 'serif') {
+    fontFamily = 'Playfair Display';
+  } else if (lowerFamily === 'cursive' || lowerFamily === 'handwriting') {
+    fontFamily = 'Caveat';
   }
+
   const fontWeight = layer.fontWeight || 'normal';
   ctx.font = `${fontWeight} ${fontSize}px "${fontFamily}"`;
   ctx.fillStyle = layer.color || '#ffffff';

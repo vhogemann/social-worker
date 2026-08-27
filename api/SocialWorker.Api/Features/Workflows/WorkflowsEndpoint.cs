@@ -223,6 +223,32 @@ public static class WorkflowsEndpoint
 
             return Results.Ok(new ApiSuccessResponse(true, "Workflow triggered successfully."));
         });
+
+        group.MapGet("/{id:guid}/drafts", async (
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            Guid id,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var workflowExists = await db.AutomationWorkflows
+                .AnyAsync(w => w.Id == id && w.UserId == userId.Value, ct);
+            if (!workflowExists) return Results.NotFound();
+
+            var drafts = await db.Drafts
+                .Include(d => d.Threads).ThenInclude(t => t.Account)
+                .Where(d => d.AutomationWorkflowId == id
+                          && d.CanonicalDraftId == null
+                          && d.Status != DraftStatus.Deleted)
+                .OrderByDescending(d => d.CreatedAt)
+                .Take(100)
+                .ToListAsync(ct);
+
+            var dtos = drafts.Select(d => new WorkflowDraftSummaryDto(d)).ToList();
+            return Results.Ok(dtos);
+        });
     }
 }
 
@@ -268,3 +294,36 @@ public sealed record CreateAutomationWorkflowRequest(
     string? InstructionPrompt,
     List<Guid>? FeedSubscriptionIds,
     List<CreateWorkflowDestinationRequest>? Destinations);
+
+public sealed record WorkflowDraftThreadDto(
+    string Platform,
+    string Stage,
+    string? AccountHandle)
+{
+    public WorkflowDraftThreadDto(PlatformThread t)
+        : this(t.Platform, t.Stage.ToString(), t.Account?.Handle)
+    {
+    }
+}
+
+public sealed record WorkflowDraftSummaryDto(
+    Guid Id,
+    string Title,
+    string Status,
+    string? TargetPlatform,
+    List<WorkflowDraftThreadDto> Threads,
+    DateTime CreatedAt,
+    DateTime UpdatedAt)
+{
+    public WorkflowDraftSummaryDto(Draft d)
+        : this(
+            d.Id,
+            d.Title,
+            d.Status.ToString(),
+            d.TargetPlatform?.ToString(),
+            d.Threads?.Select(t => new WorkflowDraftThreadDto(t)).ToList() ?? new List<WorkflowDraftThreadDto>(),
+            d.CreatedAt,
+            d.UpdatedAt)
+    {
+    }
+}

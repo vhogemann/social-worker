@@ -58,6 +58,26 @@ public sealed class MediaServiceTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task UploadTemplateAssetAsync_Persists_Asset_With_Null_DraftId()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, svc, _, _) = await CreateAsync(db);
+
+        var asset = await svc.UploadTemplateAssetAsync(new MemoryStream(TinyPng), "logo.png", "image/png", CancellationToken.None);
+
+        Assert.NotNull(asset);
+        Assert.Null(asset.DraftId);
+        Assert.Equal("logo.png", asset.FileName);
+        Assert.Equal("image/png", asset.MimeType);
+        Assert.NotEqual(Guid.Empty, asset.Id);
+
+        var queried = await db.MediaAssets.FindAsync(asset.Id);
+        Assert.NotNull(queried);
+        Assert.Null(queried.DraftId);
+    }
+
+    [Fact]
     public async Task UploadMediaAsync_Deduplicates_Same_Content()
     {
         using var db = CreateDbContext();

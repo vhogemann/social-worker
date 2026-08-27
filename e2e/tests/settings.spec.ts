@@ -11,9 +11,10 @@ test.describe("Settings: Providers", () => {
     await page.getByRole("link", { name: /^settings$/i }).click();
     await page.getByRole("link", { name: /providers/i }).click();
 
+    await page.getByRole("button", { name: /add provider/i }).first().click();
     await page.getByPlaceholder(/e\.?g\.? openrouter claude/i).fill("OpenRouter Claude");
     await page.getByPlaceholder(/e\.?g\.? anthropic/i).fill("anthropic/claude-3.5-sonnet");
-    await page.getByRole("button", { name: "add provider" }).click();
+    await page.getByTestId("modal").getByRole("button", { name: /add provider/i }).click();
 
     await expect(page.getByText("OpenRouter Claude")).toBeVisible();
   });
@@ -29,6 +30,7 @@ test.describe("Settings: Connections", () => {
     await page.getByRole("link", { name: /^settings$/i }).click();
     await page.getByRole("link", { name: /connections/i }).click();
 
+    await page.getByRole("button", { name: /add connection/i }).first().click();
     await page.getByPlaceholder(/user\.bsky\.social/i).fill("demo.bsky.social");
     await page.locator('input[type="password"]').nth(0).fill("test-app-password");
     await page.getByRole("button", { name: /save connection/i }).click();
@@ -47,7 +49,7 @@ test.describe("Settings: Brand Voices", () => {
     await page.getByRole("link", { name: /^settings$/i }).click();
     await page.getByRole("link", { name: /brand voices/i }).click();
 
-    await page.getByRole("button", { name: /new voice/i }).click();
+    await page.getByRole("button", { name: /^new voice$/i }).first().click();
     await page.locator('input[placeholder*="Friendly"]').fill("Professional Tone");
     await page.locator('textarea[placeholder*="relaxed"]').fill("Write in a clear, professional tone.");
     await page.getByRole("button", { name: /save brand voice/i }).click();

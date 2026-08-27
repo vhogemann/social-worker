@@ -5,6 +5,7 @@ import {
   faUser,
   faShareNodes,
   faBullhorn,
+  faRss,
   faUsers,
   faMicrochip,
   faRightFromBracket,
@@ -13,10 +14,11 @@ import { useAuthStore } from "../../store/authStore";
 import { AccountTab } from "./AccountTab";
 import { ConnectionsTab } from "./ConnectionsTab";
 import { BrandVoicesTab } from "./BrandVoicesTab";
+import { FeedsTab } from "./FeedsTab";
 import { UsersTab } from "./UsersTab";
 import { ProvidersTab } from "./ProvidersTab";
 
-type SettingsTab = "account" | "connections" | "brand-voices" | "users" | "providers";
+type SettingsTab = "account" | "connections" | "brand-voices" | "feeds" | "users" | "providers";
 
 interface TabConfig {
   id: SettingsTab;
@@ -48,6 +50,13 @@ const TABS: TabConfig[] = [
     icon: faBullhorn,
     title: "Brand Voice Prompts",
     description: "Configure reusable style guidelines and tone prompts for drafting content.",
+  },
+  {
+    id: "feeds",
+    label: "Feeds",
+    icon: faRss,
+    title: "Feed Subscriptions",
+    description: "Manage RSS, Atom, and YouTube feed subscriptions used by automation workflows.",
   },
   {
     id: "users",
@@ -186,6 +195,7 @@ export function SettingsPage() {
             {activeTabId === "account" && <AccountTab />}
             {activeTabId === "connections" && <ConnectionsTab />}
             {activeTabId === "brand-voices" && <BrandVoicesTab />}
+            {activeTabId === "feeds" && <FeedsTab />}
             {activeTabId === "users" && isAdmin && <UsersTab />}
             {activeTabId === "providers" && isAdmin && <ProvidersTab />}
           </div>

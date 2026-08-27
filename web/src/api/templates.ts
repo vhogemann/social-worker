@@ -119,6 +119,56 @@ export async function previewTemplate(req: PreviewTemplateRequest): Promise<Blob
   return res.blob();
 }
 
+export async function previewTemplateWithImages(
+  schema: string,
+  slots: Record<string, string> = {},
+  imageFiles: Record<string, File> = {}
+): Promise<Blob> {
+  const formData = new FormData();
+  formData.append("schema", schema);
+  for (const [key, val] of Object.entries(slots)) {
+    formData.append(`slots[${key}]`, val);
+  }
+  for (const [slotName, file] of Object.entries(imageFiles)) {
+    formData.append(`images[${slotName}]`, file, file.name);
+  }
+
+  const res = await apiFetch("/api/templates/preview-with-images", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || `previewTemplateWithImages failed: ${res.status}`);
+  }
+  return res.blob();
+}
+
+export interface TemplateAssetUploadResponse {
+  id: string;
+  url: string;
+  fileName: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+}
+
+export async function uploadTemplateAsset(file: File): Promise<TemplateAssetUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+
+  const res = await apiFetch("/api/templates/assets", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || `uploadTemplateAsset failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function restoreDefaultTemplates(): Promise<TemplateDto[]> {
   const res = await apiFetch("/api/templates/restore-defaults", {
     method: "POST",

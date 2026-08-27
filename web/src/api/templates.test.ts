@@ -7,6 +7,7 @@ import {
   deleteTemplate,
   generateTemplate,
   previewTemplate,
+  previewTemplateWithImages,
   restoreDefaultTemplates,
   type TemplateDto,
 } from "./templates";
@@ -139,6 +140,44 @@ describe("templates API", () => {
       expect(result.name).toBe("AI Generated Template");
       expect(mockApiFetch).toHaveBeenCalledWith(
         "/api/templates/generate",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+  });
+
+  describe("previewTemplate", () => {
+    it("sends POST to /preview and returns blob", async () => {
+      const blob = new Blob(["png bytes"], { type: "image/png" });
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: () => Promise.resolve(blob),
+      });
+
+      const result = await previewTemplate({ schema: "{}" });
+      expect(result).toBeInstanceOf(Blob);
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/templates/preview",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+  });
+
+  describe("previewTemplateWithImages", () => {
+    it("sends multipart POST to /preview-with-images and returns blob", async () => {
+      const blob = new Blob(["png bytes"], { type: "image/png" });
+      mockApiFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: () => Promise.resolve(blob),
+      });
+
+      const testFile = new File(["dummy"], "bg.png", { type: "image/png" });
+      const result = await previewTemplateWithImages("{}", { quote: "Hi" }, { bg: testFile });
+
+      expect(result).toBeInstanceOf(Blob);
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/templates/preview-with-images",
         expect.objectContaining({ method: "POST" })
       );
     });

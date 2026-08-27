@@ -11,6 +11,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.ImageEngine;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Features.Templates.Services;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
 
@@ -120,7 +121,7 @@ public sealed class RenderTemplateTool : ChatToolBase<RenderTemplateArgs, Render
         var inputSlots = NormalizeInputSlots(rawInputSlots, template.Schema);
         var resolvedSlots = new Dictionary<string, string>();
         var images = new Dictionary<string, (Stream Stream, string FileName, string MimeType)>();
-        var streamsToDispose = new List<Stream>();
+        var streamsToDispose = new List<IDisposable>();
 
         try
         {
@@ -166,6 +167,14 @@ public sealed class RenderTemplateTool : ChatToolBase<RenderTemplateArgs, Render
                     resolvedSlots[slotKey] = slotValue;
                 }
             }
+
+            await TemplateAssetResolver.ResolveTemplateImagesAsync(
+                template.Schema,
+                resolvedSlots,
+                images,
+                streamsToDispose,
+                _mediaService,
+                context.CancellationToken);
 
             var renderedBytes = await _imageEngine.RenderTemplateAsync(
                 template.Schema,

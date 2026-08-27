@@ -59,10 +59,7 @@ describe("App", () => {
 
     expect(screen.getByRole("link", { name: "Workflows" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Composer" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Sources Library" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Feeds" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Privacy" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Templates" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
   });
 

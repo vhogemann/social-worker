@@ -8,12 +8,14 @@ import { EditorPanel } from "./components/EditorPanel/EditorPanel";
 import { DraftList } from "./components/DraftList/DraftList";
 import { SourcesLibrary } from "./components/SourcesLibrary/SourcesLibrary";
 import { WorkflowsPanel } from "./components/WorkflowsPanel/WorkflowsPanel";
-import { FeedsPanel } from "./components/FeedsPanel/FeedsPanel";
 import { LogsPanel } from "./components/Logs/LogsPanel";
 import { PrivacyPolicy } from "./components/PrivacyPolicy";
 import { LinkedInCallback } from "./components/Settings/LinkedInCallback";
 import { SettingsPage } from "./components/Settings/SettingsPage";
 import { TemplateStudio } from "./components/TemplateStudio/TemplateStudio";
+import { TemplateEditorPage } from "./components/TemplateStudio/TemplateEditorPage";
+import { WorkflowDetailPage } from "./components/WorkflowDetail/WorkflowDetailPage";
+import { Breadcrumbs } from "./components/Navigation/Breadcrumbs";
 import { useDraftStore } from "./store/draftStore";
 import { useEditorStore } from "./store/editorStore";
 
@@ -138,30 +140,53 @@ function AppContent() {
     );
   }
 
+  const navItems = [
+    { label: "Workflows", to: "/", match: ["/", "/workflows"] },
+    { label: "Composer", to: "/composer", match: ["/composer", "/draft"] },
+    { label: "Templates", to: "/templates", match: ["/templates"] },
+    { label: "Settings", to: "/settings", match: ["/settings"] },
+  ];
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <header className="shrink-0 px-4 py-2 border-b border-border text-xs font-mono text-muted flex items-center justify-between">
-        <div>
-          social-worker <span className="text-accent">·</span> mvp
+        <div className="flex items-center gap-2 min-w-0">
+          <Link to="/" className="text-foreground font-semibold hover:text-accent transition shrink-0">
+            social-worker
+          </Link>
+          <Breadcrumbs />
         </div>
-        <div className="flex gap-4 items-center">
-          <Link to="/" className="hover:text-foreground">Workflows</Link>
-          <Link to="/composer" className="hover:text-foreground">Composer</Link>
-          <Link to="/templates" className="hover:text-foreground">Templates</Link>
-          <Link to="/sources" className="hover:text-foreground">Sources Library</Link>
-          <Link to="/feeds" className="hover:text-foreground">Feeds</Link>
-          <Link to="/logs" className="hover:text-foreground">Logs</Link>
-          <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
-          <Link to="/settings" className="hover:text-foreground">Settings</Link>
+        <div className="flex gap-4 items-center shrink-0">
+          {navItems.map((item) => {
+            const isActive = item.match.some((prefix) =>
+              prefix === "/" ? location.pathname === "/" : location.pathname.startsWith(prefix)
+            );
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`transition ${
+                  isActive
+                    ? "text-accent font-semibold"
+                    : "hover:text-foreground"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </div>
       </header>
       <Routes>
         <Route path="/" element={<WorkflowsPanel />} />
+        <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
         <Route path="/composer" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
         <Route path="/draft/:draftId" element={<ComposerView chatRef={chatRef} editorRef={editorRef} />} />
         <Route path="/templates" element={<TemplateStudio />} />
+        <Route path="/templates/editor" element={<TemplateEditorPage />} />
+        <Route path="/templates/editor/:id" element={<TemplateEditorPage />} />
         <Route path="/sources" element={<SourcesLibrary />} />
-        <Route path="/feeds" element={<FeedsPanel />} />
+        <Route path="/feeds" element={<Navigate to="/settings/feeds" replace />} />
         <Route path="/logs" element={<LogsPanel />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/settings" element={<Navigate to="/settings/account" replace />} />

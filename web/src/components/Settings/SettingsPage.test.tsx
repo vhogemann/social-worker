@@ -17,6 +17,10 @@ vi.mock("./BrandVoicesTab", () => ({
   BrandVoicesTab: () => <div data-testid="brand-voices-tab">Brand Voices Tab Content</div>,
 }));
 
+vi.mock("./FeedsTab", () => ({
+  FeedsTab: () => <div data-testid="feeds-tab">Feeds Tab Content</div>,
+}));
+
 vi.mock("./UsersTab", () => ({
   UsersTab: () => <div data-testid="users-tab">Users Tab Content</div>,
 }));
@@ -62,6 +66,7 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("link", { name: /account/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /connections/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /brand voices/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /feeds/i })).toBeInTheDocument();
 
     // Admin group
     expect(screen.getByRole("link", { name: /users/i })).toBeInTheDocument();
@@ -80,6 +85,13 @@ describe("SettingsPage", () => {
 
     expect(screen.getByRole("heading", { name: "Brand Voice Prompts" })).toBeInTheDocument();
     expect(screen.getByTestId("brand-voices-tab")).toBeInTheDocument();
+  });
+
+  it("renders feeds tab when navigated to /settings/feeds", () => {
+    renderSettingsPage(["/settings/feeds"]);
+
+    expect(screen.getByRole("heading", { name: "Feed Subscriptions" })).toBeInTheDocument();
+    expect(screen.getByTestId("feeds-tab")).toBeInTheDocument();
   });
 
   it("renders users tab for admin users", () => {

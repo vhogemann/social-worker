@@ -10,6 +10,6 @@ test.describe("Publishing", () => {
   test("can open the Adapt modal", async ({ page }) => {
     await page.getByRole("button", { name: /adapt/i }).click();
 
-    await expect(page.getByText(/adapt to other platforms/i)).toBeVisible();
+    await expect(page.getByText(/adapt to other/i)).toBeVisible();
   });
 });

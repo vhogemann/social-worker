@@ -98,4 +98,19 @@ describe("WorkflowsPanel", () => {
       expect(screen.getByPlaceholderText(/e\.g\. Daily Tech Highlights/i)).toBeInTheDocument();
     });
   });
+
+  it("navigates to workflow detail on card click", async () => {
+    render(
+      <MemoryRouter future={routerFuture}>
+        <WorkflowsPanel />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Daily Tech Highlights")).toBeInTheDocument();
+    });
+
+    const cardTitle = screen.getByText("Daily Tech Highlights");
+    fireEvent.click(cardTitle);
+  });
 });

@@ -57,7 +57,7 @@ public sealed class TemplateGeneratorService
             // 1. rect: { "type": "rect", "fill": "#hex" or "rgba(...)", "stroke": "#hex", "strokeWidth": 2, "x": 0, "y": 0, "w": "100%" or 1000, "h": "100%" or 1000, "borderRadius": 16, "opacity": 1.0 }
             // 2. circle: { "type": "circle", "fill": "#hex", "cx": "50%" or 500, "cy": "50%" or 500, "radius": 100, "opacity": 1.0 }
             // 3. image: { "type": "image", "slot": "slot_key", "fit": "cover" | "contain" | "fill", "x": 0, "y": 0, "w": "100%", "h": "100%", "borderRadius": 0 }
-            // 4. text: { "type": "text", "slot": "slot_key", "text": "fallback text", "x": 100, "y": 100, "maxWidth": 880, "fontSize": 44, "fontFamily": "Inter, sans-serif", "fontWeight": "bold" or "normal", "color": "#ffffff", "align": "left" | "center" | "right", "lineHeight": 1.35, "prefix": "", "suffix": "", "textTransform": "uppercase" | "lowercase" | "none" }
+            // 4. text: { "type": "text", "slot": "slot_key", "text": "fallback text", "x": 100, "y": 100, "maxWidth": 880, "fontSize": 44, "fontFamily": "Inter, sans-serif" | "Plus Jakarta Sans, sans-serif" | "Montserrat, sans-serif" | "Space Grotesk, sans-serif" | "Bebas Neue, sans-serif" | "Oswald, sans-serif" | "Righteous, cursive" | "Playfair Display, serif" | "Lora, serif" | "Merriweather, serif" | "JetBrains Mono, monospace" | "Fira Code, monospace" | "Space Mono, monospace" | "Caveat, cursive" | "Permanent Marker, cursive", "fontWeight": "bold" or "normal", "color": "#ffffff", "align": "left" | "center" | "right", "lineHeight": 1.35, "prefix": "", "suffix": "", "textTransform": "uppercase" | "lowercase" | "none" }
           ]
         }
 
@@ -65,7 +65,8 @@ public sealed class TemplateGeneratorService
         1. Always include high-contrast background and text layers so text is easily legible.
         2. Position text layers with appropriate margins (e.g. x: 80-100) and maxWidth (e.g. width - 2*margin) to prevent text clipping.
         3. Define useful customizable slots for text headings, body, quotes, metrics, or optional background images.
-        4. Return ONLY the valid JSON object inside ```json ... ``` code fences. No other conversational text.
+        4. Choose appropriate font families for visual style: "Playfair Display, serif" for quotes, "Bebas Neue, sans-serif" for stats/punchy headlines, "Space Grotesk, sans-serif" or "Plus Jakarta Sans, sans-serif" for modern tech/social, "JetBrains Mono, monospace" for code, "Caveat, cursive" for personal notes.
+        5. Return ONLY the valid JSON object inside ```json ... ``` code fences. No other conversational text.
         """;
 
         var request = new OpenAiModels.ChatCompletionRequest

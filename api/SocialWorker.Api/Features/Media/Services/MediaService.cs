@@ -14,7 +14,7 @@ namespace SocialWorker.Api.Features.Media;
 
 public sealed record MediaAssetDto(
     Guid Id,
-    Guid DraftId,
+    Guid? DraftId,
     string FileName,
     string MimeType,
     string? AltText,
@@ -54,6 +54,85 @@ public sealed class MediaService
         _db = db;
         _imageEngine = imageEngine;
         _storage = storage;
+    }
+
+    public async Task<MediaAssetDto> UploadTemplateAssetAsync(
+        Stream stream,
+        string fileName,
+        string mimeType,
+        CancellationToken ct = default)
+    {
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, ct);
+        var imageBytes = buffer.ToArray();
+
+        string shaHashStr;
+        using (var hashStream = new MemoryStream(imageBytes))
+        {
+            var hashBytes = sha256.ComputeHash(hashStream);
+            shaHashStr = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+        }
+
+        var existing = await _db.MediaAssets.FirstOrDefaultAsync(m => m.Sha256 == shaHashStr, ct);
+        if (existing != null)
+        {
+            return new MediaAssetDto(existing);
+        }
+
+        var mediaId = Guid.NewGuid();
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        if (string.IsNullOrEmpty(ext))
+        {
+            ext = mimeType switch
+            {
+                "image/png" => ".png",
+                "image/webp" => ".webp",
+                "image/gif" => ".gif",
+                "image/svg+xml" => ".svg",
+                _ => ".jpg"
+            };
+        }
+
+        var relativePath = Path.Combine("templates", "assets", $"{mediaId}{ext}");
+
+        var processStream = new MemoryStream(imageBytes);
+        int width = 0;
+        int height = 0;
+        byte[] finalBytes = imageBytes;
+
+        try
+        {
+            var processResult = await _imageEngine.ResizeImageAsync(processStream, mimeType, maxDimension: 2000, ct: ct);
+            width = processResult.Width;
+            height = processResult.Height;
+            finalBytes = processResult.Data;
+        }
+        catch
+        {
+            // If image-engine resize fails, preserve original bytes
+        }
+
+        await _storage.WriteFileAsync(relativePath, finalBytes);
+
+        var mediaAsset = new MediaAsset
+        {
+            Id = mediaId,
+            DraftId = null,
+            FileName = fileName,
+            MimeType = mimeType,
+            FilePath = relativePath,
+            Sha256 = shaHashStr,
+            SizeBytes = finalBytes.Length,
+            Width = width,
+            Height = height,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.MediaAssets.Add(mediaAsset);
+        await _db.SaveChangesAsync(ct);
+
+        return new MediaAssetDto(mediaAsset);
     }
 
     public async Task<UploadMediaResult> UploadMediaAsync(
@@ -165,7 +244,7 @@ public sealed class MediaService
         var asset = await _db.MediaAssets.Include(m => m.Draft).FirstOrDefaultAsync(m => m.Id == id, ct)
             ?? throw new KeyNotFoundException("Media asset not found.");
 
-        if (asset.Draft.UserId != userId)
+        if (asset.Draft != null && asset.Draft.UserId != userId)
         {
             throw new UnauthorizedAccessException("Access denied.");
         }
@@ -211,7 +290,7 @@ public sealed class MediaService
         var asset = await _db.MediaAssets.Include(m => m.Draft).FirstOrDefaultAsync(m => m.Id == id, ct)
             ?? throw new KeyNotFoundException("Media asset not found.");
 
-        if (asset.Draft.UserId != userId)
+        if (asset.Draft != null && asset.Draft.UserId != userId)
         {
             throw new UnauthorizedAccessException("Access denied.");
         }

@@ -24,7 +24,7 @@ public sealed record PlatformThreadDto(Guid Id, Guid DraftId, string Platform, s
 
 public sealed record MediaAssetMiniDto(
     Guid Id,
-    Guid DraftId,
+    Guid? DraftId,
     string FileName,
     string MimeType,
     string? AltText,
@@ -143,7 +143,7 @@ public sealed class DraftsService
             .ToListAsync(ct);
 
         var media = await _db.MediaAssets
-            .Where(m => draftIds.Contains(m.DraftId))
+            .Where(m => m.DraftId.HasValue && draftIds.Contains(m.DraftId.Value))
             .ToListAsync(ct);
 
         var blueskyMetadata = await _db.DraftBlueskyMetadata
