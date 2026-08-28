@@ -26,9 +26,11 @@ export default function App() {
             <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
             <Route path="/workflows/:workflowId/draft" element={<ComposerPage />} />
             <Route path="/workflows/:workflowId/draft/:draftId" element={<ComposerPage />} />
+            <Route path="/workflows/:workflowId/draft/:draftId/variant/:variantId" element={<ComposerPage />} />
             <Route path="/drafts" element={<DraftsPage />} />
             <Route path="/composer" element={<ComposerPage />} />
             <Route path="/draft/:draftId" element={<ComposerPage />} />
+            <Route path="/draft/:draftId/variant/:variantId" element={<ComposerPage />} />
             <Route path="/templates" element={<TemplateStudioPage />} />
             <Route path="/templates/editor" element={<TemplateEditorPage />} />
             <Route path="/templates/editor/:id" element={<TemplateEditorPage />} />

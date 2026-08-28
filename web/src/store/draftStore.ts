@@ -1,6 +1,54 @@
 import { create } from "zustand";
-import { fetchDrafts, createDraft, createReplyDraftFromBlueskyPostUrl, fetchDraft, patchDraft, createPlatformThread, patchPlatformThread, publishPlatformThread, fetchSources, uploadFile, uploadMedia, patchMediaAsset, deleteMediaAsset, fetchPlatformCapabilities, type DraftDto, type PlatformThreadDto, type SourceDto, type MediaAssetDto, type PlatformCapabilityDto } from "../api/drafts";
+import {
+  fetchDrafts,
+  createDraft,
+  createReplyDraftFromBlueskyPostUrl,
+  fetchDraft,
+  patchDraft,
+  createPlatformThread,
+  patchPlatformThread,
+  publishPlatformThread,
+  fetchSources,
+  uploadFile,
+  uploadMedia,
+  patchMediaAsset,
+  deleteMediaAsset,
+  fetchPlatformCapabilities,
+  type DraftDto,
+  type PlatformThreadDto,
+  type SourceDto,
+  type MediaAssetDto,
+  type PlatformCapabilityDto,
+} from "../api/drafts";
 import { useChatStore } from "./chatStore";
+
+export function findDraft(drafts: DraftDto[], id: string | null | undefined): DraftDto | undefined {
+  if (!id) return undefined;
+  for (const d of drafts) {
+    if (d.id === id) return d;
+    if (d.variants) {
+      const v = d.variants.find((variant) => variant.id === id);
+      if (v) return v;
+    }
+  }
+  return undefined;
+}
+
+function updateDraftInTree(drafts: DraftDto[], updated: DraftDto): DraftDto[] {
+  const isTopLevel = drafts.some((d) => d.id === updated.id);
+  if (isTopLevel) {
+    return drafts.map((d) => (d.id === updated.id ? { ...d, ...updated } : d));
+  }
+  return drafts.map((d) => {
+    if (d.id === updated.canonicalDraftId || d.variants?.some((v) => v.id === updated.id)) {
+      const updatedVariants = (d.variants ?? []).map((v) =>
+        v.id === updated.id ? { ...v, ...updated } : v
+      );
+      return { ...d, variants: updatedVariants };
+    }
+    return d;
+  });
+}
 
 interface DraftStore {
   drafts: DraftDto[];
@@ -12,8 +60,18 @@ interface DraftStore {
   loadDrafts: () => Promise<void>;
   loadPlatformCapabilities: () => Promise<void>;
   supportsReplyTargetForPlatform: (platform: string | null | undefined) => boolean;
-  createDraft: (title?: string, content?: string, targetPlatform?: string, targetAccountId?: string, automationWorkflowId?: string) => Promise<DraftDto>;
-  createReplyDraftFromBlueskyPostUrl: (url: string, title?: string, content?: string) => Promise<DraftDto>;
+  createDraft: (
+    title?: string,
+    content?: string,
+    targetPlatform?: string,
+    targetAccountId?: string,
+    automationWorkflowId?: string
+  ) => Promise<DraftDto>;
+  createReplyDraftFromBlueskyPostUrl: (
+    url: string,
+    title?: string,
+    content?: string
+  ) => Promise<DraftDto>;
   switchDraft: (id: string) => Promise<DraftDto>;
   updateDraftTitle: (id: string, title: string) => Promise<void>;
   saveDraftContent: (id: string, content: string) => Promise<void>;
@@ -53,6 +111,18 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
           console.error("Failed to parse chat history for draft", d.id, e);
         }
       }
+      if (d.variants) {
+        for (const v of d.variants) {
+          if (v.chatHistory) {
+            try {
+              const parsed = JSON.parse(v.chatHistory);
+              useChatStore.getState().saveMessages(v.id, parsed);
+            } catch (e) {
+              console.error("Failed to parse chat history for variant", v.id, e);
+            }
+          }
+        }
+      }
     }
   },
 
@@ -64,11 +134,19 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   supportsReplyTargetForPlatform: (platform) => {
     if (!platform) return false;
     const capabilities = get().platformCapabilities;
-    return capabilities.some((c) => c.platform.toLowerCase() === platform.toLowerCase() && c.supportsReplyTarget);
+    return capabilities.some(
+      (c) => c.platform.toLowerCase() === platform.toLowerCase() && c.supportsReplyTarget
+    );
   },
 
   createDraft: async (title, content, targetPlatform, targetAccountId, automationWorkflowId) => {
-    const draft = await createDraft(title, content, targetPlatform, targetAccountId, automationWorkflowId);
+    const draft = await createDraft(
+      title,
+      content,
+      targetPlatform,
+      targetAccountId,
+      automationWorkflowId
+    );
     set((s) => ({ drafts: [draft, ...s.drafts], activeDraftId: draft.id }));
     return draft;
   },
@@ -86,7 +164,7 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     const draft = await fetchDraft(id);
     set((s) => ({
       activeDraftId: id,
-      drafts: s.drafts.map((d) => (d.id === id ? draft : d)),
+      drafts: updateDraftInTree(s.drafts, draft),
     }));
     if (draft.chatHistory) {
       try {
@@ -103,39 +181,45 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   updateDraftTitle: async (id, title) => {
     const updated = await patchDraft(id, { title });
     set((s) => ({
-      drafts: s.drafts.map((d) => (d.id === id ? updated : d)),
+      drafts: updateDraftInTree(s.drafts, updated),
     }));
   },
 
   saveDraftContent: async (id, content) => {
     const updated = await patchDraft(id, { content });
     set((s) => ({
-      drafts: s.drafts.map((d) => (d.id === id ? updated : d)),
+      drafts: updateDraftInTree(s.drafts, updated),
     }));
   },
 
   archiveDraft: async (id) => {
     const updated = await patchDraft(id, { status: "Archived" });
     set((s) => ({
-      drafts: s.drafts.map((d) => (d.id === id ? updated : d)),
+      drafts: updateDraftInTree(s.drafts, updated),
     }));
   },
 
   unarchiveDraft: async (id) => {
     const updated = await patchDraft(id, { status: "Editing" });
     set((s) => ({
-      drafts: s.drafts.map((d) => (d.id === id ? updated : d)),
+      drafts: updateDraftInTree(s.drafts, updated),
     }));
   },
 
   deleteDraft: async (id) => {
     await patchDraft(id, { status: "Deleted" });
     set((s) => {
-      const nextActiveId = s.activeDraftId === id
-        ? s.drafts.find((d) => d.id !== id && d.status !== "Deleted")?.id ?? null
-        : s.activeDraftId;
+      const nextActiveId =
+        s.activeDraftId === id
+          ? s.drafts.find((d) => d.id !== id && d.status !== "Deleted")?.id ?? null
+          : s.activeDraftId;
       return {
-        drafts: s.drafts.filter((d) => d.id !== id),
+        drafts: s.drafts
+          .filter((d) => d.id !== id)
+          .map((d) => ({
+            ...d,
+            variants: d.variants?.filter((v) => v.id !== id),
+          })),
         activeDraftId: nextActiveId,
       };
     });
@@ -155,28 +239,56 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   updateThreadStage: async (draftId, threadId, stage) => {
     const updated = await patchPlatformThread(draftId, threadId, { stage });
     set((s) => ({
-      drafts: s.drafts.map((d) =>
-        d.id === draftId
-          ? {
-              ...d,
-              threads: d.threads.map((t) => (t.id === threadId ? updated : t)),
-            }
-          : d
-      ),
+      drafts: s.drafts.map((d) => {
+        if (d.id === draftId) {
+          return {
+            ...d,
+            threads: d.threads.map((t) => (t.id === threadId ? updated : t)),
+          };
+        }
+        if (d.variants) {
+          return {
+            ...d,
+            variants: d.variants.map((v) =>
+              v.id === draftId
+                ? {
+                    ...v,
+                    threads: v.threads.map((t) => (t.id === threadId ? updated : t)),
+                  }
+                : v
+            ),
+          };
+        }
+        return d;
+      }),
     }));
   },
 
   updateThreadContent: async (draftId, threadId, content) => {
     const updated = await patchPlatformThread(draftId, threadId, { content });
     set((s) => ({
-      drafts: s.drafts.map((d) =>
-        d.id === draftId
-          ? {
-              ...d,
-              threads: d.threads.map((t) => (t.id === threadId ? updated : t)),
-            }
-          : d
-      ),
+      drafts: s.drafts.map((d) => {
+        if (d.id === draftId) {
+          return {
+            ...d,
+            threads: d.threads.map((t) => (t.id === threadId ? updated : t)),
+          };
+        }
+        if (d.variants) {
+          return {
+            ...d,
+            variants: d.variants.map((v) =>
+              v.id === draftId
+                ? {
+                    ...v,
+                    threads: v.threads.map((t) => (t.id === threadId ? updated : t)),
+                  }
+                : v
+            ),
+          };
+        }
+        return d;
+      }),
     }));
   },
 
@@ -199,36 +311,42 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   uploadMediaAsset: async (draftId, file) => {
     const res = await uploadMedia(draftId, file);
-    const drafts = await fetchDrafts();
-    set({ drafts });
+    await get().switchDraft(draftId);
     return res;
   },
 
   updateMediaAltText: async (mediaId, altText) => {
-    const updated = await patchMediaAsset(mediaId, { altText });
+    await patchMediaAsset(mediaId, { altText });
     set((s) => ({
-      drafts: s.drafts.map((d) => {
-        if (d.mediaAssets) {
-          return {
-            ...d,
-            mediaAssets: d.mediaAssets.map((m) => (m.id === mediaId ? updated : m)),
-          };
-        }
-        return d;
-      }),
+      drafts: s.drafts.map((d) => ({
+        ...d,
+        mediaAssets: d.mediaAssets?.map((ma) => (ma.id === mediaId ? { ...ma, altText } : ma)),
+        variants: d.variants?.map((v) => ({
+          ...v,
+          mediaAssets: v.mediaAssets?.map((ma) => (ma.id === mediaId ? { ...ma, altText } : ma)),
+        })),
+      })),
     }));
   },
 
   deleteMediaAsset: async (mediaId) => {
     await deleteMediaAsset(mediaId);
-    const drafts = await fetchDrafts();
-    set({ drafts });
+    set((s) => ({
+      drafts: s.drafts.map((d) => ({
+        ...d,
+        mediaAssets: d.mediaAssets?.filter((ma) => ma.id !== mediaId),
+        variants: d.variants?.map((v) => ({
+          ...v,
+          mediaAssets: v.mediaAssets?.filter((ma) => ma.id !== mediaId),
+        })),
+      })),
+    }));
   },
 
   saveDraftChat: async (id, chatHistory) => {
     const updated = await patchDraft(id, { chatHistory });
     set((s) => ({
-      drafts: s.drafts.map((d) => (d.id === id ? updated : d)),
+      drafts: updateDraftInTree(s.drafts, updated),
     }));
   },
 }));

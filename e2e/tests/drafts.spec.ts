@@ -9,8 +9,9 @@ test.describe("Drafts", () => {
     await navigateToComposer(page);
   });
 
-  test("sidebar shows drafts header after login", async ({ page }) => {
-    await expect(page.getByText("drafts", { exact: true })).toBeVisible({ timeout: 10000 });
+  test("drafts library page displays header and navigation", async ({ page }) => {
+    await page.getByRole("link", { name: "Drafts", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Drafts Library" })).toBeVisible({ timeout: 10000 });
   });
 
   test("can type content in the editor", async ({ page }) => {

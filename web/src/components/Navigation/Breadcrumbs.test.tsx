@@ -19,6 +19,19 @@ describe("Breadcrumbs", () => {
           targetPlatform: null,
           canonicalDraftId: null,
           threads: [],
+          variants: [
+            {
+              id: "var-tw-1",
+              title: "Twitter Variant",
+              content: "Twitter thread",
+              status: "Formatting",
+              targetPlatform: "Twitter",
+              canonicalDraftId: "draft-1",
+              threads: [],
+              createdAt: "2026-08-20T10:00:00Z",
+              updatedAt: "2026-08-20T10:00:00Z",
+            },
+          ],
           createdAt: "2026-08-20T10:00:00Z",
           updatedAt: "2026-08-20T10:00:00Z",
         },
@@ -62,6 +75,24 @@ describe("Breadcrumbs", () => {
     expect(screen.getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Daily Tech Highlights" })).toHaveAttribute("href", "/workflows/wf-1");
     expect(screen.getByText("Deep Dive into .NET 10")).toBeInTheDocument();
+  });
+
+  it("renders 4-tier breadcrumbs for /workflows/:wfId/draft/:draftId/variant/:variantId", () => {
+    renderWithRoute("/workflows/wf-1/draft/draft-1/variant/var-tw-1");
+    expect(screen.getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Daily Tech Highlights" })).toHaveAttribute("href", "/workflows/wf-1");
+    expect(screen.getByRole("link", { name: "Deep Dive into .NET 10" })).toHaveAttribute(
+      "href",
+      "/workflows/wf-1/draft/draft-1"
+    );
+    expect(screen.getByText("Twitter")).toBeInTheDocument();
+  });
+
+  it("renders 3-tier breadcrumbs for /draft/:draftId/variant/:variantId", () => {
+    renderWithRoute("/draft/draft-1/variant/var-tw-1");
+    expect(screen.getByRole("link", { name: "Drafts" })).toHaveAttribute("href", "/drafts");
+    expect(screen.getByRole("link", { name: "Deep Dive into .NET 10" })).toHaveAttribute("href", "/draft/draft-1");
+    expect(screen.getByText("Twitter")).toBeInTheDocument();
   });
 
   it("renders Drafts and draft title for /draft/:id", () => {

@@ -16,6 +16,7 @@ import type { DraftDto } from "../../api/drafts";
 export interface DraftCardProps {
   draft: DraftDto;
   onSelect: (id: string, workflowId?: string | null) => void;
+  onSelectVariant?: (canonicalId: string, variantId: string, workflowId?: string | null) => void;
   onArchive: (id: string) => void;
   onUnarchive: (id: string) => void;
   onDelete: (id: string) => void;
@@ -25,6 +26,7 @@ export interface DraftCardProps {
 export const DraftCard: React.FC<DraftCardProps> = ({
   draft,
   onSelect,
+  onSelectVariant,
   onArchive,
   onUnarchive,
   onDelete,
@@ -49,6 +51,15 @@ export const DraftCard: React.FC<DraftCardProps> = ({
 
   const variantCount = draft.variants?.length || 0;
 
+  const handleVariantClick = (e: React.MouseEvent, variantId: string) => {
+    e.stopPropagation();
+    if (onSelectVariant) {
+      onSelectVariant(draft.id, variantId, draft.automationWorkflowId);
+    } else {
+      onSelect(variantId, draft.automationWorkflowId);
+    }
+  };
+
   return (
     <div
       onClick={() => onSelect(draft.id, draft.automationWorkflowId)}
@@ -61,7 +72,10 @@ export const DraftCard: React.FC<DraftCardProps> = ({
             <input
               type="text"
               value={editTitle}
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
               onChange={(e) => setEditTitle(e.target.value)}
+              onBlur={handleSaveTitle}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSaveTitle();
                 if (e.key === "Escape") {
@@ -69,34 +83,27 @@ export const DraftCard: React.FC<DraftCardProps> = ({
                   setEditTitle(draft.title);
                 }
               }}
-              onBlur={handleSaveTitle}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-bg border border-accent rounded px-2 py-0.5 text-sm font-bold text-foreground focus:outline-none w-full"
-              autoFocus
+              className="text-sm font-bold bg-bg border border-accent rounded px-2 py-0.5 w-full text-foreground focus:outline-none"
             />
           ) : (
-            <h3
-              className="text-sm font-bold text-foreground line-clamp-2 group-hover:text-accent transition"
-              onDoubleClick={(e) => {
-                e.stopPropagation();
-                setIsEditing(true);
-              }}
-            >
+            <h3 className="text-sm font-bold text-foreground line-clamp-2 group-hover:text-accent transition">
               {draft.title}
             </h3>
           )}
 
-          <Badge
-            variant={
-              draft.status === "Published"
-                ? "success"
-                : draft.status === "Archived"
-                ? "neutral"
-                : "accent"
-            }
-          >
-            {draft.status}
-          </Badge>
+          <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+            <Badge
+              variant={
+                draft.status === "Published" || draft.status === "Sent"
+                  ? "success"
+                  : draft.status === "Archived"
+                  ? "neutral"
+                  : "accent"
+              }
+            >
+              {draft.status}
+            </Badge>
+          </div>
         </div>
 
         {draft.content && (
@@ -109,6 +116,28 @@ export const DraftCard: React.FC<DraftCardProps> = ({
           <div className="flex items-center gap-1.5 text-[11px] text-accent/90 font-medium">
             <FontAwesomeIcon icon={faBolt} className="w-3 h-3 text-accent" />
             <span className="truncate">{draft.automationWorkflowTitle}</span>
+          </div>
+        )}
+
+        {/* Clickable Variant Badges */}
+        {draft.variants && draft.variants.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
+            {draft.variants.map((v) => (
+              <button
+                key={v.id}
+                onClick={(e) => handleVariantClick(e, v.id)}
+                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-sans font-medium hover:opacity-80 transition cursor-pointer ${
+                  PLATFORM_BADGE_COLORS[v.targetPlatform || ""] || "text-muted bg-border/40"
+                }`}
+                title={`Open ${v.targetPlatform} variant`}
+                data-testid={`card-variant-${v.id}`}
+              >
+                {v.targetPlatform && PLATFORM_ICONS[v.targetPlatform] && (
+                  <FontAwesomeIcon icon={PLATFORM_ICONS[v.targetPlatform]} className="w-2.5 h-2.5" />
+                )}
+                <span>{v.targetPlatform || v.title}</span>
+              </button>
+            ))}
           </div>
         )}
       </div>

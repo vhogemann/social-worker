@@ -41,6 +41,14 @@ export const DraftsPage: React.FC = () => {
     }
   };
 
+  const handleSelectVariant = (canonicalId: string, variantId: string, workflowId?: string | null) => {
+    if (workflowId) {
+      navigate(`/workflows/${workflowId}/draft/${canonicalId}/variant/${variantId}`);
+    } else {
+      navigate(`/draft/${canonicalId}/variant/${variantId}`);
+    }
+  };
+
   const handleCreateDraft = async (
     title?: string,
     targetPlatform?: string,
@@ -179,6 +187,7 @@ export const DraftsPage: React.FC = () => {
               key={draft.id}
               draft={draft}
               onSelect={handleSelectDraft}
+              onSelectVariant={handleSelectVariant}
               onArchive={archiveDraft}
               onUnarchive={unarchiveDraft}
               onDelete={deleteDraft}

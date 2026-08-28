@@ -9,9 +9,9 @@ test.describe("Automation Workflows Dashboard", () => {
   test("dashboard loads and displays automation workflows header", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Automation Workflows", exact: true })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole("link", { name: "Workflows", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Composer", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Feeds", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Logs", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Drafts", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Templates", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Settings", exact: true })).toBeVisible();
   });
 
   test("can create, edit, trigger, and delete an automation workflow", async ({ page }) => {
@@ -43,9 +43,9 @@ test.describe("Automation Workflows Dashboard", () => {
     // 5. Trigger Workflow
     await page.getByRole("button", { name: /Trigger/i }).first().click();
 
-    // 6. Navigation to Composer and back to Workflows
-    await page.getByRole("link", { name: "Composer", exact: true }).click();
-    await expect(page.getByPlaceholder(/Ask the assistant/i)).toBeVisible({ timeout: 10000 });
+    // 6. Navigation to Drafts and back to Workflows
+    await page.getByRole("link", { name: "Drafts", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Drafts Library", exact: true })).toBeVisible({ timeout: 10000 });
 
     await page.getByRole("link", { name: "Workflows", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Automation Workflows", exact: true })).toBeVisible({ timeout: 10000 });

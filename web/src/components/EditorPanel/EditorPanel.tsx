@@ -6,7 +6,7 @@ import { EditorPanelHeader } from "./EditorPanelHeader";
 import { AdaptVariantsModal } from "./AdaptVariantsModal";
 import { ReplyTargetCard } from "./ReplyTargetCard";
 import { useEditorStore } from "../../store/editorStore";
-import { useDraftStore } from "../../store/draftStore";
+import { findDraft, useDraftStore } from "../../store/draftStore";
 import { useChatStore } from "../../store/chatStore";
 
 export const EditorPanel: React.FC = () => {
@@ -25,10 +25,13 @@ export const EditorPanel: React.FC = () => {
   const supportsReplyTargetForPlatform = useDraftStore((s) => s.supportsReplyTargetForPlatform);
   const addActivityCard = useChatStore((s) => s.addActivityCard);
 
-  const activeDraft = drafts.find((d) => d.id === activeDraftId);
+  const activeDraft = findDraft(drafts, activeDraftId);
   const isCanonical = Boolean(activeDraft && !activeDraft.canonicalDraftId);
   const primaryThread = activeDraft?.threads?.[0];
-  const isSent = primaryThread?.stage === "Sent";
+  const isSent =
+    primaryThread?.stage === "Sent" ||
+    activeDraft?.status === "Published" ||
+    activeDraft?.status === "Sent";
   const canShowReplyTarget = supportsReplyTargetForPlatform(activeDraft?.targetPlatform);
 
   useEffect(() => {
@@ -38,12 +41,23 @@ export const EditorPanel: React.FC = () => {
   }, [loadPlatformCapabilities]);
 
   const handlePublish = async () => {
-    if (!activeDraftId || !primaryThread) return;
+    if (!activeDraftId) return;
     try {
       setIsPublishing(true);
       await saveDraftContent(activeDraftId, doc);
-      await updateThreadContent(activeDraftId, primaryThread.id, doc);
-      const result = await publishThread(activeDraftId, primaryThread.id);
+
+      let threadId = primaryThread?.id;
+      if (!threadId) {
+        const fresh = await useDraftStore.getState().switchDraft(activeDraftId);
+        threadId = fresh.threads?.[0]?.id;
+      }
+
+      if (!threadId) {
+        throw new Error("No platform thread available to publish.");
+      }
+
+      await updateThreadContent(activeDraftId, threadId, doc);
+      const result = await publishThread(activeDraftId, threadId);
 
       if (result && !result.success && !result.Success) {
         throw new Error(result.errorMessage || result.ErrorMessage || "Failed to publish thread.");
@@ -67,7 +81,7 @@ export const EditorPanel: React.FC = () => {
         onChangeMode={setPanelMode}
         isCanonical={isCanonical}
         isSent={Boolean(isSent)}
-        canPublish={Boolean(primaryThread)}
+        canPublish={Boolean(activeDraft && (!isCanonical || primaryThread))}
         isPublishing={isPublishing}
         onOpenAdaptModal={() => setAdaptModalOpen(true)}
         onPublish={handlePublish}

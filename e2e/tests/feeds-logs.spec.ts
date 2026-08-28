@@ -7,7 +7,8 @@ test.describe("Feeds and Logs", () => {
   });
 
   test("can navigate to feeds, create a subscription, and visit logs", async ({ page }) => {
-    // Navigate to Feeds
+    // Navigate to Settings -> Feeds
+    await page.getByRole("link", { name: "Settings" }).click();
     await page.getByRole("link", { name: "Feeds" }).click();
     await expect(page.getByRole("heading", { name: "Feed Automation" })).toBeVisible({ timeout: 10000 });
 
@@ -25,7 +26,7 @@ test.describe("Feeds and Logs", () => {
     await expect(page.getByText(uniqueTitle)).toBeVisible({ timeout: 10000 });
 
     // Navigate to Logs
-    await page.getByRole("link", { name: "Logs" }).click();
+    await page.goto("/logs");
     await expect(page.getByRole("heading", { name: /Processing Logs & Backlog/i })).toBeVisible({ timeout: 10000 });
   });
 });
