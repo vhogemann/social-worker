@@ -49,9 +49,10 @@ Definition of done for this phase:
 
 Status: `Planned`
 
-1. Thread reordering and multi-draft workflow improvements.
-2. Scheduled publishing.
-3. Publishing UX refinements around review/confirm before send.
+1. Meta platform integration: shared Meta OAuth + Instagram publisher + Facebook publisher (see [META_OAUTH.md](planning/META_OAUTH.md), [INSTAGRAM_SUPPORT.md](planning/INSTAGRAM_SUPPORT.md), [FACEBOOK_SUPPORT.md](planning/FACEBOOK_SUPPORT.md)).
+2. Thread reordering and multi-draft workflow improvements.
+3. Scheduled publishing.
+4. Publishing UX refinements around review/confirm before send.
 
 Scope guardrails:
 
@@ -62,7 +63,7 @@ Scope guardrails:
 
 Status: `Deferred`
 
-1. Additional publishers: Twitter/X, LinkedIn, Facebook, Instagram.
+1. Additional publishers: Twitter/X.
 2. Advanced runtime ideas: sandbox/tool runtime evolution.
 3. External interfaces and multi-user/team workflows.
 
@@ -87,6 +88,7 @@ These should remain first-class and be kept current:
 | [planning/MULTI_ACCOUNT_SUPPORT.md](planning/MULTI_ACCOUNT_SUPPORT.md) | Multi-account support per platform across database constraints, account-first draft creation, and publishing |
 | [planning/FACEBOOK_SUPPORT.md](planning/FACEBOOK_SUPPORT.md) | Facebook Pages OAuth integration, token exchange, and post/comment/media publishing pipeline |
 | [planning/INSTAGRAM_SUPPORT.md](planning/INSTAGRAM_SUPPORT.md) | Instagram Professional/Creator publishing container pipeline, image validation, and OAuth integration |
+| [planning/META_OAUTH.md](planning/META_OAUTH.md) | Shared Meta OAuth 2.0 infrastructure for Facebook Pages and Instagram Professional account discovery |
 | [planning/IMAGE_ENGINE.md](planning/IMAGE_ENGINE.md) | Image Engine microservice (Sharp + @napi-rs/canvas), data-driven JSON layer tree templates, Instagram image composition, and partial SkiaSharp extraction |
 | [planning/TEMPLATE_STUDIO.md](planning/TEMPLATE_STUDIO.md) | Template Studio UI, AI template generation, 1-shot auto-repair, and seed templates library |
 
