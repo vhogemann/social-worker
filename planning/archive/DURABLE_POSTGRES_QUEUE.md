@@ -45,22 +45,25 @@ sequenceDiagram
 ## Core Components
 
 1. **Entity**: `BackgroundTask.cs` stored in table `"BackgroundTasks"`.
-2. **Queue Interface**: `IBackgroundTaskQueue` supporting typed enqueueing and atomic `FOR UPDATE SKIP LOCKED` dequeueing.
-3. **Worker Pool**: `BackgroundJobHostedService` running `N` parallel workers (default 4) with graceful backoff and crash lease recovery.
+2. **Queue Service**: `PostgresBackgroundTaskQueue` implementing `IBackgroundTaskQueue` supporting typed enqueueing, in-process local wake signal, and atomic `FOR UPDATE SKIP LOCKED` dequeueing (falling back to LINQ for SQLite/unit testing).
+3. **Hosted Services**:
+   - `BackgroundTaskHostedService`: Runs parallel workers (default 4) with adaptive polling, handler resolution, and crash lease recovery.
+   - `BackgroundTaskRetentionService`: Cleans up completed tasks (>24h) and failed/cancelled tasks (>14d) periodically.
 4. **Typed Handlers**:
-   - `YouTubeTranscriptTaskHandler`
-   - `FeedIngestionTaskHandler`
-   - `ChatSummaryTaskHandler`
-   - `TemplateRenderTaskHandler`
+   - `SourceTranscriptionTaskHandler` (`"source-transcription"`, 15m default lease)
+   - `SourceScrapeTaskHandler` (`"source-scrape"`, 3m default lease)
+   - `DraftChatSummaryTaskHandler` (`"draft-chat-summary"`, 3m default lease)
+   - `FeedIngestionTaskHandler` (`"feed-ingestion"`, 5m default lease)
 
 ---
 
 ## Verification Plan
 
 1. **Unit & Integration Tests**:
-   - `PostgresBackgroundTaskQueueTests.cs` testing concurrent dequeueing without race conditions.
-   - Retry with exponential backoff and dead-lettering tests.
-   - Lease expiration and automatic crash recovery tests.
+   - `PostgresBackgroundTaskQueueTests.cs`: SQLite unit tests for priority queueing, deduplication keys, retries, and lease extension.
+   - `PostgreSqlBackgroundTaskQueueIntegrationTests.cs`: PostgreSQL integration tests (using dynamically isolated schemas) verifying the actual `SKIP LOCKED` query execution, multi-worker concurrency, and expired lease reclamation under Postgres.
+   - `BackgroundTaskHostedServiceTests.cs`: Unit tests for concurrent pool workers, execution state tracking, and handler exception isolation.
+   - `TaskHandlersTests.cs`: Unit tests for the individual task handlers.
 2. **Execution**:
    ```bash
    docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
