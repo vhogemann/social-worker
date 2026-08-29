@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.Common;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -38,33 +41,35 @@ public sealed class PostgresBackgroundTaskQueue : IBackgroundTaskQueue
         EnqueueTaskOptions? options = null,
         CancellationToken ct = default)
     {
+        options ??= EnqueueTaskOptions.Default;
+
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var opts = options ?? EnqueueTaskOptions.Default;
-
-        if (!string.IsNullOrWhiteSpace(opts.DeduplicationKey))
+        if (!string.IsNullOrWhiteSpace(options.DeduplicationKey))
         {
             var existing = await db.BackgroundTasks
                 .AsNoTracking()
-                .Where(t => t.DeduplicationKey == opts.DeduplicationKey &&
-                            (t.Status == BackgroundTaskStatus.Pending || t.Status == BackgroundTaskStatus.Running))
-                .Select(t => (Guid?)t.Id)
-                .FirstOrDefaultAsync(ct);
+                .FirstOrDefaultAsync(t =>
+                    t.DeduplicationKey == options.DeduplicationKey &&
+                    (t.Status == BackgroundTaskStatus.Pending || t.Status == BackgroundTaskStatus.Running), ct);
 
-            if (existing.HasValue)
+            if (existing != null)
             {
-                _logger.LogDebug("Task with deduplication key {Key} already exists ({TaskId})", opts.DeduplicationKey, existing.Value);
-                return existing.Value;
+                _logger.LogDebug("Task of type '{TaskType}' with key '{Key}' already active (id: {TaskId}), skipping",
+                    taskType, options.DeduplicationKey, existing.Id);
+                return existing.Id;
             }
         }
 
-        var task = BackgroundTask.Create(taskType, payload, opts);
+        var task = BackgroundTask.Create(taskType, payload, options);
         db.BackgroundTasks.Add(task);
         await db.SaveChangesAsync(ct);
 
         _signal.Writer.TryWrite(true);
-        _logger.LogDebug("Enqueued background task {TaskId} of type {TaskType}", task.Id, task.TaskType);
+        _logger.LogInformation("Enqueued background task {TaskId} of type '{TaskType}' (priority: {Priority})",
+            task.Id, taskType, task.Priority);
+
         return task.Id;
     }
 
@@ -97,14 +102,34 @@ WHERE ""Id"" = (
     LIMIT 1
     FOR UPDATE SKIP LOCKED
 )
-RETURNING *;";
+RETURNING ""Id"", ""TaskType"", ""PayloadJson"", ""Status"", ""Priority"", ""AttemptCount"", ""MaxAttempts"", ""NextAttemptAt"", ""LockedUntil"", ""LockedByWorker"", ""LastError"", ""DeduplicationKey"", ""CreatedAt"", ""UpdatedAt"", ""CompletedAt"";";
 
-            var lockedTask = await db.BackgroundTasks
-                .FromSqlRaw(sql, leaseSeconds.ToString(), workerId)
-                .AsTracking()
-                .FirstOrDefaultAsync(ct);
+            var connection = db.Database.GetDbConnection();
+            if (connection.State != ConnectionState.Open)
+            {
+                await connection.OpenAsync(ct);
+            }
 
-            return lockedTask;
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+
+            var p0 = command.CreateParameter();
+            p0.ParameterName = "@p0";
+            p0.Value = leaseSeconds.ToString();
+            command.Parameters.Add(p0);
+
+            var p1 = command.CreateParameter();
+            p1.ParameterName = "@p1";
+            p1.Value = workerId;
+            command.Parameters.Add(p1);
+
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                return MapTaskFromReader(reader);
+            }
+
+            return null;
         }
         else
         {
@@ -124,6 +149,28 @@ RETURNING *;";
             await db.SaveChangesAsync(ct);
             return candidate;
         }
+    }
+
+    private static BackgroundTask MapTaskFromReader(DbDataReader reader)
+    {
+        return new BackgroundTask
+        {
+            Id = reader.GetGuid(reader.GetOrdinal("Id")),
+            TaskType = reader.GetString(reader.GetOrdinal("TaskType")),
+            PayloadJson = reader.GetString(reader.GetOrdinal("PayloadJson")),
+            Status = (BackgroundTaskStatus)reader.GetInt32(reader.GetOrdinal("Status")),
+            Priority = reader.GetInt32(reader.GetOrdinal("Priority")),
+            AttemptCount = reader.GetInt32(reader.GetOrdinal("AttemptCount")),
+            MaxAttempts = reader.GetInt32(reader.GetOrdinal("MaxAttempts")),
+            NextAttemptAt = reader.GetDateTime(reader.GetOrdinal("NextAttemptAt")),
+            LockedUntil = reader.IsDBNull(reader.GetOrdinal("LockedUntil")) ? null : reader.GetDateTime(reader.GetOrdinal("LockedUntil")),
+            LockedByWorker = reader.IsDBNull(reader.GetOrdinal("LockedByWorker")) ? null : reader.GetString(reader.GetOrdinal("LockedByWorker")),
+            LastError = reader.IsDBNull(reader.GetOrdinal("LastError")) ? null : reader.GetString(reader.GetOrdinal("LastError")),
+            DeduplicationKey = reader.IsDBNull(reader.GetOrdinal("DeduplicationKey")) ? null : reader.GetString(reader.GetOrdinal("DeduplicationKey")),
+            CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
+            UpdatedAt = reader.GetDateTime(reader.GetOrdinal("UpdatedAt")),
+            CompletedAt = reader.IsDBNull(reader.GetOrdinal("CompletedAt")) ? null : reader.GetDateTime(reader.GetOrdinal("CompletedAt"))
+        };
     }
 
     public async Task MarkCompletedAsync(Guid taskId, CancellationToken ct = default)

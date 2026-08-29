@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SocialWorker.Api.Features.BackgroundTasks.Abstractions;
@@ -15,22 +16,17 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddSingleton<IBackgroundTaskQueue, PostgresBackgroundTaskQueue>();
 
         builder.Services.AddScoped<SourceTranscriptionTaskHandler>();
-        builder.Services.AddScoped<IBackgroundTaskHandler, SourceTranscriptionTaskHandler>();
-
         builder.Services.AddScoped<SourceScrapeTaskHandler>();
-        builder.Services.AddScoped<IBackgroundTaskHandler, SourceScrapeTaskHandler>();
-
         builder.Services.AddScoped<DraftChatSummaryTaskHandler>();
-        builder.Services.AddScoped<IBackgroundTaskHandler, DraftChatSummaryTaskHandler>();
-
         builder.Services.AddScoped<FeedIngestionTaskHandler>();
-        builder.Services.AddScoped<IBackgroundTaskHandler, FeedIngestionTaskHandler>();
 
-        builder.Services.AddSingleton<ITaskHandlerResolver>(sp =>
-        {
-            var handlers = sp.GetServices<IBackgroundTaskHandler>();
-            return new TaskHandlerResolver(handlers);
-        });
+        var resolver = new TaskHandlerResolver();
+        resolver.Register<SourceTranscriptionTaskHandler>("source-transcription", TimeSpan.FromMinutes(15));
+        resolver.Register<SourceScrapeTaskHandler>("source-scrape", TimeSpan.FromMinutes(3));
+        resolver.Register<DraftChatSummaryTaskHandler>("draft-chat-summary", TimeSpan.FromMinutes(3));
+        resolver.Register<FeedIngestionTaskHandler>("feed-ingestion", TimeSpan.FromMinutes(5));
+
+        builder.Services.AddSingleton<ITaskHandlerResolver>(resolver);
 
         builder.Services.AddHostedService<BackgroundTaskHostedService>();
         builder.Services.AddHostedService<BackgroundTaskRetentionService>();

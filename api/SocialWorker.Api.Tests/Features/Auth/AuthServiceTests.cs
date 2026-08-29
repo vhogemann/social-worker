@@ -109,6 +109,25 @@ public sealed class AuthServiceTests : SqliteTestBase
         Assert.NotNull(result);
     }
 
+    [Theory]
+    [InlineData(null, "password123")]
+    [InlineData("", "password123")]
+    [InlineData("   ", "password123")]
+    [InlineData("testuser", null)]
+    [InlineData("testuser", "")]
+    [InlineData("testuser", "   ")]
+    public async Task LoginAsync_WithNullOrEmptyCredentials_ReturnsNull(string? identifier, string? password)
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        await SeedUserAsync(db);
+        var svc = CreateService(db);
+
+        var result = await svc.LoginAsync(identifier!, password!, CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
     [Fact]
     public async Task RefreshAsync_WithValidToken_ReturnsNewAccessToken()
     {

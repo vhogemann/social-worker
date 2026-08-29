@@ -27,9 +27,14 @@ public sealed class AuthService
 
     public async Task<LoginResponse?> LoginAsync(string emailOrUsername, string password, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(emailOrUsername) || string.IsNullOrWhiteSpace(password))
+        {
+            return null;
+        }
+
         var normalized = emailOrUsername.ToUpperInvariant();
         var user = await _db.Users.FirstOrDefaultAsync(u =>
-            (u.Email.ToUpper() == normalized || u.Username.ToUpper() == normalized) && u.IsActive, ct);
+            (u.Email.ToUpper() == normalized || (u.Username != null && u.Username.ToUpper() == normalized)) && u.IsActive, ct);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
         {
