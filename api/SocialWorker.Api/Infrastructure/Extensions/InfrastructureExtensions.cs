@@ -10,7 +10,6 @@ using SocialWorker.Api.Features.PlatformVariants;
 using SocialWorker.Api.Features.Prompts;
 using SocialWorker.Api.Features.Auth;
 using SocialWorker.Api.Infrastructure.Auth;
-using SocialWorker.Api.Infrastructure.Background;
 
 namespace SocialWorker.Api.Infrastructure.Extensions;
 
@@ -23,8 +22,6 @@ static partial class ServiceCollectionExtensions
 
         builder.Services.AddMemoryCache();
         builder.Services.AddValidatorsFromAssemblyContaining<Program>();
-        builder.Services.AddSingleton<BackgroundJobQueue>();
-        builder.Services.AddHostedService<BackgroundJobHostedService>();
 
         builder.Services.AddScoped<AuthService>();
         builder.Services.AddScoped<DraftSegmentService>();

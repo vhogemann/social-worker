@@ -3,10 +3,10 @@ using System.Net;
 using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
+using SocialWorker.Api.Features.BackgroundTasks.Abstractions;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Sources;
-using SocialWorker.Api.Infrastructure.Background;
 
 namespace SocialWorker.Api.Tests;
 
@@ -16,11 +16,10 @@ internal static class TestServiceFactory
         AppDbContext db,
         WebScraperService? scraper = null,
         IServiceScopeFactory? scopeFactory = null,
-        BackgroundJobQueue? queue = null,
+        IBackgroundTaskQueue? queue = null,
         SummarizationService? summarizer = null)
     {
-        scopeFactory ??= new EmptyScopeFactory();
-        queue ??= new BackgroundJobQueue(scopeFactory);
+        queue ??= new TestBackgroundTaskQueue();
         scraper ??= new WebScraperService(new HttpClient(new FixedHttpMessageHandler()));
 
         var transcriptionService = new SourceTranscriptionService(queue);
@@ -45,10 +44,9 @@ internal static class TestServiceFactory
         FileStorageProvider storage,
         SourcesService sourcesService,
         IServiceScopeFactory? scopeFactory = null,
-        BackgroundJobQueue? queue = null)
+        IBackgroundTaskQueue? queue = null)
     {
-        scopeFactory ??= new EmptyScopeFactory();
-        queue ??= new BackgroundJobQueue(scopeFactory);
+        queue ??= new TestBackgroundTaskQueue();
         var draftSegmentService = new DraftSegmentService(db);
         var draftChatSummaryService = new DraftChatSummaryService(queue);
         return new DraftsService(db, storage, sourcesService, draftSegmentService, draftChatSummaryService);
@@ -62,29 +60,6 @@ internal static class TestServiceFactory
             {
                 Content = new StringContent("ok")
             });
-        }
-    }
-
-    private sealed class EmptyScopeFactory : IServiceScopeFactory
-    {
-        public IServiceScope CreateScope()
-        {
-            var provider = new ServiceCollection().BuildServiceProvider();
-            return new EmptyScope(provider);
-        }
-
-        private sealed class EmptyScope : IServiceScope
-        {
-            public EmptyScope(IServiceProvider provider)
-            {
-                ServiceProvider = provider;
-            }
-
-            public IServiceProvider ServiceProvider { get; }
-
-            public void Dispose()
-            {
-            }
         }
     }
 }

@@ -12,6 +12,7 @@ builder.AddMedia();
 builder.AddPublishing();
 builder.AddSearch();
 builder.AddFeeds();
+builder.AddBackgroundTasks();
 builder.AddInfrastructure();
 
 var app = builder.Build();

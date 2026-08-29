@@ -9,7 +9,6 @@ using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Sources;
-using SocialWorker.Api.Infrastructure.Background;
 using Xunit;
 
 namespace SocialWorker.Api.Tests.Features.Chat;
@@ -19,10 +18,8 @@ public sealed class ReplaceEditorContentToolTests : SqliteTestBase
     private static (AppDbContext Db, ReplaceEditorContentTool Tool) Create(AppDbContext db)
     {
         var storage = new FileStorageProvider();
-        var scopeFact = new MockScopeFactory(db);
-        var queue = new BackgroundJobQueue(scopeFact);
-        var sourcesService = TestServiceFactory.CreateSourcesService(db, scopeFactory: scopeFact, queue: queue);
-        var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService, scopeFact, queue);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
+        var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService);
 
         var tool = new ReplaceEditorContentTool(db, draftsService);
         return (db, tool);

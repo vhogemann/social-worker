@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Sources;
-using SocialWorker.Api.Infrastructure.Background;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -344,16 +343,25 @@ public sealed class SourcesServiceTests : SqliteTestBase
         try
         {
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
-            var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
-            var queue = new BackgroundJobQueue(scopeFactory);
-            var service = TestServiceFactory.CreateSourcesService(db, scopeFactory: scopeFactory, queue: queue);
+            var queue = new TestBackgroundTaskQueue();
+            var service = TestServiceFactory.CreateSourcesService(db, queue: queue);
 
             var status = await service.RetrySourceTranscriptAsync(userId, source.Id, CancellationToken.None);
             Assert.Equal("Pending", status.ProcessingStatus);
 
-            using var queueReadCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var queuedJob = await queue.ReadAsync(queueReadCts.Token);
-            await queuedJob.Work(CancellationToken.None);
+            Assert.Single(queue.EnqueuedTasks);
+            var task = queue.EnqueuedTasks[0];
+            Assert.Equal("source-transcription", task.TaskType);
+
+            var handler = new SocialWorker.Api.Features.Sources.Handlers.SourceTranscriptionTaskHandler(
+                db,
+                transcriptService,
+                new ServiceCollection().BuildServiceProvider(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<SocialWorker.Api.Features.Sources.Handlers.SourceTranscriptionTaskHandler>.Instance);
+
+            var context = new SocialWorker.Api.Features.BackgroundTasks.Services.TaskExecutionContext(task, "test-worker", queue, CancellationToken.None);
+            var result = await handler.ExecuteRawAsync(task.PayloadJson, context, CancellationToken.None);
+            Assert.Equal(SocialWorker.Api.Features.BackgroundTasks.Models.TaskOutcome.Success, result.Outcome);
 
             var updated = await db.Sources.FirstAsync(s => s.Id == source.Id);
             Assert.Equal(SourceProcessingStatus.Complete, updated.ProcessingStatus);
@@ -393,9 +401,8 @@ public sealed class SourcesServiceTests : SqliteTestBase
             })));
 
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
-            var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
-            var queue = new BackgroundJobQueue(scopeFactory);
-            var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper, scopeFactory: scopeFactory, queue: queue);
+            var queue = new TestBackgroundTaskQueue();
+            var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper, queue: queue);
 
             var result = await service.AddUrlSourceAsync(
                 userId,
@@ -405,9 +412,19 @@ public sealed class SourcesServiceTests : SqliteTestBase
                 null,
                 CancellationToken.None);
 
-            using var queueReadCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var queuedJob = await queue.ReadAsync(queueReadCts.Token);
-            await queuedJob.Work(CancellationToken.None);
+            Assert.Single(queue.EnqueuedTasks);
+            var task = queue.EnqueuedTasks[0];
+            Assert.Equal("source-transcription", task.TaskType);
+
+            var handler = new SocialWorker.Api.Features.Sources.Handlers.SourceTranscriptionTaskHandler(
+                db,
+                transcriptService,
+                new ServiceCollection().BuildServiceProvider(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<SocialWorker.Api.Features.Sources.Handlers.SourceTranscriptionTaskHandler>.Instance);
+
+            var context = new SocialWorker.Api.Features.BackgroundTasks.Services.TaskExecutionContext(task, "test-worker", queue, CancellationToken.None);
+            var outcome = await handler.ExecuteRawAsync(task.PayloadJson, context, CancellationToken.None);
+            Assert.Equal(SocialWorker.Api.Features.BackgroundTasks.Models.TaskOutcome.Success, outcome.Outcome);
 
             var source = await db.Sources.FirstAsync(s => s.Id == result.SourceId);
             Assert.Equal(SourceKind.YouTube, source.Kind);
@@ -466,9 +483,8 @@ public sealed class SourcesServiceTests : SqliteTestBase
             })));
 
             var transcriptService = new FakeTranscriptExtractionService(transcriptDir);
-            var scopeFactory = new TestServiceScopeFactory(db, transcriptService);
-            var queue = new BackgroundJobQueue(scopeFactory);
-            var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper, scopeFactory: scopeFactory, queue: queue);
+            var queue = new TestBackgroundTaskQueue();
+            var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper, queue: queue);
 
             var result = await service.AddUrlSourceAsync(
                 userId,
@@ -478,8 +494,19 @@ public sealed class SourcesServiceTests : SqliteTestBase
                 null,
                 CancellationToken.None);
 
-            var queuedJob = await queue.ReadAsync(CancellationToken.None);
-            await queuedJob.Work(CancellationToken.None);
+            Assert.Single(queue.EnqueuedTasks);
+            var task = queue.EnqueuedTasks[0];
+            Assert.Equal("source-transcription", task.TaskType);
+
+            var handler = new SocialWorker.Api.Features.Sources.Handlers.SourceTranscriptionTaskHandler(
+                db,
+                transcriptService,
+                new ServiceCollection().BuildServiceProvider(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<SocialWorker.Api.Features.Sources.Handlers.SourceTranscriptionTaskHandler>.Instance);
+
+            var context = new SocialWorker.Api.Features.BackgroundTasks.Services.TaskExecutionContext(task, "test-worker", queue, CancellationToken.None);
+            var outcome = await handler.ExecuteRawAsync(task.PayloadJson, context, CancellationToken.None);
+            Assert.Equal(SocialWorker.Api.Features.BackgroundTasks.Models.TaskOutcome.Success, outcome.Outcome);
 
             var source = await db.Sources.FirstAsync(s => s.Id == result.SourceId);
             Assert.Equal(SourceKind.YouTube, source.Kind);

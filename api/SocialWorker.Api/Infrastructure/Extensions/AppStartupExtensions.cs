@@ -5,6 +5,7 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Data.Seed;
 using SocialWorker.Api.Features.Accounts;
 using SocialWorker.Api.Features.Auth;
+using SocialWorker.Api.Features.BackgroundTasks;
 using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.CodeImages;
 using SocialWorker.Api.Features.Drafts;
@@ -172,5 +173,6 @@ static partial class WebApplicationExtensions
         app.MapFeedsEndpoints();
         app.MapWorkflowsEndpoints();
         app.MapTemplateEndpoints();
+        app.MapBackgroundTasksEndpoints();
     }
 }

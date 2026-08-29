@@ -137,7 +137,7 @@ services:
   web-test:
     image: node:22-alpine
     working_dir: /app
-    entrypoint: ["sh", "-lc"]
+    entrypoint: ["sh", "-c", "if [ $$# -eq 1 ]; then eval \"$$1\"; else exec \"$$@\"; fi", "--"]
     command: ["npm install && npm run test"]
     volumes:
       - ./web:/app
@@ -147,7 +147,7 @@ services:
   image-engine-test:
     image: node:22-alpine
     working_dir: /app
-    entrypoint: ["sh", "-lc"]
+    entrypoint: ["sh", "-c", "if [ $$# -eq 1 ]; then eval \"$$1\"; else exec \"$$@\"; fi", "--"]
     command: ["npm install && npm run test"]
     volumes:
       - ./image-engine:/app

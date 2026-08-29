@@ -124,7 +124,8 @@ No mandated test framework yet. When adding tests:
 - API build: `docker compose --profile tooling run --rm dotnet build`
 - API test: `docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj`
 - API build + test: `docker compose --profile tooling run --rm dotnet build && docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj`
-- Web: `docker compose exec web sh -c "npm run build && npm run typecheck"`. If the `web` service isn't running, use `docker compose run --rm web sh -c "npm run build && npm run typecheck"`. (The web runtime image is nginx-based; for build-only checks use `docker compose build web`.)
+- Web test (Vitest): `docker compose --profile tooling run --rm web-test`
+- Web build & typecheck: `docker compose --profile tooling run --rm web-test "npm run build && npm run typecheck"` (or `docker compose build web`)
 - To generate EF migrations: `docker compose --profile tooling run --rm dotnet ef migrations add <Name>` (the `dotnet-ef` tool is installed in the api Dockerfile build stage; for first use in the `dotnet` service run `dotnet tool install --global dotnet-ef` then ensure `PATH="$PATH:/root/.dotnet/tools"`).
 - `docker compose up --build` is the canonical way to build and run everything.
 

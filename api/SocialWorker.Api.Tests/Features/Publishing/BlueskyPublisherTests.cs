@@ -16,7 +16,6 @@ using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Publishing.Bluesky;
-using SocialWorker.Api.Infrastructure.Background;
 using SocialWorker.Api.Infrastructure.Security;
 using Xunit;
 

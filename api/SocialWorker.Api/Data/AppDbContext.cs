@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<AutomationWorkflowSource> AutomationWorkflowSources => Set<AutomationWorkflowSource>();
     public DbSet<AutomationWorkflowDestination> AutomationWorkflowDestinations => Set<AutomationWorkflowDestination>();
     public DbSet<Template> Templates => Set<Template>();
+    public DbSet<BackgroundTask> BackgroundTasks => Set<BackgroundTask>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -314,6 +315,20 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.ThumbnailMediaAssetId)
                 .OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(x => x.Name);
+        });
+
+        modelBuilder.Entity<BackgroundTask>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.TaskType).HasMaxLength(100);
+            e.Property(x => x.PayloadJson).HasColumnType("text");
+            e.Property(x => x.LockedByWorker).HasMaxLength(150);
+            e.Property(x => x.LastError).HasColumnType("text");
+            e.Property(x => x.DeduplicationKey).HasMaxLength(300);
+            e.HasIndex(x => new { x.Status, x.NextAttemptAt });
+            e.HasIndex(x => x.LockedUntil);
+            e.HasIndex(x => new { x.TaskType, x.CreatedAt });
+            e.HasIndex(x => x.DeduplicationKey);
         });
     }
 }

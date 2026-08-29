@@ -13,8 +13,9 @@ using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing.Bluesky;
+using SocialWorker.Api.Features.BackgroundTasks.Abstractions;
+using SocialWorker.Api.Features.BackgroundTasks.Models;
 using SocialWorker.Api.Features.Sources;
-using SocialWorker.Api.Infrastructure.Background;
 using SocialWorker.Api.Infrastructure.Llm;
 using Xunit;
 
@@ -46,9 +47,7 @@ public sealed class DraftsServiceTests : SqliteTestBase
 
         var sourcesService = TestServiceFactory.CreateSourcesService(db);
         var storage = new FileStorageProvider();
-        var scopeFactory = new MockScopeFactory(db);
-        var queue = new BackgroundJobQueue(scopeFactory);
-        var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService, scopeFactory, queue);
+        var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService);
 
         return (db, draftsService, user);
     }
@@ -204,9 +203,8 @@ public sealed class DraftsServiceTests : SqliteTestBase
         using var db = CreateDbContext();
         db.Database.EnsureCreated();
 
+        var queue = new TestBackgroundTaskQueue();
         var adapter = new SummaryAdapter("Condensed summary of the earlier conversation.");
-        var scopeFactory = new SummaryScopeFactory(db, adapter);
-        var queue = new BackgroundJobQueue(scopeFactory);
         var (service, user, draft) = await CreateSummarizationServiceAsync(db, queue, adapter, model: "llama3.1");
 
         var messages = Enumerable.Range(0, 40)
@@ -221,8 +219,19 @@ public sealed class DraftsServiceTests : SqliteTestBase
 
         await service.UpdateDraftAsync(user.Id, draft.Id, null, null, null, historyJson, null, null, CancellationToken.None);
 
-        var job = await queue.ReadAsync(CancellationToken.None);
-        await job.Work(CancellationToken.None);
+        Assert.Single(queue.EnqueuedTasks);
+        var task = queue.EnqueuedTasks[0];
+        Assert.Equal("draft-chat-summary", task.TaskType);
+
+        var handler = new SocialWorker.Api.Features.Drafts.Handlers.DraftChatSummaryTaskHandler(
+            db,
+            adapter,
+            new LlmProviderService(),
+            NullLogger<SocialWorker.Api.Features.Drafts.Handlers.DraftChatSummaryTaskHandler>.Instance);
+
+        var context = new SocialWorker.Api.Features.BackgroundTasks.Services.TaskExecutionContext(task, "test-worker", queue, CancellationToken.None);
+        var result = await handler.ExecuteRawAsync(task.PayloadJson, context, CancellationToken.None);
+        Assert.Equal(SocialWorker.Api.Features.BackgroundTasks.Models.TaskOutcome.Success, result.Outcome);
 
         var reloaded = await db.Drafts.FirstAsync(d => d.Id == draft.Id);
         Assert.Equal("Condensed summary of the earlier conversation.", reloaded.ChatSummary);
@@ -424,7 +433,7 @@ public sealed class DraftsServiceTests : SqliteTestBase
         Assert.Equal("root-cid", created.BlueskyReplyTarget!.ReplyRootCid);
     }
 
-    private static async Task<(DraftsService Service, AppUser User, Draft Draft)> CreateSummarizationServiceAsync(AppDbContext db, BackgroundJobQueue queue, ILlmProviderAdapter adapter, string model = "gpt-4o-mini")
+    private static async Task<(DraftsService Service, AppUser User, Draft Draft)> CreateSummarizationServiceAsync(AppDbContext db, IBackgroundTaskQueue queue, ILlmProviderAdapter adapter, string model = "gpt-4o-mini")
     {
         var user = new AppUser
         {
@@ -462,8 +471,7 @@ public sealed class DraftsServiceTests : SqliteTestBase
 
         var sourcesService = TestServiceFactory.CreateSourcesService(db);
         var storage = new FileStorageProvider();
-        var scopeFactory = new SummaryScopeFactory(db, adapter);
-        var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService, scopeFactory, queue);
+        var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService, queue: queue);
         return (draftsService, user, draft);
     }
 }

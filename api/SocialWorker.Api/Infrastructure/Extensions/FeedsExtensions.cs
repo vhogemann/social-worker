@@ -15,7 +15,6 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<DraftValidationService>();
         builder.Services.AddScoped<FeedAutoPublishService>();
         builder.Services.AddScoped<FeedOrchestrationService>();
-        builder.Services.AddScoped<FeedIngestionQueueProcessor>();
         builder.Services.AddScoped<FeedPollingService>();
         builder.Services.AddSingleton<FeedPollingHostedService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<FeedPollingHostedService>());

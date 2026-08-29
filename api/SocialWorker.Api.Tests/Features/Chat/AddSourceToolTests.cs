@@ -10,7 +10,6 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Sources;
-using SocialWorker.Api.Infrastructure.Background;
 using Xunit;
 
 namespace SocialWorker.Api.Tests;

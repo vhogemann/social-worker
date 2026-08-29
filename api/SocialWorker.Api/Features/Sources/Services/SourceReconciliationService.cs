@@ -4,10 +4,10 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
-using SocialWorker.Api.Infrastructure.Background;
+using SocialWorker.Api.Features.BackgroundTasks.Abstractions;
+using SocialWorker.Api.Features.Sources.Handlers;
 
 namespace SocialWorker.Api.Features.Sources;
 
@@ -17,9 +17,9 @@ public sealed class SourceReconciliationService
     private static readonly Regex FileRegex = new(@"file://([0-9a-fA-F\-]{36})", RegexOptions.Compiled);
 
     private readonly AppDbContext _db;
-    private readonly BackgroundJobQueue _queue;
+    private readonly IBackgroundTaskQueue _queue;
 
-    public SourceReconciliationService(AppDbContext db, BackgroundJobQueue queue)
+    public SourceReconciliationService(AppDbContext db, IBackgroundTaskQueue queue)
     {
         _db = db;
         _queue = queue;
@@ -97,41 +97,8 @@ public sealed class SourceReconciliationService
             }
             await _db.SaveChangesAsync();
 
-            _queue.EnqueueScoped("url-scrape", async (sp, ct) =>
-            {
-                var scopedDb = sp.GetRequiredService<AppDbContext>();
-                var scopedScraper = sp.GetRequiredService<WebScraperService>();
-
-                foreach (var ls in loadingSources)
-                {
-                    var scrape = await scopedScraper.ScrapeUrlAsync(ls.Reference);
-                    var dbSource = await scopedDb.Sources.FindAsync(new object[] { ls.Id }, ct);
-                    if (dbSource == null)
-                    {
-                        continue;
-                    }
-
-                    if (scrape.Success)
-                    {
-                        dbSource.Reference = scrape.FinalUrl;
-                        dbSource.Title = scrape.Title;
-                        dbSource.Content = scrape.Content;
-                        dbSource.Kind = scrape.IsYouTube ? SourceKind.YouTube : SourceKind.Url;
-                    }
-                    else
-                    {
-                        dbSource.Title = $"Failed: {ls.Reference}";
-                        dbSource.Content = $"Error fetching link: {scrape.Error}";
-                    }
-                }
-
-                var d = await scopedDb.Drafts.FindAsync(new object[] { draft.Id }, ct);
-                if (d != null)
-                {
-                    d.UpdatedAt = DateTime.UtcNow;
-                }
-                await scopedDb.SaveChangesAsync(ct);
-            });
+            var sourceIds = loadingSources.Select(s => s.Id).ToList();
+            _ = _queue.EnqueueAsync("source-scrape", new SourceScrapePayload(draft.Id, sourceIds));
         }
     }
 }

@@ -8,7 +8,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Feeds;
-using SocialWorker.Api.Infrastructure.Background;
 using Xunit;
 
 namespace SocialWorker.Api.Tests.Features.Feeds;

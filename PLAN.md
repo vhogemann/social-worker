@@ -20,6 +20,7 @@ This file is the single source of truth for roadmap status and planning links.
 
 ### Recently closed and archived
 
+- Durable PostgreSQL `SKIP LOCKED` task queue for horizontal scaling: [planning/archive/DURABLE_POSTGRES_QUEUE.md](planning/archive/DURABLE_POSTGRES_QUEUE.md)
 - Image Engine microservice & template rendering delivery (Node.js 22 + Sharp + @napi-rs/canvas, .NET client, templates CRUD, LLM tools): [planning/IMAGE_ENGINE.md](planning/IMAGE_ENGINE.md)
 - LinkedIn member publishing MVP (single-post contract, mapping, pipeline): [planning/LINKED_IN.md](planning/LINKED_IN.md)
 - Feed automation delivery: [planning/archive/RSS_AUTOMATION.md](planning/archive/RSS_AUTOMATION.md)
@@ -34,8 +35,7 @@ This file is the single source of truth for roadmap status and planning links.
 Status: `Active`
 
 1. Drafts Page card grid, full-width 2-pane Composer, and workflow-grounded routing: [planning/DRAFTS_PAGE_AND_WORKFLOW_ROUTING.md](planning/DRAFTS_PAGE_AND_WORKFLOW_ROUTING.md)
-2. Durable PostgreSQL `SKIP LOCKED` task queue for horizontal scaling: [planning/DURABLE_POSTGRES_QUEUE.md](planning/DURABLE_POSTGRES_QUEUE.md)
-3. Reliability hardening for source/search/scraper pipeline.
+2. Reliability hardening for source/search/scraper pipeline.
 4. E2E signal quality and release confidence (flake triage + stable smoke gates).
 5. Tighten operational runbook quality (startup, verification, troubleshooting).
 

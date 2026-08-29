@@ -34,7 +34,8 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
 - Feed automation: api/SocialWorker.Api/Features/Feeds/
 - Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/
-- Feed ingestion queue worker: api/SocialWorker.Api/Features/Feeds/Services/FeedIngestionQueueHostedService.cs
+- Background tasks & durable queue: api/SocialWorker.Api/Features/BackgroundTasks/
+- Background task worker pool: api/SocialWorker.Api/Features/BackgroundTasks/Services/BackgroundTaskHostedService.cs
 - Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/
 
 ### Frontend entry and state
@@ -70,16 +71,16 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Bring up stack: docker compose up --build
 - Safe refresh of running stack: ./scripts/redeploy.sh
 - API build (tooling profile): docker compose --profile tooling run --rm dotnet build
-- API test (tooling profile): docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
-- Web check: docker compose exec web sh -c "npm run build && npm run typecheck"
+- Web test (tooling profile): docker compose --profile tooling run --rm web-test
+- Web check & build (tooling profile): docker compose --profile tooling run --rm web-test "npm run build && npm run typecheck" (or docker compose build web)
 - E2E: ./scripts/run-e2e.sh
 - SQL against Postgres: ./scripts/sql.sh -c "select now();"
 
-## Feed queue behavior
+## Durable task queue behavior
 
-- Feed polling discovers new feed items and persists them to a DB-backed queue table.
-- Queue processing is handled by a hosted service with retry/backoff (max attempts + next-at scheduling).
-- Queue backlog can be inspected and managed (manual retry/delete) from the Feeds UI.
+- Unified PostgreSQL 16 `FOR UPDATE SKIP LOCKED` task queue table (`"BackgroundTasks"`) replaces in-memory channels and handles transcriptions, scrapes, chat summaries, and feed ingestion items.
+- Queue processing is executed by `BackgroundTaskHostedService` with concurrent workers, crash recovery leases, and exponential backoff retry.
+- Completed and failed task history is automatically pruned by `BackgroundTaskRetentionService` and inspectable via `/api/background-tasks`.
 
 ## Active roadmap center of gravity
 

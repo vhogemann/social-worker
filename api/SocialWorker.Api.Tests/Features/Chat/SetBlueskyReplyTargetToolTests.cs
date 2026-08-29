@@ -10,7 +10,6 @@ using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Sources;
-using SocialWorker.Api.Infrastructure.Background;
 using Xunit;
 
 namespace SocialWorker.Api.Tests.Features.Chat;
@@ -113,10 +112,8 @@ public sealed class SetBlueskyReplyTargetToolTests : SqliteTestBase
     private static (SetBlueskyReplyTargetTool Tool, IBlueskyReplyTargetResolver Resolver) CreateTool(AppDbContext db, Func<string, BlueskyReplyTargetResolutionResult> resolve)
     {
         var resolver = new StubResolver(resolve);
-        var scopeFactory = new MockScopeFactory(db);
-        var queue = new BackgroundJobQueue(scopeFactory);
-        var sourcesService = TestServiceFactory.CreateSourcesService(db, queue: queue);
-        var draftsService = TestServiceFactory.CreateDraftsService(db, new FileStorageProvider(), sourcesService, queue: queue);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
+        var draftsService = TestServiceFactory.CreateDraftsService(db, new FileStorageProvider(), sourcesService);
         var tool = new SetBlueskyReplyTargetTool(resolver, draftsService);
         return (tool, resolver);
     }

@@ -7,30 +7,30 @@ using Microsoft.Extensions.Logging;
 using CodeHollow.FeedReader;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
-using SocialWorker.Api.Infrastructure.Background;
+using SocialWorker.Api.Features.BackgroundTasks.Abstractions;
+using SocialWorker.Api.Features.BackgroundTasks.Models;
+using SocialWorker.Api.Features.Feeds.Handlers;
 
 namespace SocialWorker.Api.Features.Feeds;
 
 public sealed class FeedPollingService
 {
     private readonly AppDbContext _db;
-    private readonly BackgroundJobQueue _jobQueue;
+    private readonly IBackgroundTaskQueue _queue;
     private readonly ILogger<FeedPollingService> _logger;
 
     public FeedPollingService(
         AppDbContext db,
-        BackgroundJobQueue jobQueue,
+        IBackgroundTaskQueue queue,
         ILogger<FeedPollingService> logger)
     {
         _db = db;
-        _jobQueue = jobQueue;
+        _queue = queue;
         _logger = logger;
     }
 
     public async Task PollAllSubscriptionsAsync(CancellationToken ct)
     {
-        await DrainStalePendingItemsAsync(ct);
-
         var subscriptions = await _db.FeedSubscriptions.ToListAsync(ct);
         _logger.LogInformation("Polling {Count} feed subscriptions...", subscriptions.Count);
 
@@ -80,20 +80,22 @@ public sealed class FeedPollingService
 
             foreach (var wf in sub.WorkflowSources)
             {
-                var exists = await _db.FeedIngestionQueueItems
-                    .AnyAsync(q => q.FeedSubscriptionId == subscriptionId && q.AutomationWorkflowId == wf.AutomationWorkflowId && q.ItemLink == item.Link, ct);
-                if (exists)
-                    continue;
-
-                _db.FeedIngestionQueueItems.Add(FeedIngestionQueueItem.Create(
+                var deduplicationKey = $"feed:{subscriptionId}:{wf.AutomationWorkflowId}:{item.Link}";
+                var payload = new FeedIngestionPayload(
                     subscriptionId,
                     wf.AutomationWorkflowId,
-                    item.Title,
+                    item.Title ?? "Untitled Feed Item",
                     item.Link,
                     item.Description,
-                    item.PublishingDate));
+                    item.PublishingDate);
+
+                await _queue.EnqueueAsync(
+                    "feed-ingestion",
+                    payload,
+                    EnqueueTaskOptions.WithDeduplication(deduplicationKey),
+                    ct);
+
                 queuedCount++;
-                EnqueueProcessingJob();
             }
         }
 
@@ -101,26 +103,5 @@ public sealed class FeedPollingService
 
         sub.LastPolledAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
-    }
-
-    private async Task DrainStalePendingItemsAsync(CancellationToken ct)
-    {
-        var now = DateTime.UtcNow;
-        var staleCount = await _db.FeedIngestionQueueItems
-            .CountAsync(q => (q.Status == FeedQueueItemStatus.Pending || q.Status == FeedQueueItemStatus.Failed)
-                             && q.AttemptCount < q.MaxAttempts
-                             && q.NextAttemptAt <= now, ct);
-
-        for (var i = 0; i < staleCount; i++)
-            EnqueueProcessingJob();
-
-        if (staleCount > 0)
-            _logger.LogInformation("Enqueued {Count} stale feed queue items for processing", staleCount);
-    }
-
-    private void EnqueueProcessingJob()
-    {
-        _jobQueue.EnqueueScoped("feed-ingestion", (sp, ct) =>
-            sp.GetRequiredService<FeedIngestionQueueProcessor>().ProcessNextQueueItemAsync(ct));
     }
 }
