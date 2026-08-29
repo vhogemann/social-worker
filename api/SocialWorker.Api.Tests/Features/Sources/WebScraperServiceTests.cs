@@ -218,4 +218,73 @@ public sealed class WebScraperServiceTests
         Assert.False(result.Success);
         Assert.Contains("HTTP 404", result.Error);
     }
+
+    [Fact]
+    public async Task ScrapeUrlAsync_UnsupportedMediaType_ReturnsFailure()
+    {
+        var handler = new MockHttpMessageHandler(_ =>
+        {
+            var res = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(new byte[] { 0x25, 0x50, 0x44, 0x46 })
+            };
+            res.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+            return res;
+        });
+        var client = new HttpClient(handler);
+        var scraper = new WebScraperService(client);
+
+        var result = await scraper.ScrapeUrlAsync("https://example.com/document.pdf");
+
+        Assert.False(result.Success);
+        Assert.Contains("Unsupported content type", result.Error);
+    }
+
+    [Fact]
+    public async Task ScrapeUrlAsync_ExceedsMaxSize_ReturnsFailure()
+    {
+        var largeBytes = new byte[6 * 1024 * 1024];
+        var handler = new MockHttpMessageHandler(_ =>
+        {
+            var res = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(largeBytes)
+            };
+            res.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/html");
+            return res;
+        });
+        var client = new HttpClient(handler);
+        var scraper = new WebScraperService(client);
+
+        var result = await scraper.ScrapeUrlAsync("https://example.com/huge.html");
+
+        Assert.False(result.Success);
+        Assert.Contains("exceeds maximum allowed size", result.Error);
+    }
+
+    [Fact]
+    public async Task ScrapeUrlAsync_NonUtf8Encoding_DecodesProperly()
+    {
+        var iso = System.Text.Encoding.GetEncoding("ISO-8859-1");
+        var html = "<html><head><title>Café</title></head><body><p>Déjà vu</p></body></html>";
+        var bytes = iso.GetBytes(html);
+
+        var handler = new MockHttpMessageHandler(_ =>
+        {
+            var res = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(bytes)
+            };
+            res.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("text/html; charset=ISO-8859-1");
+            return res;
+        });
+        var client = new HttpClient(handler);
+        var scraper = new WebScraperService(client);
+
+        var result = await scraper.ScrapeUrlAsync("https://example.com/french.html");
+
+        Assert.True(result.Success);
+        Assert.Equal("Café", result.Title);
+        Assert.Contains("Déjà vu", result.Content);
+    }
 }

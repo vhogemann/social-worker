@@ -8,7 +8,10 @@ static partial class ServiceCollectionExtensions
     internal static void AddSources(this IHostApplicationBuilder builder)
     {
         builder.Services.Configure<TranscriberOptions>(builder.Configuration.GetSection(TranscriberOptions.SectionName));
-        builder.Services.AddHttpClient<WebScraperService>();
+        builder.Services.AddHttpClient<WebScraperService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
         builder.Services.AddHttpClient<ITranscriptExtractionService, TranscriptExtractionService>((sp, client) =>
         {
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TranscriberOptions>>().Value;

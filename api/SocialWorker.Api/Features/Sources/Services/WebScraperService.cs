@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Net.Http;
 using System.Web;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
+using Microsoft.Extensions.Logging;
 
 namespace SocialWorker.Api.Features.Sources;
 
@@ -25,11 +27,14 @@ public sealed record WebScrapeResult(
 
 public sealed class WebScraperService
 {
+    private const int MaxResponseSizeBytes = 5 * 1024 * 1024;
     private readonly HttpClient _client;
+    private readonly ILogger<WebScraperService>? _logger;
 
-    public WebScraperService(HttpClient client)
+    public WebScraperService(HttpClient client, ILogger<WebScraperService>? logger = null)
     {
         _client = client;
+        _logger = logger;
     }
 
     public async Task<WebScrapeResult> ScrapeUrlAsync(string url)
@@ -65,7 +70,7 @@ public sealed class WebScraperService
             _client.DefaultRequestHeaders.UserAgent.Clear();
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 
-            using var response = await _client.GetAsync(normalizedUrl);
+            using var response = await _client.GetAsync(normalizedUrl, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode)
             {
                 return new WebScrapeResult(
@@ -78,7 +83,45 @@ public sealed class WebScraperService
                     $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
             }
 
-            var html = await response.Content.ReadAsStringAsync();
+            var mediaType = response.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "text/html";
+            if (!IsSupportedMediaType(mediaType))
+            {
+                return new WebScrapeResult(
+                    requestedUrl,
+                    normalizedUrl,
+                    normalizedUrl,
+                    "",
+                    false,
+                    false,
+                    $"Unsupported content type '{mediaType}'. Expected text or HTML.");
+            }
+
+            if (response.Content.Headers.ContentLength.HasValue && response.Content.Headers.ContentLength.Value > MaxResponseSizeBytes)
+            {
+                return new WebScrapeResult(
+                    requestedUrl,
+                    normalizedUrl,
+                    normalizedUrl,
+                    "",
+                    false,
+                    false,
+                    $"Response exceeds maximum allowed size of {MaxResponseSizeBytes / (1024 * 1024)} MB.");
+            }
+
+            var encoding = GetEncoding(response.Content.Headers.ContentType?.CharSet);
+            var (readSuccess, html, readError) = await ReadBoundedContentAsync(response.Content, encoding);
+            if (!readSuccess)
+            {
+                return new WebScrapeResult(
+                    requestedUrl,
+                    normalizedUrl,
+                    normalizedUrl,
+                    "",
+                    false,
+                    false,
+                    readError ?? "Failed to read response content.");
+            }
+
             var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? normalizedUrl;
             var (title, text) = ExtractUrlContent(html, finalUrl);
             var hasUsableContent = !string.IsNullOrWhiteSpace(text);
@@ -94,6 +137,7 @@ public sealed class WebScraperService
         }
         catch (Exception ex)
         {
+            _logger?.LogWarning(ex, "Failed to scrape URL {Url}", requestedUrl);
             return new WebScrapeResult(requestedUrl, normalizedUrl, normalizedUrl, "", false, false, ex.Message);
         }
     }
@@ -219,9 +263,9 @@ public sealed class WebScraperService
                 if (root.TryGetProperty("author_url", out var authorUrlProp)) authorUrl = authorUrlProp.GetString() ?? "";
             }
         }
-        catch
+        catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to fetch oEmbed metadata for {url}");
+            _logger?.LogWarning(ex, "Failed to fetch oEmbed metadata for {Url}", url);
         }
 
         if (!string.IsNullOrEmpty(authorUrl))
@@ -273,9 +317,9 @@ public sealed class WebScraperService
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to fetch YouTube RSS feed for {authorUrl}");
+                _logger?.LogWarning(ex, "Failed to fetch YouTube RSS feed for {AuthorUrl}", authorUrl);
             }
         }
 
@@ -300,6 +344,59 @@ public sealed class WebScraperService
         }
 
         return (title, sb.ToString().Trim());
+    }
+
+    private static bool IsSupportedMediaType(string mediaType)
+    {
+        if (mediaType.StartsWith("text/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return mediaType is "application/xhtml+xml"
+            or "application/xml"
+            or "application/rss+xml"
+            or "application/atom+xml"
+            or "application/json";
+    }
+
+    private static Encoding GetEncoding(string? charSet)
+    {
+        if (!string.IsNullOrWhiteSpace(charSet))
+        {
+            try
+            {
+                return Encoding.GetEncoding(charSet.Trim('\"', ' '));
+            }
+            catch
+            {
+            }
+        }
+        return Encoding.UTF8;
+    }
+
+    private static async Task<(bool Success, string Content, string? Error)> ReadBoundedContentAsync(HttpContent content, Encoding encoding)
+    {
+        await using var stream = await content.ReadAsStreamAsync();
+        using var ms = new MemoryStream();
+        var buffer = new byte[81920];
+        int totalRead = 0;
+        int bytesRead;
+
+        while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+        {
+            totalRead += bytesRead;
+            if (totalRead > MaxResponseSizeBytes)
+            {
+                return (false, string.Empty, $"Response exceeds maximum allowed size of {MaxResponseSizeBytes / (1024 * 1024)} MB.");
+            }
+            ms.Write(buffer, 0, bytesRead);
+        }
+
+        ms.Position = 0;
+        using var reader = new StreamReader(ms, encoding, detectEncodingFromByteOrderMarks: true);
+        var text = await reader.ReadToEndAsync();
+        return (true, text, null);
     }
 
     private static string? ExtractVideoId(string url)

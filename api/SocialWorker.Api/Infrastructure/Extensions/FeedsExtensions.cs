@@ -7,9 +7,18 @@ static partial class ServiceCollectionExtensions
 {
     internal static void AddFeeds(this IHostApplicationBuilder builder)
     {
-        builder.Services.AddHttpClient<YouTubeFeedDiscoveryService>();
-        builder.Services.AddHttpClient<RssFeedDiscoveryService>();
-        builder.Services.AddHttpClient<FeedDiscoveryService>();
+        builder.Services.AddHttpClient<YouTubeFeedDiscoveryService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        builder.Services.AddHttpClient<RssFeedDiscoveryService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        builder.Services.AddHttpClient<FeedDiscoveryService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
         builder.Services.AddScoped<FeedSourceIngestionService>();
         builder.Services.AddScoped<FeedThreadGenerationService>();
         builder.Services.AddScoped<DraftValidationService>();

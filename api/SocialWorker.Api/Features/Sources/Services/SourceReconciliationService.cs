@@ -98,7 +98,7 @@ public sealed class SourceReconciliationService
             await _db.SaveChangesAsync();
 
             var sourceIds = loadingSources.Select(s => s.Id).ToList();
-            _ = _queue.EnqueueAsync("source-scrape", new SourceScrapePayload(draft.Id, sourceIds));
+            await _queue.EnqueueAsync("source-scrape", new SourceScrapePayload(draft.Id, sourceIds));
         }
     }
 }

@@ -18,7 +18,7 @@ public sealed class SourceExtractor
         }
         else if (ext == ".txt" || ext == ".md")
         {
-            using var reader = new StreamReader(stream, Encoding.UTF8);
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
             return await reader.ReadToEndAsync();
         }
         else
