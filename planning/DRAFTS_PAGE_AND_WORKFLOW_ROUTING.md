@@ -86,7 +86,7 @@ graph TD
    ```
 2. **Web Tests (Vitest)**:
    ```bash
-   ./scripts/run-web-tests.sh
+   docker compose --profile tooling run --rm web-test
    ```
 3. **Web Image Build**:
    ```bash
