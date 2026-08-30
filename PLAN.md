@@ -93,7 +93,9 @@ These should remain first-class and be kept current:
 | [planning/TEMPLATE_STUDIO.md](planning/TEMPLATE_STUDIO.md) | Template Studio UI, AI template generation, 1-shot auto-repair, and seed templates library |
 | [planning/CLOUD_BLOB_STORAGE.md](planning/CLOUD_BLOB_STORAGE.md) | Pluggable S3-compatible Cloud Blob Storage (AWS S3, Cloudflare R2, MinIO, Local FileSystem) |
 | [planning/KUBERNETES_DEPLOYMENT.md](planning/KUBERNETES_DEPLOYMENT.md) | Production Kubernetes deployment architecture (Kustomize, Helm, HPA, Ingress, GPU node scheduling) |
+| [planning/DEMO_CLOUD_PROVIDER_RESEARCH.md](planning/DEMO_CLOUD_PROVIDER_RESEARCH.md) | Cloud provider cost & compute benchmark research for initial live demo deployment |
 | [planning/FUNCTIONAL_TEST_HARNESS.md](planning/FUNCTIONAL_TEST_HARNESS.md) | Agent-controlled functional test harness for live stack & Bluesky ATProto out-of-band verification |
+
 
 
 
