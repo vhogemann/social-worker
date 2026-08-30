@@ -26,6 +26,13 @@ public sealed class BlueskyYouTubeEmbedSyntaxRule : IValidateDraftRule<BlueskySe
         var hasBareUrl = segDoc.BareUrls.Any(b => ThreadSegmentDocument.IsYouTubeUrl(b.Url));
         var hasRemainingInPlainText = ThreadSegmentDocument.IsYouTubeUrl(segDoc.PlainText);
 
+        if (segDoc.AllYouTubeEmbeds.Count > 1)
+        {
+            yield return new ValidateDraftIssue(
+                ValidateDraftSeverity.Error,
+                "A post can contain at most one YouTube video embed on Bluesky.");
+        }
+
         if (hasPlainLink || hasBareUrl || hasRemainingInPlainText)
         {
             yield return new ValidateDraftIssue(

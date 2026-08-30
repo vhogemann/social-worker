@@ -218,7 +218,7 @@ public sealed class McpToolRegistry
             d.TargetPlatform,
             d.UpdatedAt
         });
-        return TextResult(JsonSerializer.Serialize(selected, new JsonSerializerOptions { WriteIndented = true }));
+        return TextResult(JsonSerializer.Serialize(selected, JsonOptions));
     }
 
     private async Task<McpToolCallResult> HandleGetDraftAsync(Guid userId, JsonElement args, CancellationToken ct)
@@ -229,8 +229,9 @@ public sealed class McpToolRegistry
         }
 
         var draft = await _draftsService.GetDraftByIdAsync(userId, draftId, ct);
-        return TextResult(JsonSerializer.Serialize(draft, new JsonSerializerOptions { WriteIndented = true }));
+        return TextResult(JsonSerializer.Serialize(draft, JsonOptions));
     }
+
 
     private async Task<McpToolCallResult> HandleCreateDraftAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
@@ -296,7 +297,7 @@ public sealed class McpToolRegistry
         }
 
         var sources = await _sourcesService.GetSourcesForDraftAsync(userId, draftId, ct);
-        return TextResult(JsonSerializer.Serialize(sources, new JsonSerializerOptions { WriteIndented = true }));
+        return TextResult(JsonSerializer.Serialize(sources, JsonOptions));
     }
 
     private async Task<McpToolCallResult> HandleAddSourceAsync(Guid userId, JsonElement args, CancellationToken ct)
@@ -337,7 +338,7 @@ public sealed class McpToolRegistry
             .Select(w => new { w.Id, w.Title, w.InstructionPrompt, w.CreatedAt })
             .ToListAsync(ct);
 
-        return TextResult(JsonSerializer.Serialize(workflows, new JsonSerializerOptions { WriteIndented = true }));
+        return TextResult(JsonSerializer.Serialize(workflows, JsonOptions));
     }
 
     private async Task<McpToolCallResult> HandleTriggerWorkflowAsync(Guid userId, JsonElement args, CancellationToken ct)
@@ -368,8 +369,9 @@ public sealed class McpToolRegistry
             .Select(f => new { f.Id, f.Title, f.FeedUrl, f.WebsiteUrl, f.LastPolledAt })
             .ToListAsync(ct);
 
-        return TextResult(JsonSerializer.Serialize(feeds, new JsonSerializerOptions { WriteIndented = true }));
+        return TextResult(JsonSerializer.Serialize(feeds, JsonOptions));
     }
+
 
     private async Task<McpToolCallResult> HandleTriggerFeedPollAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
@@ -383,7 +385,14 @@ public sealed class McpToolRegistry
         return TextResult("Polled all subscribed feeds.");
     }
 
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     private static JsonElement CreateSchema(string rawJson) => JsonDocument.Parse(rawJson).RootElement;
     private static McpToolCallResult TextResult(string text) => new(new List<McpContentPart> { new("text", Text: text) }, false);
     private static McpToolCallResult TextError(string error) => new(new List<McpContentPart> { new("text", Text: error) }, true);
 }
+
