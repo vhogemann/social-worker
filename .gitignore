@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.functional.example
 
 # certs
 proxy/certs/
@@ -39,3 +40,8 @@ e2e/node_modules/
 e2e/reports/
 e2e/screenshots/
 e2e/output/
+
+# reports & local agent secrets
+AGENT_COMPLIANCE_REPORT.json
+.agents/mcp_config.json
+

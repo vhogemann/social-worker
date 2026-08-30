@@ -7,6 +7,7 @@ using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Publishing.Validation;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Markdown;
 
 namespace SocialWorker.Api.Features.Publishing.LinkedIn;
 
@@ -35,28 +36,28 @@ public sealed class LinkedInDraftValidator : IDraftValidator
                 ValidateDraftOverallStatus.Failed);
         }
 
-        var rawSegments = DraftSegmentService.SplitMarkdownIntoSegments(content);
-        var nonEmpties = rawSegments.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+        var doc = ThreadMarkdownDocument.Parse(content);
+        var nonEmpties = doc.Segments.Where(s => !string.IsNullOrWhiteSpace(s.PlainText) || s.MediaEmbeds.Count > 0 || s.YouTubeEmbed != null).ToList();
 
         var posts = new List<ValidateDraftPostResult>();
         bool hasErrors = false;
         bool hasWarnings = false;
 
-        for (int i = 0; i < rawSegments.Count; i++)
+        for (int i = 0; i < doc.Segments.Count; i++)
         {
-            var segment = rawSegments[i];
+            var segDoc = doc.Segments[i];
+            var segment = segDoc.RawMarkdown;
             var postNumber = i + 1;
             var issues = new List<ValidateDraftIssue>();
 
-            var cleanedText = SharedPatterns.StripMediaMarkdown(segment).Trim();
-            var mediaRefs = SharedPatterns.ExtractMediaReferences(segment);
+            var cleanedText = segDoc.PlainText;
+            var mediaRefs = segDoc.MediaEmbeds;
             var imageCount = mediaRefs.Count;
-            var hasYouTube = segment.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
-                             segment.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
-            var hasUrlLink = segment.Contains("http://", StringComparison.OrdinalIgnoreCase) ||
-                             segment.Contains("https://", StringComparison.OrdinalIgnoreCase);
+            var hasYouTube = segDoc.YouTubeEmbed is not null;
+            var hasUrlLink = segDoc.TextLinks.Count > 0 || segDoc.BareUrls.Count > 0;
 
             if (nonEmpties.Count > 1)
+
             {
                 issues.Add(new ValidateDraftIssue(
                     ValidateDraftSeverity.Error,

@@ -23,8 +23,11 @@ public sealed class YouTubeSourceService : IYouTubeSourceService
     {
         return reference.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
                reference.Contains("youtube.com/shorts/", StringComparison.OrdinalIgnoreCase) ||
+               reference.Contains("youtube.com/live/", StringComparison.OrdinalIgnoreCase) ||
+               reference.Contains("youtube.com/embed/", StringComparison.OrdinalIgnoreCase) ||
                reference.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
     }
+
 
     public string? TryExtractYouTubeVideoId(string reference)
     {

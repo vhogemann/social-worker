@@ -28,7 +28,9 @@
     <PackageReference Include="CodeHollow.FeedReader" Version="1.2.6" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageReference Include="Markdig" Version="0.40.0" />
   </ItemGroup>
+
 
   <ItemGroup>
     <EmbeddedResource Include="Features/CodeImages/Fonts/JetBrainsMono-Regular.ttf" />

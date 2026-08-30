@@ -58,10 +58,37 @@ static class AppStartupExtensions
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         await SeedAdminUserAsync(scope.ServiceProvider, db);
+        await SeedDefaultApiKeyAsync(db);
         await SeedDefaultLlmProviderAsync(scope.ServiceProvider, db);
         await SeedDefaultTemplatesAsync(db);
         await RecoverStuckDraftsAsync(db);
     }
+
+    private static async Task SeedDefaultApiKeyAsync(AppDbContext db)
+    {
+        const string devKey = "sw_live_dev_admin_key_000000000000";
+        var hash = ApiKeyService.ComputeSha256Hash(devKey);
+        if (!await db.ApiKeys.AnyAsync(k => k.KeyHash == hash))
+        {
+            var adminUser = await db.Users.FirstOrDefaultAsync(u => u.Username == "admin");
+            if (adminUser != null)
+            {
+                db.ApiKeys.Add(new ApiKey
+                {
+                    Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                    UserId = adminUser.Id,
+                    Name = "Default Development Key",
+                    KeyPrefix = devKey.Substring(0, 16),
+                    KeyHash = hash,
+                    Scopes = "*",
+                    CreatedAt = DateTime.UtcNow,
+                    IsRevoked = false
+                });
+                await db.SaveChangesAsync();
+            }
+        }
+    }
+
 
     private static async Task SeedAdminUserAsync(IServiceProvider sp, AppDbContext db)
     {
@@ -174,5 +201,9 @@ static partial class WebApplicationExtensions
         app.MapWorkflowsEndpoints();
         app.MapTemplateEndpoints();
         app.MapBackgroundTasksEndpoints();
+        app.MapApiKeyEndpoints();
+        SocialWorker.Api.Features.Mcp.McpEndpoints.MapMcpEndpoints(app);
     }
 }
+
+

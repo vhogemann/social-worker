@@ -193,7 +193,7 @@ public sealed class TaskHandlersTests : SqliteTestBase
         public bool ThrowOnProcess { get; set; }
 
         public FakeOrchestrationService()
-            : base(null!, null!, null!, null!, NullLogger<FeedOrchestrationService>.Instance)
+            : base(null!, null!, null!, null!, null!, NullLogger<FeedOrchestrationService>.Instance)
         {
         }
 

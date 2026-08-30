@@ -67,10 +67,10 @@ public sealed class WebScraperService
 
         try
         {
-            _client.DefaultRequestHeaders.UserAgent.Clear();
-            _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            using var request = new HttpRequestMessage(HttpMethod.Get, normalizedUrl);
+            request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
-            using var response = await _client.GetAsync(normalizedUrl, HttpCompletionOption.ResponseHeadersRead);
+            using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode)
             {
                 return new WebScrapeResult(
@@ -82,6 +82,7 @@ public sealed class WebScraperService
                     false,
                     $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
             }
+
 
             var mediaType = response.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "text/html";
             if (!IsSupportedMediaType(mediaType))
@@ -239,9 +240,6 @@ public sealed class WebScraperService
 
     private async Task<(string Title, string Content)> FetchYouTubeMetadataAsync(string url)
     {
-        _client.DefaultRequestHeaders.UserAgent.Clear();
-        _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-
         string title = url;
         string authorName = "";
         string authorUrl = "";
@@ -252,7 +250,10 @@ public sealed class WebScraperService
         try
         {
             var oEmbedUrl = $"https://www.youtube.com/oembed?url={Uri.EscapeDataString(url)}&format=json";
-            var oEmbedRes = await _client.GetAsync(oEmbedUrl);
+            using var oEmbedReq = new HttpRequestMessage(HttpMethod.Get, oEmbedUrl);
+            oEmbedReq.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+            var oEmbedRes = await _client.SendAsync(oEmbedReq);
             if (oEmbedRes.IsSuccessStatusCode)
             {
                 var json = await oEmbedRes.Content.ReadAsStringAsync();
@@ -263,6 +264,7 @@ public sealed class WebScraperService
                 if (root.TryGetProperty("author_url", out var authorUrlProp)) authorUrl = authorUrlProp.GetString() ?? "";
             }
         }
+
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "Failed to fetch oEmbed metadata for {Url}", url);

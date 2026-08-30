@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
-using SocialWorker.Api.Features.Drafts;
-using SocialWorker.Api.Infrastructure;
+using System.Linq;
+using SocialWorker.Api.Infrastructure.Markdown;
 
 namespace SocialWorker.Api.Features.Publishing.Bluesky;
 
@@ -19,28 +18,25 @@ public sealed class BlueskyContentValidator
     private const int MaxCharactersPerPost = 300;
     private const int MaxImagesPerPost = 4;
 
-    private static readonly Regex UnsupportedBlueskyMarkdownRegex = new(@"\*\*[^*]+\*\*|__[^_]+__|(?<!\*)\*[^*\n]+\*(?!\*)|(?m)^\s{0,3}#{1,6}\s+", RegexOptions.Compiled);
-
     public List<BlueskySegmentValidation> Analyze(string content)
     {
-        var segments = DraftSegmentService.SplitMarkdownIntoSegments(content);
-        var results = new List<BlueskySegmentValidation>(segments.Count);
+        return Analyze(ThreadMarkdownDocument.Parse(content));
+    }
 
-        foreach (var segment in segments)
+    public List<BlueskySegmentValidation> Analyze(ThreadMarkdownDocument doc)
+    {
+        var results = new List<BlueskySegmentValidation>(doc.Segments.Count);
+
+        foreach (var segment in doc.Segments)
         {
-            var cleanedText = SharedPatterns.StripMediaMarkdown(segment).Trim();
-            var imageCount = SharedPatterns.CountMediaReferences(segment);
-            var hasYouTube = segment.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
-                             segment.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
-            var hasUnsupportedMarkdown = UnsupportedBlueskyMarkdownRegex.IsMatch(segment);
-
             results.Add(new BlueskySegmentValidation(
-                Segment: segment,
-                CleanedText: cleanedText,
-                CharacterCount: cleanedText.Length,
-                ImageCount: imageCount,
-                HasYouTube: hasYouTube,
-                HasUnsupportedMarkdown: hasUnsupportedMarkdown));
+                Segment: segment.RawMarkdown,
+                CleanedText: segment.PlainText,
+                CharacterCount: segment.CharacterCount,
+                ImageCount: segment.MediaEmbeds.Count,
+                HasYouTube: segment.HasYouTube,
+                HasUnsupportedMarkdown: segment.HasUnsupportedFormatting));
+
         }
 
         return results;
@@ -48,7 +44,12 @@ public sealed class BlueskyContentValidator
 
     public string? GetFirstPublishValidationError(string content)
     {
-        var segments = Analyze(content);
+        return GetFirstPublishValidationError(ThreadMarkdownDocument.Parse(content));
+    }
+
+    public string? GetFirstPublishValidationError(ThreadMarkdownDocument doc)
+    {
+        var segments = Analyze(doc);
 
         foreach (var segment in segments)
         {

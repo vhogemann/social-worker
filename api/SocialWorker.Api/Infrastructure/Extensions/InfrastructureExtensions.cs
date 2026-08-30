@@ -28,7 +28,15 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<DraftsService>();
         builder.Services.AddScoped<DraftChatSummaryService>();
         builder.Services.AddScoped<PlatformVariantService>();
+
         builder.Services.AddScoped<Features.Providers.Services.ProvidersService>();
+        builder.Services.AddScoped<ApiKeyService>();
+
+        builder.Services.AddSingleton<Features.Mcp.Services.McpSessionManager>();
+        builder.Services.AddScoped<Features.Mcp.Services.McpToolRegistry>();
+        builder.Services.AddScoped<Features.Mcp.Services.McpResourceRegistry>();
+        builder.Services.AddScoped<Features.Mcp.Services.McpServer>();
+
 
         var jwtSecret = builder.Configuration["Auth:JwtSecret"]
             ?? "social_worker_super_secret_jwt_key_that_is_long_enough_for_security";
@@ -36,10 +44,24 @@ static partial class ServiceCollectionExtensions
         builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
         builder.Services.AddAuthentication(o =>
         {
-            o.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            o.DefaultAuthenticateScheme = "Composite";
+            o.DefaultChallengeScheme = "Composite";
         })
-        .AddJwtBearer(o =>
+        .AddPolicyScheme("Composite", "JWT or API Key", o =>
+        {
+            o.ForwardDefaultSelector = context =>
+            {
+                if (context.Request.Headers.ContainsKey("X-API-Key") ||
+                    context.Request.Query.ContainsKey("api_key") ||
+                    (context.Request.Headers.Authorization.ToString() is { } auth && auth.Contains("sw_live_")))
+                {
+                    return ApiKeyAuthenticationHandler.SchemeName;
+                }
+
+                return JwtBearerDefaults.AuthenticationScheme;
+            };
+        })
+        .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, o =>
         {
             o.TokenValidationParameters = new TokenValidationParameters
             {
@@ -49,7 +71,9 @@ static partial class ServiceCollectionExtensions
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
             };
-        });
+        })
+        .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
+
 
         builder.Services.AddAuthorization(options =>
         {

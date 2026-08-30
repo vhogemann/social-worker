@@ -3,7 +3,7 @@ using System.Linq;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
 using SocialWorker.Api.Features.Publishing.Validation;
-using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Markdown;
 
 namespace SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
 
@@ -12,8 +12,14 @@ public sealed class BlueskyMissingAltTextRule : IValidateDraftRule<BlueskySegmen
     public IEnumerable<ValidateDraftIssue> Evaluate(ValidateDraftRuleContext<BlueskySegmentValidation> context)
     {
         var missingAltImages = new List<string>();
+        var doc = ThreadMarkdownDocument.Parse(context.Segment.Segment);
+        var segDoc = doc.Segments.FirstOrDefault();
+        if (segDoc == null)
+        {
+            yield break;
+        }
 
-        foreach (var mediaRef in SharedPatterns.ExtractMediaReferences(context.Segment.Segment))
+        foreach (var mediaRef in segDoc.MediaEmbeds)
         {
             var asset = context.MediaAssets.FirstOrDefault(m => m.Id == mediaRef.MediaId);
             if (!string.IsNullOrWhiteSpace(mediaRef.AltText) || !string.IsNullOrWhiteSpace(asset?.AltText))

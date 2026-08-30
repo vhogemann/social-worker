@@ -128,4 +128,41 @@ public sealed class PublishPlatformToolTests : SqliteTestBase
             return Task.FromResult<string?>(null);
         }
     }
+
+    [Fact]
+    public async Task ExecuteAsync_AutoCreatesPlatformThread_WhenThreadMissingButDraftContentPresent()
+    {
+        using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var draftId = Guid.NewGuid();
+
+        db.Users.Add(new AppUser { Id = userId, Username = "u", Email = "u@example.com", PasswordHash = "hash" });
+        db.Drafts.Add(new Draft { Id = draftId, UserId = userId, Title = "Draft", Status = DraftStatus.Editing, Content = "Autonomous thread content." });
+        db.Accounts.Add(new Account
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Platform = "Bluesky",
+            Handle = "user.bsky.social",
+            CredentialsEncrypted = "encrypted"
+        });
+        await db.SaveChangesAsync();
+
+        var stubPublisher = new StubPublisher();
+        var resolver = new StubPublisherResolver(stubPublisher);
+        var replyResolver = new StubReplyTargetResolver(new BlueskyReplyTargetResolutionResult(true, "root", "cid", "parent", "cid", "url", "author", "text", "avatar"));
+        var validator = new BlueskyContentValidator();
+        var tool = new PublishPlatformTool(db, resolver, validator, replyResolver);
+
+        var result = await tool.ExecuteAsync(new PublishPlatformArgs("Bluesky"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+
+        Assert.True(result.Success);
+        Assert.Equal(1, stubPublisher.CallCount);
+
+        var createdThread = await db.PlatformThreads.FirstOrDefaultAsync(t => t.DraftId == draftId && t.Platform == "Bluesky");
+        Assert.NotNull(createdThread);
+        Assert.Equal("Autonomous thread content.", createdThread!.Content);
+        Assert.Equal(PlatformThreadStage.Sent, createdThread.Stage);
+    }
 }

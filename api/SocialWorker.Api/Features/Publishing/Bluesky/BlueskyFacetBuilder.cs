@@ -1,108 +1,72 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
+using SocialWorker.Api.Infrastructure.Markdown;
 
 namespace SocialWorker.Api.Features.Publishing.Bluesky;
 
 public sealed class BlueskyFacetBuilder
 {
-    private static readonly Regex HashtagRegex = new(@"#([a-zA-Z][a-zA-Z0-9_]*)", RegexOptions.Compiled);
-    private static readonly Regex BareUrlRegex = new(@"https?://[^\s\])>""\n]+", RegexOptions.Compiled);
-    private static readonly Regex MarkdownLinkRegex = new(@"\[([^\]]+)\]\((https?://[^)]+)\)", RegexOptions.Compiled);
-
     public BlueskyTextFacets Build(string markdownText)
+    {
+        var doc = ThreadMarkdownDocument.Parse(markdownText);
+        var segment = doc.Segments.FirstOrDefault() ?? ThreadSegmentDocument.CreateFromBlocks(System.Array.Empty<Markdig.Syntax.Block>(), string.Empty);
+        return Build(segment);
+    }
+
+    public BlueskyTextFacets Build(ThreadSegmentDocument segment)
     {
         var facets = new List<BlueskyFacet>();
         var usedRanges = new HashSet<(int Start, int End)>();
-        var plainText = MarkdownLinkRegex.Replace(markdownText, "$1");
 
-        var plainByteCursor = 0;
-        var originalCursor = 0;
-
-        foreach (Match match in MarkdownLinkRegex.Matches(markdownText))
+        foreach (var link in segment.TextLinks)
         {
-            if (match.Index > originalCursor)
-            {
-                var before = markdownText.Substring(originalCursor, match.Index - originalCursor);
-                plainByteCursor += Encoding.UTF8.GetByteCount(before);
-            }
-
-            var linkText = match.Groups[1].Value;
-            var linkUri = match.Groups[2].Value;
-            var byteStart = plainByteCursor;
-            var byteEnd = byteStart + Encoding.UTF8.GetByteCount(linkText);
-
-            if (!OverlapsAny(usedRanges, byteStart, byteEnd))
+            if (!OverlapsAny(usedRanges, link.PlainTextByteStart, link.PlainTextByteEnd))
             {
                 facets.Add(new BlueskyFacet
                 {
-                    Index = new BlueskyFacetIndex { ByteStart = byteStart, ByteEnd = byteEnd },
+                    Index = new BlueskyFacetIndex { ByteStart = link.PlainTextByteStart, ByteEnd = link.PlainTextByteEnd },
                     Features = new List<BlueskyFacetFeature>
                     {
-                        new BlueskyFacetFeature { Type = "app.bsky.richtext.facet#link", Uri = linkUri }
+                        new BlueskyFacetFeature { Type = "app.bsky.richtext.facet#link", Uri = link.Url }
                     }
                 });
-
-                usedRanges.Add((byteStart, byteEnd));
+                usedRanges.Add((link.PlainTextByteStart, link.PlainTextByteEnd));
             }
-
-            plainByteCursor = byteEnd;
-            originalCursor = match.Index + match.Length;
         }
 
-        if (originalCursor < markdownText.Length)
+        foreach (var tag in segment.Hashtags)
         {
-            var tail = markdownText.Substring(originalCursor);
-            plainByteCursor += Encoding.UTF8.GetByteCount(tail);
-        }
-
-        foreach (Match match in HashtagRegex.Matches(plainText))
-        {
-            var byteStart = Encoding.UTF8.GetByteCount(plainText, 0, match.Index);
-            var byteEnd = byteStart + Encoding.UTF8.GetByteCount(plainText, match.Index, match.Length);
-
-            if (OverlapsAny(usedRanges, byteStart, byteEnd))
+            if (!OverlapsAny(usedRanges, tag.PlainTextByteStart, tag.PlainTextByteEnd))
             {
-                continue;
-            }
-
-            facets.Add(new BlueskyFacet
-            {
-                Index = new BlueskyFacetIndex { ByteStart = byteStart, ByteEnd = byteEnd },
-                Features = new List<BlueskyFacetFeature>
+                facets.Add(new BlueskyFacet
                 {
-                    new BlueskyFacetFeature { Type = "app.bsky.richtext.facet#tag", Tag = match.Groups[1].Value }
-                }
-            });
-
-            usedRanges.Add((byteStart, byteEnd));
-        }
-
-        foreach (Match match in BareUrlRegex.Matches(plainText))
-        {
-            var byteStart = Encoding.UTF8.GetByteCount(plainText, 0, match.Index);
-            var byteEnd = byteStart + Encoding.UTF8.GetByteCount(plainText, match.Index, match.Length);
-
-            if (OverlapsAny(usedRanges, byteStart, byteEnd))
-            {
-                continue;
+                    Index = new BlueskyFacetIndex { ByteStart = tag.PlainTextByteStart, ByteEnd = tag.PlainTextByteEnd },
+                    Features = new List<BlueskyFacetFeature>
+                    {
+                        new BlueskyFacetFeature { Type = "app.bsky.richtext.facet#tag", Tag = tag.Tag }
+                    }
+                });
+                usedRanges.Add((tag.PlainTextByteStart, tag.PlainTextByteEnd));
             }
-
-            facets.Add(new BlueskyFacet
-            {
-                Index = new BlueskyFacetIndex { ByteStart = byteStart, ByteEnd = byteEnd },
-                Features = new List<BlueskyFacetFeature>
-                {
-                    new BlueskyFacetFeature { Type = "app.bsky.richtext.facet#link", Uri = match.Value }
-                }
-            });
-
-            usedRanges.Add((byteStart, byteEnd));
         }
 
-        return new BlueskyTextFacets(plainText, facets);
+        foreach (var bare in segment.BareUrls)
+        {
+            if (!OverlapsAny(usedRanges, bare.PlainTextByteStart, bare.PlainTextByteEnd))
+            {
+                facets.Add(new BlueskyFacet
+                {
+                    Index = new BlueskyFacetIndex { ByteStart = bare.PlainTextByteStart, ByteEnd = bare.PlainTextByteEnd },
+                    Features = new List<BlueskyFacetFeature>
+                    {
+                        new BlueskyFacetFeature { Type = "app.bsky.richtext.facet#link", Uri = bare.Url }
+                    }
+                });
+                usedRanges.Add((bare.PlainTextByteStart, bare.PlainTextByteEnd));
+            }
+        }
+
+        return new BlueskyTextFacets(segment.PlainText, facets);
     }
 
     private static bool OverlapsAny(HashSet<(int Start, int End)> usedRanges, int byteStart, int byteEnd)
@@ -110,3 +74,4 @@ public sealed class BlueskyFacetBuilder
         return usedRanges.Any(range => !(byteEnd <= range.Start || byteStart >= range.End));
     }
 }
+

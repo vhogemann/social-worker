@@ -22,9 +22,10 @@ Twitter rules:
 
     protected override void EvaluateSegments(string normalizedContent, List<string> errors, List<string> warnings)
     {
-        foreach (var segment in SplitSegments(normalizedContent))
+        var doc = SocialWorker.Api.Infrastructure.Markdown.ThreadMarkdownDocument.Parse(normalizedContent);
+        foreach (var segment in doc.Segments)
         {
-            var cleaned = SharedPatterns.StripMediaMarkdown(segment).Trim();
+            var cleaned = segment.PlainText;
             if (cleaned.Length > 280)
             {
                 errors.Add($"Post exceeds 280 characters for {Platform} ({cleaned.Length}).");

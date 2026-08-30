@@ -142,7 +142,7 @@ public sealed class FeedSourceIngestionServiceTests : SqliteTestBase
     }
 
     [Fact]
-    public async Task IngestSourceAsync_WhenYouTubeSourceCompletesTranscription_ReturnsSuccess()
+    public async Task IngestSourceAsync_WhenYouTubeSource_ReturnsPendingTranscriptionImmediately()
     {
         using var db = CreateDbContext();
         var user = CreateSeedUser(db);
@@ -155,48 +155,15 @@ public sealed class FeedSourceIngestionServiceTests : SqliteTestBase
         var sourcesService = TestServiceFactory.CreateSourcesService(db);
         var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance);
 
-        var ingestTask = service.IngestSourceAsync(sub, workflow, "YT Video", "https://youtube.com/watch?v=xyz987", "Desc", CancellationToken.None);
+        var result = await service.IngestSourceAsync(sub, workflow, "YT Video", "https://youtube.com/watch?v=xyz987", "Desc", CancellationToken.None);
 
-        await Task.Delay(100);
+        Assert.Equal(IngestionStatus.PendingTranscription, result.Status);
+        Assert.NotNull(result.Draft);
+        Assert.Equal(DraftStatus.Editing, result.Draft!.Status);
+        Assert.NotNull(result.SourceId);
+
         var ytSource = await db.Sources.FirstOrDefaultAsync(s => s.Reference == "https://youtube.com/watch?v=xyz987");
         Assert.NotNull(ytSource);
-        ytSource!.ProcessingStatus = SourceProcessingStatus.Complete;
-        await db.SaveChangesAsync();
-
-        var result = await ingestTask;
-
-        Assert.Equal(IngestionStatus.Success, result.Status);
-        Assert.NotNull(result.Draft);
-        Assert.Equal(SourceProcessingStatus.Complete, ytSource.ProcessingStatus);
-    }
-
-    [Fact]
-    public async Task IngestSourceAsync_WhenYouTubeSourceFailsTranscription_MarksDraftFailedAndReturnsFailed()
-    {
-        using var db = CreateDbContext();
-        var user = CreateSeedUser(db);
-        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
-        var sub = new FeedSubscription { Id = Guid.NewGuid(), UserId = user.Id, Title = "Feed", FeedUrl = "https://example.com/feed" };
-        db.AutomationWorkflows.Add(workflow);
-        db.FeedSubscriptions.Add(sub);
-        await db.SaveChangesAsync();
-
-        var sourcesService = TestServiceFactory.CreateSourcesService(db);
-        var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance);
-
-        var ingestTask = service.IngestSourceAsync(sub, workflow, "YT Video Fail", "https://youtube.com/watch?v=bad123", "Desc", CancellationToken.None);
-
-        await Task.Delay(100);
-        var ytSource = await db.Sources.FirstOrDefaultAsync(s => s.Reference == "https://youtube.com/watch?v=bad123");
-        Assert.NotNull(ytSource);
-        ytSource!.ProcessingStatus = SourceProcessingStatus.Failed;
-        await db.SaveChangesAsync();
-
-        var result = await ingestTask;
-
-        Assert.Equal(IngestionStatus.Failed, result.Status);
-        Assert.NotNull(result.Draft);
-        Assert.Equal(DraftStatus.Failed, result.Draft!.Status);
-        Assert.StartsWith("[Failed Ingestion]", result.Draft.Title);
+        Assert.Equal(SourceKind.YouTube, ytSource!.Kind);
     }
 }

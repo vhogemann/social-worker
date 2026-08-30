@@ -5,6 +5,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Drafts;
+using SocialWorker.Api.Infrastructure.Markdown;
 using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Publishing.Validation;
@@ -38,26 +39,25 @@ public sealed class PlatformPolicyDraftValidator : IDraftValidator
         }
 
         var policyResult = _policy.Evaluate(_platform, content, normalizeFormatting: false);
-        var rawSegments = DraftSegmentService.SplitMarkdownIntoSegments(content);
+        var doc = ThreadMarkdownDocument.Parse(content);
 
         var posts = new List<ValidateDraftPostResult>();
         bool hasErrors = false;
         bool hasWarnings = false;
 
-        for (int i = 0; i < rawSegments.Count; i++)
+        for (int i = 0; i < doc.Segments.Count; i++)
         {
-            var segment = rawSegments[i];
+            var segDoc = doc.Segments[i];
+            var segment = segDoc.RawMarkdown;
             var postNumber = i + 1;
             var issues = new List<ValidateDraftIssue>();
 
-            var cleanedText = SharedPatterns.StripMediaMarkdown(segment).Trim();
-            var imageCount = SharedPatterns.CountMediaReferences(segment);
-            var hasYouTube = segment.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
-                             segment.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase);
+            var cleanedText = segDoc.PlainText;
+            var imageCount = segDoc.MediaEmbeds.Count;
+            var hasYouTube = segDoc.YouTubeEmbed is not null;
 
-            // If there's only 1 segment, associate all policy errors/warnings with this post
-            // If multi-segment, associate general errors
-            if (rawSegments.Count == 1)
+            if (doc.Segments.Count == 1)
+
             {
                 foreach (var err in policyResult.Errors)
                 {

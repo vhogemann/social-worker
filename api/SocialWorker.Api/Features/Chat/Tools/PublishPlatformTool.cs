@@ -78,8 +78,27 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
 
         if (thread == null)
         {
-            return new PublishPlatformToolResult(false, $"No platform thread found for platform '{platform}' in this draft.", Error: $"No platform thread found for platform '{platform}' in this draft.");
+            var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == context.DraftId && d.UserId == context.UserId, context.CancellationToken);
+            if (draft != null && !string.IsNullOrWhiteSpace(draft.Content))
+            {
+                thread = new PlatformThread
+                {
+                    DraftId = draft.Id,
+                    Platform = platform,
+                    Content = draft.Content,
+                    Stage = PlatformThreadStage.Draft,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _db.PlatformThreads.Add(thread);
+                await _db.SaveChangesAsync(context.CancellationToken);
+            }
+            else
+            {
+                return new PublishPlatformToolResult(false, $"No platform thread found for platform '{platform}' in this draft.", Error: $"No platform thread found for platform '{platform}' in this draft.");
+            }
         }
+
 
         Account? account = null;
         if (thread.AccountId.HasValue)

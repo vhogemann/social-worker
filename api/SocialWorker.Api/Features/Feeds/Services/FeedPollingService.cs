@@ -75,17 +75,23 @@ public sealed class FeedPollingService
 
         foreach (var item in newItems)
         {
-            if (string.IsNullOrWhiteSpace(item.Link))
+            var itemIdentifier = !string.IsNullOrWhiteSpace(item.Link)
+                ? item.Link
+                : (!string.IsNullOrWhiteSpace(item.Id) ? item.Id : $"{item.Title}_{item.PublishingDate:O}");
+
+            if (string.IsNullOrWhiteSpace(itemIdentifier))
                 continue;
+
+            var effectiveLink = !string.IsNullOrWhiteSpace(item.Link) ? item.Link : itemIdentifier;
 
             foreach (var wf in sub.WorkflowSources)
             {
-                var deduplicationKey = $"feed:{subscriptionId}:{wf.AutomationWorkflowId}:{item.Link}";
+                var deduplicationKey = $"feed:{subscriptionId}:{wf.AutomationWorkflowId}:{itemIdentifier}";
                 var payload = new FeedIngestionPayload(
                     subscriptionId,
                     wf.AutomationWorkflowId,
                     item.Title ?? "Untitled Feed Item",
-                    item.Link,
+                    effectiveLink,
                     item.Description,
                     item.PublishingDate);
 
@@ -98,6 +104,7 @@ public sealed class FeedPollingService
                 queuedCount++;
             }
         }
+
 
         _logger.LogInformation("Queued {Count} feed items for processing for subscription {Title}", queuedCount, sub.Title);
 

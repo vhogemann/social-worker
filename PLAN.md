@@ -91,6 +91,7 @@ These should remain first-class and be kept current:
 | [planning/META_OAUTH.md](planning/META_OAUTH.md) | Shared Meta OAuth 2.0 infrastructure for Facebook Pages and Instagram Professional account discovery |
 | [planning/IMAGE_ENGINE.md](planning/IMAGE_ENGINE.md) | Image Engine microservice (Sharp + @napi-rs/canvas), data-driven JSON layer tree templates, Instagram image composition, and partial SkiaSharp extraction |
 | [planning/TEMPLATE_STUDIO.md](planning/TEMPLATE_STUDIO.md) | Template Studio UI, AI template generation, 1-shot auto-repair, and seed templates library |
+| [planning/FUNCTIONAL_TEST_HARNESS.md](planning/FUNCTIONAL_TEST_HARNESS.md) | Agent-controlled functional test harness for live stack & Bluesky ATProto out-of-band verification |
 
 ## Reference-only planning documents
 

@@ -95,4 +95,28 @@ public sealed class FeedPollingServiceTests : SqliteTestBase
         Assert.Null(loaded.TargetPlatform); // Platform-agnostic
         Assert.Equal(wf.Id, loaded.AutomationWorkflowId);
     }
+
+    [Fact]
+    public void FeedItem_FallbackDeduplicationKey_HandlesLinklessItems()
+    {
+        string? link = null;
+        string? id = "urn:uuid:12345-67890";
+        string title = "Audio Podcast Ep 1";
+        DateTime? pubDate = new DateTime(2026, 8, 30, 12, 0, 0, DateTimeKind.Utc);
+
+        var itemIdentifier = !string.IsNullOrWhiteSpace(link)
+            ? link
+            : (!string.IsNullOrWhiteSpace(id) ? id : $"{title}_{pubDate:O}");
+
+        Assert.Equal("urn:uuid:12345-67890", itemIdentifier);
+
+        // Fallback when id is also missing
+        id = null;
+        var fallbackIdentifier = !string.IsNullOrWhiteSpace(link)
+            ? link
+            : (!string.IsNullOrWhiteSpace(id) ? id : $"{title}_{pubDate:O}");
+
+        Assert.Equal("Audio Podcast Ep 1_2026-08-30T12:00:00.0000000Z", fallbackIdentifier);
+    }
 }
+

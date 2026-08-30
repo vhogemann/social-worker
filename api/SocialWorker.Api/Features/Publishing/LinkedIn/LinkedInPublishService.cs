@@ -1,12 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Markdown;
 
 namespace SocialWorker.Api.Features.Publishing.LinkedIn;
 
@@ -37,7 +42,8 @@ public sealed class LinkedInPublishService
     {
         try
         {
-            var mediaRefs = SharedPatterns.ExtractMediaReferences(content);
+            var doc = ThreadMarkdownDocument.Parse(content);
+            var mediaRefs = doc.Segments.SelectMany(s => s.MediaEmbeds).ToList();
             var assetsMap = new Dictionary<Guid, (string? FilePath, string? MimeType, string? AltText)>();
 
             foreach (var mediaRef in mediaRefs)

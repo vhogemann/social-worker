@@ -49,4 +49,31 @@ public sealed class BlueskyContentValidatorTests
         Assert.Equal(5, result[0].CharacterCount);
         Assert.True(result[1].HasUnsupportedMarkdown);
     }
+
+    [Fact]
+    public void Analyze_StripsYouTubeEmbedFromCharacterCount()
+    {
+        var validator = new BlueskyContentValidator();
+        var content = "Watch this video: ![Great Video](https://www.youtube.com/watch?v=dQw4w9WgXcQ)";
+
+        var result = validator.Analyze(content);
+
+        Assert.Single(result);
+        Assert.Equal("Watch this video:".Length, result[0].CharacterCount);
+        Assert.True(result[0].HasYouTube);
+    }
+
+    [Fact]
+    public void Analyze_RecognizesYouTubeShortsAndLiveStreams()
+    {
+        var validator = new BlueskyContentValidator();
+        var content = "Shorts: ![Short](https://www.youtube.com/shorts/alElfDsk9G8)\n---\nLive: ![Live](https://www.youtube.com/live/12345)";
+
+        var result = validator.Analyze(content);
+
+        Assert.Equal(2, result.Count);
+        Assert.True(result[0].HasYouTube);
+        Assert.True(result[1].HasYouTube);
+    }
 }
+

@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +16,7 @@ using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Markdown;
 using SocialWorker.Api.Infrastructure.Security;
 
 namespace SocialWorker.Api.Features.Publishing;
@@ -71,8 +75,11 @@ public class BlueskyPublisher : IPublisher
 
             var session = sessionRes.Value;
 
-            var segments = DraftSegmentService.SplitMarkdownIntoSegments(thread.Content ?? "");
-            if (segments.Count == 0) return new PublishResult { Success = false, ErrorMessage = "Thread is empty." };
+            var doc = ThreadMarkdownDocument.Parse(thread.Content ?? "");
+            if (doc.Segments.Count == 0 || (doc.Segments.Count == 1 && string.IsNullOrWhiteSpace(doc.Segments[0].PlainText)))
+            {
+                return new PublishResult { Success = false, ErrorMessage = "Thread is empty." };
+            }
 
             var replyMetadata = await _db.DraftBlueskyMetadata
                 .AsNoTracking()
@@ -101,24 +108,23 @@ public class BlueskyPublisher : IPublisher
             var publishedPosts = new List<PublishedPost>();
             int segmentIndex = 0;
 
-            foreach (var segment in segments)
+            foreach (var segment in doc.Segments)
             {
-                var text = segment.Trim();
-                if (string.IsNullOrEmpty(text)) 
+                if (string.IsNullOrWhiteSpace(segment.PlainText) && segment.MediaEmbeds.Count == 0 && segment.YouTubeEmbed == null) 
                 {
                     segmentIndex++;
                     continue;
                 }
 
-                var prepared = await _contentPreparation.PrepareAsync(text, session.AccessJwt, ct);
-                var textFacets = _facetBuilder.Build(prepared.Text);
+                var prepared = await _contentPreparation.PrepareAsync(segment, session.AccessJwt, ct);
+                var textFacets = _facetBuilder.Build(segment);
                 var postRecord = new BlueskyPostRecord
                 {
                     CreatedAt = DateTime.UtcNow.ToString("O"),
                     Text = textFacets.PlainText,
                     Facets = textFacets.Facets.Count > 0 ? textFacets.Facets : null,
                     Embed = prepared.Embed,
-                    Reply = rootRef is not null && parentRef is not null
+                    Reply = (rootRef is not null && parentRef is not null)
                         ? new BlueskyReply { Root = rootRef, Parent = parentRef }
                         : null
                 };

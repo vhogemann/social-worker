@@ -25,8 +25,10 @@ public class AppDbContext : DbContext
     public DbSet<AutomationWorkflowDestination> AutomationWorkflowDestinations => Set<AutomationWorkflowDestination>();
     public DbSet<Template> Templates => Set<Template>();
     public DbSet<BackgroundTask> BackgroundTasks => Set<BackgroundTask>();
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -329,6 +331,21 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.LockedUntil);
             e.HasIndex(x => new { x.TaskType, x.CreatedAt });
             e.HasIndex(x => x.DeduplicationKey);
+        });
+
+        modelBuilder.Entity<ApiKey>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(150);
+            e.Property(x => x.KeyPrefix).HasMaxLength(32);
+            e.Property(x => x.KeyHash).HasMaxLength(128);
+            e.Property(x => x.Scopes).HasMaxLength(500);
+            e.HasIndex(x => x.KeyHash).IsUnique();
+            e.HasIndex(x => x.UserId);
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

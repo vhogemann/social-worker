@@ -137,6 +137,7 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
     [InlineData(IngestionStatus.Duplicate)]
     [InlineData(IngestionStatus.FilteredOut)]
     [InlineData(IngestionStatus.Failed)]
+    [InlineData(IngestionStatus.PendingTranscription)]
     public async Task ProcessFeedItemAsync_WhenIngestionStatusIsNotSuccess_AbortsOrchestration(IngestionStatus status)
     {
         using var db = CreateDbContext();
@@ -151,6 +152,7 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
         var publishService = new FakeAutoPublishService(db);
 
         var orchestrator = new FeedOrchestrationService(
+            db,
             ingestionService,
             generationService,
             validationService,
@@ -182,6 +184,7 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
         var publishService = new FakeAutoPublishService(db);
 
         var orchestrator = new FeedOrchestrationService(
+            db,
             ingestionService,
             generationService,
             validationService,
@@ -199,6 +202,51 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task ContinueWorkflowDraftAfterTranscriptionAsync_GeneratesCanonical_CreatesVariants_AndPublishes()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "Video WF", "Analyze this video.");
+        var dest = AutomationWorkflowDestination.Create(workflow.Id, "Bluesky", true);
+        workflow.Destinations.Add(dest);
+        db.AutomationWorkflows.Add(workflow);
+
+        var draft = Draft.Create(user.Id, "Transcribed Draft", "");
+        draft.AutomationWorkflowId = workflow.Id;
+        draft.Status = DraftStatus.Sourcing;
+        db.Drafts.Add(draft);
+
+        var source = Source.CreateUrl("https://youtube.com/watch?v=sample123", "Video Title");
+        source.Kind = SourceKind.YouTube;
+        source.ProcessingStatus = SourceProcessingStatus.Complete;
+        source.Content = "Transcribed speech content";
+        db.Sources.Add(source);
+
+        db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = source.Id });
+        await db.SaveChangesAsync();
+
+        var ingestionService = new FakeSourceIngestionService(db, new FeedSourceIngestionResult(IngestionStatus.Success, draft, source.Id, null));
+        var generationService = new FakeThreadGenerationService(db);
+        var validationService = new FakeValidationService(db);
+        var publishService = new FakeAutoPublishService(db);
+
+        var orchestrator = new FeedOrchestrationService(
+            db,
+            ingestionService,
+            generationService,
+            validationService,
+            publishService,
+            NullLogger<FeedOrchestrationService>.Instance);
+
+        await orchestrator.ContinueWorkflowDraftAfterTranscriptionAsync(draft.Id, CancellationToken.None);
+
+        Assert.Equal(1, generationService.GenerationAttempts);
+        Assert.Equal("Analyze this video.", generationService.LastPromptPassed);
+        Assert.Contains("Bluesky", generationService.GeneratedPlatforms);
+        Assert.True(publishService.PublishCalled);
+    }
+
+    [Fact]
     public async Task ProcessFeedItemAsync_SelfCorrectionLoop_RetriesWhenGenerationFails_AndSucceedsOnSecondAttempt()
     {
         using var db = CreateDbContext();
@@ -213,6 +261,7 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
         var publishService = new FakeAutoPublishService(db);
 
         var orchestrator = new FeedOrchestrationService(
+            db,
             ingestionService,
             generationService,
             validationService,
@@ -240,6 +289,7 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
         var publishService = new FakeAutoPublishService(db);
 
         var orchestrator = new FeedOrchestrationService(
+            db,
             ingestionService,
             generationService,
             validationService,
@@ -269,6 +319,7 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
         var publishService = new FakeAutoPublishService(db);
 
         var orchestrator = new FeedOrchestrationService(
+            db,
             ingestionService,
             generationService,
             validationService,
@@ -299,6 +350,7 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
         var publishService = new FakeAutoPublishService(db);
 
         var orchestrator = new FeedOrchestrationService(
+            db,
             ingestionService,
             generationService,
             validationService,
@@ -325,6 +377,7 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
         var publishService = new FakeAutoPublishService(db);
 
         var orchestrator = new FeedOrchestrationService(
+            db,
             ingestionService,
             generationService,
             validationService,
@@ -338,3 +391,4 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
         Assert.False(publishService.PublishCalled);
     }
 }
+

@@ -15,7 +15,8 @@ public enum IngestionStatus
     Success,
     Duplicate,
     FilteredOut,
-    Failed
+    Failed,
+    PendingTranscription
 }
 
 public sealed record FeedSourceIngestionResult(
@@ -72,7 +73,7 @@ public class FeedSourceIngestionService
         var draft = new Draft
         {
             Title = string.IsNullOrWhiteSpace(itemTitle) ? "Untitled Feed Item" : itemTitle.Trim(),
-            Status = DraftStatus.Sourcing,
+            Status = DraftStatus.Editing,
             UserId = userId,
             TargetPlatform = null,
             AutomationWorkflowId = workflow.Id
@@ -98,39 +99,12 @@ public class FeedSourceIngestionService
         var source = await _db.Sources.FindAsync(new object[] { sourceId }, ct);
         if (source != null && source.Kind == SourceKind.YouTube)
         {
-            var startTime = DateTime.UtcNow;
-            var timeout = TimeSpan.FromMinutes(10);
-            while (true)
-            {
-                if (DateTime.UtcNow - startTime > timeout)
-                {
-                    _logger.LogError("Ingestion gate timeout waiting for YouTube transcription of source {SourceId}", sourceId);
-                    draft.Status = DraftStatus.Failed;
-                    draft.Title = $"[Timeout Ingestion] {draft.Title}";
-                    await _db.SaveChangesAsync(ct);
-                    return new FeedSourceIngestionResult(IngestionStatus.Failed, draft, sourceId, "YouTube transcription timed out.");
-                }
-
-                await _db.Entry(source).ReloadAsync(ct);
-                if (source.ProcessingStatus == SourceProcessingStatus.Complete)
-                {
-                    break;
-                }
-                if (source.ProcessingStatus == SourceProcessingStatus.Failed)
-                {
-                    _logger.LogError("YouTube transcription failed for source {SourceId}", sourceId);
-                    draft.Status = DraftStatus.Failed;
-                    draft.Title = $"[Failed Ingestion] {draft.Title}";
-                    await _db.SaveChangesAsync(ct);
-                    return new FeedSourceIngestionResult(IngestionStatus.Failed, draft, sourceId, "YouTube transcription failed.");
-                }
-
-                await Task.Delay(5000, ct);
-            }
+            return new FeedSourceIngestionResult(IngestionStatus.PendingTranscription, draft, sourceId, null);
         }
 
         return new FeedSourceIngestionResult(IngestionStatus.Success, draft, sourceId, null);
     }
+
 
     public static bool PassesFilters(string title, string description, string? includeFilters, string? excludeFilters)
     {

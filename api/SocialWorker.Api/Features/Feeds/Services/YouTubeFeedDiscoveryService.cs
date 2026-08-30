@@ -124,8 +124,7 @@ public sealed class YouTubeFeedDiscoveryService
             }
         }
 
-        SetBrowserUserAgent();
-        var channelHtml = await _client.GetStringAsync(normalizedUrl);
+        var channelHtml = await GetStringWithBrowserUserAgentAsync(normalizedUrl);
         channelId = ExtractYouTubeChannelIdFromHtml(channelHtml);
         if (!string.IsNullOrWhiteSpace(channelId))
         {
@@ -135,13 +134,14 @@ public sealed class YouTubeFeedDiscoveryService
         var aboutUrl = BuildYouTubeAboutUrl(uri);
         if (!string.IsNullOrWhiteSpace(aboutUrl) && !aboutUrl.Equals(normalizedUrl, StringComparison.OrdinalIgnoreCase))
         {
-            var aboutHtml = await _client.GetStringAsync(aboutUrl);
+            var aboutHtml = await GetStringWithBrowserUserAgentAsync(aboutUrl);
             channelId = ExtractYouTubeChannelIdFromHtml(aboutHtml);
             if (!string.IsNullOrWhiteSpace(channelId))
             {
                 return channelId;
             }
         }
+
 
         channelId = await TryResolveChannelIdFromYouTubePbjAsync(normalizedUrl);
         if (!string.IsNullOrWhiteSpace(channelId))
@@ -175,34 +175,42 @@ public sealed class YouTubeFeedDiscoveryService
     private async Task<string?> TryResolveChannelIdFromYouTubeOEmbedAsync(string videoUrl)
     {
         var oEmbedUrl = $"https://www.youtube.com/oembed?url={Uri.EscapeDataString(videoUrl)}&format=json";
-        var response = await _client.GetAsync(oEmbedUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Get, oEmbedUrl);
+        request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+        using var response = await _client.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             return null;
         }
 
-        var body = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(body);
-        if (!doc.RootElement.TryGetProperty("author_url", out var authorUrlElement))
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("author_url", out var authorProp) && authorProp.GetString() is { } authorUrl && !string.IsNullOrWhiteSpace(authorUrl))
         {
-            return null;
+            var authorUri = new Uri(authorUrl);
+            var channelId = TryExtractYouTubeChannelIdFromUrl(authorUri);
+            if (!string.IsNullOrWhiteSpace(channelId))
+            {
+                return channelId;
+            }
+
+            var authorHtml = await GetStringWithBrowserUserAgentAsync(authorUrl);
+            return ExtractYouTubeChannelIdFromHtml(authorHtml);
         }
 
-        var authorUrl = authorUrlElement.GetString();
-        if (string.IsNullOrWhiteSpace(authorUrl) || !Uri.TryCreate(authorUrl, UriKind.Absolute, out var authorUri))
-        {
-            return null;
-        }
+        return null;
+    }
 
-        var channelId = TryExtractYouTubeChannelIdFromUrl(authorUri);
-        if (!string.IsNullOrWhiteSpace(channelId))
-        {
-            return channelId;
-        }
-
-        SetBrowserUserAgent();
-        var authorHtml = await _client.GetStringAsync(authorUrl);
-        return ExtractYouTubeChannelIdFromHtml(authorHtml);
+    private async Task<string> GetStringWithBrowserUserAgentAsync(string url)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        using var response = await _client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync();
     }
 
     private static string? BuildYouTubeAboutUrl(Uri uri)
@@ -258,12 +266,6 @@ public sealed class YouTubeFeedDiscoveryService
         }
 
         return null;
-    }
-
-    private void SetBrowserUserAgent()
-    {
-        _client.DefaultRequestHeaders.UserAgent.Clear();
-        _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
     }
 
     private string? ExtractYouTubeChannelIdFromHtml(string html)

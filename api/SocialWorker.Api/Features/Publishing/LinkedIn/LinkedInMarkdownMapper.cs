@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Drafts;
-using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Markdown;
 
 namespace SocialWorker.Api.Features.Publishing.LinkedIn;
 
@@ -21,8 +21,8 @@ public static class LinkedInMarkdownMapper
         Guid threadId,
         Func<Guid, (string? FilePath, string? MimeType, string? AltText)?> getMediaAsset)
     {
-        var segments = DraftSegmentService.SplitMarkdownIntoSegments(content);
-        var nonEmpties = segments.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+        var doc = ThreadMarkdownDocument.Parse(content);
+        var nonEmpties = doc.Segments.Where(s => !string.IsNullOrWhiteSpace(s.PlainText) || s.MediaEmbeds.Count > 0 || s.YouTubeEmbed != null).ToList();
 
         if (nonEmpties.Count == 0)
         {
@@ -33,54 +33,31 @@ public static class LinkedInMarkdownMapper
             throw new LinkedInContractException(LinkedInContractError.ThreadNotSupportedForLinkedIn, "LinkedIn publishing does not support multi-post threads. Exactly one segment is allowed.");
         }
 
-        var rawSegment = nonEmpties[0];
-        var mediaRefs = SharedPatterns.ExtractMediaReferences(rawSegment);
+        var segDoc = nonEmpties[0];
+        var mediaRefs = segDoc.MediaEmbeds;
         if (mediaRefs.Count > 1)
         {
             throw new LinkedInContractException(LinkedInContractError.UnsupportedCombination, "Multiple image attachments are not supported.");
         }
 
-        var youtubeMatch = SharedPatterns.YoutubeMarkdownRegex.Match(rawSegment);
-        string? youtubeUrl = null;
-        string? youtubeTitle = null;
-
-        if (youtubeMatch.Success)
-        {
-            youtubeTitle = youtubeMatch.Groups[1].Value;
-            youtubeUrl = youtubeMatch.Groups[2].Value;
-        }
-        else
-        {
-            var rawMatch = RawUrlRegex.Matches(rawSegment)
-                .Cast<Match>()
-                .FirstOrDefault(m => m.Value.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
-                                     m.Value.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase));
-            if (rawMatch != null)
-            {
-                youtubeUrl = rawMatch.Value;
-            }
-        }
+        string? youtubeUrl = segDoc.YouTubeEmbed?.Url;
+        string? youtubeTitle = segDoc.YouTubeEmbed?.Title;
 
         string? linkUrl = null;
         string? linkTitle = null;
 
-        var linkMatch = MarkdownLinkRegex.Matches(rawSegment)
-            .Cast<Match>()
-            .FirstOrDefault(m => !m.Value.StartsWith("!"));
-        if (linkMatch != null)
+        var textLink = segDoc.TextLinks.FirstOrDefault();
+        if (textLink != null)
         {
-            linkTitle = linkMatch.Groups[1].Value;
-            linkUrl = linkMatch.Groups[2].Value;
+            linkTitle = textLink.Text;
+            linkUrl = textLink.Url;
         }
         else
         {
-            var rawMatch = RawUrlRegex.Matches(rawSegment)
-                .Cast<Match>()
-                .FirstOrDefault(m => !m.Value.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) &&
-                                     !m.Value.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase));
-            if (rawMatch != null)
+            var bareUrl = segDoc.BareUrls.FirstOrDefault(b => !ThreadSegmentDocument.IsYouTubeUrl(b.Url));
+            if (bareUrl != null)
             {
-                linkUrl = rawMatch.Value;
+                linkUrl = bareUrl.Url;
             }
         }
 
@@ -91,12 +68,8 @@ public static class LinkedInMarkdownMapper
             throw new LinkedInContractException(LinkedInContractError.UnsupportedCombination, "Cannot mix image attachments and URL link shares in a single LinkedIn post.");
         }
 
-        var bodyWithNoMedia = SharedPatterns.StripMediaMarkdown(rawSegment);
-        if (youtubeMatch.Success)
-        {
-            bodyWithNoMedia = SharedPatterns.YoutubeMarkdownRegex.Replace(bodyWithNoMedia, "");
-        }
-        var normalizedBodyText = CleanAndNormalizeBodyText(bodyWithNoMedia);
+        var normalizedBodyText = CleanAndNormalizeBodyText(segDoc.PlainText);
+
 
         LinkedInMediaKind mediaKind = LinkedInMediaKind.None;
         LinkedInArticlePayload? article = null;

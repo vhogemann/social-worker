@@ -57,6 +57,15 @@ public sealed class SourceTranscriptionTaskHandler : BackgroundTaskHandlerBase<S
             {
                 source.ProcessingStatus = SourceProcessingStatus.Failed;
                 source.Summary = result.Error;
+                if (context.AttemptCount >= context.MaxAttempts)
+                {
+                    var draft = await _db.Drafts.FindAsync(new object[] { payload.DraftId }, ct);
+                    if (draft != null && draft.AutomationWorkflowId.HasValue)
+                    {
+                        draft.Status = DraftStatus.Failed;
+                        draft.Title = $"[Failed Ingestion] {draft.Title}";
+                    }
+                }
                 await _db.SaveChangesAsync(ct);
                 return TaskResult.Retry(TimeSpan.FromSeconds(30), result.Error ?? "Transcription extraction returned failure");
             }
@@ -84,19 +93,48 @@ public sealed class SourceTranscriptionTaskHandler : BackgroundTaskHandlerBase<S
 
             source.ProcessingStatus = SourceProcessingStatus.Complete;
 
-            var draft = await _db.Drafts.FindAsync(new object[] { payload.DraftId }, ct);
-            if (draft != null)
+            var targetDraft = await _db.Drafts.FindAsync(new object[] { payload.DraftId }, ct);
+            if (targetDraft != null)
             {
-                draft.UpdatedAt = DateTime.UtcNow;
+                targetDraft.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+
+                if (targetDraft.AutomationWorkflowId.HasValue && (targetDraft.Status == DraftStatus.Editing || string.IsNullOrWhiteSpace(targetDraft.Content)))
+                {
+                    var orchestrator = _serviceProvider.GetService<SocialWorker.Api.Features.Feeds.FeedOrchestrationService>();
+                    if (orchestrator != null)
+                    {
+                        try
+                        {
+                            await orchestrator.ContinueWorkflowDraftAfterTranscriptionAsync(targetDraft.Id, ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Downstream workflow orchestration failed for draft {DraftId} after transcription", targetDraft.Id);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                await _db.SaveChangesAsync(ct);
             }
 
-            await _db.SaveChangesAsync(ct);
             return TaskResult.Success();
         }
         catch (Exception ex)
         {
             source.ProcessingStatus = SourceProcessingStatus.Failed;
             source.Summary = ex.Message;
+            if (context.AttemptCount >= context.MaxAttempts)
+            {
+                var draft = await _db.Drafts.FindAsync(new object[] { payload.DraftId }, ct);
+                if (draft != null && draft.AutomationWorkflowId.HasValue)
+                {
+                    draft.Status = DraftStatus.Failed;
+                    draft.Title = $"[Failed Ingestion] {draft.Title}";
+                }
+            }
             await _db.SaveChangesAsync(ct);
             return TaskResult.Retry(TimeSpan.FromSeconds(30), ex.Message);
         }

@@ -23,14 +23,15 @@ public sealed class RssFeedDiscoveryService
     {
         try
         {
-            _client.DefaultRequestHeaders.UserAgent.Clear();
-            _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            using var request = new HttpRequestMessage(HttpMethod.Get, normalizedUrl);
+            request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
-            var response = await _client.GetAsync(normalizedUrl);
+            var response = await _client.SendAsync(request);
             if (!response.IsSuccessStatusCode)
             {
                 return new FeedDiscoveryResult(normalizedUrl, null, null, false, $"Failed to fetch URL: HTTP {(int)response.StatusCode}");
             }
+
 
             var content = await response.Content.ReadAsStringAsync();
 

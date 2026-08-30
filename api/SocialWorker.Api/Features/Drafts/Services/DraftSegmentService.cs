@@ -1,14 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
-using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Markdown;
 
 namespace SocialWorker.Api.Features.Drafts;
 
@@ -16,8 +14,6 @@ public sealed record SegmentMediaAnalysis(Guid[] ImageIds, string? YouTubeUrl, b
 
 public sealed class DraftSegmentService
 {
-    private static readonly Regex YouTubeEmbedRegex = new(@"!\[.*?\]\((https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+|https?://youtu\.be/[\w-]+)\)", RegexOptions.Compiled);
-
     private readonly AppDbContext _db;
 
     public DraftSegmentService(AppDbContext db)
@@ -27,18 +23,18 @@ public sealed class DraftSegmentService
 
     public async Task ReconcileSegmentsAsync(Draft draft, string markdown, CancellationToken ct = default)
     {
-        var rawSegments = SplitMarkdownIntoSegments(markdown);
+        var doc = ParseThread(markdown);
         var existing = await _db.ThreadSegments
             .Where(s => s.DraftId == draft.Id)
             .OrderBy(s => s.Position)
             .ToListAsync(ct);
 
-        int max = Math.Max(rawSegments.Count, existing.Count);
+        int max = Math.Max(doc.Segments.Count, existing.Count);
         for (int i = 0; i < max; i++)
         {
-            if (i < rawSegments.Count)
+            if (i < doc.Segments.Count)
             {
-                var content = rawSegments[i];
+                var content = doc.Segments[i].RawMarkdown;
                 if (i < existing.Count)
                 {
                     existing[i].Content = content;
@@ -60,52 +56,31 @@ public sealed class DraftSegmentService
         }
     }
 
+    public static ThreadMarkdownDocument ParseThread(string markdown)
+    {
+        return ThreadMarkdownDocument.Parse(markdown);
+    }
+
     public static List<string> SplitMarkdownIntoSegments(string markdown)
     {
-        var result = new List<string>();
-        if (string.IsNullOrEmpty(markdown))
-        {
-            return new List<string> { string.Empty };
-        }
-
-        var lines = markdown.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-        var current = new StringBuilder();
-
-        foreach (var line in lines)
-        {
-            if (line.Trim() == "---")
-            {
-                result.Add(current.ToString().Trim());
-                current.Clear();
-            }
-            else
-            {
-                if (current.Length > 0)
-                {
-                    current.AppendLine();
-                }
-                current.Append(line);
-            }
-        }
-
-        result.Add(current.ToString().Trim());
-        return result;
+        return ParseThread(markdown).Segments.Select(s => s.RawMarkdown).ToList();
     }
 
     public static SegmentMediaAnalysis AnalyzeSegmentMedia(string segmentContent)
     {
-        var imageIds = SharedPatterns.ExtractMediaReferences(segmentContent)
-            .Select(reference => reference.MediaId)
+        var doc = ParseThread(segmentContent);
+        var segment = doc.Segments.FirstOrDefault();
+        if (segment == null)
+        {
+            return new SegmentMediaAnalysis(Array.Empty<Guid>(), null, false);
+        }
+
+        var imageIds = segment.MediaEmbeds
+            .Select(m => m.MediaId)
             .Distinct()
             .ToArray();
 
-        string? youtubeUrl = null;
-        var ytMatch = YouTubeEmbedRegex.Match(segmentContent);
-        if (ytMatch.Success)
-        {
-            youtubeUrl = ytMatch.Groups[1].Value;
-        }
-
+        var youtubeUrl = segment.YouTubeEmbed?.Url;
         bool hasConflict = imageIds.Length > 0 && youtubeUrl != null;
 
         return new SegmentMediaAnalysis(imageIds, youtubeUrl, hasConflict);
