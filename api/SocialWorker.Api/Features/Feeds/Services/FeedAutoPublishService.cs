@@ -27,7 +27,7 @@ public class FeedAutoPublishService
         _logger = logger;
     }
 
-    public async Task PublishDestinationsAsync(
+    public virtual async Task PublishDestinationsAsync(
         Draft canonicalDraft,
         ICollection<AutomationWorkflowDestination> destinations,
         Guid userId,

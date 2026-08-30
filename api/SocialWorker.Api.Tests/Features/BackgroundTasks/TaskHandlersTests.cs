@@ -13,6 +13,7 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.BackgroundTasks.Models;
 using SocialWorker.Api.Features.BackgroundTasks.Services;
 using SocialWorker.Api.Features.Drafts.Handlers;
+using SocialWorker.Api.Features.Feeds;
 using SocialWorker.Api.Features.Feeds.Handlers;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Features.Sources.Handlers;
@@ -90,6 +91,127 @@ public sealed class TaskHandlersTests : SqliteTestBase
             {
                 Directory.Delete(tempDir, recursive: true);
             }
+        }
+    }
+
+    [Fact]
+    public async Task FeedIngestionTaskHandler_SubscriptionNotFound_ReturnsFatal()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        var orchestrator = new FakeOrchestrationService();
+        var handler = new FeedIngestionTaskHandler(db, orchestrator, NullLogger<FeedIngestionTaskHandler>.Instance);
+
+        var payload = new FeedIngestionPayload(Guid.NewGuid(), workflow.Id, "Title", "https://example.com/link", "Desc", null);
+        var task = BackgroundTask.Create("feed-ingestion", payload);
+        var context = new TaskExecutionContext(task, "worker", new TestBackgroundTaskQueue(), CancellationToken.None);
+
+        var result = await handler.ExecuteAsync(payload, context, CancellationToken.None);
+
+        Assert.Equal(TaskOutcome.Fatal, result.Outcome);
+        Assert.Contains("not found", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task FeedIngestionTaskHandler_WorkflowNotFound_ReturnsFatal()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var sub = new FeedSubscription { Id = Guid.NewGuid(), UserId = user.Id, Title = "Feed", FeedUrl = "https://example.com/feed" };
+        db.FeedSubscriptions.Add(sub);
+        await db.SaveChangesAsync();
+
+        var orchestrator = new FakeOrchestrationService();
+        var handler = new FeedIngestionTaskHandler(db, orchestrator, NullLogger<FeedIngestionTaskHandler>.Instance);
+
+        var payload = new FeedIngestionPayload(sub.Id, Guid.NewGuid(), "Title", "https://example.com/link", "Desc", null);
+        var task = BackgroundTask.Create("feed-ingestion", payload);
+        var context = new TaskExecutionContext(task, "worker", new TestBackgroundTaskQueue(), CancellationToken.None);
+
+        var result = await handler.ExecuteAsync(payload, context, CancellationToken.None);
+
+        Assert.Equal(TaskOutcome.Fatal, result.Outcome);
+        Assert.Contains("not found", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task FeedIngestionTaskHandler_SuccessfulExecution_ReturnsSuccess()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var sub = new FeedSubscription { Id = Guid.NewGuid(), UserId = user.Id, Title = "Feed", FeedUrl = "https://example.com/feed" };
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        db.FeedSubscriptions.Add(sub);
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        var orchestrator = new FakeOrchestrationService();
+        var handler = new FeedIngestionTaskHandler(db, orchestrator, NullLogger<FeedIngestionTaskHandler>.Instance);
+
+        var payload = new FeedIngestionPayload(sub.Id, workflow.Id, "Title", "https://example.com/link", "Desc", null);
+        var task = BackgroundTask.Create("feed-ingestion", payload);
+        var context = new TaskExecutionContext(task, "worker", new TestBackgroundTaskQueue(), CancellationToken.None);
+
+        var result = await handler.ExecuteAsync(payload, context, CancellationToken.None);
+
+        Assert.Equal(TaskOutcome.Success, result.Outcome);
+        Assert.True(orchestrator.ProcessCalled);
+    }
+
+    [Fact]
+    public async Task FeedIngestionTaskHandler_OrchestratorThrows_ReturnsRetryWithBackoff()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var sub = new FeedSubscription { Id = Guid.NewGuid(), UserId = user.Id, Title = "Feed", FeedUrl = "https://example.com/feed" };
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        db.FeedSubscriptions.Add(sub);
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        var orchestrator = new FakeOrchestrationService { ThrowOnProcess = true };
+        var handler = new FeedIngestionTaskHandler(db, orchestrator, NullLogger<FeedIngestionTaskHandler>.Instance);
+
+        var payload = new FeedIngestionPayload(sub.Id, workflow.Id, "Title", "https://example.com/link", "Desc", null);
+        var task = BackgroundTask.Create("feed-ingestion", payload);
+        var context = new TaskExecutionContext(task, "worker", new TestBackgroundTaskQueue(), CancellationToken.None);
+
+        var result = await handler.ExecuteAsync(payload, context, CancellationToken.None);
+
+        Assert.Equal(TaskOutcome.Retry, result.Outcome);
+        Assert.NotNull(result.RetryDelay);
+        Assert.Equal(TimeSpan.FromSeconds(60), result.RetryDelay);
+    }
+
+    private sealed class FakeOrchestrationService : FeedOrchestrationService
+    {
+        public bool ProcessCalled { get; private set; }
+        public bool ThrowOnProcess { get; set; }
+
+        public FakeOrchestrationService()
+            : base(null!, null!, null!, null!, NullLogger<FeedOrchestrationService>.Instance)
+        {
+        }
+
+        public override Task ProcessFeedItemAsync(
+            FeedSubscription subscription,
+            AutomationWorkflow workflow,
+            string itemTitle,
+            string itemLink,
+            string itemDescription,
+            DateTime? itemPublishDate,
+            CancellationToken ct)
+        {
+            ProcessCalled = true;
+            if (ThrowOnProcess)
+            {
+                throw new InvalidOperationException("Orchestration processing failure");
+            }
+            return Task.CompletedTask;
         }
     }
 

@@ -9,7 +9,7 @@ using SocialWorker.Api.Features.Workflows.Services;
 
 namespace SocialWorker.Api.Features.Feeds;
 
-public sealed class FeedOrchestrationService
+public class FeedOrchestrationService
 {
     private readonly FeedSourceIngestionService _sourceIngestionService;
     private readonly FeedThreadGenerationService _threadGenerationService;
@@ -31,7 +31,7 @@ public sealed class FeedOrchestrationService
         _logger = logger;
     }
 
-    public async Task ProcessFeedItemAsync(
+    public virtual async Task ProcessFeedItemAsync(
         FeedSubscription subscription,
         AutomationWorkflow workflow,
         string itemTitle,

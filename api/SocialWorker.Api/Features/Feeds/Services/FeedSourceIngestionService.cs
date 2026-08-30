@@ -40,7 +40,7 @@ public class FeedSourceIngestionService
         _logger = logger;
     }
 
-    public async Task<FeedSourceIngestionResult> IngestSourceAsync(
+    public virtual async Task<FeedSourceIngestionResult> IngestSourceAsync(
         FeedSubscription subscription,
         AutomationWorkflow workflow,
         string itemTitle,

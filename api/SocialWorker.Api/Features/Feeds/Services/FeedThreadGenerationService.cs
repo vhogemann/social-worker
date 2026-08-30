@@ -41,7 +41,7 @@ public class FeedThreadGenerationService
         return GenerateCanonicalThreadAsync(draft, itemLink, instructionPrompt, userId, ct);
     }
 
-    public async Task<bool> GenerateCanonicalThreadAsync(
+    public virtual async Task<bool> GenerateCanonicalThreadAsync(
         Draft draft,
         string itemLink,
         string instructionPrompt,
@@ -163,7 +163,7 @@ public class FeedThreadGenerationService
         }
     }
 
-    public async Task<Draft?> GeneratePlatformVariantDraftAsync(
+    public virtual async Task<Draft?> GeneratePlatformVariantDraftAsync(
         Draft canonicalDraft,
         AutomationWorkflowDestination destination,
         Guid userId,

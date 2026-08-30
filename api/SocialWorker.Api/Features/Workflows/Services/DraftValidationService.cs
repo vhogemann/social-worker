@@ -30,7 +30,7 @@ public class DraftValidationService
         _logger = logger;
     }
 
-    public async Task<ValidationResult> ValidateDraftAsync(
+    public virtual async Task<ValidationResult> ValidateDraftAsync(
         Draft draft,
         string? platformConstraint,
         CancellationToken ct)

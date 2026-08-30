@@ -1,10 +1,19 @@
 using System;
+using System.Net;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using SocialWorker.Api.Data;
+using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Feeds;
+using SocialWorker.Api.Features.Sources;
 using Xunit;
 
 namespace SocialWorker.Api.Tests.Features.Feeds;
 
-public sealed class FeedSourceIngestionServiceTests
+public sealed class FeedSourceIngestionServiceTests : SqliteTestBase
 {
     [Theory]
     [InlineData("Tech News", "Some tech description", null, null, true)]
@@ -21,5 +30,173 @@ public sealed class FeedSourceIngestionServiceTests
     {
         var result = FeedSourceIngestionService.PassesFilters(title, description, includeFilters, excludeFilters);
         Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public async Task IngestSourceAsync_WhenItemMatchesExistingSourceForSameWorkflow_ReturnsDuplicate()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        var sub = new FeedSubscription { Id = Guid.NewGuid(), UserId = user.Id, Title = "Feed", FeedUrl = "https://example.com/feed" };
+        db.AutomationWorkflows.Add(workflow);
+        db.FeedSubscriptions.Add(sub);
+
+        var existingDraft = Draft.Create(user.Id, "Existing Draft");
+        existingDraft.AutomationWorkflowId = workflow.Id;
+        existingDraft.Status = DraftStatus.Editing;
+        var existingSource = Source.CreateUrl("https://example.com/article1", "Title");
+        db.Drafts.Add(existingDraft);
+        db.Sources.Add(existingSource);
+        db.DraftSources.Add(new DraftSource { DraftId = existingDraft.Id, SourceId = existingSource.Id });
+        await db.SaveChangesAsync();
+
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
+        var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance);
+
+        var result = await service.IngestSourceAsync(sub, workflow, "New Title", "https://example.com/article1", "Desc", CancellationToken.None);
+
+        Assert.Equal(IngestionStatus.Duplicate, result.Status);
+        Assert.Null(result.Draft);
+    }
+
+    [Fact]
+    public async Task IngestSourceAsync_WhenItemFailsFilters_ReturnsFilteredOut()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        var sub = new FeedSubscription
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Title = "Feed",
+            FeedUrl = "https://example.com/feed",
+            IncludeFilters = "AI,Tech",
+            ExcludeFilters = "Crypto"
+        };
+        db.AutomationWorkflows.Add(workflow);
+        db.FeedSubscriptions.Add(sub);
+        await db.SaveChangesAsync();
+
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
+        var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance);
+
+        var result = await service.IngestSourceAsync(sub, workflow, "Football Match", "https://example.com/sports", "A match occurred", CancellationToken.None);
+
+        Assert.Equal(IngestionStatus.FilteredOut, result.Status);
+        Assert.Null(result.Draft);
+    }
+
+    [Fact]
+    public async Task IngestSourceAsync_WhenSourcesServiceFails_MarksDraftFailedAndReturnsFailed()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        var sub = new FeedSubscription { Id = Guid.NewGuid(), UserId = user.Id, Title = "Feed", FeedUrl = "https://example.com/feed" };
+        db.AutomationWorkflows.Add(workflow);
+        db.FeedSubscriptions.Add(sub);
+        await db.SaveChangesAsync();
+
+        var failingHandler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        var scraper = new WebScraperService(new HttpClient(failingHandler));
+        var sourcesService = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
+        var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance);
+
+        var result = await service.IngestSourceAsync(sub, workflow, "Broken Article", "https://example.com/error-page", "Desc", CancellationToken.None);
+
+        Assert.Equal(IngestionStatus.Failed, result.Status);
+        Assert.NotNull(result.Draft);
+        Assert.Equal(DraftStatus.Failed, result.Draft!.Status);
+        Assert.StartsWith("[Failed Ingestion]", result.Draft.Title);
+    }
+
+    [Fact]
+    public async Task IngestSourceAsync_WhenUrlSourceSucceeds_CreatesDraftWithWorkflowIdAndReturnsSuccess()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        var sub = new FeedSubscription { Id = Guid.NewGuid(), UserId = user.Id, Title = "Feed", FeedUrl = "https://example.com/feed" };
+        db.AutomationWorkflows.Add(workflow);
+        db.FeedSubscriptions.Add(sub);
+        await db.SaveChangesAsync();
+
+        var html = "<html><head><title>Clean Article</title></head><body><p>Article body content</p></body></html>";
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(html, System.Text.Encoding.UTF8, "text/html")
+        });
+        var scraper = new WebScraperService(new HttpClient(handler));
+        var sourcesService = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
+        var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance);
+
+        var result = await service.IngestSourceAsync(sub, workflow, "Clean Article", "https://example.com/article-success", "Desc", CancellationToken.None);
+
+        Assert.Equal(IngestionStatus.Success, result.Status);
+        Assert.NotNull(result.Draft);
+        Assert.Equal(workflow.Id, result.Draft!.AutomationWorkflowId);
+        Assert.Equal(user.Id, result.Draft.UserId);
+        Assert.NotNull(result.SourceId);
+    }
+
+    [Fact]
+    public async Task IngestSourceAsync_WhenYouTubeSourceCompletesTranscription_ReturnsSuccess()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        var sub = new FeedSubscription { Id = Guid.NewGuid(), UserId = user.Id, Title = "Feed", FeedUrl = "https://example.com/feed" };
+        db.AutomationWorkflows.Add(workflow);
+        db.FeedSubscriptions.Add(sub);
+        await db.SaveChangesAsync();
+
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
+        var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance);
+
+        var ingestTask = service.IngestSourceAsync(sub, workflow, "YT Video", "https://youtube.com/watch?v=xyz987", "Desc", CancellationToken.None);
+
+        await Task.Delay(100);
+        var ytSource = await db.Sources.FirstOrDefaultAsync(s => s.Reference == "https://youtube.com/watch?v=xyz987");
+        Assert.NotNull(ytSource);
+        ytSource!.ProcessingStatus = SourceProcessingStatus.Complete;
+        await db.SaveChangesAsync();
+
+        var result = await ingestTask;
+
+        Assert.Equal(IngestionStatus.Success, result.Status);
+        Assert.NotNull(result.Draft);
+        Assert.Equal(SourceProcessingStatus.Complete, ytSource.ProcessingStatus);
+    }
+
+    [Fact]
+    public async Task IngestSourceAsync_WhenYouTubeSourceFailsTranscription_MarksDraftFailedAndReturnsFailed()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        var sub = new FeedSubscription { Id = Guid.NewGuid(), UserId = user.Id, Title = "Feed", FeedUrl = "https://example.com/feed" };
+        db.AutomationWorkflows.Add(workflow);
+        db.FeedSubscriptions.Add(sub);
+        await db.SaveChangesAsync();
+
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
+        var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance);
+
+        var ingestTask = service.IngestSourceAsync(sub, workflow, "YT Video Fail", "https://youtube.com/watch?v=bad123", "Desc", CancellationToken.None);
+
+        await Task.Delay(100);
+        var ytSource = await db.Sources.FirstOrDefaultAsync(s => s.Reference == "https://youtube.com/watch?v=bad123");
+        Assert.NotNull(ytSource);
+        ytSource!.ProcessingStatus = SourceProcessingStatus.Failed;
+        await db.SaveChangesAsync();
+
+        var result = await ingestTask;
+
+        Assert.Equal(IngestionStatus.Failed, result.Status);
+        Assert.NotNull(result.Draft);
+        Assert.Equal(DraftStatus.Failed, result.Draft!.Status);
+        Assert.StartsWith("[Failed Ingestion]", result.Draft.Title);
     }
 }
