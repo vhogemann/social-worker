@@ -56,29 +56,42 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests: api/SocialWorker.Api.Tests/
+- API unit/integration tests (441 tests): api/SocialWorker.Api.Tests/
+- MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
 - Web tests (Vitest): web/src/**/*.test.ts
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
 
 ## Core user flow mental model
 
-1. User opens/creates a draft.
-2. Chat and editor collaborate on thread content.
-3. User adds sources/media; backend stores and links them.
-4. Platform thread variants are created/updated.
-5. Stage transitions are explicit and server-enforced.
-6. Publish is allowed only when rules are satisfied (for example readiness + platform validations).
-7. Successful publish writes post records and updates thread stage to Sent.
+1. User opens/creates a draft (via Web UI or MCP server).
+2. Chat and editor collaborate on thread content using CommonMark AST segmentation (`---`).
+3. User attaches sources (URLs, YouTube, files); backend scrapes content, runs Whisper transcription, and extracts text.
+4. Automation workflows poll RSS/YouTube feeds and autonomously generate drafts citing research/articles.
+5. Platform thread variants are created/updated with server-enforced validation rules (character limits, facets, single-card embed constraints).
+6. Stage transitions are explicit and server-enforced.
+7. Publish is allowed only when validation rules are satisfied (readiness + character count + AST syntax checks).
+8. Successful publish writes post records and updates thread stage to Sent.
+
+## Model Context Protocol (MCP) & API Keys
+
+- Endpoint: `/api/mcp` (Stateless JSON-RPC 2.0) and `/api/mcp/sse?api_key=...` (Server-Sent Events continuous stream).
+- Tools (13): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`.
+- Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`.
+- Auth: `ApiKeyAuthenticationHandler` validates SHA-256 hashed keys (`sw_live_...`) routed through ASP.NET Core `PolicyScheme` ("Composite"). Dev key `sw_live_dev_admin_key_000000000000` seeded in development.
 
 ## Runtime and commands that matter most
 
 - Bring up stack: docker compose up --build
+- Bring up stack with GPU: ./scripts/redeploy.sh --gpu
 - Safe refresh of running stack: ./scripts/redeploy.sh
 - API build (tooling profile): docker compose --profile tooling run --rm dotnet build
+- API tests (tooling profile): docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
+- MCP stress test: docker compose --profile tooling run --rm -v "$(pwd):/repo" -w /repo -e API_URL="http://api:8080" web-test node scripts/mcp-stress-test-suite.mjs
 - Web test (tooling profile): docker compose --profile tooling run --rm web-test
 - Web check & build (tooling profile): docker compose --profile tooling run --rm web-test "npm run build && npm run typecheck" (or docker compose build web)
 - E2E: ./scripts/run-e2e.sh
 - SQL against Postgres: ./scripts/sql.sh -c "select now();"
+
 
 ## Durable task queue behavior
 
