@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { useDraftStore } from "./draftStore";
-import { useChatStore } from "./chatStore";
 
 vi.mock("../api/drafts", () => ({
   fetchDrafts: vi.fn(),
@@ -89,23 +88,6 @@ describe("draftStore", () => {
 
       expect(useDraftStore.getState().drafts).toHaveLength(2);
     });
-
-    it("parses chatHistory and calls chatStore saveMessages", async () => {
-      const messages = [{ id: "m1", role: "user" }];
-      mockFetchDrafts.mockResolvedValueOnce([makeDraft("d1", { chatHistory: JSON.stringify(messages) })]);
-
-      await useDraftStore.getState().loadDrafts();
-
-      const saved = useChatStore.getState().loadMessages("d1");
-      expect(saved?.messages[0].message.id).toEqual(messages[0].id);
-    });
-
-    it("ignores invalid chatHistory without throwing", async () => {
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      mockFetchDrafts.mockResolvedValueOnce([makeDraft("d1", { chatHistory: "not-json" })]);
-      await expect(useDraftStore.getState().loadDrafts()).resolves.toBeUndefined();
-      consoleErrorSpy.mockRestore();
-    });
   });
 
   describe("createDraft", () => {
@@ -161,15 +143,6 @@ describe("draftStore", () => {
       expect(state.activeDraftId).toBe("d1");
       expect(state.drafts[0].title).toBe("Loaded");
       expect(mockFetchSources).toHaveBeenCalledWith("d1");
-    });
-
-    it("parses chatHistory when switching", async () => {
-      const msgs = [{ id: "m1" }];
-      mockFetchDraft.mockResolvedValueOnce(makeDraft("d1", { chatHistory: JSON.stringify(msgs) }));
-
-      await useDraftStore.getState().switchDraft("d1");
-
-      expect(useChatStore.getState().loadMessages("d1")?.messages[0].message.id).toEqual(msgs[0].id);
     });
   });
 

@@ -81,7 +81,7 @@ export const DraftVariantTabs: React.FC<DraftVariantTabsProps> = ({
                 />
               )}
               <span>{platform || v.title}</span>
-              {v.status === "Sent" && (
+              {(v.status === "Sent" || v.status === "Published" || v.threads?.some((t) => t.stage === "Sent")) && (
                 <span
                   className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"
                   title="Published"

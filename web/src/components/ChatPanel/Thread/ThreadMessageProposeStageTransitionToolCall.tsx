@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useDraftStore } from "../../../store/draftStore";
+import { useComposerDraft } from "../../Composer/ComposerDraftContext";
 
 export function ThreadMessageProposeStageTransitionToolCall({
   args,
@@ -9,17 +9,14 @@ export function ThreadMessageProposeStageTransitionToolCall({
   const platform = args?.platform ?? "";
   const stage = args?.stage ?? "";
   const reasoning = args?.reasoning ?? "";
-  const updateThreadStage = useDraftStore((s) => s.updateThreadStage);
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const drafts = useDraftStore((s) => s.drafts);
+  const { activeDraft, updateStage } = useComposerDraft();
 
-  const activeDraft = drafts.find((d) => d.id === activeDraftId);
   const activeThread = activeDraft?.threads?.find((t) => t.platform === platform);
   const [approved, setApproved] = useState(false);
 
   const handleApprove = async () => {
-    if (activeDraftId && activeThread && stage) {
-      await updateThreadStage(activeDraftId, activeThread.id, stage);
+    if (activeThread && stage) {
+      await updateStage(stage);
       setApproved(true);
     }
   };

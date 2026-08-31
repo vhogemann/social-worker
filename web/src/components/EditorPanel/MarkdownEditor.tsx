@@ -4,17 +4,13 @@ import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { useEditorStore } from "../../store/editorStore";
+import { useComposerDraft } from "../Composer/ComposerDraftContext";
 import { useDraftStore } from "../../store/draftStore";
 
 export function MarkdownEditor() {
-  const doc = useEditorStore((s) => s.doc);
-  const version = useEditorStore((s) => s.version);
-  const setDoc = useEditorStore((s) => s.setDoc);
+  const { doc, version, setDoc, activeDraft, activeDraftId } = useComposerDraft();
   const viewRef = useRef<EditorView | null>(null);
 
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const saveDraftContent = useDraftStore((s) => s.saveDraftContent);
   const uploadFileSource = useDraftStore((s) => s.uploadFileSource);
   const uploadMediaAsset = useDraftStore((s) => s.uploadMediaAsset);
 
@@ -44,18 +40,7 @@ export function MarkdownEditor() {
     }
   }, [version, doc]);
 
-  const drafts = useDraftStore((s) => s.drafts);
-  const activeDraft = drafts.find((d) => d.id === activeDraftId);
   const isLocked = activeDraft?.status === "Sourcing" || activeDraft?.status === "Formatting";
-
-  useEffect(() => {
-    if (!activeDraftId || !doc || isLocked) return;
-    const timer = setTimeout(async () => {
-      await saveDraftContent(activeDraftId, doc);
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [doc, activeDraftId, saveDraftContent, isLocked]);
 
   useEffect(() => {
     const handleInsert = (e: Event) => {

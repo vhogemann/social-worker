@@ -1,16 +1,29 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { ThreadMessageToolActivityCall, getToolActivityLabel } from "./ThreadMessageToolActivityCall";
-import { useEditorStore } from "../../../store/editorStore";
-import { useChatStore } from "../../../store/chatStore";
-import { useDraftStore } from "../../../store/draftStore";
+
+const mockAddActivityCard = vi.fn();
+const mockSetPanelMode = vi.fn();
+
+vi.mock("../../Composer/ComposerDraftContext", () => ({
+  useComposerDraft: () => ({
+    activeDraftId: "d1",
+    addActivityCard: mockAddActivityCard,
+    setPanelMode: mockSetPanelMode,
+  }),
+}));
 
 vi.mock("@assistant-ui/react", () => ({
   useMessage: (selector: (m: { id: string }) => unknown) => selector({ id: "m-1" }),
 }));
 
 describe("getToolActivityLabel", () => {
+  beforeEach(() => {
+    mockAddActivityCard.mockClear();
+    mockSetPanelMode.mockClear();
+  });
+
   it("returns friendly labels for known tools", () => {
     expect(getToolActivityLabel("web_search")).toBe("web search");
     expect(getToolActivityLabel("validate_draft")).toBe("draft validated");
@@ -27,37 +40,23 @@ describe("getToolActivityLabel", () => {
   });
 
   it("switches editor to preview when publish activity renders", () => {
-    useEditorStore.setState({ panelMode: "edit" });
-
     render(React.createElement(ThreadMessageToolActivityCall, { name: "publish" }));
-
-    expect(useEditorStore.getState().panelMode).toBe("preview");
+    expect(mockSetPanelMode).toHaveBeenCalledWith("preview");
   });
 
   it("does not add top-rail activity card for validate_draft", () => {
-    useDraftStore.setState({ activeDraftId: "d1" });
-    useChatStore.setState({
-      activityCardsByDraft: {},
-      addActivityCard: useChatStore.getState().addActivityCard,
-    });
-
     render(React.createElement(ThreadMessageToolActivityCall, { name: "validate_draft" }));
-
-    const cards = useChatStore.getState().activityCardsByDraft["d1"];
-    expect(cards).toBeUndefined();
+    expect(mockAddActivityCard).not.toHaveBeenCalled();
   });
 
   it("adds a unified activity card for non-validation tool execution", () => {
-    useDraftStore.setState({ activeDraftId: "d1" });
-    useChatStore.setState({
-      activityCardsByDraft: {},
-      addActivityCard: useChatStore.getState().addActivityCard,
-    });
-
     render(React.createElement(ThreadMessageToolActivityCall, { name: "web_search" }));
-
-    const cards = useChatStore.getState().activityCardsByDraft["d1"];
-    expect(cards).toBeDefined();
-    expect(cards[cards.length - 1].title).toBe("web search");
+    expect(mockAddActivityCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "web search",
+        message: "web search executed.",
+        kind: "info",
+      })
+    );
   });
 });

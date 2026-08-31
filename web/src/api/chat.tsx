@@ -1,21 +1,80 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useDataStreamRuntime } from "@assistant-ui/react-data-stream";
 import { AssistantRuntimeProvider, type AssistantRuntime, useThread } from "@assistant-ui/react";
-import { useEditorStore } from "../store/editorStore";
-import { useDraftStore } from "../store/draftStore";
-import { useChatStore } from "../store/chatStore";
-
 import { useAuthStore } from "../store/authStore";
+import { patchDraft } from "./drafts";
 
-export function useChatRuntime() {
-  const editorDoc = useEditorStore((s) => s.doc);
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const drafts = useDraftStore((s) => s.drafts);
-  const activeDraft = drafts.find((d) => d.id === activeDraftId);
-  const editorForRequest = (editorDoc && editorDoc.length > 0)
-    ? editorDoc
-    : (activeDraft?.content ?? "");
+export interface ScopedChatProviderProps {
+  draftId: string;
+  initialChatHistory?: string | null;
+  editorDoc: string;
+  children: React.ReactNode;
+}
 
+function ChatRuntimeInner({
+  draftId,
+  initialChatHistory,
+  runtime,
+  children,
+}: {
+  draftId: string;
+  initialChatHistory?: string | null;
+  runtime: AssistantRuntime;
+  children: React.ReactNode;
+}) {
+  const isRunning = useThread((state) => state.isRunning);
+  const prevIsRunningRef = useRef(isRunning);
+  const initializedRef = useRef(false);
+
+  // Initialize chat history on mount
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    if (initialChatHistory) {
+      try {
+        const parsed = JSON.parse(initialChatHistory);
+        runtime.thread.import(parsed);
+      } catch (err) {
+        console.error("Failed to parse initial chat history for draft", draftId, err);
+      }
+    }
+  }, [draftId, initialChatHistory, runtime]);
+
+  // Autosave when chat run finishes
+  useEffect(() => {
+    if (prevIsRunningRef.current && !isRunning) {
+      const exported = runtime.thread.export();
+      void patchDraft(draftId, { chatHistory: JSON.stringify(exported) }).catch((err) => {
+        console.error("Failed to auto-save chat history for draft", draftId, err);
+      });
+    }
+    prevIsRunningRef.current = isRunning;
+  }, [draftId, isRunning, runtime]);
+
+  // Save when unmounting
+  useEffect(() => {
+    return () => {
+      try {
+        const exported = runtime.thread.export();
+        if (exported && exported.messages && exported.messages.length > 0) {
+          void patchDraft(draftId, { chatHistory: JSON.stringify(exported) }).catch(() => {});
+        }
+      } catch {
+        // Ignored
+      }
+    };
+  }, [draftId, runtime]);
+
+  return <>{children}</>;
+}
+
+export const ScopedChatProvider: React.FC<ScopedChatProviderProps> = ({
+  draftId,
+  initialChatHistory,
+  editorDoc,
+  children,
+}) => {
   const headers = useCallback(async () => {
     const token = useAuthStore.getState().accessToken;
     return (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>;
@@ -23,110 +82,24 @@ export function useChatRuntime() {
 
   const body = useMemo(
     () => ({
-      editor: editorForRequest,
-      draftId: activeDraftId,
+      editor: editorDoc,
+      draftId,
     }),
-    [editorForRequest, activeDraftId],
+    [editorDoc, draftId]
   );
 
-  return useDataStreamRuntime({
+  const runtime = useDataStreamRuntime({
     api: "/api/chat",
     headers,
     body,
     sendExtraMessageFields: true,
   }) as unknown as AssistantRuntime;
-}
 
-let runtimeRef: AssistantRuntime | null = null;
-
-export function saveCurrentChat(draftId: string) {
-  if (!runtimeRef) return;
-  const exported = runtimeRef.thread.export();
-  useChatStore.getState().saveMessages(draftId, exported);
-  useDraftStore.getState().saveDraftChat(draftId, JSON.stringify(exported));
-}
-
-export function restoreChat(draftId: string) {
-  if (!runtimeRef) return;
-  const saved = useChatStore.getState().loadMessages(draftId);
-  if (saved) {
-    runtimeRef.thread.import(saved);
-  } else {
-    runtimeRef.thread.reset();
-  }
-}
-
-export function clearChat(draftId: string) {
-  useChatStore.getState().clearMessages(draftId);
-  if (runtimeRef) {
-    runtimeRef.thread.reset();
-  }
-}
-
-function ChatRuntimeManager({ runtime }: { runtime: AssistantRuntime }) {
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const isRunning = useThread((state) => state.isRunning);
-  const activeMessages = useChatStore((s) => activeDraftId ? s.messagesByDraft[activeDraftId] : null);
-
-  const prevDraftIdRef = useRef<string | null>(activeDraftId);
-  const prevIsRunningRef = useRef(isRunning);
-  const runDraftIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const previousDraftId = prevDraftIdRef.current;
-    const currentRuntime = runtimeRef ?? runtime;
-
-    if (previousDraftId && previousDraftId !== activeDraftId) {
-      saveCurrentChat(previousDraftId);
-      if (currentRuntime.thread.getState().isRunning) {
-        currentRuntime.thread.cancelRun();
-      }
-    }
-
-    if (activeDraftId) {
-      const saved = activeMessages;
-      if (saved) {
-        const isSwitchingDraft = previousDraftId !== activeDraftId;
-        const currentMessagesCount = currentRuntime.thread.getState().messages.length;
-        if (isSwitchingDraft || currentMessagesCount === 0 || saved.messages.length > currentMessagesCount) {
-          currentRuntime.thread.import(saved);
-        }
-      } else {
-        currentRuntime.thread.reset();
-      }
-    } else {
-      currentRuntime.thread.reset();
-    }
-
-    prevDraftIdRef.current = activeDraftId;
-  }, [activeDraftId, activeMessages, runtime]);
-
-  useEffect(() => {
-    if (!prevIsRunningRef.current && isRunning) {
-      runDraftIdRef.current = activeDraftId;
-    }
-
-    if (prevIsRunningRef.current && !isRunning) {
-      const runDraftId = runDraftIdRef.current;
-      if (runDraftId) {
-        saveCurrentChat(runDraftId);
-      }
-      runDraftIdRef.current = null;
-    }
-
-    prevIsRunningRef.current = isRunning;
-  }, [activeDraftId, isRunning]);
-
-  runtimeRef = runtime;
-  return null;
-}
-
-export function ChatProvider({ children }: { children: React.ReactNode }) {
-  const runtime = useChatRuntime();
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <ChatRuntimeManager runtime={runtime} />
-      {children}
+      <ChatRuntimeInner draftId={draftId} initialChatHistory={initialChatHistory} runtime={runtime}>
+        {children}
+      </ChatRuntimeInner>
     </AssistantRuntimeProvider>
   );
-}
+};

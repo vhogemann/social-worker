@@ -5,27 +5,27 @@ import { SourcesPanel } from "./Sources/SourcesPanel";
 import { EditorPanelHeader } from "./EditorPanelHeader";
 import { AdaptVariantsModal } from "./AdaptVariantsModal";
 import { ReplyTargetCard } from "./ReplyTargetCard";
-import { useEditorStore } from "../../store/editorStore";
-import { findDraft, useDraftStore } from "../../store/draftStore";
-import { useChatStore } from "../../store/chatStore";
+import { useComposerDraft } from "../Composer/ComposerDraftContext";
+import { useDraftStore } from "../../store/draftStore";
 
 export const EditorPanel: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [adaptModalOpen, setAdaptModalOpen] = useState(false);
 
-  const doc = useEditorStore((s) => s.doc);
-  const mode = useEditorStore((s) => s.panelMode);
-  const setPanelMode = useEditorStore((s) => s.setPanelMode);
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const drafts = useDraftStore((s) => s.drafts);
-  const publishThread = useDraftStore((s) => s.publishThread);
-  const saveDraftContent = useDraftStore((s) => s.saveDraftContent);
-  const updateThreadContent = useDraftStore((s) => s.updateThreadContent);
+  const {
+    doc,
+    panelMode: mode,
+    setPanelMode,
+    activeDraft,
+    activeDraftId,
+    canonicalDraftId,
+    addActivityCard,
+    publish,
+  } = useComposerDraft();
+
   const loadPlatformCapabilities = useDraftStore((s) => s.loadPlatformCapabilities);
   const supportsReplyTargetForPlatform = useDraftStore((s) => s.supportsReplyTargetForPlatform);
-  const addActivityCard = useChatStore((s) => s.addActivityCard);
 
-  const activeDraft = findDraft(drafts, activeDraftId);
   const isCanonical = Boolean(activeDraft && !activeDraft.canonicalDraftId);
   const primaryThread = activeDraft?.threads?.[0];
   const isSent =
@@ -44,26 +44,13 @@ export const EditorPanel: React.FC = () => {
     if (!activeDraftId) return;
     try {
       setIsPublishing(true);
-      await saveDraftContent(activeDraftId, doc);
+      const result = await publish();
 
-      let threadId = primaryThread?.id;
-      if (!threadId) {
-        const fresh = await useDraftStore.getState().switchDraft(activeDraftId);
-        threadId = fresh.threads?.[0]?.id;
-      }
-
-      if (!threadId) {
-        throw new Error("No platform thread available to publish.");
-      }
-
-      await updateThreadContent(activeDraftId, threadId, doc);
-      const result = await publishThread(activeDraftId, threadId);
-
-      if (result && !result.success && !result.Success) {
-        throw new Error(result.errorMessage || result.ErrorMessage || "Failed to publish thread.");
+      if (result && !result.success && !(result as any).Success) {
+        throw new Error(result.errorMessage || (result as any).ErrorMessage || "Failed to publish thread.");
       }
     } catch (err: any) {
-      addActivityCard(activeDraftId, {
+      addActivityCard({
         title: "publish failed",
         message: err?.message || "Failed to publish",
         kind: "error",
@@ -72,6 +59,8 @@ export const EditorPanel: React.FC = () => {
       setIsPublishing(false);
     }
   };
+
+  const effectiveCanonicalId = activeDraft?.canonicalDraftId || canonicalDraftId || activeDraftId;
 
   return (
     <div className="h-full flex flex-col bg-panel overflow-hidden" data-testid="editor-panel">
@@ -103,7 +92,7 @@ export const EditorPanel: React.FC = () => {
       <AdaptVariantsModal
         isOpen={adaptModalOpen}
         onClose={() => setAdaptModalOpen(false)}
-        draftId={activeDraftId}
+        draftId={effectiveCanonicalId}
       />
     </div>
   );

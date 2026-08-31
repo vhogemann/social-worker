@@ -4,8 +4,55 @@ import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { EditorPanel } from "./EditorPanel";
 import { useDraftStore } from "../../store/draftStore";
-import { useEditorStore } from "../../store/editorStore";
-import { useChatStore } from "../../store/chatStore";
+
+const mockAddActivityCard = vi.fn();
+const mockSetPanelMode = vi.fn();
+const mockPublish = vi.fn();
+
+const mockDraft = {
+  id: "draft-1",
+  title: "Reply draft",
+  status: "Editing",
+  content: "Draft content",
+  targetPlatform: "Bluesky",
+  canonicalDraftId: null,
+  threads: [
+    {
+      id: "thread-1",
+      draftId: "draft-1",
+      platform: "Bluesky",
+      stage: "Draft",
+      content: "Draft content",
+      posts: [],
+    },
+  ],
+  mediaAssets: [],
+  blueskyReplyTarget: {
+    replyRootUri: "at://did:plc:root/app.bsky.feed.post/1",
+    replyRootCid: "root-cid",
+    replyParentUri: "at://did:plc:parent/app.bsky.feed.post/2",
+    replyParentCid: "parent-cid",
+    replyParentUrl: "https://bsky.app/profile/example/post/2",
+    replyParentAuthor: "example.bsky.social",
+    replyParentText: "Parent post preview text.",
+    replyParentAvatarUrl: "https://cdn.bsky.app/avatar.jpg",
+  },
+  createdAt: "2026-07-16T00:00:00Z",
+  updatedAt: "2026-07-16T00:00:00Z",
+};
+
+vi.mock("../Composer/ComposerDraftContext", () => ({
+  useComposerDraft: () => ({
+    doc: "Draft content",
+    panelMode: "edit",
+    setPanelMode: mockSetPanelMode,
+    activeDraft: mockDraft,
+    activeDraftId: "draft-1",
+    canonicalDraftId: "draft-1",
+    addActivityCard: mockAddActivityCard,
+    publish: mockPublish,
+  }),
+}));
 
 vi.mock("./MarkdownEditor", () => ({
   MarkdownEditor: () => <div data-testid="markdown-editor" />,
@@ -25,81 +72,16 @@ vi.mock("./AdaptVariantsModal", () => ({
 
 describe("EditorPanel reply target card", () => {
   beforeEach(() => {
-    useEditorStore.setState({
-      doc: "Draft content",
-      panelMode: "edit",
-      setPanelMode: vi.fn(),
-    });
+    mockAddActivityCard.mockClear();
+    mockSetPanelMode.mockClear();
+    mockPublish.mockReset();
 
     useDraftStore.setState({
       activeDraftId: "draft-1",
       platformCapabilities: [{ platform: "Bluesky", supportsReplyTarget: true }],
-      drafts: [
-        {
-          id: "draft-1",
-          title: "Reply draft",
-          status: "Editing",
-          content: "Draft content",
-          targetPlatform: "Bluesky",
-          canonicalDraftId: null,
-          threads: [
-            {
-              id: "thread-1",
-              draftId: "draft-1",
-              platform: "Bluesky",
-              stage: "Draft",
-              content: "Draft content",
-              posts: [],
-            },
-          ],
-          mediaAssets: [],
-          blueskyReplyTarget: {
-            replyRootUri: "at://did:plc:root/app.bsky.feed.post/1",
-            replyRootCid: "root-cid",
-            replyParentUri: "at://did:plc:parent/app.bsky.feed.post/2",
-            replyParentCid: "parent-cid",
-            replyParentUrl: "https://bsky.app/profile/example/post/2",
-            replyParentAuthor: "example.bsky.social",
-            replyParentText: "Parent post preview text.",
-            replyParentAvatarUrl: "https://cdn.bsky.app/avatar.jpg",
-          },
-          createdAt: "2026-07-16T00:00:00Z",
-          updatedAt: "2026-07-16T00:00:00Z",
-        },
-      ],
-      sources: [],
-      loading: false,
-      loadDrafts: vi.fn(),
-      loadPlatformCapabilities: vi.fn().mockResolvedValue(undefined),
+      drafts: [mockDraft],
       supportsReplyTargetForPlatform: vi.fn().mockReturnValue(true),
-      createDraft: vi.fn(),
-      switchDraft: vi.fn(),
-      updateDraftTitle: vi.fn(),
-      saveDraftContent: vi.fn(),
-      archiveDraft: vi.fn(),
-      unarchiveDraft: vi.fn(),
-      deleteDraft: vi.fn(),
-      setActivePlatform: vi.fn(),
-      createThreadVariant: vi.fn(),
-      updateThreadStage: vi.fn(),
-      updateThreadContent: vi.fn(),
-      publishThread: vi.fn(),
-      loadSources: vi.fn(),
-      uploadFileSource: vi.fn(),
-      uploadMediaAsset: vi.fn(),
-      updateMediaAltText: vi.fn(),
-      deleteMediaAsset: vi.fn(),
-      saveDraftChat: vi.fn(),
-    });
-
-    useChatStore.setState({
-      messagesByDraft: {},
-      activityCardsByDraft: {},
-      saveMessages: vi.fn(),
-      loadMessages: vi.fn().mockReturnValue(null),
-      clearMessages: vi.fn(),
-      addActivityCard: useChatStore.getState().addActivityCard,
-      clearActivityCards: vi.fn(),
+      loadPlatformCapabilities: vi.fn().mockResolvedValue(undefined),
     });
   });
 
@@ -129,8 +111,7 @@ describe("EditorPanel reply target card", () => {
 
   it("adds publish validation failures as chat activity cards instead of alert", async () => {
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const publishThread = vi.fn().mockRejectedValue(new Error("Post exceeds 300 character limit."));
-    useDraftStore.setState({ publishThread });
+    mockPublish.mockRejectedValue(new Error("Post exceeds 300 character limit."));
 
     render(
       <MemoryRouter>
@@ -141,10 +122,11 @@ describe("EditorPanel reply target card", () => {
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     await waitFor(() => {
-      const cards = useChatStore.getState().activityCardsByDraft["draft-1"];
-      expect(cards).toBeDefined();
-      expect(cards[cards.length - 1].title).toBe("publish failed");
-      expect(cards[cards.length - 1].message).toBe("Post exceeds 300 character limit.");
+      expect(mockAddActivityCard).toHaveBeenCalledWith({
+        title: "publish failed",
+        message: "Post exceeds 300 character limit.",
+        kind: "error",
+      });
     });
     expect(alertSpy).not.toHaveBeenCalled();
     alertSpy.mockRestore();

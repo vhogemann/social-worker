@@ -20,7 +20,6 @@ import {
   type MediaAssetDto,
   type PlatformCapabilityDto,
 } from "../api/drafts";
-import { useChatStore } from "./chatStore";
 
 export function findDraft(drafts: DraftDto[], id: string | null | undefined): DraftDto | undefined {
   if (!id) return undefined;
@@ -102,28 +101,6 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   loadDrafts: async () => {
     const drafts = await fetchDrafts();
     set({ drafts });
-    for (const d of drafts) {
-      if (d.chatHistory) {
-        try {
-          const parsed = JSON.parse(d.chatHistory);
-          useChatStore.getState().saveMessages(d.id, parsed);
-        } catch (e) {
-          console.error("Failed to parse chat history for draft", d.id, e);
-        }
-      }
-      if (d.variants) {
-        for (const v of d.variants) {
-          if (v.chatHistory) {
-            try {
-              const parsed = JSON.parse(v.chatHistory);
-              useChatStore.getState().saveMessages(v.id, parsed);
-            } catch (e) {
-              console.error("Failed to parse chat history for variant", v.id, e);
-            }
-          }
-        }
-      }
-    }
   },
 
   loadPlatformCapabilities: async () => {
@@ -166,14 +143,6 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
       activeDraftId: id,
       drafts: updateDraftInTree(s.drafts, draft),
     }));
-    if (draft.chatHistory) {
-      try {
-        const parsed = JSON.parse(draft.chatHistory);
-        useChatStore.getState().saveMessages(id, parsed);
-      } catch (e) {
-        console.error("Failed to parse chat history for draft", id, e);
-      }
-    }
     await get().loadSources(id);
     return draft;
   },

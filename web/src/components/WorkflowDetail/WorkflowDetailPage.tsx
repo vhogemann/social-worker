@@ -19,12 +19,10 @@ import { WorkflowDraftsList } from "./WorkflowDraftsList";
 import { WorkflowFormModal, type WorkflowFormData } from "../WorkflowsPanel/WorkflowFormModal";
 import { AlertBanner } from "../common/AlertBanner";
 import { ConfirmModal } from "../common/ConfirmModal";
-import { useWorkflowStore } from "../../store/workflowStore";
 
 export const WorkflowDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const setActiveWorkflow = useWorkflowStore((s) => s.setActiveWorkflow);
 
   const [workflow, setWorkflow] = useState<AutomationWorkflowDto | null>(null);
   const [drafts, setDrafts] = useState<WorkflowDraftSummaryDto[]>([]);
@@ -49,7 +47,6 @@ export const WorkflowDetailPage: React.FC = () => {
         listAccounts().catch(() => [] as AccountDto[])
       ]);
       setWorkflow(wf);
-      setActiveWorkflow(wf);
       setDrafts(draftList);
       setAvailableFeeds(feedList);
       setConnectedAccounts(accountsList);
@@ -62,7 +59,6 @@ export const WorkflowDetailPage: React.FC = () => {
 
   useEffect(() => {
     void loadData();
-    return () => setActiveWorkflow(null);
   }, [id]);
 
   const handleSaveWorkflow = async (data: WorkflowFormData) => {

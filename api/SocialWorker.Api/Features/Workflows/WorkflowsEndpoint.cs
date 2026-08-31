@@ -239,6 +239,7 @@ public static class WorkflowsEndpoint
 
             var drafts = await db.Drafts
                 .Include(d => d.Threads).ThenInclude(t => t.Account)
+                .Include(d => d.Variants).ThenInclude(v => v.Threads).ThenInclude(t => t.Account)
                 .Where(d => d.AutomationWorkflowId == id
                           && d.CanonicalDraftId == null
                           && d.Status != DraftStatus.Deleted)
@@ -298,10 +299,11 @@ public sealed record CreateAutomationWorkflowRequest(
 public sealed record WorkflowDraftThreadDto(
     string Platform,
     string Stage,
-    string? AccountHandle)
+    string? AccountHandle,
+    Guid? VariantId = null)
 {
-    public WorkflowDraftThreadDto(PlatformThread t)
-        : this(t.Platform, t.Stage.ToString(), t.Account?.Handle)
+    public WorkflowDraftThreadDto(PlatformThread t, Guid? variantId = null)
+        : this(t.Platform, t.Stage.ToString(), t.Account?.Handle, variantId)
     {
     }
 }
@@ -321,9 +323,59 @@ public sealed record WorkflowDraftSummaryDto(
             d.Title,
             d.Status.ToString(),
             d.TargetPlatform?.ToString(),
-            d.Threads?.Select(t => new WorkflowDraftThreadDto(t)).ToList() ?? new List<WorkflowDraftThreadDto>(),
+            BuildThreads(d),
             d.CreatedAt,
             d.UpdatedAt)
     {
+    }
+
+    private static List<WorkflowDraftThreadDto> BuildThreads(Draft d)
+    {
+        var result = new List<WorkflowDraftThreadDto>();
+
+        if (d.Threads != null)
+        {
+            foreach (var t in d.Threads)
+            {
+                result.Add(new WorkflowDraftThreadDto(t, null));
+            }
+        }
+
+        if (d.Variants != null)
+        {
+            foreach (var v in d.Variants.Where(x => x.Status != DraftStatus.Deleted))
+            {
+                if (v.Threads != null && v.Threads.Count > 0)
+                {
+                    foreach (var vt in v.Threads)
+                    {
+                        var existingIndex = result.FindIndex(r => r.Platform == vt.Platform);
+                        if (existingIndex >= 0)
+                        {
+                            result[existingIndex] = new WorkflowDraftThreadDto(vt, v.Id);
+                        }
+                        else
+                        {
+                            result.Add(new WorkflowDraftThreadDto(vt, v.Id));
+                        }
+                    }
+                }
+                else if (v.TargetPlatform.HasValue)
+                {
+                    var pName = v.TargetPlatform.Value.ToString();
+                    var existingIndex = result.FindIndex(r => r.Platform == pName);
+                    if (existingIndex >= 0)
+                    {
+                        result[existingIndex] = result[existingIndex] with { VariantId = v.Id };
+                    }
+                    else
+                    {
+                        result.Add(new WorkflowDraftThreadDto(pName, v.Status.ToString(), null, v.Id));
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 }

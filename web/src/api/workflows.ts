@@ -29,6 +29,7 @@ export interface WorkflowDraftThreadDto {
   platform: string;
   stage: string;
   accountHandle?: string | null;
+  variantId?: string | null;
 }
 
 export interface WorkflowDraftSummaryDto {

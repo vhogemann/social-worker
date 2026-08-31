@@ -1,17 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDraftStore } from "../../store/draftStore";
-import { useEditorStore } from "../../store/editorStore";
-import { saveCurrentChat, restoreChat, clearChat } from "../../api/chat";
 
 export function useDraftListManager() {
   const drafts = useDraftStore((s) => s.drafts);
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
   const loadDrafts = useDraftStore((s) => s.loadDrafts);
   const createDraft = useDraftStore((s) => s.createDraft);
-  const switchDraft = useDraftStore((s) => s.switchDraft);
-  const saveDraftContent = useDraftStore((s) => s.saveDraftContent);
-  const setDoc = useEditorStore((s) => s.setDoc);
 
   const archiveDraft = useDraftStore((s) => s.archiveDraft);
   const unarchiveDraft = useDraftStore((s) => s.unarchiveDraft);
@@ -29,20 +24,12 @@ export function useDraftListManager() {
     loadDrafts();
   }, [loadDrafts]);
 
-  const handleSelect = async (id: string) => {
+  const handleSelect = (id: string) => {
     if (id === activeDraftId) return;
-    if (activeDraftId) {
-      saveCurrentChat(activeDraftId);
-      await saveDraftContent(activeDraftId, useEditorStore.getState().doc);
-    }
     navigate(`/draft/${id}`);
   };
 
   const handleNew = async (title?: string, targetPlatform?: string, targetAccountId?: string) => {
-    if (activeDraftId) {
-      saveCurrentChat(activeDraftId);
-      await saveDraftContent(activeDraftId, useEditorStore.getState().doc);
-    }
     const draft = await createDraft(title, undefined, targetPlatform, targetAccountId);
     navigate(`/draft/${draft.id}`);
   };
@@ -59,8 +46,6 @@ export function useDraftListManager() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this draft?")) return;
-
-    clearChat(id);
 
     if (id === activeDraftId) {
       const remaining = drafts.filter((d) => d.id !== id && d.status !== "Deleted");

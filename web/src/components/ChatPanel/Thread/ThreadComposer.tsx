@@ -5,7 +5,7 @@ import {
   useComposerRuntime,
   useThread,
 } from "@assistant-ui/react";
-import { useDraftStore } from "../../../store/draftStore";
+import { useComposerDraft } from "../../Composer/ComposerDraftContext";
 import { slashAdapter } from "./ThreadSlashCommands";
 import { navigatePromptHistory } from "./ThreadComposerHistory";
 import { CHAT_UI_TEXT } from "../../../config/chatUiText";
@@ -38,11 +38,9 @@ export function ThreadComposer() {
   const messages = useThread((state) => state.messages as ReadonlyArray<ThreadMessageView>);
   const composerText = useComposer((state) => state.text);
   const composerRuntime = useComposerRuntime();
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const drafts = useDraftStore((s) => s.drafts);
-  const activeDraft = drafts.find((d) => d.id === activeDraftId);
+  const { activeDraftId, activeDraft } = useComposerDraft();
   const isLocked = activeDraft?.status === "Sourcing" || activeDraft?.status === "Formatting";
-  const draftHistoryKey = activeDraftId ?? "__no_draft__";
+  const draftHistoryKey = activeDraftId || "__no_draft__";
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissedForText, setDismissedForText] = useState<string | null>(null);

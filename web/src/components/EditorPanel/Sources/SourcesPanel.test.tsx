@@ -3,9 +3,52 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { SourcesPanel } from "./SourcesPanel";
 import { useDraftStore } from "../../../store/draftStore";
-import { useEditorStore } from "../../../store/editorStore";
 import * as draftsApi from "../../../api/drafts";
 import { MemoryRouter } from "react-router-dom";
+
+let mockSources = [
+  {
+    id: "source-1",
+    draftId: "draft-1",
+    kind: "Url",
+    reference: "https://example.com",
+    title: "Example Website",
+    summary: "Short summary",
+    processingStatus: "Complete",
+    youtubeVideoId: null,
+    addedAt: "2026-07-10",
+  },
+];
+
+const mockDraft = {
+  id: "draft-1",
+  title: "Test Draft",
+  content: "Draft content",
+  status: "Draft",
+  targetPlatform: "Bluesky",
+  canonicalDraftId: null,
+  createdAt: "2026-07-10",
+  updatedAt: "2026-07-10",
+  chatHistory: "[]",
+  chatSummary: "",
+  lastSummarizedMessageCount: 0,
+  mediaAssets: [],
+  threads: [],
+};
+
+const mockSetDoc = vi.fn();
+const mockLoadSources = vi.fn().mockImplementation(async () => {});
+
+vi.mock("../../Composer/ComposerDraftContext", () => ({
+  useComposerDraft: () => ({
+    activeDraftId: useDraftStore.getState().activeDraftId,
+    activeDraft: useDraftStore.getState().drafts[0] ?? null,
+    sources: useDraftStore.getState().sources,
+    loadSources: mockLoadSources,
+    doc: "Draft content",
+    setDoc: mockSetDoc,
+  }),
+}));
 
 vi.mock("../../../api/drafts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../api/drafts")>();
@@ -17,7 +60,7 @@ vi.mock("../../../api/drafts", async (importOriginal) => {
     deleteSource: vi.fn(),
     searchSources: vi.fn(),
     linkSourceToDraft: vi.fn(),
-    fetchSources: vi.fn().mockResolvedValue([])
+    fetchSources: vi.fn().mockResolvedValue([]),
   };
 });
 
@@ -27,13 +70,7 @@ describe("SourcesPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    vi.mocked(draftsApi.fetchSourceStatus).mockResolvedValue({
-      sourceId: "source-1",
-      processingStatus: "Complete",
-      summary: "Short summary",
-      youtubeVideoId: null,
-    });
-    vi.mocked(draftsApi.fetchSources).mockResolvedValue([
+    mockSources = [
       {
         id: "source-1",
         draftId: "draft-1",
@@ -45,44 +82,20 @@ describe("SourcesPanel", () => {
         youtubeVideoId: null,
         addedAt: "2026-07-10",
       },
-    ]);
+    ];
+
+    vi.mocked(draftsApi.fetchSourceStatus).mockResolvedValue({
+      sourceId: "source-1",
+      processingStatus: "Complete",
+      summary: "Short summary",
+      youtubeVideoId: null,
+    });
+    vi.mocked(draftsApi.fetchSources).mockResolvedValue(mockSources as any);
     
     useDraftStore.setState({
       activeDraftId: "draft-1",
-      drafts: [
-        {
-          id: "draft-1",
-          title: "Test Draft",
-          content: "Draft content",
-          status: "Draft",
-          targetPlatform: "Bluesky",
-          canonicalDraftId: null,
-          createdAt: "2026-07-10",
-          updatedAt: "2026-07-10",
-          chatHistory: "[]",
-          chatSummary: "",
-          lastSummarizedMessageCount: 0,
-          mediaAssets: [],
-          threads: []
-        }
-      ],
-      sources: [
-        {
-          id: "source-1",
-          draftId: "draft-1",
-          kind: "Url",
-          reference: "https://example.com",
-          title: "Example Website",
-          summary: "Short summary",
-          processingStatus: "Complete",
-          youtubeVideoId: null,
-          addedAt: "2026-07-10"
-        }
-      ]
-    });
-
-    useEditorStore.setState({
-      doc: "Draft content"
+      drafts: [mockDraft as any],
+      sources: mockSources as any,
     });
   });
 

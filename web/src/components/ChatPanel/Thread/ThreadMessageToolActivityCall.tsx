@@ -1,7 +1,5 @@
 import { useEffect } from "react";
-import { useEditorStore } from "../../../store/editorStore";
-import { useChatStore } from "../../../store/chatStore";
-import { useDraftStore } from "../../../store/draftStore";
+import { useComposerDraft } from "../../Composer/ComposerDraftContext";
 import { useMessage } from "@assistant-ui/react";
 
 const TOOL_ACTIVITY_LABELS: Record<string, string> = {
@@ -30,23 +28,20 @@ export function ThreadMessageToolActivityCall({
   name: string;
   args?: unknown;
 }) {
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const addActivityCard = useChatStore((s) => s.addActivityCard);
+  const { activeDraftId, addActivityCard, setPanelMode } = useComposerDraft();
   const messageId = useMessage((m) => m.id as string | undefined);
 
   useEffect(() => {
     if (name === "publish") {
-      useEditorStore.getState().setPanelMode("preview");
+      setPanelMode("preview");
     }
-  }, [name]);
+  }, [name, setPanelMode]);
 
   useEffect(() => {
     if (!activeDraftId || !messageId) {
       return;
     }
 
-    // validate_draft already renders rich, inline validation chips in the message stream.
-    // Skip separate activity card emission to avoid duplicate feedback channels.
     if (name === "validate_draft") {
       return;
     }
@@ -54,7 +49,7 @@ export function ThreadMessageToolActivityCall({
     const label = getToolActivityLabel(name);
     const message = `${label} executed.`;
 
-    addActivityCard(activeDraftId, {
+    addActivityCard({
       sourceKey: `tool:${messageId}:${name}`,
       title: label,
       message,

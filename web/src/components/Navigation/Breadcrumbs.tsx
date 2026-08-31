@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faChevronRight } from "@fortawesome/free-solid-svg-icons";
 import { findDraft, useDraftStore } from "../../store/draftStore";
-import { useWorkflowStore } from "../../store/workflowStore";
 import { useTemplateEditorStore } from "../TemplateStudio/editor/templateEditorStore";
 
 interface BreadcrumbItem {
@@ -26,7 +25,6 @@ export const Breadcrumbs: React.FC = () => {
 
   const drafts = useDraftStore((s) => s.drafts);
   const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const activeWorkflow = useWorkflowStore((s) => s.activeWorkflow);
   const templateName = useTemplateEditorStore((s) => s.name);
 
   const getItems = (): BreadcrumbItem[] => {
@@ -40,7 +38,7 @@ export const Breadcrumbs: React.FC = () => {
       const canonicalDraft = findDraft(drafts, canonicalDraftId) || drafts.find((d) => d.id === canonicalDraftId);
       const variantDraft = findDraft(drafts, variantId) || canonicalDraft?.variants?.find((v) => v.id === variantId);
 
-      const workflowTitle = activeWorkflow?.title || canonicalDraft?.automationWorkflowTitle || "Workflow";
+      const workflowTitle = canonicalDraft?.automationWorkflowTitle || "Workflow";
       const canonicalTitle = canonicalDraft?.title || "Draft";
       const variantTitle =
         variantDraft?.targetPlatform ||
@@ -62,7 +60,7 @@ export const Breadcrumbs: React.FC = () => {
       const draft = draftId
         ? findDraft(drafts, draftId) || (activeDraftId ? findDraft(drafts, activeDraftId) : null)
         : null;
-      const workflowTitle = activeWorkflow?.title || draft?.automationWorkflowTitle || "Workflow";
+      const workflowTitle = draft?.automationWorkflowTitle || "Workflow";
       const draftTitle = draft?.title || "Draft";
 
       return [
@@ -78,7 +76,10 @@ export const Breadcrumbs: React.FC = () => {
     }
 
     if (path.startsWith("/workflows/")) {
-      const title = activeWorkflow?.title || "Detail";
+      const parts = path.split("/");
+      const workflowId = parts[2];
+      const matchingDraft = drafts.find((d) => d.automationWorkflowId === workflowId);
+      const title = matchingDraft?.automationWorkflowTitle || "Workflow";
       return [
         { label: "Workflows", to: "/" },
         { label: title },

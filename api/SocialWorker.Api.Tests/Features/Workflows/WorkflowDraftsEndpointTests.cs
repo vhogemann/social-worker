@@ -114,5 +114,47 @@ public sealed class WorkflowDraftsEndpointTests : SqliteTestBase
         Assert.Equal("Bluesky", dto.Threads[0].Platform);
         Assert.Equal("Sent", dto.Threads[0].Stage);
         Assert.Equal("test.bsky.social", dto.Threads[0].AccountHandle);
+        Assert.Null(dto.Threads[0].VariantId);
+    }
+
+    [Fact]
+    public async Task GetWorkflowDrafts_IncludesPlatformVariantDraftId()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Workflow", "Prompt");
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        var canonicalDraft = Draft.Create(user.Id, "Canonical Draft", "Content", null, workflow.Id);
+        db.Drafts.Add(canonicalDraft);
+        await db.SaveChangesAsync();
+
+        var variantDraft = Draft.Create(user.Id, "Canonical Draft (Bluesky)", "Variant Content", SocialPlatform.Bluesky, workflow.Id);
+        variantDraft.CanonicalDraftId = canonicalDraft.Id;
+        db.Drafts.Add(variantDraft);
+        await db.SaveChangesAsync();
+
+        var variantThread = new PlatformThread
+        {
+            DraftId = variantDraft.Id,
+            Platform = "Bluesky",
+            Stage = PlatformThreadStage.Sent,
+            Content = "Bluesky thread content"
+        };
+        db.PlatformThreads.Add(variantThread);
+        await db.SaveChangesAsync();
+
+        var loaded = await db.Drafts
+            .Include(d => d.Threads).ThenInclude(t => t.Account)
+            .Include(d => d.Variants).ThenInclude(v => v.Threads).ThenInclude(t => t.Account)
+            .FirstAsync(d => d.Id == canonicalDraft.Id);
+
+        var dto = new WorkflowDraftSummaryDto(loaded);
+        Assert.Single(dto.Threads);
+        Assert.Equal("Bluesky", dto.Threads[0].Platform);
+        Assert.Equal("Sent", dto.Threads[0].Stage);
+        Assert.Equal(variantDraft.Id, dto.Threads[0].VariantId);
     }
 }

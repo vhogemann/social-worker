@@ -30,6 +30,19 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
     }
   };
 
+  const handleOpenVariant = (e: React.MouseEvent, draftId: string, variantId?: string | null) => {
+    e.stopPropagation();
+    if (variantId) {
+      if (workflowId) {
+        navigate(`/workflows/${workflowId}/draft/${draftId}/variant/${variantId}`);
+      } else {
+        navigate(`/draft/${draftId}/variant/${variantId}`);
+      }
+    } else {
+      handleOpenDraft(draftId);
+    }
+  };
+
   const handleCreateNewDraft = () => {
     if (workflowId) {
       navigate(`/workflows/${workflowId}/draft`);
@@ -93,17 +106,20 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
                     <Badge variant="neutral">{draft.status}</Badge>
                   ) : (
                     draft.threads.map((thread, idx) => (
-                      <span
+                      <button
+                        type="button"
                         key={idx}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-medium ${
+                        onClick={(e) => handleOpenVariant(e, draft.id, thread.variantId)}
+                        data-testid={`workflow-draft-thread-${thread.platform.toLowerCase()}`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-medium transition cursor-pointer hover:scale-105 ${
                           thread.stage === "Sent"
-                            ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                            : "bg-bg text-foreground border border-border"
+                            ? "bg-green-500/10 text-green-400 border border-green-500/20 hover:border-green-400"
+                            : "bg-bg text-foreground border border-border hover:border-accent"
                         }`}
                       >
                         <span>{thread.platform}</span>
                         <span className="opacity-60">({thread.stage})</span>
-                      </span>
+                      </button>
                     ))
                   )}
                 </div>

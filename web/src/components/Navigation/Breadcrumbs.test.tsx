@@ -4,7 +4,6 @@ import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { useDraftStore } from "../../store/draftStore";
-import { useWorkflowStore } from "../../store/workflowStore";
 import { useTemplateEditorStore } from "../TemplateStudio/editor/templateEditorStore";
 
 describe("Breadcrumbs", () => {
@@ -18,6 +17,8 @@ describe("Breadcrumbs", () => {
           status: "Formatting",
           targetPlatform: null,
           canonicalDraftId: null,
+          automationWorkflowId: "wf-1",
+          automationWorkflowTitle: "Daily Tech Highlights",
           threads: [],
           variants: [
             {
@@ -37,18 +38,6 @@ describe("Breadcrumbs", () => {
         },
       ],
       activeDraftId: "draft-1",
-    });
-
-    useWorkflowStore.setState({
-      activeWorkflow: {
-        id: "wf-1",
-        title: "Daily Tech Highlights",
-        instructionPrompt: "Prompt",
-        sources: [],
-        destinations: [],
-        createdAt: "2026-08-20T10:00:00Z",
-        updatedAt: "2026-08-20T10:00:00Z",
-      },
     });
 
     useTemplateEditorStore.setState({

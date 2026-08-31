@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useComposerDraft } from "../../Composer/ComposerDraftContext";
 import { useDraftStore } from "../../../store/draftStore";
-import { useEditorStore } from "../../../store/editorStore";
 import {
   fetchSourceDetail,
   fetchSourceStatus,
@@ -15,10 +15,15 @@ import {
 } from "../../../api/drafts";
 
 export function useSourcesPanelManager() {
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const drafts = useDraftStore((s) => s.drafts);
-  const sources = useDraftStore((s) => s.sources);
-  const loadSources = useDraftStore((s) => s.loadSources);
+  const {
+    activeDraftId,
+    activeDraft,
+    sources,
+    loadSources,
+    doc,
+    setDoc,
+  } = useComposerDraft();
+
   const uploadFileSource = useDraftStore((s) => s.uploadFileSource);
   const deleteMediaAsset = useDraftStore((s) => s.deleteMediaAsset);
 
@@ -34,26 +39,7 @@ export function useSourcesPanelManager() {
   const [linkingSourceId, setLinkingSourceId] = useState<string | null>(null);
   const [retryingSourceId, setRetryingSourceId] = useState<string | null>(null);
 
-  const activeDraft = useMemo(() => drafts.find((d) => d.id === activeDraftId), [drafts, activeDraftId]);
   const mediaAssets = activeDraft?.mediaAssets || [];
-
-  useEffect(() => {
-    if (activeDraftId) {
-      loadSources(activeDraftId);
-    }
-  }, [activeDraftId, loadSources]);
-
-  const hasFetchingSources = sources.some(s => s.title === "Fetching...");
-
-  useEffect(() => {
-    if (!hasFetchingSources || !activeDraftId) return;
-
-    const interval = setInterval(() => {
-      loadSources(activeDraftId);
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [hasFetchingSources, activeDraftId, loadSources]);
 
   useEffect(() => {
     if (!previewItem || previewItem.kind !== "source" || !activeDraftId) {
@@ -135,7 +121,7 @@ export function useSourcesPanelManager() {
           youtubeVideoId: status.youtubeVideoId,
         };
       });
-      await loadSources(activeDraftId);
+      await loadSources();
     } catch (err) {
       setLibraryError(err instanceof Error ? err.message : "Failed to retry transcription.");
     } finally {
@@ -150,10 +136,10 @@ export function useSourcesPanelManager() {
     setUploading(true);
     try {
       const res = await uploadFileSource(activeDraftId, file);
-      const currentDoc = useEditorStore.getState().doc;
+      const currentDoc = doc;
       const separator = currentDoc ? "\n\n" : "";
       const newDoc = `${currentDoc}${separator}${res.markdownLink}`;
-      useEditorStore.getState().setDoc(newDoc);
+      setDoc(newDoc);
     } catch (err) {
       console.error("Failed to upload file source: ", err);
     } finally {
@@ -162,7 +148,7 @@ export function useSourcesPanelManager() {
   };
 
   const handleDeleteSource = async (source: SourceDto) => {
-    const currentDoc = useEditorStore.getState().doc;
+    const currentDoc = doc;
     let nextDoc = currentDoc;
 
     if (source.kind === "Url") {
@@ -184,12 +170,12 @@ export function useSourcesPanelManager() {
       nextDoc = nextDoc.replace(fileRefRegex, "");
     }
 
-    useEditorStore.getState().setDoc(nextDoc.trim());
+    setDoc(nextDoc.trim());
 
     if (activeDraftId) {
       try {
         await deleteSource(activeDraftId, source.id);
-        loadSources(activeDraftId);
+        await loadSources();
       } catch (err) {
         console.error("Failed to delete source:", err);
       }
@@ -219,10 +205,10 @@ export function useSourcesPanelManager() {
 
   const handleDeleteMedia = async (id: string) => {
     await deleteMediaAsset(id);
-    const currentDoc = useEditorStore.getState().doc;
+    const currentDoc = doc;
     const refRegex = new RegExp(`!\\[[^\\]]*\\]\\(media://${id}\\)`, "g");
     const nextDoc = currentDoc.replace(refRegex, "").trim();
-    useEditorStore.getState().setDoc(nextDoc);
+    setDoc(nextDoc);
   };
 
   const handleSearchLibrary = async () => {
@@ -253,7 +239,7 @@ export function useSourcesPanelManager() {
     setLinkingSourceId(sourceId);
     try {
       await linkSourceToDraft(activeDraftId, sourceId);
-      await loadSources(activeDraftId);
+      await loadSources();
     } catch (err) {
       setLibraryError(err instanceof Error ? err.message : "Failed to link source.");
     } finally {

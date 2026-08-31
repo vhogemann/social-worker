@@ -1,28 +1,22 @@
 import { useEffect, useRef } from "react";
 import { ThreadPrimitive, useThread } from "@assistant-ui/react";
-import { useDraftStore } from "../../../store/draftStore";
-import { useChatStore } from "../../../store/chatStore";
+import { useComposerDraft } from "../../Composer/ComposerDraftContext";
 import { ThreadComposer } from "./ThreadComposer";
 import { ThreadActivityCards } from "./ThreadActivityCards";
 import { ThreadMessage } from "./ThreadMessage";
 
 export function Thread() {
   const isRunning = useThread((state) => state.isRunning);
-  const loadDrafts = useDraftStore((s) => s.loadDrafts);
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const loadSources = useDraftStore((s) => s.loadSources);
-  const activityCards = useChatStore((s) => (activeDraftId ? (s.activityCardsByDraft[activeDraftId] ?? []) : []));
+  const { activityCards, loadSources, refetchDraft } = useComposerDraft();
   const prevRunningRef = useRef(false);
 
   useEffect(() => {
     if (prevRunningRef.current && !isRunning) {
-      loadDrafts();
-      if (activeDraftId) {
-        loadSources(activeDraftId);
-      }
+      void refetchDraft();
+      void loadSources();
     }
     prevRunningRef.current = isRunning;
-  }, [isRunning, loadDrafts, activeDraftId, loadSources]);
+  }, [isRunning, refetchDraft, loadSources]);
 
   return (
     <ThreadPrimitive.Root className="flex flex-col h-full bg-panel" data-testid="chat-panel">

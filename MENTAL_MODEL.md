@@ -48,17 +48,18 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/
 - Drafts Library Page: web/src/components/Drafts/DraftsPage.tsx
 - Full-width 2-pane Composer: web/src/components/Composer/ComposerPage.tsx
+- Scoped Composer Draft Context: web/src/components/Composer/ComposerDraftContext.tsx (local draft, editor doc, autosave, activity cards, scoped sources)
+- Scoped Chat Provider: web/src/api/chat.tsx (scoped assistant-ui runtime seeded from and autosaved to draft.chatHistory)
 - Navigation & Breadcrumbs: web/src/components/Navigation/
 - Template Studio & WYSIWYG Editor: web/src/components/TemplateStudio/
-- Draft state/orchestration: web/src/store/draftStore.ts
-- Chat state and activity cards: web/src/store/chatStore.ts
+- Draft library cache: web/src/store/draftStore.ts
 - API contract clients: web/src/api/
 
 ### Tests
 
-- API unit/integration tests (441 tests): api/SocialWorker.Api.Tests/
+- API unit/integration tests (442 tests): api/SocialWorker.Api.Tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
-- Web tests (Vitest): web/src/**/*.test.ts
+- Web tests (Vitest): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
 
 ## Core user flow mental model

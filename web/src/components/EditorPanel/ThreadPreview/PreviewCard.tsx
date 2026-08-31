@@ -1,7 +1,7 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useComposerDraft } from "../../Composer/ComposerDraftContext";
 import { useDraftStore } from "../../../store/draftStore";
-import { useEditorStore } from "../../../store/editorStore";
-import { saveCurrentChat, restoreChat } from "../../../api/chat";
 import { renderCodeImage } from "../../../api/drafts";
 import { CodeFence } from "./types";
 import { parseSegment, extractCodeFences, extractCodeFenceFromAltText } from "./utils";
@@ -23,15 +23,10 @@ interface PreviewCardProps {
 export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total, isLast, postUrl }) => {
   const [renderingFence, setRenderingFence] = useState<string | null>(null);
   const [creatingReplyDraft, setCreatingReplyDraft] = useState(false);
+  const navigate = useNavigate();
 
-  const drafts = useDraftStore((s) => s.drafts);
-  const activeDraftId = useDraftStore((s) => s.activeDraftId);
-  const activeDraft = drafts.find((d) => d.id === activeDraftId);
-  const saveDraftContent = useDraftStore((s) => s.saveDraftContent);
+  const { activeDraft, activeDraftId, applyExternal, saveContent } = useComposerDraft();
   const createReplyDraftFromBlueskyPostUrl = useDraftStore((s) => s.createReplyDraftFromBlueskyPostUrl);
-  const applyExternal = useEditorStore((s) => s.applyExternal);
-  const setDoc = useEditorStore((s) => s.setDoc);
-  const setPanelMode = useEditorStore((s) => s.setPanelMode);
 
   const { cleanText, images, youtubeUrls, links } = parseSegment(content);
   const hasConflict = images.length > 0 && youtubeUrls.length > 0;
@@ -43,8 +38,8 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total,
     try {
       const result = await renderCodeImage(activeDraftId, fence.code, fence.language);
       const updated = activeDraft.content.replace(fence.raw, result.markdownTag);
-      await saveDraftContent(activeDraftId, updated);
       applyExternal(updated);
+      await saveContent(updated);
     } catch (err) {
       console.error("Failed to render code image:", err);
     } finally {
@@ -67,13 +62,11 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total,
       
       if (updated === activeDraft.content) {
         console.error("Content did not change - img.raw not found in draft content");
-        console.log("img.raw:", JSON.stringify(img.raw));
-        console.log("Draft content around images:", activeDraft.content);
         return;
       }
       
-      await saveDraftContent(activeDraftId, updated);
       applyExternal(updated);
+      await saveContent(updated);
     } catch (err) {
       console.error("Failed to revert code fence:", err);
     }
@@ -87,12 +80,8 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total,
 
     setCreatingReplyDraft(true);
     try {
-      saveCurrentChat(activeDraftId);
-      await saveDraftContent(activeDraftId, useEditorStore.getState().doc);
       const replyDraft = await createReplyDraftFromBlueskyPostUrl(sourceReplyUrl);
-      setDoc(replyDraft.content ?? "");
-      restoreChat(replyDraft.id);
-      setPanelMode("edit");
+      navigate(`/draft/${replyDraft.id}`);
     } catch (err) {
       console.error("Failed to create reply draft:", err);
     } finally {

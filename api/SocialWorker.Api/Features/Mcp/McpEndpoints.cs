@@ -39,7 +39,8 @@ public static class McpEndpoints
             await ctx.Response.StartAsync(ct);
 
             var session = sessionManager.CreateSession(userId.Value);
-            var endpointMessage = $"event: endpoint\ndata: /api/mcp/message?sessionId={session.SessionId}\n\n";
+            var baseUrl = GetBaseUrl(ctx);
+            var endpointMessage = $"event: endpoint\ndata: {baseUrl}/api/mcp/message?sessionId={session.SessionId}\n\n";
             await ctx.Response.Body.WriteAsync(Encoding.UTF8.GetBytes(endpointMessage), ct);
             await ctx.Response.Body.FlushAsync(ct);
 
@@ -64,14 +65,10 @@ public static class McpEndpoints
         // 2. Client Message Endpoint (Standard MCP SSE Transport)
         group.MapPost("/message", async (
             HttpContext ctx,
-            ClaimsPrincipal principal,
             McpSessionManager sessionManager,
             McpServer mcpServer,
             CancellationToken ct) =>
         {
-            var userId = principal.GetUserId();
-            if (userId is null) return Results.Unauthorized();
-
             if (!ctx.Request.Query.TryGetValue("sessionId", out var sessionIdVal) || string.IsNullOrWhiteSpace(sessionIdVal))
             {
                 return Results.BadRequest("Missing 'sessionId' query parameter.");
@@ -96,20 +93,77 @@ public static class McpEndpoints
             }
 
             return Results.Accepted();
-        });
+        }).AllowAnonymous();
 
-        // 3. Direct Stateless JSON-RPC Endpoint (Convenience for CLI/cURL)
-        group.MapPost("/", async (
+        // 3. Fallback POST on /sse (in case client POSTs to SSE URL)
+        group.MapPost("/sse", async (
+            HttpContext ctx,
+            ClaimsPrincipal principal,
+            McpSessionManager sessionManager,
+            McpServer mcpServer,
+            CancellationToken ct) =>
+        {
+            if (ctx.Request.Query.TryGetValue("sessionId", out var sessionIdVal) && !string.IsNullOrWhiteSpace(sessionIdVal))
+            {
+                var session = sessionManager.GetSession(sessionIdVal.ToString());
+                if (session == null)
+                {
+                    return Results.NotFound("Session not found or expired.");
+                }
+
+                var request = await ctx.Request.ReadFromJsonAsync<McpRequest>(cancellationToken: ct);
+                if (request == null) return Results.BadRequest("Invalid JSON-RPC request.");
+
+                var response = await mcpServer.HandleRequestAsync(request, session.UserId, ct);
+                if (response != null)
+                {
+                    await session.OutgoingChannel.Writer.WriteAsync(response, ct);
+                }
+
+                return Results.Accepted();
+            }
+
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var directReq = await ctx.Request.ReadFromJsonAsync<McpRequest>(cancellationToken: ct);
+            if (directReq == null) return Results.BadRequest("Invalid JSON-RPC request.");
+
+            var directRes = await mcpServer.HandleRequestAsync(directReq, userId.Value, ct);
+            return directRes != null ? Results.Ok(directRes) : Results.NoContent();
+        }).AllowAnonymous();
+
+        // 4. Direct Stateless JSON-RPC Endpoint (Convenience for CLI/cURL)
+        async Task<IResult> HandleDirectJsonRpc(
             ClaimsPrincipal principal,
             McpServer mcpServer,
             McpRequest request,
-            CancellationToken ct) =>
+            CancellationToken ct)
         {
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             var response = await mcpServer.HandleRequestAsync(request, userId.Value, ct);
             return response != null ? Results.Ok(response) : Results.NoContent();
-        });
+        }
+
+        group.MapPost("/", HandleDirectJsonRpc);
+    }
+
+    private static string GetBaseUrl(HttpContext ctx)
+    {
+        var scheme = ctx.Request.Headers["X-Forwarded-Proto"].ToString();
+        if (string.IsNullOrWhiteSpace(scheme))
+        {
+            scheme = ctx.Request.Scheme;
+        }
+
+        var host = ctx.Request.Headers["X-Forwarded-Host"].ToString();
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            host = ctx.Request.Host.Value;
+        }
+
+        return $"{scheme}://{host}{ctx.Request.PathBase}";
     }
 }

@@ -1,12 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import React, { useEffect } from "react";
+import React from "react";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { useDraftStore } from "../../store/draftStore";
-import { useEditorStore } from "../../store/editorStore";
+
+const setDoc = vi.fn();
+let mockActiveDraft = {
+  id: "draft-1",
+  title: "Draft",
+  status: "Draft",
+  content: "Initial draft",
+  targetPlatform: "Bluesky",
+  canonicalDraftId: null,
+  threads: [],
+  mediaAssets: [],
+  createdAt: "2026-07-10T00:00:00Z",
+  updatedAt: "2026-07-10T00:00:00Z",
+};
+
+vi.mock("../Composer/ComposerDraftContext", () => ({
+  useComposerDraft: () => ({
+    doc: "Initial draft",
+    version: 1,
+    setDoc,
+    activeDraft: useDraftStore.getState().drafts[0] ?? null,
+    activeDraftId: useDraftStore.getState().activeDraftId,
+  }),
+}));
 
 vi.mock("@uiw/react-codemirror", () => ({
-  default: ({ value, editable, onChange, onCreateEditor }: any) => {
+  default: ({ value, editable, onChange }: any) => {
     return (
       <textarea
         data-testid="codemirror"
@@ -20,37 +43,27 @@ vi.mock("@uiw/react-codemirror", () => ({
 }));
 
 describe("MarkdownEditor", () => {
-  const setDoc = vi.fn();
-  const saveDraftContent = vi.fn().mockResolvedValue(undefined);
   const uploadFileSource = vi.fn().mockResolvedValue({ markdownLink: "[file](file://source-1)" });
   const uploadMediaAsset = vi.fn().mockResolvedValue({ markdownTag: "![image](media://asset-1)" });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    useEditorStore.setState({
-      doc: "Initial draft",
-      version: 1,
-      setDoc,
-      applyExternal: vi.fn(),
-    });
+    mockActiveDraft = {
+      id: "draft-1",
+      title: "Draft",
+      status: "Draft",
+      content: "Initial draft",
+      targetPlatform: "Bluesky",
+      canonicalDraftId: null,
+      threads: [],
+      mediaAssets: [],
+      createdAt: "2026-07-10T00:00:00Z",
+      updatedAt: "2026-07-10T00:00:00Z",
+    };
 
     useDraftStore.setState({
       activeDraftId: "draft-1",
-      drafts: [
-        {
-          id: "draft-1",
-          title: "Draft",
-          status: "Draft",
-          content: "Initial draft",
-          targetPlatform: "Bluesky",
-          canonicalDraftId: null,
-          threads: [],
-          mediaAssets: [],
-          createdAt: "2026-07-10T00:00:00Z",
-          updatedAt: "2026-07-10T00:00:00Z",
-        },
-      ],
-      saveDraftContent,
+      drafts: [mockActiveDraft as any],
       uploadFileSource,
       uploadMediaAsset,
     });

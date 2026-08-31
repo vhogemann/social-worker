@@ -1,4 +1,4 @@
-import type { ChatActivityCard } from "../../../store/chatStore";
+import type { ChatActivityCard } from "../../Composer/ComposerDraftContext";
 
 export function ThreadActivityCards({ cards }: { cards: ChatActivityCard[] }) {
   if (cards.length === 0) {
