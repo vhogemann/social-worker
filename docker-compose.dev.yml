@@ -1,0 +1,63 @@
+# Development Compose Overlay (M1 / Apple Silicon & High-Memory Dev)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Or:    ./scripts/run-dev.sh
+
+services:
+  db:
+    command: >
+      postgres
+      -c shared_buffers=1024MB
+      -c work_mem=64MB
+      -c maintenance_work_mem=256MB
+      -c synchronous_commit=off
+      -c fsync=off
+      -c full_page_writes=off
+      -c max_connections=200
+
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /src/SocialWorker.Api
+    command: ["dotnet", "watch", "--non-interactive", "run", "--no-launch-profile"]
+    environment:
+      DOTNET_USE_POLLING_FILE_WATCHER: "1"
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Development
+    volumes:
+      - ./api:/src
+      - ./uploads:/app/uploads
+      - ./transcripts:/app/transcripts
+      - ./SYSTEM_PROMPT.md:/app/SYSTEM_PROMPT.md:ro
+      - api-dataprotection-keys:/root/.aspnet/DataProtection-Keys
+      - nuget_dev_cache:/root/.nuget/packages
+
+  web:
+    image: node:22-alpine
+    working_dir: /app
+    environment:
+      VITE_API_TARGET: http://api:8080
+      CHOKIDAR_USEPOLLING: "1"
+      WATCHPACK_POLLING: "true"
+    entrypoint: ["sh", "-c"]
+    command: ["if [ ! -d /app/node_modules/vite ]; then npm ci; fi && npm run dev -- --host 0.0.0.0 --port 80"]
+    volumes:
+      - ./web:/app
+      - web_dev_node_modules:/app/node_modules
+
+  image-engine:
+    image: node:22-alpine
+    working_dir: /app
+    entrypoint: ["sh", "-c"]
+    command: ["apk add --no-cache font-noto font-dejavu font-freefont fontconfig >/dev/null 2>&1 && if [ ! -d /app/node_modules/fastify ]; then npm ci; fi && npm run dev"]
+    volumes:
+      - ./image-engine:/app
+      - image_engine_dev_node_modules:/app/node_modules
+
+  transcriber:
+    environment:
+      OMP_NUM_THREADS: 4
+      MKL_NUM_THREADS: 4
+
+volumes:
+  nuget_dev_cache:
+  web_dev_node_modules:
+  image_engine_dev_node_modules:

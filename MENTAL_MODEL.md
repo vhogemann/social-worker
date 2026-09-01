@@ -82,6 +82,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ## Runtime and commands that matter most
 
+- Fast hot-reloading dev stack (Vite HMR + dotnet watch): ./scripts/run-dev.sh
 - Bring up stack: docker compose up --build
 - Bring up stack with GPU: ./scripts/redeploy.sh --gpu
 - Safe refresh of running stack: ./scripts/redeploy.sh

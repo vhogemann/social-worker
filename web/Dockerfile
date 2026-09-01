@@ -1,7 +1,8 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN --mount=type=cache,id=npm,target=/root/.npm \
+    npm ci
 COPY . .
 RUN npm run build
 

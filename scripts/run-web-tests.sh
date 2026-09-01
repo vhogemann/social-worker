@@ -36,5 +36,5 @@ cd "${REPO_ROOT}"
 if [[ $# -eq 0 ]]; then
   docker compose --profile tooling run --rm web-test
 else
-  docker compose --profile tooling run --rm web-test "npm install && npm run test -- $*"
+  docker compose --profile tooling run --rm web-test "if [ ! -d /app/node_modules/vitest ]; then npm ci; fi && npm run test -- $*"
 fi
