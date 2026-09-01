@@ -37,7 +37,7 @@ fi
 
 cd "${REPO_ROOT}"
 
-BASE_CMD="npm install && npm run test -- ThreadMessageTextPart.test.tsx ThreadMessageImageSearchPanel.test.ts ThreadMessageSearchResultsPanel.test.ts"
+BASE_CMD="if [ ! -d /app/node_modules/vitest ]; then npm ci; fi && npm run test -- ThreadMessageTextPart.test.tsx ThreadMessageImageSearchPanel.test.ts ThreadMessageSearchResultsPanel.test.ts"
 
 if [[ $# -gt 0 ]]; then
   docker compose --profile tooling run --rm web-test "${BASE_CMD} $*"

@@ -138,9 +138,10 @@ services:
     image: node:22-alpine
     working_dir: /app
     entrypoint: ["sh", "-c", "if [ $$# -eq 1 ]; then eval \"$$1\"; else exec \"$$@\"; fi", "--"]
-    command: ["npm install && npm run test"]
+    command: ["if [ ! -d /app/node_modules/vitest ]; then npm ci; fi && npm test"]
     volumes:
       - ./web:/app
+      - web-test-node-modules:/app/node_modules
     profiles:
       - tooling
 
@@ -148,9 +149,10 @@ services:
     image: node:22-alpine
     working_dir: /app
     entrypoint: ["sh", "-c", "if [ $$# -eq 1 ]; then eval \"$$1\"; else exec \"$$@\"; fi", "--"]
-    command: ["npm install && npm run test"]
+    command: ["if [ ! -d /app/node_modules/vitest ]; then npm ci; fi && npm test"]
     volumes:
       - ./image-engine:/app
+      - image-engine-test-node-modules:/app/node_modules
     profiles:
       - tooling
 
@@ -162,15 +164,19 @@ services:
     command: ["--info"]
     volumes:
       - ./api:/src
+      - nuget-tooling-cache:/root/.nuget/packages
     profiles:
       - tooling
 
 volumes:
   pgdata:
   api-dataprotection-keys:
+  nuget-tooling-cache:
+  web-test-node-modules:
+  image-engine-test-node-modules:
 
 networks:
   default:
     name: social-worker_default
   web-gateway:
-    external: true
+    name: web-gateway

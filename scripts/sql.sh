@@ -114,7 +114,9 @@ fi
 cd "$REPO_ROOT"
 
 CMD=(docker compose exec -T "$DB_SERVICE" psql -U "$DB_USER" -d "$DB_NAME" -P pager=off)
-CMD+=("${PSQL_ARGS[@]}")
+if [[ ${#PSQL_ARGS[@]} -gt 0 ]]; then
+  CMD+=("${PSQL_ARGS[@]}")
+fi
 
 if [[ -n "$SQL_COMMAND" ]]; then
   CMD+=(-c "$SQL_COMMAND")

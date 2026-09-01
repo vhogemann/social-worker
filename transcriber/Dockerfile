@@ -1,7 +1,6 @@
 FROM python:3.11-slim AS base
 
-ENV PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
@@ -12,7 +11,8 @@ WORKDIR /app
 FROM base AS deps
 
 COPY requirements.txt /app/requirements.txt
-RUN pip install -r /app/requirements.txt
+RUN --mount=type=cache,id=pip,target=/root/.cache/pip \
+    pip install -r /app/requirements.txt
 
 FROM base AS runtime
 
