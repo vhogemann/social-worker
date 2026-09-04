@@ -3,24 +3,17 @@ import { render, screen } from "@testing-library/react";
 import React from "react";
 import { ThreadMessageToolActivityCall, getToolActivityLabel } from "./ThreadMessageToolActivityCall";
 
-const mockAddActivityCard = vi.fn();
 const mockSetPanelMode = vi.fn();
 
 vi.mock("../../Composer/ComposerDraftContext", () => ({
   useComposerDraft: () => ({
     activeDraftId: "d1",
-    addActivityCard: mockAddActivityCard,
     setPanelMode: mockSetPanelMode,
   }),
 }));
 
-vi.mock("@assistant-ui/react", () => ({
-  useMessage: (selector: (m: { id: string }) => unknown) => selector({ id: "m-1" }),
-}));
-
-describe("getToolActivityLabel", () => {
+describe("ThreadMessageToolActivityCall", () => {
   beforeEach(() => {
-    mockAddActivityCard.mockClear();
     mockSetPanelMode.mockClear();
   });
 
@@ -34,29 +27,45 @@ describe("getToolActivityLabel", () => {
     expect(getToolActivityLabel("custom_tool_name")).toBe("custom tool name");
   });
 
-  it("renders compact activity card text", () => {
+  it("renders inline activity pill with tool label", () => {
     render(React.createElement(ThreadMessageToolActivityCall, { name: "validate_draft" }));
-    expect(screen.queryByText("activity: draft validated")).not.toBeInTheDocument();
+    expect(screen.getByTestId("thread-tool-activity")).toBeInTheDocument();
+    expect(screen.getByText("draft validated")).toBeInTheDocument();
+  });
+
+  it("renders search query details from args", () => {
+    render(
+      React.createElement(ThreadMessageToolActivityCall, {
+        name: "web_search",
+        args: { query: "black hole discoveries" },
+      })
+    );
+    expect(screen.getByText("web search")).toBeInTheDocument();
+    expect(screen.getByText('"black hole discoveries"')).toBeInTheDocument();
+  });
+
+  it("renders running indicator when status is running", () => {
+    render(
+      React.createElement(ThreadMessageToolActivityCall, {
+        name: "fetch_source",
+        status: { type: "running" },
+      })
+    );
+    expect(screen.getByText("running...")).toBeInTheDocument();
+  });
+
+  it("renders failure indicator on error status or result error", () => {
+    render(
+      React.createElement(ThreadMessageToolActivityCall, {
+        name: "publish",
+        status: { type: "error" },
+      })
+    );
+    expect(screen.getByText("failed")).toBeInTheDocument();
   });
 
   it("switches editor to preview when publish activity renders", () => {
     render(React.createElement(ThreadMessageToolActivityCall, { name: "publish" }));
     expect(mockSetPanelMode).toHaveBeenCalledWith("preview");
-  });
-
-  it("does not add top-rail activity card for validate_draft", () => {
-    render(React.createElement(ThreadMessageToolActivityCall, { name: "validate_draft" }));
-    expect(mockAddActivityCard).not.toHaveBeenCalled();
-  });
-
-  it("adds a unified activity card for non-validation tool execution", () => {
-    render(React.createElement(ThreadMessageToolActivityCall, { name: "web_search" }));
-    expect(mockAddActivityCard).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "web search",
-        message: "web search executed.",
-        kind: "info",
-      })
-    );
   });
 });

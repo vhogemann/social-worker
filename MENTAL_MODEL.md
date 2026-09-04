@@ -48,7 +48,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/
 - Drafts Library Page: web/src/components/Drafts/DraftsPage.tsx
 - Full-width 2-pane Composer: web/src/components/Composer/ComposerPage.tsx
-- Scoped Composer Draft Context: web/src/components/Composer/ComposerDraftContext.tsx (local draft, editor doc, autosave, activity cards, scoped sources)
+- Scoped Composer Draft Context: web/src/components/Composer/ComposerDraftContext.tsx (local draft, editor doc, autosave, scoped sources)
 - Scoped Chat Provider: web/src/api/chat.tsx (scoped assistant-ui runtime seeded from and autosaved to draft.chatHistory)
 - Navigation & Breadcrumbs: web/src/components/Navigation/
 - Template Studio & WYSIWYG Editor: web/src/components/TemplateStudio/

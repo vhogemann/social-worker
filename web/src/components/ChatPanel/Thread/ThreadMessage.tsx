@@ -4,19 +4,20 @@ import { ThreadMessageReplaceEditorToolCall } from "./ThreadMessageReplaceEditor
 import { ThreadMessageTextPart } from "./ThreadMessageTextPart";
 import { ThreadMessageToolActivityCall } from "./ThreadMessageToolActivityCall";
 
-const WebSearchToolCall = () => <ThreadMessageToolActivityCall name="web_search" />;
-const ImageSearchToolCall = () => <ThreadMessageToolActivityCall name="image_search" />;
-const ListSourcesToolCall = () => <ThreadMessageToolActivityCall name="list_sources" />;
-const FetchSourceToolCall = () => <ThreadMessageToolActivityCall name="fetch_source" />;
-const AddSourceToolCall = () => <ThreadMessageToolActivityCall name="add_source" />;
-const AddImageSourceToolCall = () => <ThreadMessageToolActivityCall name="add_image_source" />;
-const ViewImageToolCall = () => <ThreadMessageToolActivityCall name="view_image" />;
-const ValidateDraftToolCall = () => <ThreadMessageToolActivityCall name="validate_draft" />;
-const RenderCodeBlocksToolCall = () => <ThreadMessageToolActivityCall name="render_code_blocks" />;
-const GeneratePlatformVariantsToolCall = () => <ThreadMessageToolActivityCall name="generate_platform_variants" />;
-const FormatValidatePlatformContentToolCall = () => <ThreadMessageToolActivityCall name="format_validate_platform_content" />;
-const PublishToolCall = () => <ThreadMessageToolActivityCall name="publish" />;
-const SetBlueskyReplyTargetToolCall = () => <ThreadMessageToolActivityCall name="set_bluesky_reply_target" />;
+const WebSearchToolCall = (props: any) => <ThreadMessageToolActivityCall name="web_search" {...props} />;
+const ImageSearchToolCall = (props: any) => <ThreadMessageToolActivityCall name="image_search" {...props} />;
+const ListSourcesToolCall = (props: any) => <ThreadMessageToolActivityCall name="list_sources" {...props} />;
+const FetchSourceToolCall = (props: any) => <ThreadMessageToolActivityCall name="fetch_source" {...props} />;
+const AddSourceToolCall = (props: any) => <ThreadMessageToolActivityCall name="add_source" {...props} />;
+const AddImageSourceToolCall = (props: any) => <ThreadMessageToolActivityCall name="add_image_source" {...props} />;
+const ViewImageToolCall = (props: any) => <ThreadMessageToolActivityCall name="view_image" {...props} />;
+const ValidateDraftToolCall = (props: any) => <ThreadMessageToolActivityCall name="validate_draft" {...props} />;
+const RenderCodeBlocksToolCall = (props: any) => <ThreadMessageToolActivityCall name="render_code_blocks" {...props} />;
+const GeneratePlatformVariantsToolCall = (props: any) => <ThreadMessageToolActivityCall name="generate_platform_variants" {...props} />;
+const FormatValidatePlatformContentToolCall = (props: any) => <ThreadMessageToolActivityCall name="format_validate_platform_content" {...props} />;
+const PublishToolCall = (props: any) => <ThreadMessageToolActivityCall name="publish" {...props} />;
+const SetBlueskyReplyTargetToolCall = (props: any) => <ThreadMessageToolActivityCall name="set_bluesky_reply_target" {...props} />;
+const FallbackToolCall = (props: any) => <ThreadMessageToolActivityCall name={props.toolName ?? "tool"} {...props} />;
 
 export function ThreadMessage() {
   const role = useMessage((m) => m.role);
@@ -46,6 +47,7 @@ export function ThreadMessage() {
               publish: PublishToolCall as never,
               set_bluesky_reply_target: SetBlueskyReplyTargetToolCall as never,
             },
+            Fallback: FallbackToolCall as never,
           },
         }}
       />

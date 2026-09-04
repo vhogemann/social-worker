@@ -11,6 +11,7 @@ import { useDraftStore } from "../../store/draftStore";
 export const EditorPanel: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [adaptModalOpen, setAdaptModalOpen] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const {
     doc,
@@ -19,7 +20,6 @@ export const EditorPanel: React.FC = () => {
     activeDraft,
     activeDraftId,
     canonicalDraftId,
-    addActivityCard,
     publish,
   } = useComposerDraft();
 
@@ -43,6 +43,7 @@ export const EditorPanel: React.FC = () => {
   const handlePublish = async () => {
     if (!activeDraftId) return;
     try {
+      setPublishError(null);
       setIsPublishing(true);
       const result = await publish();
 
@@ -50,11 +51,7 @@ export const EditorPanel: React.FC = () => {
         throw new Error(result.errorMessage || (result as any).ErrorMessage || "Failed to publish thread.");
       }
     } catch (err: any) {
-      addActivityCard({
-        title: "publish failed",
-        message: err?.message || "Failed to publish",
-        kind: "error",
-      });
+      setPublishError(err?.message || "Failed to publish thread.");
     } finally {
       setIsPublishing(false);
     }
@@ -75,6 +72,23 @@ export const EditorPanel: React.FC = () => {
         onOpenAdaptModal={() => setAdaptModalOpen(true)}
         onPublish={handlePublish}
       />
+
+      {publishError && (
+        <div
+          className="mx-3 mt-2 px-3 py-2 text-xs rounded-md bg-red-950/60 border border-red-800 text-red-300 flex items-center justify-between shadow-sm"
+          data-testid="publish-error-banner"
+        >
+          <span>{publishError}</span>
+          <button
+            type="button"
+            onClick={() => setPublishError(null)}
+            className="text-red-400 hover:text-red-200 ml-2 font-mono text-sm leading-none"
+            aria-label="Dismiss publish error"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {activeDraft && canShowReplyTarget && <ReplyTargetCard draft={activeDraft} />}
 

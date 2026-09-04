@@ -19,15 +19,6 @@ import {
 } from "../../api/drafts";
 import { useDraftStore } from "../../store/draftStore";
 
-export interface ChatActivityCard {
-  id: string;
-  sourceKey?: string;
-  title: string;
-  message: string;
-  kind: "error" | "info";
-  createdAt: string;
-}
-
 export interface ComposerDraftContextValue {
   activeDraft: DraftDto | null;
   canonicalDraft: DraftDto | null;
@@ -38,14 +29,11 @@ export interface ComposerDraftContextValue {
   version: number;
   panelMode: "edit" | "preview";
   sources: SourceDto[];
-  activityCards: ChatActivityCard[];
   isLoading: boolean;
   setDoc: (doc: string) => void;
   applyExternal: (doc: string) => void;
   setPanelMode: (mode: "edit" | "preview") => void;
   loadSources: () => Promise<void>;
-  addActivityCard: (card: Omit<ChatActivityCard, "id" | "createdAt">) => void;
-  clearActivityCards: () => void;
   saveContent: (content?: string) => Promise<void>;
   updateStage: (stage: string) => Promise<void>;
   publish: () => Promise<PublishResult>;
@@ -75,7 +63,6 @@ export const ComposerDraftProvider: React.FC<ComposerDraftProviderProps> = ({ ch
   const [version, setVersion] = useState<number>(0);
   const [panelMode, setPanelMode] = useState<"edit" | "preview">("edit");
   const [sources, setSources] = useState<SourceDto[]>([]);
-  const [activityCards, setActivityCards] = useState<ChatActivityCard[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const docRef = useRef(doc);
@@ -198,20 +185,6 @@ export const ComposerDraftProvider: React.FC<ComposerDraftProviderProps> = ({ ch
     }
   }, [activeDraftId]);
 
-  const addActivityCard = useCallback((card: Omit<ChatActivityCard, "id" | "createdAt">) => {
-    setActivityCards((prev) => {
-      if (card.sourceKey && prev.some((item) => item.sourceKey === card.sourceKey)) {
-        return prev;
-      }
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      return [...prev, { ...card, id, createdAt: new Date().toISOString() }];
-    });
-  }, []);
-
-  const clearActivityCards = useCallback(() => {
-    setActivityCards([]);
-  }, []);
-
   const updateStage = useCallback(
     async (stage: string) => {
       if (!activeDraftId || !activeDraft) return;
@@ -264,14 +237,11 @@ export const ComposerDraftProvider: React.FC<ComposerDraftProviderProps> = ({ ch
     version,
     panelMode,
     sources,
-    activityCards,
     isLoading,
     setDoc,
     applyExternal,
     setPanelMode,
     loadSources,
-    addActivityCard,
-    clearActivityCards,
     saveContent,
     updateStage,
     publish,

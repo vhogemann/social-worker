@@ -106,33 +106,6 @@ describe("ComposerDraftContext", () => {
     expect(result.current.doc).toBe("Variant content");
   });
 
-  it("adds and clears activity cards", async () => {
-    const { result } = renderHook(() => useComposerDraft(), {
-      wrapper: wrapper({ initialRoute: "/draft/draft-1", path: "/draft/:draftId" }),
-    });
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    act(() => {
-      result.current.addActivityCard({
-        title: "Test Card",
-        message: "Test message",
-        kind: "info",
-      });
-    });
-
-    expect(result.current.activityCards).toHaveLength(1);
-    expect(result.current.activityCards[0].title).toBe("Test Card");
-
-    act(() => {
-      result.current.clearActivityCards();
-    });
-
-    expect(result.current.activityCards).toHaveLength(0);
-  });
-
   it("updates panel mode and document", async () => {
     const { result } = renderHook(() => useComposerDraft(), {
       wrapper: wrapper({ initialRoute: "/draft/draft-1", path: "/draft/:draftId" }),

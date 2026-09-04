@@ -5,7 +5,6 @@ import { MemoryRouter } from "react-router-dom";
 import { EditorPanel } from "./EditorPanel";
 import { useDraftStore } from "../../store/draftStore";
 
-const mockAddActivityCard = vi.fn();
 const mockSetPanelMode = vi.fn();
 const mockPublish = vi.fn();
 
@@ -49,7 +48,6 @@ vi.mock("../Composer/ComposerDraftContext", () => ({
     activeDraft: mockDraft,
     activeDraftId: "draft-1",
     canonicalDraftId: "draft-1",
-    addActivityCard: mockAddActivityCard,
     publish: mockPublish,
   }),
 }));
@@ -72,7 +70,6 @@ vi.mock("./AdaptVariantsModal", () => ({
 
 describe("EditorPanel reply target card", () => {
   beforeEach(() => {
-    mockAddActivityCard.mockClear();
     mockSetPanelMode.mockClear();
     mockPublish.mockReset();
 
@@ -109,8 +106,7 @@ describe("EditorPanel reply target card", () => {
     expect(link).toHaveAttribute("target", "_blank");
   });
 
-  it("adds publish validation failures as chat activity cards instead of alert", async () => {
-    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+  it("displays publish validation failures in error banner", async () => {
     mockPublish.mockRejectedValue(new Error("Post exceeds 300 character limit."));
 
     render(
@@ -122,13 +118,8 @@ describe("EditorPanel reply target card", () => {
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     await waitFor(() => {
-      expect(mockAddActivityCard).toHaveBeenCalledWith({
-        title: "publish failed",
-        message: "Post exceeds 300 character limit.",
-        kind: "error",
-      });
+      expect(screen.getByTestId("publish-error-banner")).toBeInTheDocument();
+      expect(screen.getByText("Post exceeds 300 character limit.")).toBeInTheDocument();
     });
-    expect(alertSpy).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
   });
 });

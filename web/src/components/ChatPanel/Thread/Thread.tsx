@@ -2,12 +2,11 @@ import { useEffect, useRef } from "react";
 import { ThreadPrimitive, useThread } from "@assistant-ui/react";
 import { useComposerDraft } from "../../Composer/ComposerDraftContext";
 import { ThreadComposer } from "./ThreadComposer";
-import { ThreadActivityCards } from "./ThreadActivityCards";
 import { ThreadMessage } from "./ThreadMessage";
 
 export function Thread() {
   const isRunning = useThread((state) => state.isRunning);
-  const { activityCards, loadSources, refetchDraft } = useComposerDraft();
+  const { loadSources, refetchDraft } = useComposerDraft();
   const prevRunningRef = useRef(false);
 
   useEffect(() => {
@@ -24,7 +23,6 @@ export function Thread() {
         chat
       </div>
       <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto divide-y divide-border">
-        <ThreadActivityCards cards={activityCards} />
         <ThreadPrimitive.Messages components={{ Message: ThreadMessage }} />
       </ThreadPrimitive.Viewport>
       <ThreadComposer />
