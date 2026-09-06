@@ -95,7 +95,7 @@ export interface CreateSlotRuleRequest {
 
 export interface EnqueueItemRequest {
   draftId: string;
-  platformThreadId: string;
+  platformThreadId?: string;
   targetPosition?: number;
 }
 

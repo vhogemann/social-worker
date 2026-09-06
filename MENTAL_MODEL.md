@@ -60,7 +60,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (490 tests): api/SocialWorker.Api.Tests/
+- API unit/integration tests (491 tests): api/SocialWorker.Api.Tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
 - Web tests (Vitest, 413 tests in 86 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
@@ -79,7 +79,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ## Model Context Protocol (MCP) & API Keys
 
 - Endpoint: `/api/mcp` (Stateless JSON-RPC 2.0) and `/api/mcp/sse?api_key=...` (Server-Sent Events continuous stream).
-- Tools (13): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`.
+- Tools (20): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`, `list_schedules`, `get_schedule`, `create_schedule`, `add_slot_rule`, `enqueue_draft`, `get_schedule_queue`, `get_calendar_events`.
 - Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`.
 - Auth: `ApiKeyAuthenticationHandler` validates SHA-256 hashed keys (`sw_live_...`) routed through ASP.NET Core `PolicyScheme` ("Composite"). Dev key `sw_live_dev_admin_key_000000000000` seeded in development.
 

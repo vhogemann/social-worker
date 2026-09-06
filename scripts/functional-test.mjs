@@ -633,6 +633,257 @@ async function runFeedsScenario() {
 }
 
 // ---------------------------------------------------------------------------
+// Scenario: Schedules & Calendar
+// ---------------------------------------------------------------------------
+async function runSchedulesScenario() {
+  const tracker = new StepTracker("schedules");
+  let token = null;
+  let scheduleId = null;
+  let slotRuleId = null;
+  let draftId = null;
+  let queueItemId = null;
+
+  try {
+    await tracker.runStep("Authenticate as User", async () => {
+      token = await loginSocialWorker();
+      return { detail: `Authenticated as ${CONFIG.swUser}` };
+    });
+
+    await tracker.runStep("Create Test Schedule", async () => {
+      const res = await apiRequest(
+        "/api/schedules",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: `${CONFIG.tag} Functional Schedule ${Date.now()}`,
+            timezone: "UTC",
+          }),
+        },
+        token
+      );
+
+      if (!res.ok || !res.body?.id) {
+        throw new Error(`Failed to create schedule (${res.status}): ${JSON.stringify(res.body)}`);
+      }
+      scheduleId = res.body.id;
+      return { scheduleId, detail: `Created schedule "${res.body.name}" with ID ${scheduleId}` };
+    });
+
+    await tracker.runStep("Add Slot Rule to Schedule", async () => {
+      const res = await apiRequest(
+        `/api/schedules/${scheduleId}/slots`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            recurrenceType: 0, // Daily
+            startTime: "09:00:00",
+            endTime: "10:00:00",
+            postCapacity: 2,
+            daysOfWeek: [1, 2, 3, 4, 5],
+          }),
+        },
+        token
+      );
+
+      if (!res.ok || !res.body?.id) {
+        throw new Error(`Failed to create slot rule (${res.status}): ${JSON.stringify(res.body)}`);
+      }
+      slotRuleId = res.body.id;
+      return { slotRuleId, detail: `Created Daily slot rule 09:00-10:00 (capacity 2)` };
+    });
+
+    await tracker.runStep("Create and Enqueue Draft", async () => {
+      const draftRes = await apiRequest(
+        "/api/drafts",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: `${CONFIG.tag} Scheduled Draft ${Date.now()}`,
+            content: "Scheduled post segment 1.\n\n---\n\nScheduled post segment 2.",
+            targetPlatform: "Bluesky",
+          }),
+        },
+        token
+      );
+      if (!draftRes.ok || !draftRes.body?.id) {
+        throw new Error(`Failed to create draft for queue (${draftRes.status}): ${JSON.stringify(draftRes.body)}`);
+      }
+      draftId = draftRes.body.id;
+      const platformThreadId = draftRes.body.threads?.[0]?.id;
+
+      const queueRes = await apiRequest(
+        `/api/schedules/${scheduleId}/queue`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            draftId,
+            platformThreadId,
+          }),
+        },
+        token
+      );
+      if (!queueRes.ok || !queueRes.body?.id) {
+        throw new Error(`Failed to enqueue draft (${queueRes.status}): ${JSON.stringify(queueRes.body)}`);
+      }
+      queueItemId = queueRes.body.id;
+      return { draftId, queueItemId, detail: `Draft ${draftId} enqueued as item ${queueItemId}` };
+    });
+
+    await tracker.runStep("List Schedule Queue", async () => {
+      const res = await apiRequest(`/api/schedules/${scheduleId}/queue`, {}, token);
+      if (!res.ok || !Array.isArray(res.body)) {
+        throw new Error(`Failed to list queue (${res.status}): ${JSON.stringify(res.body)}`);
+      }
+      const item = res.body.find((q) => q.id === queueItemId);
+      if (!item) {
+        throw new Error(`Enqueued item ${queueItemId} not found in schedule queue`);
+      }
+      return { queueCount: res.body.length, detail: `Queue contains ${res.body.length} item(s)` };
+    });
+
+    await tracker.runStep("Pause and Resume Queue Item", async () => {
+      const pauseRes = await apiRequest(
+        `/api/schedules/${scheduleId}/queue/${queueItemId}/pause`,
+        {
+          method: "POST",
+          body: JSON.stringify({ isPaused: true }),
+        },
+        token
+      );
+      if (!pauseRes.ok || (pauseRes.body?.status !== 4 && pauseRes.body?.status !== "Paused")) {
+        throw new Error(`Failed to pause queue item (${pauseRes.status})`);
+      }
+
+      const resumeRes = await apiRequest(
+        `/api/schedules/${scheduleId}/queue/${queueItemId}/pause`,
+        {
+          method: "POST",
+          body: JSON.stringify({ isPaused: false }),
+        },
+        token
+      );
+      if (!resumeRes.ok || resumeRes.body?.status === 4 || resumeRes.body?.status === "Paused") {
+        throw new Error(`Failed to resume queue item: still paused (${resumeRes.status}, status=${resumeRes.body?.status})`);
+      }
+      return { detail: `Queue item successfully paused and resumed (status: ${resumeRes.body?.status})` };
+    });
+
+    await tracker.runStep("Query Calendar Projection", async () => {
+      const now = new Date();
+      const start = new Date(now.getTime() - 86400000).toISOString();
+      const end = new Date(now.getTime() + 7 * 86400000).toISOString();
+      const res = await apiRequest(
+        `/api/calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&scheduleId=${scheduleId}`,
+        {},
+        token
+      );
+      if (!res.ok || !Array.isArray(res.body)) {
+        throw new Error(`Failed to query calendar projection (${res.status}): ${JSON.stringify(res.body)}`);
+      }
+      return {
+        eventCount: res.body.length,
+        detail: `Calendar projection returned ${res.body.length} projected slot event(s) across window`,
+      };
+    });
+
+    await tracker.runStep("Verify MCP Tools for Scheduling", async () => {
+      const toolsRes = await apiRequest(
+        "/api/mcp",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: "test-mcp-tools-list",
+            method: "tools/list",
+          }),
+        },
+        token
+      );
+
+      if (!toolsRes.ok || !toolsRes.body?.result?.tools) {
+        throw new Error(`Failed to list MCP tools: ${JSON.stringify(toolsRes.body)}`);
+      }
+
+      const toolNames = toolsRes.body.result.tools.map((t) => t.name);
+      const expectedMcpTools = [
+        "list_schedules",
+        "get_schedule",
+        "create_schedule",
+        "add_slot_rule",
+        "enqueue_draft",
+        "get_schedule_queue",
+        "get_calendar_events",
+      ];
+      for (const name of expectedMcpTools) {
+        if (!toolNames.includes(name)) {
+          throw new Error(`Missing expected MCP scheduling tool: ${name}`);
+        }
+      }
+
+      // Test calling list_schedules via MCP tools/call
+      const callRes = await apiRequest(
+        "/api/mcp",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: "test-mcp-tools-call",
+            method: "tools/call",
+            params: {
+              name: "list_schedules",
+              arguments: { activeOnly: true },
+            },
+          }),
+        },
+        token
+      );
+
+      if (!callRes.ok || !callRes.body?.result?.content?.[0]?.text) {
+        throw new Error(`MCP tool call failed: ${JSON.stringify(callRes.body)}`);
+      }
+
+      return {
+        mcpToolsCount: expectedMcpTools.length,
+        detail: `Verified 7 MCP scheduling tools: ${expectedMcpTools.join(", ")}`,
+      };
+    });
+
+    await tracker.runStep("Query Review Outbox", async () => {
+      const res = await apiRequest("/api/outbox", {}, token);
+      if (!res.ok || !Array.isArray(res.body)) {
+        throw new Error(`Failed to query outbox (${res.status}): ${JSON.stringify(res.body)}`);
+      }
+      return {
+        outboxCount: res.body.length,
+        detail: `Review Outbox returned ${res.body.length} pending draft(s)`,
+      };
+    });
+
+    await tracker.runStep("Cleanup Test Schedule and Draft", async () => {
+      if (scheduleId) {
+        await apiRequest(`/api/schedules/${scheduleId}`, { method: "DELETE" }, token).catch(() => null);
+        scheduleId = null;
+      }
+      if (draftId) {
+        await apiRequest(`/api/drafts/${draftId}`, { method: "PATCH", body: JSON.stringify({ status: "Deleted" }) }, token).catch(() => null);
+        draftId = null;
+      }
+      return { detail: "Cleaned up test schedule and draft" };
+    });
+  } catch (err) {
+    if (scheduleId && token) {
+      await apiRequest(`/api/schedules/${scheduleId}`, { method: "DELETE" }, token).catch(() => null);
+    }
+    if (draftId && token) {
+      await apiRequest(`/api/drafts/${draftId}`, { method: "PATCH", body: JSON.stringify({ status: "Deleted" }) }, token).catch(() => null);
+    }
+    throw err;
+  }
+
+  return tracker.toResult();
+}
+
+// ---------------------------------------------------------------------------
 // Scenario: Stress (Full Stack Exhaustive Verification)
 // ---------------------------------------------------------------------------
 async function runStressScenario() {
@@ -1022,17 +1273,19 @@ async function runFullScenario() {
   const health = await runHealthScenario();
   const drafts = await runDraftScenario();
   const feeds = await runFeedsScenario();
+  const schedules = await runSchedulesScenario();
 
   let publish = null;
   if (CONFIG.bskyHandle && CONFIG.bskyAppPassword) {
     publish = await runPublishScenario();
   }
 
-  const allPassed = health.passed && drafts.passed && feeds.passed && (!publish || publish.passed);
+  const allPassed = health.passed && drafts.passed && feeds.passed && schedules.passed && (!publish || publish.passed);
   const combinedSteps = [
     ...health.steps.map((s) => ({ ...s, name: `[health] ${s.name}` })),
     ...drafts.steps.map((s) => ({ ...s, name: `[drafts] ${s.name}` })),
     ...feeds.steps.map((s) => ({ ...s, name: `[feeds] ${s.name}` })),
+    ...schedules.steps.map((s) => ({ ...s, name: `[schedules] ${s.name}` })),
     ...(publish ? publish.steps.map((s) => ({ ...s, name: `[publish] ${s.name}` })) : []),
   ];
 
@@ -1040,7 +1293,7 @@ async function runFullScenario() {
     scenario: "full",
     timestamp: new Date().toISOString(),
     passed: allPassed,
-    durationMs: health.durationMs + drafts.durationMs + feeds.durationMs + (publish?.durationMs || 0),
+    durationMs: health.durationMs + drafts.durationMs + feeds.durationMs + schedules.durationMs + (publish?.durationMs || 0),
     steps: combinedSteps,
     summary: allPassed
       ? `Full functional suite passed (${combinedSteps.length} steps).`
@@ -1070,6 +1323,11 @@ async function main() {
       case "feeds":
         result = await runFeedsScenario();
         break;
+      case "schedules":
+      case "schedule":
+      case "calendar":
+        result = await runSchedulesScenario();
+        break;
       case "stress":
         result = await runStressScenario();
         break;
@@ -1077,7 +1335,7 @@ async function main() {
         result = await runFullScenario();
         break;
       default:
-        console.error(`Unknown scenario '${scenario}'. Available: health, draft, publish, feeds, stress, full`);
+        console.error(`Unknown scenario '${scenario}'. Available: health, draft, publish, feeds, schedules, stress, full`);
         process.exit(2);
     }
   } catch (err) {

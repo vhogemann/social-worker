@@ -17,7 +17,9 @@ using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
 using SocialWorker.Api.Features.Publishing.Validation;
+using SocialWorker.Api.Features.Scheduling.Services;
 using SocialWorker.Api.Features.Sources;
+using SocialWorker.Api.Tests.Infrastructure;
 using Xunit;
 
 namespace SocialWorker.Api.Tests.Features.Mcp;
@@ -31,7 +33,8 @@ public sealed class McpServerTests : SqliteTestBase
         var sourcesService = TestServiceFactory.CreateSourcesService(db);
         var storage = new FileStorageProvider(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
         var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService);
-        var feedPollingService = new FeedPollingService(db, new TestBackgroundTaskQueue(), NullLogger<FeedPollingService>.Instance);
+        var taskQueue = new TestBackgroundTaskQueue();
+        var feedPollingService = new FeedPollingService(db, taskQueue, NullLogger<FeedPollingService>.Instance);
         var publisherResolver = new MockPublisherResolver();
         var blueskyContentValidator = new BlueskyContentValidator();
         var replyResolver = new MockBlueskyReplyTargetResolver();
@@ -48,6 +51,10 @@ public sealed class McpServerTests : SqliteTestBase
             new SocialWorker.Api.Features.Publishing.LinkedIn.LinkedInDraftValidator(),
             new PlatformContentPolicy());
 
+        var queueService = new ScheduleQueueService(db, taskQueue);
+        var evaluatorService = new ScheduleSlotEvaluatorService(db, taskQueue);
+        var calendarService = new CalendarProjectionService(db);
+
         var toolRegistry = new McpToolRegistry(
             db,
             draftsService,
@@ -56,7 +63,10 @@ public sealed class McpServerTests : SqliteTestBase
             publisherResolver,
             validatorResolver,
             blueskyContentValidator,
-            replyResolver);
+            replyResolver,
+            queueService,
+            evaluatorService,
+            calendarService);
 
         var resourceRegistry = new McpResourceRegistry(db, draftsService);
         var server = new McpServer(toolRegistry, resourceRegistry);
@@ -100,6 +110,117 @@ public sealed class McpServerTests : SqliteTestBase
         Assert.Contains("add_source", json);
         Assert.Contains("list_workflows", json);
         Assert.Contains("list_feeds", json);
+        Assert.Contains("list_schedules", json);
+        Assert.Contains("get_schedule", json);
+        Assert.Contains("create_schedule", json);
+        Assert.Contains("add_slot_rule", json);
+        Assert.Contains("enqueue_draft", json);
+        Assert.Contains("get_schedule_queue", json);
+        Assert.Contains("get_calendar_events", json);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_ScheduleTools_Create_AddSlot_Enqueue_GetQueue_Succeeds()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        // 1. create_schedule
+        var createScheduleParams = JsonDocument.Parse("""
+        {
+            "name": "create_schedule",
+            "arguments": {
+                "name": "Tech Beat",
+                "timezone": "UTC"
+            }
+        }
+        """).RootElement;
+
+        var createScheduleReq = new McpRequest("2.0", 30, "tools/call", createScheduleParams);
+        var createScheduleResp = await server.HandleRequestAsync(createScheduleReq, user.Id, CancellationToken.None);
+        Assert.NotNull(createScheduleResp);
+        var createResult = Assert.IsType<McpToolCallResult>(createScheduleResp.Result);
+        Assert.False(createResult.IsError);
+        var scheduleDoc = JsonDocument.Parse(createResult.Content[0].Text!);
+        var scheduleId = scheduleDoc.RootElement.GetProperty("id").GetString()!;
+
+        // 2. add_slot_rule
+        var addSlotParams = JsonDocument.Parse($$"""
+        {
+            "name": "add_slot_rule",
+            "arguments": {
+                "scheduleId": "{{scheduleId}}",
+                "recurrenceType": "Daily",
+                "startTime": "09:00:00",
+                "endTime": "10:00:00",
+                "postCapacity": 2,
+                "daysOfWeek": [1, 2, 3, 4, 5]
+            }
+        }
+        """).RootElement;
+
+        var addSlotReq = new McpRequest("2.0", 31, "tools/call", addSlotParams);
+        var addSlotResp = await server.HandleRequestAsync(addSlotReq, user.Id, CancellationToken.None);
+        Assert.NotNull(addSlotResp);
+        var slotResult = Assert.IsType<McpToolCallResult>(addSlotResp.Result);
+        Assert.False(slotResult.IsError);
+
+        // 3. create a draft to enqueue
+        var draft = Draft.Create(user.Id, "MCP Test Draft", "Content");
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        // 4. enqueue_draft
+        var enqueueParams = JsonDocument.Parse($$"""
+        {
+            "name": "enqueue_draft",
+            "arguments": {
+                "scheduleId": "{{scheduleId}}",
+                "draftId": "{{draft.Id}}"
+            }
+        }
+        """).RootElement;
+
+        var enqueueReq = new McpRequest("2.0", 32, "tools/call", enqueueParams);
+        var enqueueResp = await server.HandleRequestAsync(enqueueReq, user.Id, CancellationToken.None);
+        Assert.NotNull(enqueueResp);
+        var enqueueResult = Assert.IsType<McpToolCallResult>(enqueueResp.Result);
+        Assert.False(enqueueResult.IsError);
+
+        // 5. get_schedule_queue
+        var getQueueParams = JsonDocument.Parse($$"""
+        {
+            "name": "get_schedule_queue",
+            "arguments": {
+                "scheduleId": "{{scheduleId}}"
+            }
+        }
+        """).RootElement;
+
+        var getQueueReq = new McpRequest("2.0", 33, "tools/call", getQueueParams);
+        var getQueueResp = await server.HandleRequestAsync(getQueueReq, user.Id, CancellationToken.None);
+        Assert.NotNull(getQueueResp);
+        var queueResult = Assert.IsType<McpToolCallResult>(getQueueResp.Result);
+        Assert.False(queueResult.IsError);
+        Assert.Contains(draft.Id.ToString(), queueResult.Content[0].Text!);
+
+        // 6. get_calendar_events
+        var calendarParams = JsonDocument.Parse($$"""
+        {
+            "name": "get_calendar_events",
+            "arguments": {
+                "start": "2026-09-01T00:00:00Z",
+                "end": "2026-09-07T23:59:59Z",
+                "scheduleId": "{{scheduleId}}"
+            }
+        }
+        """).RootElement;
+
+        var calendarReq = new McpRequest("2.0", 34, "tools/call", calendarParams);
+        var calendarResp = await server.HandleRequestAsync(calendarReq, user.Id, CancellationToken.None);
+        Assert.NotNull(calendarResp);
+        var calendarResult = Assert.IsType<McpToolCallResult>(calendarResp.Result);
+        Assert.False(calendarResult.IsError);
+        Assert.Contains("Tech Beat", calendarResult.Content[0].Text!);
     }
 
     [Fact]

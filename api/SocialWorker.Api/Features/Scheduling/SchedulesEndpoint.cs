@@ -241,9 +241,31 @@ public static class SchedulesEndpoint
             var exists = await db.Schedules.AnyAsync(s => s.Id == id && s.UserId == userId.Value, ct);
             if (!exists) return Results.NotFound();
 
+            Guid resolvedThreadId;
+            if (request.PlatformThreadId.HasValue && request.PlatformThreadId.Value != Guid.Empty)
+            {
+                resolvedThreadId = request.PlatformThreadId.Value;
+            }
+            else
+            {
+                var draft = await db.Drafts
+                    .Include(d => d.Threads)
+                    .FirstOrDefaultAsync(d => d.Id == request.DraftId && d.UserId == userId.Value, ct);
+                if (draft == null)
+                {
+                    return Results.BadRequest($"Draft with ID '{request.DraftId}' was not found.");
+                }
+                var thread = draft.Threads.FirstOrDefault();
+                if (thread == null)
+                {
+                    return Results.BadRequest($"No platform thread found for draft '{request.DraftId}'.");
+                }
+                resolvedThreadId = thread.Id;
+            }
+
             try
             {
-                var item = await queueService.EnqueueAsync(id, request.PlatformThreadId, request.DraftId, request.TargetPosition, ct);
+                var item = await queueService.EnqueueAsync(id, resolvedThreadId, request.DraftId, request.TargetPosition, ct);
                 await evaluator.EvaluateScheduleAsync(id, ct: ct);
                 return Results.Created($"/api/schedules/{id}/queue/{item.Id}", new ScheduleQueueItemDto(item));
             }
@@ -326,7 +348,7 @@ public static class SchedulesEndpoint
         // 14. Calendar projection feed
         app.MapGet("/api/calendar", async (
             ClaimsPrincipal principal,
-            AppDbContext db,
+            ICalendarProjectionService calendarService,
             DateTime? start,
             DateTime? end,
             Guid? scheduleId,
@@ -341,109 +363,8 @@ public static class SchedulesEndpoint
             if (toUtc <= fromUtc)
                 return Results.BadRequest("End date must be greater than start date.");
 
-            // 1. Fetch relevant user schedules
-            var schedulesQuery = db.Schedules
-                .Where(s => s.UserId == userId.Value && s.IsActive)
-                .Include(s => s.SlotRules)
-                .AsQueryable();
-
-            if (scheduleId.HasValue)
-            {
-                schedulesQuery = schedulesQuery.Where(s => s.Id == scheduleId.Value);
-            }
-
-            var schedules = await schedulesQuery.ToListAsync(ct);
-            var events = new List<CalendarEventDto>();
-
-            // 2. Fetch assigned queue items in range
-            var queueItemsQuery = db.ScheduleQueueItems
-                .Where(q => q.Schedule.UserId == userId.Value && q.AssignedSlotUtc.HasValue && q.AssignedSlotUtc >= fromUtc && q.AssignedSlotUtc < toUtc)
-                .Include(q => q.Schedule)
-                .Include(q => q.Draft)
-                .Include(q => q.PlatformThread)
-                .AsQueryable();
-
-            if (scheduleId.HasValue)
-            {
-                queueItemsQuery = queueItemsQuery.Where(q => q.ScheduleId == scheduleId.Value);
-            }
-
-            var assignedQueueItems = await queueItemsQuery.ToListAsync(ct);
-            var assignedMap = assignedQueueItems
-                .Where(q => q.AssignedSlotUtc.HasValue)
-                .ToDictionary(q => (q.ScheduleId, q.AssignedSlotUtc!.Value));
-
-            // 3. Project slot occurrences and mark filled vs open
-            foreach (var schedule in schedules)
-            {
-                var tz = SlotWindowCalculator.ResolveTimeZone(schedule.Timezone);
-                var subSlots = SlotWindowCalculator.CalculateSubSlots(schedule.SlotRules, tz, fromUtc, toUtc);
-
-                foreach (var slot in subSlots)
-                {
-                    if (assignedMap.TryGetValue((schedule.Id, slot.SubSlotUtc), out var item))
-                    {
-                        events.Add(new CalendarEventDto(
-                            Id: item.Id.ToString(),
-                            Type: CalendarEventType.ScheduledPost,
-                            TimestampUtc: slot.SubSlotUtc,
-                            ScheduleId: schedule.Id,
-                            ScheduleName: schedule.Name,
-                            DraftId: item.DraftId,
-                            Title: item.Draft?.Title ?? "Scheduled Post",
-                            PlatformThreadId: item.PlatformThreadId,
-                            Platform: item.PlatformThread?.Platform,
-                            RemoteUrl: null,
-                            SubSlotIndex: slot.SubSlotIndex,
-                            TotalCapacity: slot.TotalCapacity
-                        ));
-                    }
-                    else
-                    {
-                        events.Add(new CalendarEventDto(
-                            Id: $"slot_{slot.SlotRuleId}_{slot.SubSlotUtc:yyyyMMddHHmmss}_{slot.SubSlotIndex}",
-                            Type: CalendarEventType.OpenSlot,
-                            TimestampUtc: slot.SubSlotUtc,
-                            ScheduleId: schedule.Id,
-                            ScheduleName: schedule.Name,
-                            DraftId: null,
-                            Title: null,
-                            PlatformThreadId: null,
-                            Platform: null,
-                            RemoteUrl: null,
-                            SubSlotIndex: slot.SubSlotIndex,
-                            TotalCapacity: slot.TotalCapacity
-                        ));
-                    }
-                }
-            }
-
-            // 4. Fetch published posts in range
-            var posts = await db.Posts
-                .Where(p => p.Draft.UserId == userId.Value && p.PostedAt >= fromUtc && p.PostedAt < toUtc)
-                .Include(p => p.Draft)
-                .Include(p => p.PlatformThread)
-                .ToListAsync(ct);
-
-            foreach (var post in posts)
-            {
-                events.Add(new CalendarEventDto(
-                    Id: post.Id.ToString(),
-                    Type: CalendarEventType.PublishedPost,
-                    TimestampUtc: post.PostedAt,
-                    ScheduleId: null,
-                    ScheduleName: null,
-                    DraftId: post.DraftId,
-                    Title: post.Draft?.Title ?? "Published Post",
-                    PlatformThreadId: post.PlatformThreadId,
-                    Platform: post.Platform,
-                    RemoteUrl: post.Url,
-                    SubSlotIndex: post.SegmentIndex,
-                    TotalCapacity: null
-                ));
-            }
-
-            return Results.Ok(events.OrderBy(e => e.TimestampUtc).ToList());
+            var events = await calendarService.GetCalendarEventsAsync(userId.Value, fromUtc, toUtc, scheduleId, ct);
+            return Results.Ok(events);
         }).RequireAuthorization();
     }
 }

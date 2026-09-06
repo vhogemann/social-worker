@@ -25,6 +25,7 @@ static partial class ServiceCollectionExtensions
 
         builder.Services.AddScoped<IScheduleQueueService, ScheduleQueueService>();
         builder.Services.AddScoped<ScheduleSlotEvaluatorService>();
+        builder.Services.AddScoped<ICalendarProjectionService, CalendarProjectionService>();
 
         var resolver = new TaskHandlerResolver();
         resolver.Register<SourceTranscriptionTaskHandler>("source-transcription", TimeSpan.FromMinutes(15));

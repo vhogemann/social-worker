@@ -135,7 +135,7 @@ public sealed record CreateSlotRuleRequest(
 
 public sealed record EnqueueItemRequest(
     Guid DraftId,
-    Guid PlatformThreadId,
+    Guid? PlatformThreadId = null,
     int? TargetPosition = null
 );
 
