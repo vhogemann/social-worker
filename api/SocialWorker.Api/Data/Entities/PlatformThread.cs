@@ -13,6 +13,7 @@ public class PlatformThread
     public Account? Account { get; set; }
     public PlatformThreadStage Stage { get; set; } = PlatformThreadStage.Draft;
     public string? Content { get; set; }
+    public ICollection<ScheduleQueueItem> ScheduleQueueItems { get; set; } = new List<ScheduleQueueItem>();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

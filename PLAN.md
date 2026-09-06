@@ -78,7 +78,9 @@ These should remain first-class and be kept current:
 | [planning/COMPETITIVE_BENCHMARK.md](planning/COMPETITIVE_BENCHMARK.md) | Competitive benchmark analysis vs. Postiz, Mixpost, Typefully, Taplio, and Buffer/Hootsuite |
 | [planning/OPERATING_COST_ESTIMATE.md](planning/OPERATING_COST_ESTIMATE.md) | 1-year operational cost estimate and margin breakdown for independent launch (3-4 clients) |
 | [planning/COMMERCIAL_EVALUATION.md](planning/COMMERCIAL_EVALUATION.md) | Commercial feasibility study for on-premises B2B enterprise sales and codebase/IP asset buyout |
-| [planning/SCHEDULED_PUBLISHING.md](planning/SCHEDULED_PUBLISHING.md) | Scheduled publishing engine architecture, hosted worker execution, queue state model, and UI integration |
+| [planning/SCHEDULED_PUBLISHING.md](planning/SCHEDULED_PUBLISHING.md) | Scheduled publishing engine architecture, calendar slot windows, queue state model, and UI integration |
+| [planning/scheduling/BACKEND_IMPLEMENTATION_PLAN.md](planning/scheduling/BACKEND_IMPLEMENTATION_PLAN.md) | Backend implementation plan: Cronos recurrence, slot pacing, SKIP LOCKED dispatcher, and outbox APIs |
+| [planning/scheduling/FRONTEND_IMPLEMENTATION_PLAN.md](planning/scheduling/FRONTEND_IMPLEMENTATION_PLAN.md) | Frontend implementation plan: Tailwind-native CSS grid calendar, Review Outbox, and Composer integration |
 | [planning/TWITTER_SUPPORT.md](planning/TWITTER_SUPPORT.md) | Twitter / X OAuth 2.0 PKCE connector, API v2 thread chaining, and validation specification |
 | [planning/LINKED_IN.md](planning/LINKED_IN.md) | LinkedIn publishing contract, markdown mapping, and conversion pipeline (single-post-only scope) |
 | [planning/linkedin/FRONTEND_INTEGRATION.md](planning/linkedin/FRONTEND_INTEGRATION.md) | LinkedIn frontend integration design, preview components, and validation rules |

@@ -26,6 +26,9 @@ public class AppDbContext : DbContext
     public DbSet<Template> Templates => Set<Template>();
     public DbSet<BackgroundTask> BackgroundTasks => Set<BackgroundTask>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+    public DbSet<Schedule> Schedules => Set<Schedule>();
+    public DbSet<ScheduleSlotRule> ScheduleSlotRules => Set<ScheduleSlotRule>();
+    public DbSet<ScheduleQueueItem> ScheduleQueueItems => Set<ScheduleQueueItem>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -282,6 +285,11 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.AccountId)
                 .OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(x => x.AccountId);
+            e.HasOne(x => x.Schedule)
+                .WithMany()
+                .HasForeignKey(x => x.ScheduleId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => x.ScheduleId);
         });
 
         modelBuilder.Entity<FeedIngestionQueueItem>(e =>
@@ -346,6 +354,58 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Schedule>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Timezone).HasMaxLength(100);
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.UserId);
+        });
+
+        modelBuilder.Entity<ScheduleSlotRule>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.RecurrenceType).HasConversion<string>().HasMaxLength(50);
+            e.Property(x => x.CronExpression).HasMaxLength(100);
+            e.Property(x => x.DaysOfWeek)
+                .HasConversion(
+                    v => v == null ? null : string.Join(',', v),
+                    v => string.IsNullOrWhiteSpace(v) ? null : v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToArray())
+                .HasMaxLength(50);
+            e.HasOne(x => x.Schedule)
+                .WithMany(s => s.SlotRules)
+                .HasForeignKey(x => x.ScheduleId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.ScheduleId);
+        });
+
+        modelBuilder.Entity<ScheduleQueueItem>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50);
+            e.Property(x => x.LastError).HasColumnType("text");
+            e.HasOne(x => x.Schedule)
+                .WithMany(s => s.QueueItems)
+                .HasForeignKey(x => x.ScheduleId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Draft)
+                .WithMany()
+                .HasForeignKey(x => x.DraftId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.PlatformThread)
+                .WithMany(p => p.ScheduleQueueItems)
+                .HasForeignKey(x => x.PlatformThreadId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.ScheduleId, x.Position });
+            e.HasIndex(x => new { x.Status, x.AssignedSlotUtc });
+            e.HasIndex(x => x.DraftId);
+            e.HasIndex(x => x.PlatformThreadId);
         });
     }
 }

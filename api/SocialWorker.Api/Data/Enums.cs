@@ -3,6 +3,7 @@ namespace SocialWorker.Api.Data;
 public enum PlatformThreadStage
 {
     Draft,
+    Scheduled,
     Sent
 }
 
@@ -46,4 +47,29 @@ public enum FeedQueueItemStatus
     Processing,
     Succeeded,
     Failed
+}
+
+public enum WorkflowPublishingMode
+{
+    Manual,
+    Automatic,
+    Scheduled
+}
+
+public enum SlotRecurrenceType
+{
+    Daily,
+    Weekly,
+    Monthly,
+    Yearly,
+    Custom
+}
+
+public enum ScheduleQueueItemStatus
+{
+    Queued,
+    Dispatched,
+    Succeeded,
+    Failed,
+    Paused
 }
