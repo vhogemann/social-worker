@@ -20,6 +20,7 @@ import { AlertBanner } from "../common/AlertBanner";
 import { MonthView } from "./MonthView";
 import { WeekView } from "./WeekView";
 import { DayView } from "./DayView";
+import { ScheduleManagerModal } from "./ScheduleManagerModal";
 import {
   formatDateRange,
   calculateDateBounds
@@ -47,6 +48,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
   const [events, setEvents] = useState<CalendarEventDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isScheduleManagerOpen, setIsScheduleManagerOpen] = useState(false);
 
   // Load schedule list once
   useEffect(() => {
@@ -221,16 +223,21 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
             title="Refresh feed"
           />
 
-          {onOpenScheduleManager && (
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={faSlidersH}
-              onClick={onOpenScheduleManager}
-            >
-              Manage
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={faSlidersH}
+            data-testid="open-schedule-manager-btn"
+            onClick={() => {
+              if (onOpenScheduleManager) {
+                onOpenScheduleManager();
+              } else {
+                setIsScheduleManagerOpen(true);
+              }
+            }}
+          >
+            Manage
+          </Button>
         </div>
       </div>
 
@@ -276,6 +283,26 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
           />
         )}
       </div>
+
+      <ScheduleManagerModal
+        isOpen={isScheduleManagerOpen}
+        onClose={() => setIsScheduleManagerOpen(false)}
+        activeScheduleId={selectedScheduleId}
+        onSchedulesChanged={async (targetId) => {
+          try {
+            const list = await fetchSchedules();
+            setSchedules(list);
+            if (targetId) {
+              setSelectedScheduleId(targetId);
+            } else if (!list.some((s) => s.id === selectedScheduleId)) {
+              setSelectedScheduleId(list.length > 0 ? list[0].id : "");
+            }
+            loadFeed();
+          } catch {
+            // ignore
+          }
+        }}
+      />
     </div>
   );
 };
