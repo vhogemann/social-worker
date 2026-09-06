@@ -36,6 +36,8 @@ public static class WorkflowsEndpoint
                     .ThenInclude(ws => ws.FeedSubscription)
                 .Include(w => w.Destinations)
                     .ThenInclude(d => d.Account)
+                .Include(w => w.Destinations)
+                    .ThenInclude(d => d.Schedule)
                 .OrderByDescending(w => w.CreatedAt)
                 .ToListAsync(ct);
 
@@ -74,7 +76,10 @@ public static class WorkflowsEndpoint
                 {
                     if (!string.IsNullOrWhiteSpace(dest.Platform))
                     {
-                        workflow.Destinations.Add(AutomationWorkflowDestination.Create(workflow.Id, dest.Platform, dest.AutoPublish, dest.AccountId));
+                        var mode = dest.PublishingMode != WorkflowPublishingMode.Manual
+                            ? dest.PublishingMode
+                            : (dest.AutoPublish ? WorkflowPublishingMode.Automatic : WorkflowPublishingMode.Manual);
+                        workflow.Destinations.Add(AutomationWorkflowDestination.Create(workflow.Id, dest.Platform, mode, dest.ScheduleId, dest.AccountId));
                     }
                 }
             }
@@ -87,6 +92,8 @@ public static class WorkflowsEndpoint
                     .ThenInclude(ws => ws.FeedSubscription)
                 .Include(w => w.Destinations)
                     .ThenInclude(d => d.Account)
+                .Include(w => w.Destinations)
+                    .ThenInclude(d => d.Schedule)
                 .FirstAsync(w => w.Id == workflow.Id, ct);
 
             return Results.Created($"/api/workflows/{workflow.Id}", new AutomationWorkflowDto(created));
@@ -106,6 +113,8 @@ public static class WorkflowsEndpoint
                     .ThenInclude(ws => ws.FeedSubscription)
                 .Include(w => w.Destinations)
                     .ThenInclude(d => d.Account)
+                .Include(w => w.Destinations)
+                    .ThenInclude(d => d.Schedule)
                 .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId.Value, ct);
 
             if (workflow == null) return Results.NotFound();
@@ -163,7 +172,10 @@ public static class WorkflowsEndpoint
                 {
                     if (!string.IsNullOrWhiteSpace(dest.Platform))
                     {
-                        db.AutomationWorkflowDestinations.Add(AutomationWorkflowDestination.Create(workflow.Id, dest.Platform, dest.AutoPublish, dest.AccountId));
+                        var mode = dest.PublishingMode != WorkflowPublishingMode.Manual
+                            ? dest.PublishingMode
+                            : (dest.AutoPublish ? WorkflowPublishingMode.Automatic : WorkflowPublishingMode.Manual);
+                        db.AutomationWorkflowDestinations.Add(AutomationWorkflowDestination.Create(workflow.Id, dest.Platform, mode, dest.ScheduleId, dest.AccountId));
                     }
                 }
             }
@@ -175,6 +187,8 @@ public static class WorkflowsEndpoint
                     .ThenInclude(ws => ws.FeedSubscription)
                 .Include(w => w.Destinations)
                     .ThenInclude(d => d.Account)
+                .Include(w => w.Destinations)
+                    .ThenInclude(d => d.Schedule)
                 .FirstAsync(w => w.Id == workflow.Id, ct);
 
             return Results.Ok(new AutomationWorkflowDto(updated));
@@ -255,10 +269,18 @@ public static class WorkflowsEndpoint
 
 public sealed record WorkflowSourceDto(Guid FeedSubscriptionId, string Title, string FeedUrl);
 
-public sealed record WorkflowDestinationDto(Guid Id, string Platform, bool AutoPublish, Guid? AccountId = null, string? AccountHandle = null)
+public sealed record WorkflowDestinationDto(
+    Guid Id,
+    string Platform,
+    bool AutoPublish,
+    WorkflowPublishingMode PublishingMode,
+    Guid? ScheduleId = null,
+    string? ScheduleName = null,
+    Guid? AccountId = null,
+    string? AccountHandle = null)
 {
     public WorkflowDestinationDto(AutomationWorkflowDestination d)
-        : this(d.Id, d.Platform, d.AutoPublish, d.AccountId, d.Account?.Handle)
+        : this(d.Id, d.Platform, d.AutoPublish, d.PublishingMode, d.ScheduleId, d.Schedule?.Name, d.AccountId, d.Account?.Handle)
     {
     }
 }
@@ -288,7 +310,12 @@ public sealed record AutomationWorkflowDto(
     }
 }
 
-public sealed record CreateWorkflowDestinationRequest(string Platform, bool AutoPublish, Guid? AccountId = null);
+public sealed record CreateWorkflowDestinationRequest(
+    string Platform,
+    bool AutoPublish = false,
+    WorkflowPublishingMode PublishingMode = WorkflowPublishingMode.Manual,
+    Guid? ScheduleId = null,
+    Guid? AccountId = null);
 
 public sealed record CreateAutomationWorkflowRequest(
     string Title,

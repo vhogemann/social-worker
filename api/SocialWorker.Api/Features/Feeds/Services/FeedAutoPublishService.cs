@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing;
+using SocialWorker.Api.Features.Scheduling.Services;
 
 namespace SocialWorker.Api.Features.Feeds;
 
@@ -16,15 +17,21 @@ public class FeedAutoPublishService
     private readonly AppDbContext _db;
     private readonly IPublisherResolver _publisherResolver;
     private readonly ILogger<FeedAutoPublishService> _logger;
+    private readonly IScheduleQueueService? _queueService;
+    private readonly ScheduleSlotEvaluatorService? _evaluator;
 
     public FeedAutoPublishService(
         AppDbContext db,
         IPublisherResolver publisherResolver,
-        ILogger<FeedAutoPublishService> logger)
+        ILogger<FeedAutoPublishService> logger,
+        IScheduleQueueService? queueService = null,
+        ScheduleSlotEvaluatorService? evaluator = null)
     {
         _db = db;
         _publisherResolver = publisherResolver;
         _logger = logger;
+        _queueService = queueService;
+        _evaluator = evaluator;
     }
 
     public virtual async Task PublishDestinationsAsync(
@@ -33,14 +40,16 @@ public class FeedAutoPublishService
         Guid userId,
         CancellationToken ct)
     {
-        var enabledDestinations = destinations.Where(d => d.AutoPublish).ToList();
-        if (enabledDestinations.Count == 0)
+        foreach (var dest in destinations)
         {
-            return;
-        }
+            var isAuto = dest.PublishingMode == WorkflowPublishingMode.Automatic || (dest.PublishingMode == WorkflowPublishingMode.Manual && dest.AutoPublish);
+            var isScheduled = dest.PublishingMode == WorkflowPublishingMode.Scheduled && dest.ScheduleId.HasValue;
 
-        foreach (var dest in enabledDestinations)
-        {
+            if (!isAuto && !isScheduled)
+            {
+                continue;
+            }
+
             try
             {
                 var variant = await _db.Drafts
@@ -55,62 +64,76 @@ public class FeedAutoPublishService
                     continue;
                 }
 
-                Account? account = null;
-                if (dest.AccountId.HasValue)
+                if (isScheduled && _queueService != null)
                 {
-                    account = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == dest.AccountId.Value && a.UserId == userId, ct);
-                }
-                if (account == null && thread.AccountId.HasValue)
-                {
-                    account = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == thread.AccountId.Value && a.UserId == userId, ct);
-                }
-                if (account == null)
-                {
-                    account = await _db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == dest.Platform, ct);
-                }
-                if (account == null)
-                {
-                    _logger.LogError("AutoPublish enabled for {Platform} but no connected account found for user {UserId}", dest.Platform, userId);
-                    continue;
-                }
-
-                var publisher = _publisherResolver.Resolve(dest.Platform);
-                if (publisher == null)
-                {
-                    _logger.LogWarning("No publisher registered for platform {Platform}", dest.Platform);
-                    continue;
-                }
-
-                _logger.LogInformation("Auto-publishing draft {DraftId} to {Platform}...", variant?.Id ?? canonicalDraft.Id, dest.Platform);
-                var publishResult = await publisher.PublishAsync(thread, account, ct);
-                if (publishResult.Success)
-                {
-                    foreach (var publishedPost in publishResult.Posts)
+                    _logger.LogInformation("Enqueuing draft {DraftId} to schedule {ScheduleId} for platform {Platform}...", variant?.Id ?? canonicalDraft.Id, dest.ScheduleId!.Value, dest.Platform);
+                    await _queueService.EnqueueAsync(dest.ScheduleId.Value, thread.Id, variant?.Id ?? canonicalDraft.Id, ct: ct);
+                    if (_evaluator != null)
                     {
-                        var post = new Post
-                        {
-                            DraftId = variant?.Id ?? canonicalDraft.Id,
-                            PlatformThreadId = thread.Id,
-                            SegmentIndex = publishedPost.SegmentIndex,
-                            Platform = dest.Platform,
-                            RemoteId = publishedPost.RemoteId,
-                            Url = publishedPost.Url
-                        };
-                        _db.Posts.Add(post);
+                        await _evaluator.EvaluateScheduleAsync(dest.ScheduleId.Value, ct: ct);
                     }
-                    thread.Stage = PlatformThreadStage.Sent;
-                    thread.UpdatedAt = DateTime.UtcNow;
-                    await _db.SaveChangesAsync(ct);
-                    _logger.LogInformation("Successfully auto-published to {Platform}.", dest.Platform);
+                    continue;
                 }
-                else
+
+                if (isAuto)
                 {
-                    _logger.LogError("AutoPublish failed for {Platform}: {Error}", dest.Platform, publishResult.ErrorMessage);
+                    Account? account = null;
+                    if (dest.AccountId.HasValue)
+                    {
+                        account = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == dest.AccountId.Value && a.UserId == userId, ct);
+                    }
+                    if (account == null && thread.AccountId.HasValue)
+                    {
+                        account = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == thread.AccountId.Value && a.UserId == userId, ct);
+                    }
+                    if (account == null)
+                    {
+                        account = await _db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == dest.Platform, ct);
+                    }
+                    if (account == null)
+                    {
+                        _logger.LogError("AutoPublish enabled for {Platform} but no connected account found for user {UserId}", dest.Platform, userId);
+                        continue;
+                    }
+
+                    var publisher = _publisherResolver.Resolve(dest.Platform);
+                    if (publisher == null)
+                    {
+                        _logger.LogWarning("No publisher registered for platform {Platform}", dest.Platform);
+                        continue;
+                    }
+
+                    _logger.LogInformation("Auto-publishing draft {DraftId} to {Platform}...", variant?.Id ?? canonicalDraft.Id, dest.Platform);
+                    var publishResult = await publisher.PublishAsync(thread, account, ct);
+                    if (publishResult.Success)
+                    {
+                        foreach (var publishedPost in publishResult.Posts)
+                        {
+                            var post = new Post
+                            {
+                                DraftId = variant?.Id ?? canonicalDraft.Id,
+                                PlatformThreadId = thread.Id,
+                                SegmentIndex = publishedPost.SegmentIndex,
+                                Platform = dest.Platform,
+                                RemoteId = publishedPost.RemoteId,
+                                Url = publishedPost.Url
+                            };
+                            _db.Posts.Add(post);
+                        }
+                        thread.Stage = PlatformThreadStage.Sent;
+                        thread.UpdatedAt = DateTime.UtcNow;
+                        await _db.SaveChangesAsync(ct);
+                        _logger.LogInformation("Successfully auto-published to {Platform}.", dest.Platform);
+                    }
+                    else
+                    {
+                        _logger.LogError("AutoPublish failed for {Platform}: {Error}", dest.Platform, publishResult.ErrorMessage);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error auto-publishing to {Platform}", dest.Platform);
+                _logger.LogError(ex, "Unexpected error processing destination for platform {Platform}", dest.Platform);
             }
         }
     }
@@ -128,7 +151,7 @@ public class FeedAutoPublishService
 
         var destinations = new List<AutomationWorkflowDestination>
         {
-            new AutomationWorkflowDestination { Platform = "Bluesky", AutoPublish = true }
+            AutomationWorkflowDestination.Create(Guid.Empty, "Bluesky", WorkflowPublishingMode.Automatic)
         };
 
         await PublishDestinationsAsync(draft, destinations, userId, ct);

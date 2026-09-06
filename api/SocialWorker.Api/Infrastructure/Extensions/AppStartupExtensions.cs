@@ -15,6 +15,7 @@ using SocialWorker.Api.Features.PlatformVariants;
 using SocialWorker.Api.Features.Prompts;
 using SocialWorker.Api.Features.Providers;
 using SocialWorker.Api.Features.Publishing;
+using SocialWorker.Api.Features.Scheduling;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Features.Templates;
 using SocialWorker.Api.Features.Users;
@@ -202,6 +203,8 @@ static partial class WebApplicationExtensions
         app.MapTemplateEndpoints();
         app.MapBackgroundTasksEndpoints();
         app.MapApiKeyEndpoints();
+        app.MapSchedulesEndpoints();
+        app.MapOutboxEndpoints();
         SocialWorker.Api.Features.Mcp.McpEndpoints.MapMcpEndpoints(app);
     }
 }
