@@ -1,5 +1,8 @@
+using System.Text.Json.Serialization;
+
 namespace SocialWorker.Api.Data;
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum PlatformThreadStage
 {
     Draft,
@@ -7,6 +10,7 @@ public enum PlatformThreadStage
     Sent
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum DraftStatus
 {
     Editing,
@@ -17,6 +21,7 @@ public enum DraftStatus
     Failed
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SourceKind
 {
     Url,
@@ -24,6 +29,7 @@ public enum SourceKind
     YouTube
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SourceProcessingStatus
 {
     Pending,
@@ -32,6 +38,7 @@ public enum SourceProcessingStatus
     Failed
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SocialPlatform
 {
     Bluesky,
@@ -41,6 +48,7 @@ public enum SocialPlatform
     Instagram
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum FeedQueueItemStatus
 {
     Pending,
@@ -49,6 +57,7 @@ public enum FeedQueueItemStatus
     Failed
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum WorkflowPublishingMode
 {
     Manual,
@@ -56,6 +65,7 @@ public enum WorkflowPublishingMode
     Scheduled
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SlotRecurrenceType
 {
     Daily,
@@ -65,6 +75,7 @@ public enum SlotRecurrenceType
     Custom
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ScheduleQueueItemStatus
 {
     Queued,

@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Workflows;
 using Xunit;
+
 
 namespace SocialWorker.Api.Tests.Features.Workflows;
 
@@ -134,4 +136,36 @@ public sealed class WorkflowsEndpointTests : SqliteTestBase
         Assert.NotNull(loadedDraft);
         Assert.Null(loadedDraft.AutomationWorkflowId);
     }
+
+    [Theory]
+    [InlineData("Manual", WorkflowPublishingMode.Manual)]
+    [InlineData("Automatic", WorkflowPublishingMode.Automatic)]
+    [InlineData("Scheduled", WorkflowPublishingMode.Scheduled)]
+    public void Deserialize_CreateAutomationWorkflowRequest_WithPublishingModeString_Succeeds(string modeString, WorkflowPublishingMode expectedMode)
+    {
+        var json = $$"""
+        {
+            "title": "Scheduled RSS Workflow",
+            "instructionPrompt": "Summarize feed",
+            "feedSubscriptionIds": [],
+            "destinations": [
+                {
+                    "platform": "Bluesky",
+                    "autoPublish": false,
+                    "publishingMode": "{{modeString}}",
+                    "scheduleId": "88937987-460a-4957-be7a-28c7651ac346"
+                }
+            ]
+        }
+        """;
+
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        var result = System.Text.Json.JsonSerializer.Deserialize<CreateAutomationWorkflowRequest>(json, options);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Destinations);
+        Assert.Single(result.Destinations);
+        Assert.Equal(expectedMode, result.Destinations[0].PublishingMode);
+    }
 }
+

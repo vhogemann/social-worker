@@ -176,4 +176,29 @@ public sealed class SchedulesEndpointTests : SqliteTestBase
 
         Assert.Empty(user2Schedules);
     }
+
+    [Theory]
+    [InlineData("Daily", SlotRecurrenceType.Daily)]
+    [InlineData("Weekly", SlotRecurrenceType.Weekly)]
+    [InlineData("Monthly", SlotRecurrenceType.Monthly)]
+    [InlineData("Yearly", SlotRecurrenceType.Yearly)]
+    [InlineData("Custom", SlotRecurrenceType.Custom)]
+    public void Deserialize_CreateSlotRuleRequest_WithRecurrenceTypeString_Succeeds(string recurrenceString, SlotRecurrenceType expectedRecurrence)
+    {
+        var json = $$"""
+        {
+            "recurrenceType": "{{recurrenceString}}",
+            "startTime": "09:00",
+            "endTime": "10:00",
+            "postCapacity": 2
+        }
+        """;
+
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        var result = System.Text.Json.JsonSerializer.Deserialize<CreateSlotRuleRequest>(json, options);
+
+        Assert.NotNull(result);
+        Assert.Equal(expectedRecurrence, result.RecurrenceType);
+    }
 }
+

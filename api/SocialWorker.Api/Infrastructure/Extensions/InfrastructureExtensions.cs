@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -17,6 +18,11 @@ static partial class ServiceCollectionExtensions
 {
     internal static void AddInfrastructure(this IHostApplicationBuilder builder)
     {
+        builder.Services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
+
         builder.Services.AddDbContextPool<AppDbContext>(o =>
             o.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
