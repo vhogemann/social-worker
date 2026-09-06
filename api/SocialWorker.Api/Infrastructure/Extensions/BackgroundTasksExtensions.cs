@@ -5,6 +5,8 @@ using SocialWorker.Api.Features.BackgroundTasks.Abstractions;
 using SocialWorker.Api.Features.BackgroundTasks.Services;
 using SocialWorker.Api.Features.Drafts.Handlers;
 using SocialWorker.Api.Features.Feeds.Handlers;
+using SocialWorker.Api.Features.Scheduling.Handlers;
+using SocialWorker.Api.Features.Scheduling.Services;
 using SocialWorker.Api.Features.Sources.Handlers;
 
 namespace SocialWorker.Api.Infrastructure.Extensions;
@@ -19,12 +21,17 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<SourceScrapeTaskHandler>();
         builder.Services.AddScoped<DraftChatSummaryTaskHandler>();
         builder.Services.AddScoped<FeedIngestionTaskHandler>();
+        builder.Services.AddScoped<ScheduledPublishingTaskHandler>();
+
+        builder.Services.AddScoped<IScheduleQueueService, ScheduleQueueService>();
+        builder.Services.AddScoped<ScheduleSlotEvaluatorService>();
 
         var resolver = new TaskHandlerResolver();
         resolver.Register<SourceTranscriptionTaskHandler>("source-transcription", TimeSpan.FromMinutes(15));
         resolver.Register<SourceScrapeTaskHandler>("source-scrape", TimeSpan.FromMinutes(3));
         resolver.Register<DraftChatSummaryTaskHandler>("draft-chat-summary", TimeSpan.FromMinutes(3));
         resolver.Register<FeedIngestionTaskHandler>("feed-ingestion", TimeSpan.FromMinutes(5));
+        resolver.Register<ScheduledPublishingTaskHandler>(ScheduledPublishingTaskHandler.TaskTypeName, TimeSpan.FromMinutes(5));
 
         builder.Services.AddSingleton<ITaskHandlerResolver>(resolver);
 
