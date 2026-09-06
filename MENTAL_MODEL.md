@@ -33,6 +33,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Media/
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
 - Feed automation: api/SocialWorker.Api/Features/Feeds/
+- Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService, ScheduleSlotEvaluatorService worker, Review Outbox)
 - Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/
 - Background tasks & durable queue: api/SocialWorker.Api/Features/BackgroundTasks/
 - Background task worker pool: api/SocialWorker.Api/Features/BackgroundTasks/Services/BackgroundTaskHostedService.cs
@@ -45,6 +46,8 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ### Frontend entry and state
 
 - App shell & routing: web/src/App.tsx, web/src/components/Navigation/AppHeader.tsx
+- Content Calendar & Views: web/src/components/Calendar/ (CalendarPage, MonthView, WeekView, DayView, QueueSidebar, ScheduleManagerModal, SlotRuleFormModal, DraftPickerModal)
+- Review Outbox Triage: web/src/components/Outbox/ReviewOutboxPage.tsx
 - Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/
 - Drafts Library Page: web/src/components/Drafts/DraftsPage.tsx
 - Full-width 2-pane Composer: web/src/components/Composer/ComposerPage.tsx
@@ -53,13 +56,13 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Navigation & Breadcrumbs: web/src/components/Navigation/
 - Template Studio & WYSIWYG Editor: web/src/components/TemplateStudio/
 - Draft library cache: web/src/store/draftStore.ts
-- API contract clients: web/src/api/
+- API contract clients: web/src/api/ (schedules.ts, outbox.ts, drafts.ts, workflows.ts)
 
 ### Tests
 
-- API unit/integration tests (442 tests): api/SocialWorker.Api.Tests/
+- API unit/integration tests (490 tests): api/SocialWorker.Api.Tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
-- Web tests (Vitest): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- Web tests (Vitest, 413 tests in 86 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
 
 ## Core user flow mental model
