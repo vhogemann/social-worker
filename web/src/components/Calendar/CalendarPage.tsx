@@ -6,7 +6,8 @@ import {
   faCalendarAlt,
   faRotateRight,
   faSpinner,
-  faSlidersH
+  faSlidersH,
+  faList
 } from "@fortawesome/free-solid-svg-icons";
 import {
   fetchSchedules,
@@ -21,6 +22,8 @@ import { MonthView } from "./MonthView";
 import { WeekView } from "./WeekView";
 import { DayView } from "./DayView";
 import { ScheduleManagerModal } from "./ScheduleManagerModal";
+import { QueueSidebar } from "./QueueSidebar";
+import { DraftPickerModal } from "./DraftPickerModal";
 import {
   formatDateRange,
   calculateDateBounds
@@ -49,6 +52,8 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isScheduleManagerOpen, setIsScheduleManagerOpen] = useState(false);
+  const [isQueueSidebarOpen, setIsQueueSidebarOpen] = useState(true);
+  const [isDraftPickerOpen, setIsDraftPickerOpen] = useState(false);
 
   // Load schedule list once
   useEffect(() => {
@@ -225,6 +230,17 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
 
           <Button
             size="sm"
+            variant={isQueueSidebarOpen ? "primary" : "secondary"}
+            icon={faList}
+            data-testid="toggle-queue-sidebar-btn"
+            onClick={() => setIsQueueSidebarOpen((prev) => !prev)}
+            title="Toggle Queue Sidebar"
+          >
+            Queue
+          </Button>
+
+          <Button
+            size="sm"
             variant="secondary"
             icon={faSlidersH}
             data-testid="open-schedule-manager-btn"
@@ -247,39 +263,71 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
         </div>
       )}
 
-      {/* Main Calendar View Area */}
-      <div className="flex-1 min-h-0 relative">
-        {loading && (
-          <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 flex items-center justify-center pointer-events-none">
-            <div className="flex items-center gap-2 bg-card border border-border px-3 py-2 rounded-lg text-xs font-mono text-muted">
-              <FontAwesomeIcon icon={faSpinner} className="animate-spin text-accent" />
-              <span>Loading calendar...</span>
+      {/* Main Content Area: Calendar View + Queue Sidebar */}
+      <div className="flex-1 flex min-h-0 gap-3 overflow-hidden">
+        {/* Calendar View */}
+        <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
+          {loading && (
+            <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 flex items-center justify-center pointer-events-none">
+              <div className="flex items-center gap-2 bg-card border border-border px-3 py-2 rounded-lg text-xs font-mono text-muted">
+                <FontAwesomeIcon icon={faSpinner} className="animate-spin text-accent" />
+                <span>Loading calendar...</span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {view === "month" && (
-          <MonthView
-            currentDate={currentDate}
-            events={events}
-            onSelectDate={handleSelectDate}
-          />
-        )}
+          {view === "month" && (
+            <MonthView
+              currentDate={currentDate}
+              events={events}
+              onSelectDate={handleSelectDate}
+            />
+          )}
 
-        {view === "week" && (
-          <WeekView
-            currentDate={currentDate}
-            events={events}
-            onSelectDate={handleSelectDate}
-            onOpenSlotClick={onOpenDraftPicker}
-          />
-        )}
+          {view === "week" && (
+            <WeekView
+              currentDate={currentDate}
+              events={events}
+              onSelectDate={handleSelectDate}
+              onOpenSlotClick={(slotEvent) => {
+                if (onOpenDraftPicker) {
+                  onOpenDraftPicker(slotEvent);
+                } else {
+                  setIsDraftPickerOpen(true);
+                }
+              }}
+            />
+          )}
 
-        {view === "day" && (
-          <DayView
-            currentDate={currentDate}
-            events={events}
-            onOpenSlotClick={onOpenDraftPicker}
+          {view === "day" && (
+            <DayView
+              currentDate={currentDate}
+              events={events}
+              onOpenSlotClick={(slotEvent) => {
+                if (onOpenDraftPicker) {
+                  onOpenDraftPicker(slotEvent);
+                } else {
+                  setIsDraftPickerOpen(true);
+                }
+              }}
+            />
+          )}
+        </div>
+
+        {/* Reorderable Input Queue Sidebar */}
+        {isQueueSidebarOpen && selectedSchedule && (
+          <QueueSidebar
+            scheduleId={selectedSchedule.id}
+            scheduleName={selectedSchedule.name}
+            onQueueUpdated={loadFeed}
+            onOpenDraftPicker={() => {
+              if (onOpenDraftPicker) {
+                onOpenDraftPicker({} as any);
+              } else {
+                setIsDraftPickerOpen(true);
+              }
+            }}
+            onClose={() => setIsQueueSidebarOpen(false)}
           />
         )}
       </div>
@@ -303,6 +351,15 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
           }
         }}
       />
+
+      {selectedScheduleId && (
+        <DraftPickerModal
+          isOpen={isDraftPickerOpen}
+          onClose={() => setIsDraftPickerOpen(false)}
+          scheduleId={selectedScheduleId}
+          onDraftQueued={loadFeed}
+        />
+      )}
     </div>
   );
 };

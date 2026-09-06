@@ -47,6 +47,17 @@ describe("CalendarPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(schedulesApi.fetchScheduleQueue).mockResolvedValue([]);
+    vi.mocked(schedulesApi.fetchSchedule).mockResolvedValue({
+      id: "sched-1",
+      name: "Tech Beat",
+      timezone: "Europe/London",
+      isActive: true,
+      slotRules: [],
+      queueItems: [],
+      createdAt: "2026-09-01T00:00:00Z",
+      updatedAt: "2026-09-01T00:00:00Z"
+    });
   });
 
   it("loads schedules, sets first schedule as default, and displays timezone badge", async () => {
@@ -61,7 +72,7 @@ describe("CalendarPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Content Calendar")).toBeInTheDocument();
-      expect(screen.getByText("Tech Beat")).toBeInTheDocument();
+      expect(screen.getByTestId("schedule-selector")).toHaveTextContent("Tech Beat");
       expect(screen.getByText("Europe/London")).toBeInTheDocument();
     });
   });
