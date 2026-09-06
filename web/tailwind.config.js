@@ -9,6 +9,7 @@ export default {
         bg: "#0f1115",
         panel: "#161922",
         "panel-light": "#1d212d",
+        card: "#161922",
         border: "#262a36",
         "border-light": "#33394a",
         accent: "#7c8cff",

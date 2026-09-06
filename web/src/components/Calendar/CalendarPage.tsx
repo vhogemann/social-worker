@@ -148,11 +148,11 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
               data-testid="schedule-selector"
               value={selectedScheduleId}
               onChange={(e) => setSelectedScheduleId(e.target.value)}
-              className="bg-card border border-border rounded px-2.5 py-1 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+              className="bg-panel border border-border rounded px-2.5 py-1 text-xs font-mono text-foreground focus:outline-none focus:border-accent [&>option]:bg-panel [&>option]:text-foreground"
             >
-              <option value="">All Schedules</option>
+              <option value="" className="bg-panel text-foreground">All Schedules</option>
               {schedules.map((s) => (
-                <option key={s.id} value={s.id}>
+                <option key={s.id} value={s.id} className="bg-panel text-foreground">
                   {s.name}
                 </option>
               ))}
