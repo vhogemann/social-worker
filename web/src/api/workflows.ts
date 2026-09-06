@@ -11,6 +11,9 @@ export interface WorkflowDestinationDto {
   id: string;
   platform: string;
   autoPublish: boolean;
+  publishingMode?: "Manual" | "Automatic" | "Scheduled";
+  scheduleId?: string | null;
+  scheduleName?: string | null;
   accountId?: string | null;
   accountHandle?: string | null;
 }
@@ -44,7 +47,9 @@ export interface WorkflowDraftSummaryDto {
 
 export interface CreateWorkflowDestinationRequest {
   platform: string;
-  autoPublish: boolean;
+  autoPublish?: boolean;
+  publishingMode?: "Manual" | "Automatic" | "Scheduled";
+  scheduleId?: string | null;
   accountId?: string | null;
 }
 

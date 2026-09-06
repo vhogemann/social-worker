@@ -10,6 +10,8 @@ export interface NavItem {
 
 export const defaultNavItems: NavItem[] = [
   { label: "Workflows", to: "/", match: ["/", "/workflows"] },
+  { label: "Outbox", to: "/outbox", match: ["/outbox"] },
+  { label: "Calendar", to: "/calendar", match: ["/calendar"] },
   { label: "Drafts", to: "/drafts", match: ["/drafts", "/draft", "/composer"] },
   { label: "Templates", to: "/templates", match: ["/templates"] },
   { label: "Settings", to: "/settings", match: ["/settings"] }

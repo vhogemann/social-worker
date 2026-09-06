@@ -10,6 +10,7 @@ import { TemplateEditorPage } from "./components/TemplateStudio/TemplateEditorPa
 import { SourcesLibraryPage } from "./components/SourcesLibrary/SourcesLibraryPage";
 import { LogsPage } from "./components/Logs/LogsPage";
 import { PrivacyPolicyPage } from "./components/Privacy/PrivacyPolicyPage";
+import { ReviewOutboxPage } from "./components/Outbox/ReviewOutboxPage";
 import { SettingsPage } from "./components/Settings/SettingsPage";
 import { LinkedInCallbackPage } from "./components/Settings/LinkedInCallbackPage";
 
@@ -20,6 +21,7 @@ export default function App() {
         <AppHeader />
         <Routes>
           <Route path="/" element={<WorkflowsPage />} />
+          <Route path="/outbox" element={<ReviewOutboxPage />} />
           <Route path="/workflows" element={<Navigate to="/" replace />} />
           <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
           <Route path="/workflows/:workflowId/draft" element={<ComposerPage />} />
