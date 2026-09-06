@@ -98,6 +98,8 @@ export const DraftCard: React.FC<DraftCardProps> = ({
                   ? "success"
                   : draft.status === "Archived"
                   ? "neutral"
+                  : draft.status === "Scheduled"
+                  ? "warning"
                   : "accent"
               }
             >

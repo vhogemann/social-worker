@@ -5,11 +5,13 @@ import { Button } from "../common/Button";
 import { WorkflowSourcesSelector } from "./WorkflowSourcesSelector";
 import {
   WorkflowDestinationsSelector,
-  type WorkflowDestinationItem
+  type WorkflowDestinationItem,
+  type PublishingMode
 } from "./WorkflowDestinationsSelector";
 import { type AutomationWorkflowDto } from "../../api/workflows";
 import { type FeedSubscriptionDto } from "../../api/feeds";
 import { type AccountDto } from "../../api/accounts";
+import { fetchSchedules, type ScheduleSummaryDto } from "../../api/schedules";
 
 export interface WorkflowFormData {
   title: string;
@@ -18,6 +20,8 @@ export interface WorkflowFormData {
   destinations: {
     platform: string;
     autoPublish: boolean;
+    publishingMode?: PublishingMode;
+    scheduleId?: string | null;
     accountId?: string;
     accountHandle?: string;
   }[];
@@ -46,7 +50,14 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
   );
   const [selectedFeedIds, setSelectedFeedIds] = useState<string[]>([]);
   const [destinations, setDestinations] = useState<WorkflowDestinationItem[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleSummaryDto[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchSchedules()
+      .then(setSchedules)
+      .catch(() => setSchedules([]));
+  }, []);
 
   useEffect(() => {
     if (editingWorkflow) {
@@ -57,6 +68,8 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
         editingWorkflow.destinations.map((d) => ({
           platform: d.platform,
           autoPublish: d.autoPublish,
+          publishingMode: d.publishingMode || (d.autoPublish ? "Automatic" : "Manual"),
+          scheduleId: d.scheduleId,
           accountId: d.accountId ?? undefined,
           accountHandle: d.accountHandle ?? undefined
         }))
@@ -70,12 +83,13 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
           connectedAccounts.map((a) => ({
             platform: a.platform,
             autoPublish: false,
+            publishingMode: "Manual",
             accountId: a.id,
             accountHandle: a.handle
           }))
         );
       } else {
-        setDestinations([{ platform: "Bluesky", autoPublish: false }]);
+        setDestinations([{ platform: "Bluesky", autoPublish: false, publishingMode: "Manual" }]);
       }
     }
   }, [editingWorkflow, availableFeeds, connectedAccounts, isOpen]);
@@ -100,16 +114,39 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
           accountId ? d.accountId !== accountId : d.platform !== platform
         );
       } else {
-        return [...prev, { platform, autoPublish: false, accountId, accountHandle }];
+        return [
+          ...prev,
+          {
+            platform,
+            autoPublish: false,
+            publishingMode: "Manual",
+            accountId,
+            accountHandle
+          }
+        ];
       }
     });
   };
 
-  const handleToggleAutoPublish = (platform: string, accountId?: string) => {
+  const handleChangePublishingMode = (
+    platform: string,
+    mode: PublishingMode,
+    scheduleId?: string,
+    accountId?: string
+  ) => {
     setDestinations((prev) =>
       prev.map((d) => {
         const matches = accountId ? d.accountId === accountId : d.platform === platform;
-        return matches ? { ...d, autoPublish: !d.autoPublish } : d;
+        if (!matches) return d;
+        return {
+          ...d,
+          publishingMode: mode,
+          autoPublish: mode === "Automatic",
+          scheduleId:
+            mode === "Scheduled"
+              ? scheduleId || (schedules.length > 0 ? schedules[0].id : null)
+              : null
+        };
       })
     );
   };
@@ -170,8 +207,9 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
         <WorkflowDestinationsSelector
           connectedAccounts={connectedAccounts}
           destinations={destinations}
+          availableSchedules={schedules}
           onToggleDestination={handleToggleDestination}
-          onToggleAutoPublish={handleToggleAutoPublish}
+          onChangePublishingMode={handleChangePublishingMode}
         />
 
         <div className="flex justify-end gap-2 border-t border-border pt-4 mt-2">

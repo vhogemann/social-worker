@@ -77,11 +77,19 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
                   {dest.accountHandle && (
                     <span className="opacity-75 font-mono text-[10px]">@{dest.accountHandle}</span>
                   )}
-                  {dest.autoPublish && (
+                  {dest.publishingMode === "Scheduled" ? (
+                    <span className="text-[8px] bg-blue-500/20 text-blue-400 font-semibold px-1 py-0.5 rounded uppercase">
+                      Scheduled {dest.scheduleName ? `(${dest.scheduleName})` : ""}
+                    </span>
+                  ) : dest.publishingMode === "Manual" ? (
+                    <span className="text-[8px] bg-zinc-500/20 text-zinc-400 font-semibold px-1 py-0.5 rounded uppercase">
+                      Outbox Review
+                    </span>
+                  ) : dest.autoPublish || dest.publishingMode === "Automatic" ? (
                     <span className="text-[8px] bg-accent/20 text-accent font-semibold px-1 py-0.5 rounded uppercase">
                       Auto-Publish
                     </span>
-                  )}
+                  ) : null}
                 </span>
               ))}
             </div>

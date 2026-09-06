@@ -80,6 +80,8 @@ export const WorkflowsPage: React.FC = () => {
       destinations: data.destinations.map((d) => ({
         platform: d.platform,
         autoPublish: d.autoPublish,
+        publishingMode: d.publishingMode,
+        scheduleId: d.scheduleId,
         accountId: d.accountId,
         accountHandle: d.accountHandle
       }))

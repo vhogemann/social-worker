@@ -1,9 +1,13 @@
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { WorkflowFormModal } from "./WorkflowFormModal";
 import { type FeedSubscriptionDto } from "../../api/feeds";
 import { type AccountDto } from "../../api/accounts";
+
+import * as schedulesApi from "../../api/schedules";
+
+vi.mock("../../api/schedules");
 
 const mockFeeds: FeedSubscriptionDto[] = [
   {
@@ -27,8 +31,25 @@ const mockAccounts: AccountDto[] = [
   }
 ];
 
+const mockSchedules: schedulesApi.ScheduleSummaryDto[] = [
+  {
+    id: "sched-1",
+    name: "Tech Digest",
+    timezone: "UTC",
+    isActive: true,
+    slotRuleCount: 1,
+    queueItemCount: 0,
+    createdAt: "2026-09-01T00:00:00Z",
+    updatedAt: "2026-09-01T00:00:00Z"
+  }
+];
+
 describe("WorkflowFormModal", () => {
-  it("renders and submits workflow creation data", async () => {
+  beforeEach(() => {
+    vi.mocked(schedulesApi.fetchSchedules).mockResolvedValue(mockSchedules);
+  });
+
+  it("renders and submits workflow creation data with default Manual mode", async () => {
     const handleSave = vi.fn().mockResolvedValue(undefined);
     const handleClose = vi.fn();
 
@@ -59,12 +80,60 @@ describe("WorkflowFormModal", () => {
           {
             platform: "Bluesky",
             autoPublish: false,
+            publishingMode: "Manual",
             accountId: "acc-1",
             accountHandle: "alice.bsky.social"
           }
         ]
       });
       expect(handleClose).toHaveBeenCalled();
+    });
+  });
+
+  it("switches destination publishing mode to Scheduled with target schedule", async () => {
+    const handleSave = vi.fn().mockResolvedValue(undefined);
+    const handleClose = vi.fn();
+
+    render(
+      <WorkflowFormModal
+        isOpen={true}
+        editingWorkflow={null}
+        availableFeeds={mockFeeds}
+        connectedAccounts={mockAccounts}
+        onClose={handleClose}
+        onSave={handleSave}
+      />
+    );
+
+    const titleInput = screen.getByLabelText(/workflow title/i);
+    fireEvent.change(titleInput, { target: { value: "Scheduled Feed Workflow" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mode-scheduled-bluesky")).toBeInTheDocument();
+    });
+
+    // Select "Add to Schedule" mode
+    fireEvent.click(screen.getByTestId("mode-scheduled-bluesky"));
+
+    const submitBtn = screen.getByRole("button", { name: /create workflow/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(handleSave).toHaveBeenCalledWith({
+        title: "Scheduled Feed Workflow",
+        instructionPrompt: "Summarize this article as an engaging thread.",
+        feedSubscriptionIds: ["feed-1"],
+        destinations: [
+          {
+            platform: "Bluesky",
+            autoPublish: false,
+            publishingMode: "Scheduled",
+            scheduleId: "sched-1",
+            accountId: "acc-1",
+            accountHandle: "alice.bsky.social"
+          }
+        ]
+      });
     });
   });
 });

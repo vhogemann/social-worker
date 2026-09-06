@@ -7,11 +7,13 @@ import { AdaptVariantsModal } from "./AdaptVariantsModal";
 import { ReplyTargetCard } from "./ReplyTargetCard";
 import { useComposerDraft } from "../Composer/ComposerDraftContext";
 import { useDraftStore } from "../../store/draftStore";
+import { enqueueQueueItem } from "../../api/schedules";
 
 export const EditorPanel: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [adaptModalOpen, setAdaptModalOpen] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
 
   const {
     doc,
@@ -57,6 +59,26 @@ export const EditorPanel: React.FC = () => {
     }
   };
 
+  const handleAddToSchedule = async (scheduleId: string) => {
+    if (!activeDraft) return;
+    const thread = primaryThread || activeDraft.threads?.[0];
+    if (!thread) {
+      setPublishError("Draft must have at least one platform thread to add to schedule.");
+      return;
+    }
+    setPublishError(null);
+    setScheduleNotice(null);
+    try {
+      await enqueueQueueItem(scheduleId, {
+        draftId: activeDraft.id,
+        platformThreadId: thread.id
+      });
+      setScheduleNotice("Draft successfully queued to schedule.");
+    } catch (err: any) {
+      setPublishError(err?.message || "Failed to queue draft to schedule.");
+    }
+  };
+
   const effectiveCanonicalId = activeDraft?.canonicalDraftId || canonicalDraftId || activeDraftId;
 
   return (
@@ -71,7 +93,25 @@ export const EditorPanel: React.FC = () => {
         isPublishing={isPublishing}
         onOpenAdaptModal={() => setAdaptModalOpen(true)}
         onPublish={handlePublish}
+        onAddToSchedule={handleAddToSchedule}
       />
+
+      {scheduleNotice && (
+        <div
+          className="mx-3 mt-2 px-3 py-2 text-xs rounded-md bg-blue-950/60 border border-blue-800 text-blue-300 flex items-center justify-between shadow-sm"
+          data-testid="schedule-notice-banner"
+        >
+          <span>{scheduleNotice}</span>
+          <button
+            type="button"
+            onClick={() => setScheduleNotice(null)}
+            className="text-blue-400 hover:text-blue-200 ml-2 font-mono text-sm leading-none"
+            aria-label="Dismiss schedule notice"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {publishError && (
         <div
