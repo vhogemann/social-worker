@@ -23,8 +23,11 @@ A robust, multi-schedule calendar and scheduling engine supporting pure-calculat
 
 4. **Frontend Experience**:
    - `/calendar`: Tailwind-native Month, Week, and Day views.
-   - Schedule Manager modal: create/edit schedules, IANA timezone selector, slot rule recurrence editor with live pacing preview.
+   - Dedicated Add Slot button and inline calendar cell slot addition with prefilled time and day.
+   - Calendar Settings modal focused on schedule configuration (name, timezone, active status).
    - Input Queue sidebar: FIFO order, drag-and-drop / accessible reordering, pause/resume, deletion.
    - Draft Picker: queue existing drafts into any schedule.
    - Review Outbox (`/outbox`): editorial triage card feed to approve & queue or publish immediately.
    - Composer Split Button: `[ Publish Now | Add to Schedule ▾ ]`.
+   - Editor status indicator: emerald `✓ Published` badge and `View on [Platform] ↗` live post link for sent variants.
+

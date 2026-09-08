@@ -22,7 +22,7 @@ const mockDraft = {
       platform: "Bluesky",
       stage: "Draft",
       content: "Draft content",
-      posts: [],
+      posts: [] as any[],
     },
   ],
   mediaAssets: [],
@@ -40,12 +40,14 @@ const mockDraft = {
   updatedAt: "2026-07-16T00:00:00Z",
 };
 
+let mockCurrentDraft = mockDraft;
+
 vi.mock("../Composer/ComposerDraftContext", () => ({
   useComposerDraft: () => ({
     doc: "Draft content",
     panelMode: "edit",
     setPanelMode: mockSetPanelMode,
-    activeDraft: mockDraft,
+    activeDraft: mockCurrentDraft,
     activeDraftId: "draft-1",
     canonicalDraftId: "draft-1",
     publish: mockPublish,
@@ -70,6 +72,7 @@ vi.mock("./AdaptVariantsModal", () => ({
 
 describe("EditorPanel reply target card", () => {
   beforeEach(() => {
+    mockCurrentDraft = mockDraft;
     mockSetPanelMode.mockClear();
     mockPublish.mockReset();
 
@@ -121,5 +124,41 @@ describe("EditorPanel reply target card", () => {
       expect(screen.getByTestId("publish-error-banner")).toBeInTheDocument();
       expect(screen.getByText("Post exceeds 300 character limit.")).toBeInTheDocument();
     });
+  });
+
+  it("renders published badge and view live post link when draft is published", () => {
+    mockCurrentDraft = {
+      ...mockDraft,
+      threads: [
+        {
+          id: "thread-1",
+          draftId: "draft-1",
+          platform: "Bluesky",
+          stage: "Sent",
+          content: "Draft content",
+          posts: [
+            {
+              id: "post-1",
+              platformThreadId: "thread-1",
+              segmentIndex: 0,
+              platform: "Bluesky",
+              url: "https://bsky.app/profile/example/post/100",
+            },
+          ],
+        },
+      ],
+    };
+
+    render(
+      <MemoryRouter>
+        <EditorPanel />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId("published-badge")).toHaveTextContent("Published");
+    const link = screen.getByTestId("published-post-link");
+    expect(link).toHaveAttribute("href", "https://bsky.app/profile/example/post/100");
+    expect(link).toHaveTextContent("View on Bluesky");
+    expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
   });
 });

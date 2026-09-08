@@ -34,6 +34,9 @@ export const EditorPanel: React.FC = () => {
     primaryThread?.stage === "Sent" ||
     activeDraft?.status === "Published" ||
     activeDraft?.status === "Sent";
+  const publishedUrl =
+    primaryThread?.posts?.find((p) => p.url)?.url ||
+    activeDraft?.threads?.flatMap((t) => t.posts || []).find((p) => p.url)?.url;
   const canShowReplyTarget = supportsReplyTargetForPlatform(activeDraft?.targetPlatform);
 
   useEffect(() => {
@@ -94,6 +97,7 @@ export const EditorPanel: React.FC = () => {
         onOpenAdaptModal={() => setAdaptModalOpen(true)}
         onPublish={handlePublish}
         onAddToSchedule={handleAddToSchedule}
+        publishedUrl={publishedUrl}
       />
 
       {scheduleNotice && (

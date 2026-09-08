@@ -60,9 +60,9 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (491 tests): api/SocialWorker.Api.Tests/
+- API unit/integration tests (500 tests): api/SocialWorker.Api.Tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
-- Web tests (Vitest, 413 tests in 86 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- Web tests (Vitest, 428 tests in 87 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
 
 ## Core user flow mental model

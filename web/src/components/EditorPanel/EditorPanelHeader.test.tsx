@@ -100,4 +100,52 @@ describe("EditorPanelHeader", () => {
       "In Schedule: Morning Beat (#2)"
     );
   });
+
+  it("renders published badge and view post link when isSent is true and publishedUrl is provided", () => {
+    render(
+      <EditorPanelHeader
+        targetPlatform="Bluesky"
+        mode="edit"
+        onChangeMode={vi.fn()}
+        isCanonical={false}
+        isSent={true}
+        canPublish={true}
+        isPublishing={false}
+        onOpenAdaptModal={vi.fn()}
+        onPublish={vi.fn()}
+        publishedUrl="https://bsky.app/profile/sloppyjoebot.bsky.social/post/3muco4iwqx526"
+      />
+    );
+
+    expect(screen.getByTestId("published-badge")).toHaveTextContent("Published");
+    const link = screen.getByTestId("published-post-link");
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute(
+      "href",
+      "https://bsky.app/profile/sloppyjoebot.bsky.social/post/3muco4iwqx526"
+    );
+    expect(link).toHaveTextContent("View on Bluesky");
+    expect(screen.queryByTestId("publish-primary-btn")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /adapt/i })).not.toBeInTheDocument();
+  });
+
+  it("renders published badge without view post link when isSent is true but no publishedUrl is provided", () => {
+    render(
+      <EditorPanelHeader
+        targetPlatform="Bluesky"
+        mode="edit"
+        onChangeMode={vi.fn()}
+        isCanonical={false}
+        isSent={true}
+        canPublish={true}
+        isPublishing={false}
+        onOpenAdaptModal={vi.fn()}
+        onPublish={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("published-badge")).toHaveTextContent("Published");
+    expect(screen.queryByTestId("published-post-link")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("publish-primary-btn")).not.toBeInTheDocument();
+  });
 });
