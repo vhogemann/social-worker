@@ -1,6 +1,6 @@
 import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCheck } from "@fortawesome/free-solid-svg-icons";
+import { faCheck, faPlus } from "@fortawesome/free-solid-svg-icons";
 import type { CalendarEventDto } from "../../api/schedules";
 import { PLATFORM_BADGE_COLORS, PLATFORM_ICONS } from "../../config/platformBadges";
 import {
@@ -15,6 +15,7 @@ export interface MonthViewProps {
   events: CalendarEventDto[];
   onSelectDate: (date: Date) => void;
   onEventClick?: (event: CalendarEventDto) => void;
+  onAddSlot?: (date: Date) => void;
 }
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -23,7 +24,8 @@ export const MonthView: React.FC<MonthViewProps> = ({
   currentDate,
   events,
   onSelectDate,
-  onEventClick
+  onEventClick,
+  onAddSlot
 }) => {
   const cells = getMonthGrid(currentDate.getFullYear(), currentDate.getMonth());
   const grouped = groupEventsByDate(events);
@@ -51,7 +53,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
               key={cell.dateKey}
               data-testid={`month-cell-${cell.dateKey}`}
               onClick={() => onSelectDate(cell.date)}
-              className={`flex flex-col min-h-[105px] p-1.5 transition cursor-pointer ${
+              className={`group relative flex flex-col min-h-[105px] p-1.5 transition cursor-pointer ${
                 cell.isCurrentMonth
                   ? "bg-card hover:bg-zinc-800/40"
                   : "bg-card/40 text-muted/50 hover:bg-zinc-800/20"
@@ -70,11 +72,28 @@ export const MonthView: React.FC<MonthViewProps> = ({
                   {cell.date.getDate()}
                 </span>
 
-                {dayEvents.length > 0 && (
-                  <span className="text-[10px] font-mono text-muted/70">
-                    {dayEvents.length} {dayEvents.length === 1 ? "slot" : "slots"}
-                  </span>
-                )}
+                <div className="flex items-center gap-1">
+                  {onAddSlot && (
+                    <button
+                      type="button"
+                      data-testid={`add-slot-month-btn-${cell.dateKey}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddSlot(cell.date);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/20 text-muted hover:text-accent transition text-[10px]"
+                      title={`Add slot for ${cell.date.toLocaleDateString()}`}
+                      aria-label="Add slot"
+                    >
+                      <FontAwesomeIcon icon={faPlus} className="text-[9px]" />
+                    </button>
+                  )}
+                  {dayEvents.length > 0 && (
+                    <span className="text-[10px] font-mono text-muted/70">
+                      {dayEvents.length} {dayEvents.length === 1 ? "slot" : "slots"}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex-1 flex flex-col gap-1 overflow-hidden">

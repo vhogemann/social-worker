@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCheck } from "@fortawesome/free-solid-svg-icons";
+import { faCheck, faPlus } from "@fortawesome/free-solid-svg-icons";
 import type { CalendarEventDto } from "../../api/schedules";
 import { PLATFORM_BADGE_COLORS, PLATFORM_ICONS } from "../../config/platformBadges";
 import {
@@ -16,6 +16,7 @@ export interface WeekViewProps {
   onSelectDate: (date: Date) => void;
   onEventClick?: (event: CalendarEventDto) => void;
   onOpenSlotClick?: (event: CalendarEventDto) => void;
+  onAddSlot?: (day: Date, hour: number) => void;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -26,7 +27,8 @@ export const WeekView: React.FC<WeekViewProps> = ({
   events,
   onSelectDate,
   onEventClick,
-  onOpenSlotClick
+  onOpenSlotClick,
+  onAddSlot
 }) => {
   const weekDays = getWeekDays(currentDate);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -115,8 +117,23 @@ export const WeekView: React.FC<WeekViewProps> = ({
                   <div
                     key={`${dayKey}-${hour}`}
                     data-testid={`week-cell-${dayKey}-${hour}`}
-                    className="h-16 border-t border-r border-border/40 last:border-r-0 p-1 overflow-y-auto hover:bg-zinc-800/20 transition flex flex-col gap-1"
+                    className="group relative h-16 border-t border-r border-border/40 last:border-r-0 p-1 overflow-y-auto hover:bg-zinc-800/30 transition flex flex-col gap-1"
                   >
+                    {onAddSlot && (
+                      <button
+                        type="button"
+                        data-testid={`add-slot-btn-${dayKey}-${hour}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddSlot(day, hour);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 absolute top-1 right-1 w-5 h-5 rounded bg-accent/20 hover:bg-accent text-accent hover:text-white transition-opacity flex items-center justify-center text-[10px] font-mono leading-none z-10 shadow-sm"
+                        title={`Add slot at ${hourLabel}`}
+                        aria-label={`Add slot at ${hourLabel}`}
+                      >
+                        <FontAwesomeIcon icon={faPlus} className="text-[9px]" />
+                      </button>
+                    )}
                     {cellEvents.map((evt) => {
                       const timeStr = formatTime(evt.timestampUtc);
 

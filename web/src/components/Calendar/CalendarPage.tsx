@@ -7,7 +7,8 @@ import {
   faRotateRight,
   faSpinner,
   faSlidersH,
-  faList
+  faList,
+  faPlus
 } from "@fortawesome/free-solid-svg-icons";
 import {
   fetchSchedules,
@@ -24,6 +25,7 @@ import { DayView } from "./DayView";
 import { ScheduleManagerModal } from "./ScheduleManagerModal";
 import { QueueSidebar } from "./QueueSidebar";
 import { DraftPickerModal } from "./DraftPickerModal";
+import { SlotRuleFormModal, type SlotRuleFormInitialValues } from "./SlotRuleFormModal";
 import {
   formatDateRange,
   calculateDateBounds
@@ -54,6 +56,8 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
   const [isScheduleManagerOpen, setIsScheduleManagerOpen] = useState(false);
   const [isQueueSidebarOpen, setIsQueueSidebarOpen] = useState(true);
   const [isDraftPickerOpen, setIsDraftPickerOpen] = useState(false);
+  const [isSlotRuleModalOpen, setIsSlotRuleModalOpen] = useState(false);
+  const [slotRuleInitialValues, setSlotRuleInitialValues] = useState<SlotRuleFormInitialValues | undefined>(undefined);
 
   // Load schedule list once
   useEffect(() => {
@@ -127,6 +131,28 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
   const handleSelectDate = (date: Date) => {
     setCurrentDate(date);
     setView("day");
+  };
+
+  const handleAddSlot = (date?: Date, hour?: number) => {
+    if (date && hour !== undefined) {
+      const dayOfWeek = date.getDay();
+      const startTime = `${String(hour).padStart(2, "0")}:00`;
+      const endTime = `${String((hour + 1) % 24).padStart(2, "0")}:00`;
+      setSlotRuleInitialValues({
+        startTime,
+        endTime,
+        selectedDays: [dayOfWeek],
+        recurrenceType: "Weekly"
+      });
+    } else if (date) {
+      setSlotRuleInitialValues({
+        selectedDays: [date.getDay()],
+        recurrenceType: "Weekly"
+      });
+    } else {
+      setSlotRuleInitialValues(undefined);
+    }
+    setIsSlotRuleModalOpen(true);
   };
 
   const selectedSchedule = schedules.find((s) => s.id === selectedScheduleId);
@@ -241,6 +267,18 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
 
           <Button
             size="sm"
+            variant="primary"
+            icon={faPlus}
+            data-testid="toolbar-add-slot-btn"
+            onClick={() => handleAddSlot()}
+            disabled={!selectedScheduleId}
+            title={selectedScheduleId ? "Add a publishing slot rule" : "Select a schedule first"}
+          >
+            Add Slot
+          </Button>
+
+          <Button
+            size="sm"
             variant="secondary"
             icon={faSlidersH}
             data-testid="open-schedule-manager-btn"
@@ -252,7 +290,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
               }
             }}
           >
-            Manage
+            Settings
           </Button>
         </div>
       </div>
@@ -281,6 +319,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
               currentDate={currentDate}
               events={events}
               onSelectDate={handleSelectDate}
+              onAddSlot={(date) => handleAddSlot(date)}
             />
           )}
 
@@ -296,6 +335,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
                   setIsDraftPickerOpen(true);
                 }
               }}
+              onAddSlot={(day, hour) => handleAddSlot(day, hour)}
             />
           )}
 
@@ -310,6 +350,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
                   setIsDraftPickerOpen(true);
                 }
               }}
+              onAddSlot={(date, hour) => handleAddSlot(date, hour)}
             />
           )}
         </div>
@@ -351,6 +392,19 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
           }
         }}
       />
+
+      {selectedScheduleId && (
+        <SlotRuleFormModal
+          isOpen={isSlotRuleModalOpen}
+          onClose={() => {
+            setIsSlotRuleModalOpen(false);
+            setSlotRuleInitialValues(undefined);
+          }}
+          scheduleId={selectedScheduleId}
+          initialValues={slotRuleInitialValues}
+          onCreated={loadFeed}
+        />
+      )}
 
       {selectedScheduleId && (
         <DraftPickerModal

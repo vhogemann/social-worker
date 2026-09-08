@@ -28,8 +28,6 @@ export const WorkflowDetailHeader: React.FC<WorkflowDetailHeaderProps> = ({
   onOpenEdit,
   onDelete
 }) => {
-  const hasAutoPublish = workflow.destinations.some((d) => d.autoPublish);
-
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
       <div className="flex flex-col gap-2">
@@ -49,23 +47,28 @@ export const WorkflowDetailHeader: React.FC<WorkflowDetailHeaderProps> = ({
               workflow.destinations.map((dest) => (
                 <span
                   key={dest.id}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-panel border border-border text-[11px] text-foreground font-mono"
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-panel border border-border text-[11px] text-foreground font-mono"
                 >
                   <FontAwesomeIcon icon={faShareNodes} className="text-[10px] text-accent" />
                   <span>{dest.platform}</span>
                   {dest.accountHandle && <span className="opacity-70">@{dest.accountHandle}</span>}
+                  {dest.publishingMode === "Scheduled" ? (
+                    <span className="text-[8px] bg-blue-500/20 text-blue-400 font-semibold px-1 py-0.5 rounded uppercase">
+                      Scheduled {dest.scheduleName ? `(${dest.scheduleName})` : ""}
+                    </span>
+                  ) : dest.publishingMode === "Manual" ? (
+                    <span className="text-[8px] bg-zinc-500/20 text-zinc-400 font-semibold px-1 py-0.5 rounded uppercase">
+                      Outbox Review
+                    </span>
+                  ) : dest.autoPublish || dest.publishingMode === "Automatic" ? (
+                    <span className="text-[8px] bg-accent/20 text-accent font-semibold px-1 py-0.5 rounded uppercase">
+                      Auto-Publish
+                    </span>
+                  ) : null}
                 </span>
               ))
             )}
           </div>
-          {hasAutoPublish && (
-            <>
-              <span className="text-border">·</span>
-              <span className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono text-[10px] font-semibold">
-                Auto
-              </span>
-            </>
-          )}
         </div>
       </div>
 

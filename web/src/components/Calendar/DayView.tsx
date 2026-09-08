@@ -21,13 +21,15 @@ export interface DayViewProps {
   events: CalendarEventDto[];
   onEventClick?: (event: CalendarEventDto) => void;
   onOpenSlotClick?: (event: CalendarEventDto) => void;
+  onAddSlot?: (date: Date, hour?: number) => void;
 }
 
 export const DayView: React.FC<DayViewProps> = ({
   currentDate,
   events,
   onEventClick,
-  onOpenSlotClick
+  onOpenSlotClick,
+  onAddSlot
 }) => {
   const navigate = useNavigate();
 
@@ -66,32 +68,61 @@ export const DayView: React.FC<DayViewProps> = ({
           </p>
         </div>
 
-        {totalSlots > 0 && (
-          <div className="flex items-center gap-3 bg-zinc-900/60 px-3 py-2 rounded-lg border border-border shrink-0">
-            <div className="text-right">
-              <div className="text-xs font-mono font-semibold text-foreground">
-                {filledCount} / {totalSlots} filled
+        <div className="flex items-center gap-3 shrink-0">
+          {totalSlots > 0 && (
+            <div className="flex items-center gap-3 bg-zinc-900/60 px-3 py-2 rounded-lg border border-border shrink-0">
+              <div className="text-right">
+                <div className="text-xs font-mono font-semibold text-foreground">
+                  {filledCount} / {totalSlots} filled
+                </div>
+                <div className="text-[10px] font-mono text-muted">{fillPercentage}% capacity</div>
               </div>
-              <div className="text-[10px] font-mono text-muted">{fillPercentage}% capacity</div>
+              <div className="w-20 bg-zinc-800 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-accent h-2 transition-all duration-300"
+                  style={{ width: `${fillPercentage}%` }}
+                />
+              </div>
             </div>
-            <div className="w-20 bg-zinc-800 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-accent h-2 transition-all duration-300"
-                style={{ width: `${fillPercentage}%` }}
-              />
-            </div>
-          </div>
-        )}
+          )}
+
+          {onAddSlot && (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={faPlus}
+              data-testid="day-add-slot-btn"
+              onClick={() => onAddSlot(currentDate)}
+            >
+              Add Slot
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Timeline List */}
       <div className="flex-1 overflow-y-auto p-4">
         {dayEvents.length === 0 ? (
-          <EmptyState
-            icon={faCalendarAlt}
-            title="No slots or posts scheduled"
-            description="There are no slot rules or scheduled posts configured for this day."
-          />
+          <div className="flex flex-col items-center justify-center h-full py-12">
+            <EmptyState
+              icon={faCalendarAlt}
+              title="No slots or posts scheduled"
+              description="There are no slot rules or scheduled posts configured for this day."
+            />
+            {onAddSlot && (
+              <div className="mt-4">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  icon={faPlus}
+                  data-testid="day-empty-add-slot-btn"
+                  onClick={() => onAddSlot(currentDate)}
+                >
+                  Add Slot for This Day
+                </Button>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="flex flex-col gap-3 max-w-4xl mx-auto">
             {dayEvents.map((evt) => {

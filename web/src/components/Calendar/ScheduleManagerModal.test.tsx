@@ -46,7 +46,7 @@ describe("ScheduleManagerModal", () => {
     vi.clearAllMocks();
   });
 
-  it("loads schedules and renders slot rules", async () => {
+  it("loads schedules and renders schedule settings", async () => {
     vi.mocked(schedulesApi.fetchSchedules).mockResolvedValueOnce(mockSchedules);
     vi.mocked(schedulesApi.fetchSchedule).mockResolvedValueOnce(mockDetail);
 
@@ -59,10 +59,9 @@ describe("ScheduleManagerModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Schedule Manager")).toBeInTheDocument();
+      expect(screen.getByText("Calendar Settings")).toBeInTheDocument();
       expect(screen.getByDisplayValue("Tech Beat")).toBeInTheDocument();
-      expect(screen.getByText("09:00 – 10:00")).toBeInTheDocument();
-      expect(screen.getByText("4 posts")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Europe/London")).toBeInTheDocument();
     });
   });
 
@@ -139,30 +138,6 @@ describe("ScheduleManagerModal", () => {
         })
       );
       expect(onSchedulesChanged).toHaveBeenCalledWith("sched-new");
-    });
-  });
-
-  it("deleting a slot rule invokes deleteSlotRule", async () => {
-    vi.mocked(schedulesApi.fetchSchedules).mockResolvedValue(mockSchedules);
-    vi.mocked(schedulesApi.fetchSchedule).mockResolvedValue(mockDetail);
-    vi.mocked(schedulesApi.deleteSlotRule).mockResolvedValueOnce();
-
-    render(
-      <ScheduleManagerModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onSchedulesChanged={vi.fn()}
-      />
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("delete-rule-rule-1")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("delete-rule-rule-1"));
-
-    await waitFor(() => {
-      expect(schedulesApi.deleteSlotRule).toHaveBeenCalledWith("sched-1", "rule-1");
     });
   });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faSpinner, faClock, faCalendarDays } from "@fortawesome/free-solid-svg-icons";
 import { Modal } from "../common/Modal";
@@ -12,11 +12,22 @@ import {
   type CreateSlotRuleRequest
 } from "../../api/schedules";
 
+export interface SlotRuleFormInitialValues {
+  startTime?: string;
+  endTime?: string;
+  selectedDays?: number[];
+  dayOfMonth?: number;
+  monthOfYear?: number;
+  recurrenceType?: SlotRecurrenceType;
+  postCapacity?: number;
+}
+
 export interface SlotRuleFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   scheduleId: string;
   onCreated: (rule: ScheduleSlotRuleDto) => void;
+  initialValues?: SlotRuleFormInitialValues;
 }
 
 const DAYS_OF_WEEK = [
@@ -87,7 +98,8 @@ export const SlotRuleFormModal: React.FC<SlotRuleFormModalProps> = ({
   isOpen,
   onClose,
   scheduleId,
-  onCreated
+  onCreated,
+  initialValues
 }) => {
   const [recurrenceType, setRecurrenceType] = useState<SlotRecurrenceType>("Daily");
   const [startTime, setStartTime] = useState("09:00");
@@ -98,6 +110,20 @@ export const SlotRuleFormModal: React.FC<SlotRuleFormModalProps> = ({
   const [monthOfYear, setMonthOfYear] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const rec = initialValues?.recurrenceType ?? (initialValues?.selectedDays?.length ? "Weekly" : "Daily");
+      setRecurrenceType(rec);
+      setStartTime(initialValues?.startTime ?? "09:00");
+      setEndTime(initialValues?.endTime ?? "10:00");
+      setPostCapacity(initialValues?.postCapacity ?? 4);
+      setSelectedDays(initialValues?.selectedDays ?? [1, 2, 3, 4, 5]);
+      setDayOfMonth(initialValues?.dayOfMonth ?? 1);
+      setMonthOfYear(initialValues?.monthOfYear ?? 1);
+      setError(null);
+    }
+  }, [isOpen, initialValues]);
 
   const pacing = useMemo(() => {
     return calculatePacingPreview(startTime, endTime, postCapacity);

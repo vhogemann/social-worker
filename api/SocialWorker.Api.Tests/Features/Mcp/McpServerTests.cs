@@ -280,6 +280,56 @@ public sealed class McpServerTests : SqliteTestBase
         Assert.Equal(-32601, response.Error!.Code);
     }
 
+    [Fact]
+    public async Task HandleRequest_ToolsCall_ListWorkflows_ReturnsDestinationsAndSchedule()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var schedule = SocialWorker.Api.Data.Entities.Schedule.Create(user.Id, "Main Social Schedule", "UTC");
+        db.Schedules.Add(schedule);
+
+        var account = new Account
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Platform = "Bluesky",
+            Handle = "science.bsky.social",
+            CredentialsEncrypted = "dummy",
+            Status = "Active"
+        };
+        db.Accounts.Add(account);
+
+        var workflow = AutomationWorkflow.Create(user.Id, "PBS Space Time", "Summarize science");
+        var dest = AutomationWorkflowDestination.Create(
+            workflow.Id,
+            "Bluesky",
+            WorkflowPublishingMode.Scheduled,
+            schedule.Id,
+            account.Id);
+        workflow.Destinations.Add(dest);
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        var listParams = JsonDocument.Parse("""
+        {
+            "name": "list_workflows",
+            "arguments": {}
+        }
+        """).RootElement;
+
+        var request = new McpRequest("2.0", 50, "tools/call", listParams);
+        var response = await server.HandleRequestAsync(request, user.Id, CancellationToken.None);
+
+        Assert.NotNull(response);
+        Assert.Null(response!.Error);
+        var result = Assert.IsType<McpToolCallResult>(response.Result);
+        Assert.False(result.IsError);
+        Assert.Contains("PBS Space Time", result.Content[0].Text);
+        Assert.Contains("Scheduled", result.Content[0].Text);
+        Assert.Contains("Main Social Schedule", result.Content[0].Text);
+        Assert.Contains("science.bsky.social", result.Content[0].Text);
+    }
+
     private sealed class MockPublisherResolver : IPublisherResolver
     {
         public IPublisher? Resolve(string platform) => null;

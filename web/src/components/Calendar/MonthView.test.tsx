@@ -83,4 +83,22 @@ describe("MonthView", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect.mock.calls[0][0].getDate()).toBe(7);
   });
+
+  it("clicking add slot button on a day cell calls onAddSlot with cell date", () => {
+    const onAddSlot = vi.fn();
+    render(
+      <MonthView
+        currentDate={baseDate}
+        events={[]}
+        onSelectDate={vi.fn()}
+        onAddSlot={onAddSlot}
+      />
+    );
+
+    const addBtn = screen.getByTestId("add-slot-month-btn-2026-09-07");
+    fireEvent.click(addBtn);
+
+    expect(onAddSlot).toHaveBeenCalledTimes(1);
+    expect(onAddSlot.mock.calls[0][0].getDate()).toBe(7);
+  });
 });

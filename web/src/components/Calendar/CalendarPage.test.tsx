@@ -155,4 +155,54 @@ describe("CalendarPage", () => {
       expect(screen.getByText("Network disconnect")).toBeInTheDocument();
     });
   });
+
+  it("clicking toolbar Add Slot button opens SlotRuleFormModal", async () => {
+    vi.mocked(schedulesApi.fetchSchedules).mockResolvedValueOnce(mockSchedules);
+    vi.mocked(schedulesApi.fetchCalendarFeed).mockResolvedValue(mockEvents);
+
+    render(
+      <MemoryRouter>
+        <CalendarPage initialDate={fixedDate} initialView="week" />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("toolbar-add-slot-btn")).toBeInTheDocument();
+      expect(screen.getByTestId("open-schedule-manager-btn")).toHaveTextContent("Settings");
+      expect(screen.getByTestId("schedule-selector")).toHaveValue("sched-1");
+    });
+
+    fireEvent.click(screen.getByTestId("toolbar-add-slot-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("slot-rule-modal")).toBeInTheDocument();
+      expect(screen.getByText("Add Publishing Slot Rule")).toBeInTheDocument();
+    });
+  });
+
+  it("clicking cell Add Slot button in week view opens SlotRuleFormModal prefilled", async () => {
+    vi.mocked(schedulesApi.fetchSchedules).mockResolvedValueOnce(mockSchedules);
+    vi.mocked(schedulesApi.fetchCalendarFeed).mockResolvedValue(mockEvents);
+
+    render(
+      <MemoryRouter>
+        <CalendarPage initialDate={fixedDate} initialView="week" />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("schedule-selector")).toHaveValue("sched-1");
+    });
+
+    const cellBtn = await screen.findByTestId("add-slot-btn-2026-09-07-14");
+    fireEvent.click(cellBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("slot-rule-modal")).toBeInTheDocument();
+      const startInput = screen.getByTestId("start-time-input") as HTMLInputElement;
+      const endInput = screen.getByTestId("end-time-input") as HTMLInputElement;
+      expect(startInput.value).toBe("14:00");
+      expect(endInput.value).toBe("15:00");
+    });
+  });
 });

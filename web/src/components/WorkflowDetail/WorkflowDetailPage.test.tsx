@@ -26,6 +26,12 @@ vi.mock("../../api/accounts", () => ({
   listAccounts: vi.fn(),
 }));
 
+vi.mock("../../api/schedules", () => ({
+  fetchSchedules: vi.fn().mockResolvedValue([
+    { id: "sched-1", name: "Main Social Schedule", timezone: "UTC", isDefault: true, slotCount: 3 }
+  ]),
+}));
+
 describe("WorkflowDetailPage", () => {
   const routerFuture = { v7_startTransition: true, v7_relativeSplatPath: true };
 
@@ -94,7 +100,7 @@ describe("WorkflowDetailPage", () => {
       expect(screen.getByText(/1 feed source/i)).toBeInTheDocument();
       expect(screen.getAllByText("Bluesky").length).toBeGreaterThan(0);
       expect(screen.getByText("@alice.bsky.social")).toBeInTheDocument();
-      expect(screen.getByText("Auto")).toBeInTheDocument();
+      expect(screen.getByText("Auto-Publish")).toBeInTheDocument();
     });
 
     // Verify drafts rendered
@@ -159,6 +165,79 @@ describe("WorkflowDetailPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Edit Automation Workflow" })).toBeInTheDocument();
+    });
+  });
+
+  it("renders scheduled badge with schedule name in header", async () => {
+    const scheduledWorkflow: workflowsApi.AutomationWorkflowDto = {
+      ...mockWorkflow,
+      destinations: [
+        {
+          id: "dest-1",
+          platform: "Bluesky",
+          autoPublish: false,
+          publishingMode: "Scheduled",
+          scheduleId: "sched-1",
+          scheduleName: "Main Social Schedule",
+          accountHandle: "alice.bsky.social"
+        }
+      ]
+    };
+    vi.mocked(workflowsApi.fetchWorkflow).mockResolvedValue(scheduledWorkflow);
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Scheduled \(Main Social Schedule\)/i)).toBeInTheDocument();
+    });
+  });
+
+  it("preserves publishingMode and scheduleId when editing and saving workflow", async () => {
+    const scheduledWorkflow: workflowsApi.AutomationWorkflowDto = {
+      ...mockWorkflow,
+      destinations: [
+        {
+          id: "dest-1",
+          platform: "Bluesky",
+          autoPublish: false,
+          publishingMode: "Scheduled",
+          scheduleId: "sched-1",
+          scheduleName: "Main Social Schedule",
+          accountHandle: "alice.bsky.social"
+        }
+      ]
+    };
+    vi.mocked(workflowsApi.fetchWorkflow).mockResolvedValue(scheduledWorkflow);
+    vi.mocked(workflowsApi.updateWorkflow).mockResolvedValue(scheduledWorkflow);
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Edit workflow")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTitle("Edit workflow"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Edit Automation Workflow" })).toBeInTheDocument();
+    });
+
+    const saveBtn = screen.getByRole("button", { name: /Save Changes/i });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(workflowsApi.updateWorkflow).toHaveBeenCalledWith(
+        "wf-1",
+        expect.objectContaining({
+          destinations: [
+            expect.objectContaining({
+              platform: "Bluesky",
+              publishingMode: "Scheduled",
+              scheduleId: "sched-1"
+            })
+          ]
+        })
+      );
     });
   });
 });

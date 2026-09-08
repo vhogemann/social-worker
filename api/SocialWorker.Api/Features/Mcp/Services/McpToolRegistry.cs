@@ -17,6 +17,7 @@ using SocialWorker.Api.Features.Publishing.Validation;
 using SocialWorker.Api.Features.Scheduling.Models;
 using SocialWorker.Api.Features.Scheduling.Services;
 using SocialWorker.Api.Features.Sources;
+using SocialWorker.Api.Features.Workflows;
 
 namespace SocialWorker.Api.Features.Mcp.Services;
 
@@ -428,10 +429,17 @@ public sealed class McpToolRegistry
         var workflows = await _db.AutomationWorkflows
             .AsNoTracking()
             .Where(w => w.UserId == userId)
-            .Select(w => new { w.Id, w.Title, w.InstructionPrompt, w.CreatedAt })
+            .Include(w => w.WorkflowSources)
+                .ThenInclude(ws => ws.FeedSubscription)
+            .Include(w => w.Destinations)
+                .ThenInclude(d => d.Account)
+            .Include(w => w.Destinations)
+                .ThenInclude(d => d.Schedule)
+            .OrderByDescending(w => w.CreatedAt)
             .ToListAsync(ct);
 
-        return TextResult(JsonSerializer.Serialize(workflows, JsonOptions));
+        var dtos = workflows.Select(w => new AutomationWorkflowDto(w)).ToList();
+        return TextResult(JsonSerializer.Serialize(dtos, JsonOptions));
     }
 
     private async Task<McpToolCallResult> HandleTriggerWorkflowAsync(Guid userId, JsonElement args, CancellationToken ct)
@@ -769,7 +777,8 @@ public sealed class McpToolRegistry
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
 
     private static JsonElement CreateSchema(string rawJson) => JsonDocument.Parse(rawJson).RootElement;

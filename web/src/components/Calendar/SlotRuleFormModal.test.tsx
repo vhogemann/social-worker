@@ -101,4 +101,27 @@ describe("SlotRuleFormModal", () => {
       expect(onClose).toHaveBeenCalled();
     });
   });
+
+  it("initializes form with custom initialValues when provided", () => {
+    render(
+      <SlotRuleFormModal
+        isOpen={true}
+        onClose={vi.fn()}
+        scheduleId="sched-1"
+        onCreated={vi.fn()}
+        initialValues={{
+          startTime: "14:00",
+          endTime: "15:00",
+          selectedDays: [2],
+          recurrenceType: "Weekly",
+          postCapacity: 2
+        }}
+      />
+    );
+
+    expect(screen.getByDisplayValue("14:00")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("15:00")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2")).toBeInTheDocument();
+    expect(screen.getByTestId("day-toggle-tue")).toHaveClass("bg-accent");
+  });
 });

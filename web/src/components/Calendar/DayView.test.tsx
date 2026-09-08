@@ -129,4 +129,22 @@ describe("DayView", () => {
     const liveLink = screen.getByRole("link", { name: /View Live/i });
     expect(liveLink).toHaveAttribute("href", "https://bsky.app/profile/test/post/123");
   });
+
+  it("clicking add slot button invokes onAddSlot with current date", () => {
+    const onAddSlot = vi.fn();
+    render(
+      <MemoryRouter>
+        <DayView
+          currentDate={selectedDate}
+          events={mockEvents}
+          onAddSlot={onAddSlot}
+        />
+      </MemoryRouter>
+    );
+
+    const addBtn = screen.getByTestId("day-add-slot-btn");
+    fireEvent.click(addBtn);
+
+    expect(onAddSlot).toHaveBeenCalledWith(selectedDate);
+  });
 });

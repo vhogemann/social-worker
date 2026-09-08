@@ -111,4 +111,23 @@ describe("WeekView", () => {
 
     expect(onOpenSlotClick).toHaveBeenCalledWith(mockEvents[1]);
   });
+
+  it("clicking add slot button on a cell calls onAddSlot with day and hour", () => {
+    const onAddSlot = vi.fn();
+    render(
+      <WeekView
+        currentDate={mondayDate}
+        events={[]}
+        onSelectDate={vi.fn()}
+        onAddSlot={onAddSlot}
+      />
+    );
+
+    const addBtn = screen.getByTestId("add-slot-btn-2026-09-07-14");
+    fireEvent.click(addBtn);
+
+    expect(onAddSlot).toHaveBeenCalledTimes(1);
+    expect(onAddSlot.mock.calls[0][0].getDate()).toBe(7);
+    expect(onAddSlot.mock.calls[0][1]).toBe(14);
+  });
 });
