@@ -11,10 +11,11 @@ vi.mock("../../api/accounts", () => ({
   getLinkedInAuthUrl: vi.fn(),
 }));
 
-import { listAccounts, saveAccount, deleteAccount } from "../../api/accounts";
+import { listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl } from "../../api/accounts";
 const mockListAccounts = listAccounts as Mock;
 const mockSaveAccount = saveAccount as Mock;
 const mockDeleteAccount = deleteAccount as Mock;
+const mockGetLinkedInAuthUrl = getLinkedInAuthUrl as Mock;
 
 const makeAccount = (id = "a1") => ({
   id,
@@ -113,5 +114,71 @@ describe("ConnectionsTab", () => {
     fireEvent.submit(screen.getByRole("button", { name: /save connection/i }));
 
     expect(await screen.findByText("Failed to save connection")).toBeInTheDocument();
+  });
+
+  it("renders Company Page badge and Personal badge for LinkedIn accounts", async () => {
+    mockListAccounts.mockResolvedValueOnce([
+      {
+        id: "li-1",
+        platform: "LinkedIn",
+        handle: "urn:li:person:user123",
+        status: "Active",
+        createdAt: "2026-01-01",
+        updatedAt: "2026-01-01",
+      },
+      {
+        id: "li-2",
+        platform: "LinkedIn",
+        handle: "Acme Corp (urn:li:organization:998877)",
+        status: "Active",
+        createdAt: "2026-01-01",
+        updatedAt: "2026-01-01",
+      },
+    ]);
+    render(<ConnectionsTab />);
+
+    expect(await screen.findByText("Personal")).toBeInTheDocument();
+    expect(await screen.findByText("Company Page")).toBeInTheDocument();
+    expect(screen.getByText(/urn:li:person:user123/)).toBeInTheDocument();
+    expect(screen.getByText(/Acme Corp/)).toBeInTheDocument();
+  });
+
+  it("initiates personal LinkedIn connection flow", async () => {
+    mockGetLinkedInAuthUrl.mockResolvedValueOnce({ authUrl: "https://linkedin.com/auth?personal" });
+    render(<ConnectionsTab />);
+
+    const addBtn = await screen.findByRole("button", { name: /\+? ?add connection/i });
+    fireEvent.click(addBtn);
+
+    const select = screen.getByDisplayValue("Bluesky");
+    fireEvent.change(select, { target: { value: "LinkedIn" } });
+
+    const connectBtn = screen.getByRole("button", { name: /connect personal profile/i });
+    fireEvent.click(connectBtn);
+
+    await waitFor(() => {
+      expect(mockGetLinkedInAuthUrl).toHaveBeenCalledWith("personal");
+    });
+  });
+
+  it("initiates company LinkedIn connection flow when Company Page is selected", async () => {
+    mockGetLinkedInAuthUrl.mockResolvedValueOnce({ authUrl: "https://linkedin.com/auth?company" });
+    render(<ConnectionsTab />);
+
+    const addBtn = await screen.findByRole("button", { name: /\+? ?add connection/i });
+    fireEvent.click(addBtn);
+
+    const select = screen.getByDisplayValue("Bluesky");
+    fireEvent.change(select, { target: { value: "LinkedIn" } });
+
+    const companyTypeBtn = screen.getByRole("button", { name: /company page/i });
+    fireEvent.click(companyTypeBtn);
+
+    const connectBtn = screen.getByRole("button", { name: /connect company page/i });
+    fireEvent.click(connectBtn);
+
+    await waitFor(() => {
+      expect(mockGetLinkedInAuthUrl).toHaveBeenCalledWith("company");
+    });
   });
 });

@@ -25,6 +25,8 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<FeedAutoPublishService>();
         builder.Services.AddScoped<FeedOrchestrationService>();
         builder.Services.AddScoped<FeedPollingService>();
+        builder.Services.AddScoped<SocialWorker.Api.Features.Workflows.Abstractions.IWorkflowSourceHandler, FeedWorkflowSourceHandler>();
+        builder.Services.AddScoped<SocialWorker.Api.Features.Workflows.Abstractions.IWorkflowSourceHandler, DigestWorkflowSourceHandler>();
         builder.Services.AddSingleton<FeedPollingHostedService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<FeedPollingHostedService>());
     }

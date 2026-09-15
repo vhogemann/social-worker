@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using SocialWorker.Api.Features.Providers.Services;
+using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Validation;
 
 namespace SocialWorker.Api.Features.Providers;
@@ -35,8 +36,8 @@ public static class ProvidersEndpoint
             var result = await service.CreateProviderAsync(req, ct);
             if (result.Error != null)
             {
-                if (result.Error == "A provider with this name already exists.") return Results.Conflict(result.Error);
-                return Results.BadRequest(result.Error);
+                if (result.Error == "A provider with this name already exists.") return Results.Conflict(new ApiErrorResponse(result.Error));
+                return Results.BadRequest(new ApiErrorResponse(result.Error));
             }
 
             return Results.Ok(result.Data);
@@ -46,12 +47,12 @@ public static class ProvidersEndpoint
         {
             var result = await service.UpdateProviderAsync(id, req, ct);
             
-            if (result.IsNotFound) return Results.NotFound();
+            if (result.IsNotFound) return Results.NotFound(new ApiErrorResponse("Provider not found."));
             
             if (result.Error != null)
             {
-                if (result.Error == "A provider with this name already exists.") return Results.Conflict(result.Error);
-                return Results.BadRequest(result.Error);
+                if (result.Error == "A provider with this name already exists.") return Results.Conflict(new ApiErrorResponse(result.Error));
+                return Results.BadRequest(new ApiErrorResponse(result.Error));
             }
 
             return Results.Ok(result.Data);
@@ -61,8 +62,8 @@ public static class ProvidersEndpoint
         {
             var result = await service.DeleteProviderAsync(id, ct);
             
-            if (result.IsNotFound) return Results.NotFound();
-            if (result.Error != null) return Results.BadRequest(result.Error);
+            if (result.IsNotFound) return Results.NotFound(new ApiErrorResponse("Provider not found."));
+            if (result.Error != null) return Results.BadRequest(new ApiErrorResponse(result.Error));
 
             return Results.NoContent();
         });

@@ -1,10 +1,17 @@
 import { apiFetch } from "./client";
 import type { FeedQueueItemDto } from "./feeds";
 
+export type WorkflowSourceKind = "Feed" | "WorkflowHighlights" | "Webhook" | "EmailInbox" | "Telegram";
+
 export interface WorkflowSourceDto {
-  feedSubscriptionId: string;
-  title: string;
-  feedUrl: string;
+  id?: string;
+  kind?: WorkflowSourceKind;
+  feedSubscriptionId?: string | null;
+  title?: string;
+  feedUrl?: string | null;
+  sourceWorkflowId?: string | null;
+  sourceWorkflowTitle?: string | null;
+  configurationJson?: string | null;
 }
 
 export interface WorkflowDestinationDto {
@@ -24,6 +31,8 @@ export interface AutomationWorkflowDto {
   instructionPrompt: string;
   sources: WorkflowSourceDto[];
   destinations: WorkflowDestinationDto[];
+  scheduleId?: string | null;
+  scheduleName?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,11 +62,20 @@ export interface CreateWorkflowDestinationRequest {
   accountId?: string | null;
 }
 
+export interface CreateWorkflowSourceRequest {
+  kind: WorkflowSourceKind;
+  feedSubscriptionId?: string | null;
+  sourceWorkflowId?: string | null;
+  configurationJson?: string | null;
+}
+
 export interface CreateAutomationWorkflowRequest {
   title: string;
   instructionPrompt?: string;
   feedSubscriptionIds?: string[];
+  sources?: CreateWorkflowSourceRequest[];
   destinations?: CreateWorkflowDestinationRequest[];
+  scheduleId?: string | null;
 }
 
 export async function fetchWorkflows(): Promise<AutomationWorkflowDto[]> {

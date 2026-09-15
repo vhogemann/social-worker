@@ -86,6 +86,7 @@ These should remain first-class and be kept current:
 | [planning/LINKED_IN.md](planning/LINKED_IN.md) | LinkedIn publishing contract, markdown mapping, and conversion pipeline (single-post-only scope) |
 | [planning/linkedin/FRONTEND_INTEGRATION.md](planning/linkedin/FRONTEND_INTEGRATION.md) | LinkedIn frontend integration design, preview components, and validation rules |
 | [planning/linkedin/OAUTH_INTEGRATION.md](planning/linkedin/OAUTH_INTEGRATION.md) | LinkedIn 3-legged OAuth code flow backend and frontend integration |
+| [planning/linkedin/COMPANY_PAGES.md](planning/linkedin/COMPANY_PAGES.md) | LinkedIn Company Page (Organization) posting, ACL discovery, and multi-account publishing |
 | [planning/DECOUPLED_ORCHESTRATION.md](planning/DECOUPLED_ORCHESTRATION.md) | Decoupled feed ingestion and multi-source/multi-destination orchestration workflows |
 | [planning/FRONTEND_ORCHESTRATION.md](planning/FRONTEND_ORCHESTRATION.md) | Frontend UI integration for orchestrations dashboard, many-to-many feed mappings, and recent runs backlog |
 | [planning/MULTI_ACCOUNT_SUPPORT.md](planning/MULTI_ACCOUNT_SUPPORT.md) | Multi-account support per platform across database constraints, account-first draft creation, and publishing |
@@ -99,6 +100,7 @@ These should remain first-class and be kept current:
 | [planning/DEMO_CLOUD_PROVIDER_RESEARCH.md](planning/DEMO_CLOUD_PROVIDER_RESEARCH.md) | Cloud provider cost & compute benchmark research for initial live demo deployment |
 | [planning/INFRASTRUCTURE_GAPS_AND_HARDENING.md](planning/INFRASTRUCTURE_GAPS_AND_HARDENING.md) | Infrastructure gaps audit & production hardening plan (Health checks, Rate limiting, Data Protection, OAuth refresh, Backup) |
 | [planning/FUNCTIONAL_TEST_HARNESS.md](planning/FUNCTIONAL_TEST_HARNESS.md) | Agent-controlled functional test harness for live stack & Bluesky ATProto out-of-band verification |
+| [planning/DASHBOARD_OVERVIEW.md](planning/DASHBOARD_OVERVIEW.md) | Overview dashboard architecture, KPI metrics, velocity time-series graphs, and low-tax database index design |
 
 
 

@@ -23,7 +23,7 @@ public static class AccountEndpoint
         {
             if (string.IsNullOrWhiteSpace(req.CurrentPassword) || string.IsNullOrWhiteSpace(req.NewPassword))
             {
-                return Results.BadRequest("Current password and new password are required.");
+                return Results.BadRequest(new ApiErrorResponse("Current password and new password are required."));
             }
 
             var userId = principal.GetUserId();
@@ -37,7 +37,7 @@ public static class AccountEndpoint
 
             if (!BCrypt.Net.BCrypt.Verify(req.CurrentPassword, user.PasswordHash))
             {
-                return Results.BadRequest("Incorrect current password.");
+                return Results.BadRequest(new ApiErrorResponse("Incorrect current password."));
             }
 
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.NewPassword);
@@ -66,7 +66,7 @@ public static class AccountEndpoint
                 var providerExists = await db.LlmProviders.AnyAsync(p => p.Id == req.ProviderId.Value && p.IsActive, ct);
                 if (!providerExists)
                 {
-                    return Results.BadRequest("Invalid or inactive provider.");
+                    return Results.BadRequest(new ApiErrorResponse("Invalid or inactive provider."));
                 }
             }
 

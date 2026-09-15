@@ -40,7 +40,7 @@ public static class BrandVoicePromptsEndpoint
             var prompt = await db.BrandVoicePrompts
                 .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId.Value);
 
-            if (prompt == null) return Results.NotFound("Brand voice prompt not found.");
+            if (prompt == null) return Results.NotFound(new ApiErrorResponse("Brand voice prompt not found."));
 
             return Results.Ok(new BrandVoicePromptDto(prompt.Id, prompt.Name, prompt.Body, prompt.IsDefault, prompt.CreatedAt, prompt.UpdatedAt));
         });
@@ -50,8 +50,8 @@ public static class BrandVoicePromptsEndpoint
             var userId = user.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            if (string.IsNullOrWhiteSpace(req.Name)) return Results.BadRequest("Name is required.");
-            if (string.IsNullOrWhiteSpace(req.Body)) return Results.BadRequest("Prompt body is required.");
+            if (string.IsNullOrWhiteSpace(req.Name)) return Results.BadRequest(new ApiErrorResponse("Name is required."));
+            if (string.IsNullOrWhiteSpace(req.Body)) return Results.BadRequest(new ApiErrorResponse("Prompt body is required."));
 
             if (req.IsDefault)
             {
@@ -84,13 +84,13 @@ public static class BrandVoicePromptsEndpoint
             var userId = user.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            if (string.IsNullOrWhiteSpace(req.Name)) return Results.BadRequest("Name is required.");
-            if (string.IsNullOrWhiteSpace(req.Body)) return Results.BadRequest("Prompt body is required.");
+            if (string.IsNullOrWhiteSpace(req.Name)) return Results.BadRequest(new ApiErrorResponse("Name is required."));
+            if (string.IsNullOrWhiteSpace(req.Body)) return Results.BadRequest(new ApiErrorResponse("Prompt body is required."));
 
             var prompt = await db.BrandVoicePrompts
                 .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId.Value);
 
-            if (prompt == null) return Results.NotFound("Brand voice prompt not found.");
+            if (prompt == null) return Results.NotFound(new ApiErrorResponse("Brand voice prompt not found."));
 
             if (req.IsDefault && !prompt.IsDefault)
             {

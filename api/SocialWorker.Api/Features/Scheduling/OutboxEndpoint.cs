@@ -85,25 +85,25 @@ public static class OutboxEndpoint
                 .FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId.Value, ct);
 
             if (draft == null)
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
 
             if (string.Equals(request.Action, "queue", StringComparison.OrdinalIgnoreCase))
             {
                 if (!request.ScheduleId.HasValue)
-                    return Results.BadRequest("ScheduleId is required to enqueue draft.");
+                    return Results.BadRequest(new ApiErrorResponse("ScheduleId is required to enqueue draft."));
 
                 var scheduleExists = await db.Schedules
                     .AnyAsync(s => s.Id == request.ScheduleId.Value && s.UserId == userId.Value, ct);
 
                 if (!scheduleExists)
-                    return Results.BadRequest("Specified schedule was not found.");
+                    return Results.BadRequest(new ApiErrorResponse("Specified schedule was not found."));
 
                 var targetThreads = request.PlatformThreadId.HasValue
                     ? draft.Threads.Where(t => t.Id == request.PlatformThreadId.Value).ToList()
                     : draft.Threads.Where(t => t.Stage == PlatformThreadStage.Draft).ToList();
 
                 if (targetThreads.Count == 0)
-                    return Results.BadRequest("No eligible platform threads found to enqueue.");
+                    return Results.BadRequest(new ApiErrorResponse("No eligible platform threads found to enqueue."));
 
                 foreach (var thread in targetThreads)
                 {
@@ -120,7 +120,7 @@ public static class OutboxEndpoint
                     : draft.Threads.Where(t => t.Stage == PlatformThreadStage.Draft).ToList();
 
                 if (targetThreads.Count == 0)
-                    return Results.BadRequest("No eligible platform threads found to publish.");
+                    return Results.BadRequest(new ApiErrorResponse("No eligible platform threads found to publish."));
 
                 var publishedPosts = new List<Post>();
 
@@ -137,26 +137,26 @@ public static class OutboxEndpoint
                     }
                     if (account == null)
                     {
-                        return Results.BadRequest($"No connected account found for platform: {thread.Platform}");
+                        return Results.BadRequest(new ApiErrorResponse($"No connected account found for platform: {thread.Platform}"));
                     }
 
                     if (string.Equals(thread.Platform, "Bluesky", StringComparison.OrdinalIgnoreCase))
                     {
                         var validationError = blueskyContentValidator.GetFirstPublishValidationError(thread.Content ?? string.Empty);
                         if (validationError != null)
-                            return Results.BadRequest(validationError);
+                            return Results.BadRequest(new ApiErrorResponse(validationError));
                     }
 
                     var publisher = publisherResolver.Resolve(thread.Platform);
                     if (publisher == null)
                     {
-                        return Results.BadRequest($"No publisher configured for platform: {thread.Platform}");
+                        return Results.BadRequest(new ApiErrorResponse($"No publisher configured for platform: {thread.Platform}"));
                     }
 
                     var result = await publisher.PublishAsync(thread, account, ct);
                     if (!result.Success)
                     {
-                        return Results.BadRequest(result.ErrorMessage ?? "Publishing failed.");
+                        return Results.BadRequest(new ApiErrorResponse(result.ErrorMessage ?? "Publishing failed."));
                     }
 
                     foreach (var publishedPost in result.Posts)
@@ -183,7 +183,7 @@ public static class OutboxEndpoint
             }
             else
             {
-                return Results.BadRequest("Invalid action. Must be 'queue' or 'publish_now'.");
+                return Results.BadRequest(new ApiErrorResponse("Invalid action. Must be 'queue' or 'publish_now'."));
             }
         });
 
@@ -195,7 +195,7 @@ public static class OutboxEndpoint
 
             var draft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId.Value, ct);
             if (draft == null)
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
 
             draft.Status = DraftStatus.Archived;
             draft.UpdatedAt = DateTime.UtcNow;

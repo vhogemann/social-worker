@@ -108,11 +108,11 @@ public static class SourcesEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Source not found."));
             }
             catch (InvalidOperationException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
         }).RequireAuthorization();
 
@@ -130,7 +130,7 @@ public static class SourcesEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
         });
 
@@ -146,7 +146,7 @@ public static class SourcesEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Source not found."));
             }
         });
 
@@ -162,7 +162,7 @@ public static class SourcesEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Source not found."));
             }
         });
 
@@ -179,7 +179,7 @@ public static class SourcesEndpoint
 
             if (file.Length == 0)
             {
-                return Results.BadRequest("No file uploaded");
+                return Results.BadRequest(new ApiErrorResponse("No file uploaded."));
             }
 
             try
@@ -194,15 +194,15 @@ public static class SourcesEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
             catch (NotSupportedException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
             catch (Exception ex)
             {
-                return Results.BadRequest($"Failed to process file attachment: {ex.Message}");
+                return Results.BadRequest(new ApiErrorResponse($"Failed to process file attachment: {ex.Message}"));
             }
         }).DisableAntiforgery();
 
@@ -236,15 +236,15 @@ public static class SourcesEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
             catch (ArgumentException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
             catch (InvalidOperationException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
         }).WithValidation<ImportSourceFromUrlRequest>();
 

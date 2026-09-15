@@ -77,6 +77,7 @@ export const WorkflowsPage: React.FC = () => {
       title: data.title,
       instructionPrompt: data.instructionPrompt,
       feedSubscriptionIds: data.feedSubscriptionIds,
+      sources: data.sources,
       destinations: data.destinations.map((d) => ({
         platform: d.platform,
         autoPublish: d.autoPublish,
@@ -84,7 +85,8 @@ export const WorkflowsPage: React.FC = () => {
         scheduleId: d.scheduleId,
         accountId: d.accountId,
         accountHandle: d.accountHandle
-      }))
+      })),
+      scheduleId: data.scheduleId
     };
 
     try {
@@ -195,6 +197,7 @@ export const WorkflowsPage: React.FC = () => {
           isOpen={isModalOpen}
           editingWorkflow={editingWorkflow}
           availableFeeds={availableFeeds}
+          availableWorkflows={workflows.filter((w) => !editingWorkflow || w.id !== editingWorkflow.id)}
           connectedAccounts={connectedAccounts}
           onClose={() => {
             setIsModalOpen(false);

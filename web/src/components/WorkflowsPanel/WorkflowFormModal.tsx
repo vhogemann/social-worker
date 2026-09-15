@@ -8,7 +8,11 @@ import {
   type WorkflowDestinationItem,
   type PublishingMode
 } from "./WorkflowDestinationsSelector";
-import { type AutomationWorkflowDto } from "../../api/workflows";
+import {
+  type AutomationWorkflowDto,
+  type WorkflowSourceKind,
+  type CreateWorkflowSourceRequest
+} from "../../api/workflows";
 import { type FeedSubscriptionDto } from "../../api/feeds";
 import { type AccountDto } from "../../api/accounts";
 import { fetchSchedules, type ScheduleSummaryDto } from "../../api/schedules";
@@ -16,7 +20,8 @@ import { fetchSchedules, type ScheduleSummaryDto } from "../../api/schedules";
 export interface WorkflowFormData {
   title: string;
   instructionPrompt?: string;
-  feedSubscriptionIds: string[];
+  feedSubscriptionIds?: string[];
+  sources?: CreateWorkflowSourceRequest[];
   destinations: {
     platform: string;
     autoPublish: boolean;
@@ -25,12 +30,14 @@ export interface WorkflowFormData {
     accountId?: string;
     accountHandle?: string;
   }[];
+  scheduleId?: string | null;
 }
 
 export interface WorkflowFormModalProps {
   isOpen: boolean;
   editingWorkflow: AutomationWorkflowDto | null;
   availableFeeds: FeedSubscriptionDto[];
+  availableWorkflows?: AutomationWorkflowDto[];
   connectedAccounts: AccountDto[];
   onClose: () => void;
   onSave: (data: WorkflowFormData) => Promise<void>;
@@ -40,6 +47,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
   isOpen,
   editingWorkflow,
   availableFeeds,
+  availableWorkflows = [],
   connectedAccounts,
   onClose,
   onSave
@@ -48,9 +56,13 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
   const [instructionPrompt, setInstructionPrompt] = useState(
     "Summarize this article as an engaging thread."
   );
+  const [sourceKind, setSourceKind] = useState<WorkflowSourceKind>("Feed");
   const [selectedFeedIds, setSelectedFeedIds] = useState<string[]>([]);
+  const [selectedSourceWorkflowIds, setSelectedSourceWorkflowIds] = useState<string[]>([]);
+  const [lookbackDays, setLookbackDays] = useState(7);
   const [destinations, setDestinations] = useState<WorkflowDestinationItem[]>([]);
   const [schedules, setSchedules] = useState<ScheduleSummaryDto[]>([]);
+  const [workflowScheduleId, setWorkflowScheduleId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -63,7 +75,40 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
     if (editingWorkflow) {
       setTitle(editingWorkflow.title);
       setInstructionPrompt(editingWorkflow.instructionPrompt || "");
-      setSelectedFeedIds(editingWorkflow.sources.map((s) => s.feedSubscriptionId));
+      setWorkflowScheduleId(editingWorkflow.scheduleId || null);
+
+      const hasHighlights = editingWorkflow.sources.some((s) => s.kind === "WorkflowHighlights");
+      if (hasHighlights) {
+        setSourceKind("WorkflowHighlights");
+        const hlSources = editingWorkflow.sources.filter((s) => s.kind === "WorkflowHighlights");
+        const wfIds: string[] = [];
+        let days = 7;
+        for (const s of hlSources) {
+          if (s.sourceWorkflowId) wfIds.push(s.sourceWorkflowId);
+          if (s.configurationJson) {
+            try {
+              const parsed = JSON.parse(s.configurationJson);
+              if (parsed.lookbackDays) days = parsed.lookbackDays;
+              if (Array.isArray(parsed.sourceWorkflowIds)) {
+                wfIds.push(...parsed.sourceWorkflowIds);
+              }
+            } catch {}
+          }
+        }
+        setSelectedSourceWorkflowIds(Array.from(new Set(wfIds)));
+        setLookbackDays(days);
+        setSelectedFeedIds([]);
+      } else {
+        setSourceKind("Feed");
+        setSelectedFeedIds(
+          editingWorkflow.sources
+            .map((s) => s.feedSubscriptionId)
+            .filter((id): id is string => Boolean(id))
+        );
+        setSelectedSourceWorkflowIds([]);
+        setLookbackDays(7);
+      }
+
       setDestinations(
         editingWorkflow.destinations.map((d) => ({
           platform: d.platform,
@@ -77,7 +122,11 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
     } else {
       setTitle("");
       setInstructionPrompt("Summarize this article as an engaging thread.");
+      setSourceKind("Feed");
       setSelectedFeedIds(availableFeeds.map((f) => f.id));
+      setSelectedSourceWorkflowIds([]);
+      setLookbackDays(7);
+      setWorkflowScheduleId(null);
       if (connectedAccounts.length > 0) {
         setDestinations(
           connectedAccounts.map((a) => ({
@@ -97,6 +146,12 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
   const handleToggleFeed = (feedId: string) => {
     setSelectedFeedIds((prev) =>
       prev.includes(feedId) ? prev.filter((id) => id !== feedId) : [...prev, feedId]
+    );
+  };
+
+  const handleToggleSourceWorkflow = (workflowId: string) => {
+    setSelectedSourceWorkflowIds((prev) =>
+      prev.includes(workflowId) ? prev.filter((id) => id !== workflowId) : [...prev, workflowId]
     );
   };
 
@@ -157,11 +212,26 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
 
     setSaving(true);
     try {
+      let sourcesPayload: CreateWorkflowSourceRequest[] = [];
+      if (sourceKind === "Feed") {
+        sourcesPayload = selectedFeedIds.map((id) => ({
+          kind: "Feed" as const,
+          feedSubscriptionId: id
+        }));
+      } else {
+        sourcesPayload = selectedSourceWorkflowIds.map((wfId) => ({
+          kind: "WorkflowHighlights" as const,
+          sourceWorkflowId: wfId,
+          configurationJson: JSON.stringify({ lookbackDays, sourceWorkflowIds: [wfId] })
+        }));
+      }
+
       await onSave({
         title: title.trim(),
         instructionPrompt: instructionPrompt.trim() || undefined,
-        feedSubscriptionIds: selectedFeedIds,
-        destinations
+        sources: sourcesPayload,
+        destinations,
+        scheduleId: workflowScheduleId
       });
       onClose();
     } finally {
@@ -199,9 +269,16 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
         </div>
 
         <WorkflowSourcesSelector
+          sourceKind={sourceKind}
+          onSourceKindChange={setSourceKind}
           availableFeeds={availableFeeds}
           selectedFeedIds={selectedFeedIds}
           onToggleFeed={handleToggleFeed}
+          availableWorkflows={availableWorkflows}
+          selectedSourceWorkflowIds={selectedSourceWorkflowIds}
+          onToggleSourceWorkflow={handleToggleSourceWorkflow}
+          lookbackDays={lookbackDays}
+          onLookbackDaysChange={setLookbackDays}
         />
 
         <WorkflowDestinationsSelector

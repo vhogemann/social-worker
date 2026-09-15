@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { submitLinkedInCallback } from "../../api/accounts";
+import { submitLinkedInCallback, type LinkedInCallbackResponse } from "../../api/accounts";
 
 export function LinkedInCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<LinkedInCallbackResponse | null>(null);
 
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
 
   useEffect(() => {
     if (!code) {
@@ -21,12 +23,13 @@ export function LinkedInCallbackPage() {
 
     async function handleExchange() {
       try {
-        await submitLinkedInCallback(code!);
+        const data = await submitLinkedInCallback(code!, state || undefined);
         if (!active) return;
+        setResult(data);
         setStatus("success");
         setTimeout(() => {
-          navigate("/", { replace: true });
-        }, 2000);
+          navigate("/settings?tab=connections", { replace: true });
+        }, 2500);
       } catch (err: any) {
         if (!active) return;
         setStatus("error");
@@ -39,7 +42,7 @@ export function LinkedInCallbackPage() {
     return () => {
       active = false;
     };
-  }, [code, navigate]);
+  }, [code, state, navigate]);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 text-sans" data-testid="linkedin-callback-page">
@@ -59,8 +62,21 @@ export function LinkedInCallbackPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Success!</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Your LinkedIn account was connected. Redirecting you back...</p>
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Connected!</h2>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1">
+              {result?.personalHandle ? (
+                <p>Your LinkedIn personal profile was connected successfully.</p>
+              ) : (
+                <p>Your LinkedIn connection was established successfully.</p>
+              )}
+              {result && result.organizationHandles.length > 0 && (
+                <p className="text-xs font-mono text-zinc-600 dark:text-zinc-300">
+                  Connected {result.organizationHandles.length} company page(s):{" "}
+                  <span className="font-semibold">{result.organizationHandles.join(", ")}</span>
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">Redirecting to settings...</p>
           </div>
         )}
 

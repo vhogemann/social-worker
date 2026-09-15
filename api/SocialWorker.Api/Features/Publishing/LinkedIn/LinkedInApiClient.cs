@@ -20,7 +20,7 @@ public sealed class LinkedInApiClient
     }
 
     public async Task<LinkedInApiCallResult<LinkedInRegisterUploadResponse>> RegisterUploadAsync(
-        string personUrn,
+        string ownerUrn,
         string token,
         CancellationToken ct)
     {
@@ -28,7 +28,7 @@ public sealed class LinkedInApiClient
         {
             RegisterRequest = new LinkedInRegisterRequest
             {
-                Owner = personUrn
+                Owner = ownerUrn
             }
         };
 

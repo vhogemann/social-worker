@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Auth;
+using SocialWorker.Api.Infrastructure;
 
 namespace SocialWorker.Api.Features.Users;
 
@@ -41,7 +42,7 @@ public static class UsersEndpoint
         {
             if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
             {
-                return Results.BadRequest("Username, Email, and Password are required.");
+                return Results.BadRequest(new ApiErrorResponse("Username, Email, and Password are required."));
             }
 
             var usernameNormalized = req.Username.ToUpperInvariant();
@@ -49,7 +50,7 @@ public static class UsersEndpoint
 
             if (await db.Users.AnyAsync(u => u.Username.ToUpper() == usernameNormalized || u.Email.ToUpper() == emailNormalized, ct))
             {
-                return Results.BadRequest("Username or Email already exists.");
+                return Results.BadRequest(new ApiErrorResponse("Username or Email already exists."));
             }
 
             var user = new AppUser
@@ -73,7 +74,7 @@ public static class UsersEndpoint
         group.MapPatch("/{id:guid}", async (Guid id, UpdateUserRequest req, AppDbContext db, CancellationToken ct) =>
         {
             var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
-            if (user == null) return Results.NotFound();
+            if (user == null) return Results.NotFound(new ApiErrorResponse("User not found."));
 
             if (req.Username != null) user.Username = req.Username;
             if (req.Email != null) user.Email = req.Email;
@@ -98,11 +99,11 @@ public static class UsersEndpoint
         {
             if (string.IsNullOrWhiteSpace(req.NewPassword))
             {
-                return Results.BadRequest("New password is required.");
+                return Results.BadRequest(new ApiErrorResponse("New password is required."));
             }
 
             var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
-            if (user == null) return Results.NotFound();
+            if (user == null) return Results.NotFound(new ApiErrorResponse("User not found."));
 
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.NewPassword);
             user.UpdatedAt = DateTime.UtcNow;

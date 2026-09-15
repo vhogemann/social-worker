@@ -255,11 +255,18 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.UserId);
+            e.HasOne(x => x.Schedule)
+                .WithMany()
+                .HasForeignKey(x => x.ScheduleId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => x.ScheduleId);
         });
 
         modelBuilder.Entity<AutomationWorkflowSource>(e =>
         {
-            e.HasKey(x => new { x.AutomationWorkflowId, x.FeedSubscriptionId });
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(50);
+            e.Property(x => x.ConfigurationJson).HasColumnType("text");
             e.HasOne(x => x.AutomationWorkflow)
                 .WithMany(w => w.WorkflowSources)
                 .HasForeignKey(x => x.AutomationWorkflowId)
@@ -268,7 +275,13 @@ public class AppDbContext : DbContext
                 .WithMany(s => s.WorkflowSources)
                 .HasForeignKey(x => x.FeedSubscriptionId)
                 .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.SourceWorkflow)
+                .WithMany()
+                .HasForeignKey(x => x.SourceWorkflowId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.AutomationWorkflowId);
             e.HasIndex(x => x.FeedSubscriptionId);
+            e.HasIndex(x => x.SourceWorkflowId);
         });
 
         modelBuilder.Entity<AutomationWorkflowDestination>(e =>

@@ -124,10 +124,9 @@ public sealed class FluentValidationTests
     {
         var validator = new SocialWorker.Api.Features.Workflows.Validators.CreateAutomationWorkflowRequestValidator();
         var request = new SocialWorker.Api.Features.Workflows.CreateAutomationWorkflowRequest(
-            "Valid Title",
-            "Prompt",
-            null,
-            new System.Collections.Generic.List<SocialWorker.Api.Features.Workflows.CreateWorkflowDestinationRequest>
+            Title: "Valid Title",
+            InstructionPrompt: "Prompt",
+            Destinations: new System.Collections.Generic.List<SocialWorker.Api.Features.Workflows.CreateWorkflowDestinationRequest>
             {
                 new SocialWorker.Api.Features.Workflows.CreateWorkflowDestinationRequest("", true)
             });

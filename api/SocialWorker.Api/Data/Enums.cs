@@ -84,3 +84,13 @@ public enum ScheduleQueueItemStatus
     Failed,
     Paused
 }
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum WorkflowSourceKind
+{
+    Feed,
+    WorkflowHighlights,
+    Webhook,
+    EmailInbox,
+    Telegram
+}

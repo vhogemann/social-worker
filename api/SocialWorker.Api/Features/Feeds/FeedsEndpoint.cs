@@ -85,11 +85,11 @@ public static class FeedsEndpoint
             var subscription = await db.FeedSubscriptions
                 .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId.Value, ct);
 
-            if (subscription == null) return Results.NotFound();
+            if (subscription == null) return Results.NotFound(new ApiErrorResponse("Feed subscription not found."));
 
             if (string.IsNullOrWhiteSpace(req.Title) || string.IsNullOrWhiteSpace(req.FeedUrl))
             {
-                return Results.BadRequest("Title and FeedUrl are required.");
+                return Results.BadRequest(new ApiErrorResponse("Title and FeedUrl are required."));
             }
 
             subscription.Title = req.Title.Trim();
@@ -115,7 +115,7 @@ public static class FeedsEndpoint
             var subscription = await db.FeedSubscriptions
                 .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId.Value, ct);
 
-            if (subscription == null) return Results.NotFound();
+            if (subscription == null) return Results.NotFound(new ApiErrorResponse("Feed subscription not found."));
 
             db.FeedSubscriptions.Remove(subscription);
             await db.SaveChangesAsync(ct);
@@ -212,7 +212,7 @@ public static class FeedsEndpoint
             if (userId is null) return Results.Unauthorized();
 
             var success = await queue.RetryTaskAsync(queueItemId, ct);
-            if (!success) return Results.NotFound();
+            if (!success) return Results.NotFound(new ApiErrorResponse("Feed queue item not found."));
 
             return Results.Ok(new ApiSuccessResponse(true));
         });
@@ -227,7 +227,7 @@ public static class FeedsEndpoint
             if (userId is null) return Results.Unauthorized();
 
             var success = await queue.DeleteTaskAsync(queueItemId, ct);
-            if (!success) return Results.NotFound();
+            if (!success) return Results.NotFound(new ApiErrorResponse("Feed queue item not found."));
 
             return Results.NoContent();
         });

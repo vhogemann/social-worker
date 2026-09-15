@@ -95,19 +95,35 @@ public static class AccountsEndpoint
             return Results.Ok();
         });
 
-        group.MapGet("/linkedin/auth-url", (IOptions<LinkedInOptions> options) =>
+        group.MapGet("/linkedin/auth-url", (string? type, IOptions<LinkedInOptions> options) =>
         {
             var opts = options.Value;
-            if (string.IsNullOrEmpty(opts.ClientId) || string.IsNullOrEmpty(opts.RedirectUri))
+            var isCompany = string.Equals(type, "company", StringComparison.OrdinalIgnoreCase);
+
+            var clientId = isCompany && !string.IsNullOrWhiteSpace(opts.CompanyClientId)
+                ? opts.CompanyClientId
+                : opts.ClientId;
+
+            var redirectUri = isCompany && !string.IsNullOrWhiteSpace(opts.CompanyRedirectUri)
+                ? opts.CompanyRedirectUri
+                : opts.RedirectUri;
+
+            if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(redirectUri))
             {
-                return Results.BadRequest(new { error = "LinkedIn client ID or redirect URI is not configured." });
+                var targetType = isCompany ? "company " : "";
+                return Results.BadRequest(new ApiErrorResponse($"LinkedIn {targetType}client ID or redirect URI is not configured."));
             }
 
-            var scopes = Uri.EscapeDataString("w_member_social openid profile");
-            var redirectUri = Uri.EscapeDataString(opts.RedirectUri);
-            var authUrl = $"https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={opts.ClientId}&redirect_uri={redirectUri}&scope={scopes}";
+            var defaultScopes = isCompany
+                ? (!string.IsNullOrWhiteSpace(opts.CompanyScopes) ? opts.CompanyScopes : "w_organization_social r_organization_admin")
+                : (!string.IsNullOrWhiteSpace(opts.Scopes) ? opts.Scopes : "w_member_social openid profile");
 
-            return Results.Ok(new { authUrl });
+            var scopes = Uri.EscapeDataString(defaultScopes);
+            var redirectUriEscaped = Uri.EscapeDataString(redirectUri);
+            var state = isCompany ? "company" : "personal";
+            var authUrl = $"https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={clientId}&redirect_uri={redirectUriEscaped}&scope={scopes}&state={state}";
+
+            return Results.Ok(new { authUrl, accountType = state });
         });
 
         group.MapPost("/linkedin/callback", async (LinkedInCallbackRequest req, LinkedInOAuthService oauth, AppDbContext db, ClaimsPrincipal user, IConfiguration config) =>
@@ -121,43 +137,89 @@ public static class AccountsEndpoint
                 return Results.Problem("Server encryption key not configured.");
             }
 
-            var tokenResp = await oauth.ExchangeCodeAsync(req.Code, default);
+            var isCompany = string.Equals(req.AccountType, "company", StringComparison.OrdinalIgnoreCase);
+            var tokenResp = await oauth.ExchangeCodeAsync(req.Code, isCompany, default);
             var userInfo = await oauth.FetchUserInfoAsync(tokenResp.AccessToken, default);
 
-            var authorUrn = userInfo.Sub.Trim();
-            if (!authorUrn.StartsWith("urn:li:", StringComparison.OrdinalIgnoreCase))
+            string? authorUrn = null;
+            if (userInfo != null && !string.IsNullOrWhiteSpace(userInfo.Sub))
             {
-                authorUrn = $"urn:li:person:{authorUrn}";
-            }
-
-            var existing = await db.Accounts
-                .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == "LinkedIn" && a.Handle == authorUrn);
-
-            if (existing != null)
-            {
-                existing.CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey);
-                existing.UpdatedAt = DateTime.UtcNow;
-                existing.Status = "Active";
-            }
-            else
-            {
-                var account = new Account
+                authorUrn = userInfo.Sub.Trim();
+                if (!authorUrn.StartsWith("urn:li:", StringComparison.OrdinalIgnoreCase))
                 {
-                    UserId = userId.Value,
-                    Platform = "LinkedIn",
-                    Handle = authorUrn,
-                    CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey),
-                    Status = "Active"
-                };
-                db.Accounts.Add(account);
+                    authorUrn = $"urn:li:person:{authorUrn}";
+                }
+
+                var existing = await db.Accounts
+                    .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == "LinkedIn" && a.Handle == authorUrn);
+
+                if (existing != null)
+                {
+                    existing.CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey);
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    existing.Status = "Active";
+                }
+                else
+                {
+                    var account = new Account
+                    {
+                        UserId = userId.Value,
+                        Platform = "LinkedIn",
+                        Handle = authorUrn,
+                        CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey),
+                        Status = "Active"
+                    };
+                    db.Accounts.Add(account);
+                }
+            }
+
+            var connectedOrgHandles = new List<string>();
+            var orgs = await oauth.FetchOrganizationsAsync(tokenResp.AccessToken, default);
+            foreach (var org in orgs)
+            {
+                var orgHandle = !string.IsNullOrWhiteSpace(org.Name)
+                    ? $"{org.Name} ({org.Urn})"
+                    : org.Urn;
+
+                var orgExisting = await db.Accounts
+                    .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == "LinkedIn" 
+                        && (a.Handle == orgHandle || a.Handle == org.Urn));
+
+                if (orgExisting != null)
+                {
+                    orgExisting.Handle = orgHandle;
+                    orgExisting.CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey);
+                    orgExisting.UpdatedAt = DateTime.UtcNow;
+                    orgExisting.Status = "Active";
+                }
+                else
+                {
+                    var orgAccount = new Account
+                    {
+                        UserId = userId.Value,
+                        Platform = "LinkedIn",
+                        Handle = orgHandle,
+                        CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey),
+                        Status = "Active"
+                    };
+                    db.Accounts.Add(orgAccount);
+                }
+
+                connectedOrgHandles.Add(orgHandle);
+            }
+
+            if (authorUrn is null && connectedOrgHandles.Count == 0)
+            {
+                return Results.BadRequest(new ApiErrorResponse("No LinkedIn personal profile or company pages could be connected with this authorization."));
             }
 
             await db.SaveChangesAsync();
-            return Results.Ok();
+            return Results.Ok(new LinkedInCallbackResponse(authorUrn, connectedOrgHandles));
         });
     }
 }
 
-public record LinkedInCallbackRequest(string Code);
+public record LinkedInCallbackRequest(string Code, string? AccountType = null);
+public record LinkedInCallbackResponse(string? PersonalHandle, IReadOnlyList<string> OrganizationHandles);
 
 public record AccountRequest(string Platform, string Handle, string AppPassword);

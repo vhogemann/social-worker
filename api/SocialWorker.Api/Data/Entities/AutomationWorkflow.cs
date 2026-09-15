@@ -10,13 +10,15 @@ public class AutomationWorkflow
     public AppUser User { get; set; } = null!;
     public string Title { get; set; } = null!;
     public string InstructionPrompt { get; set; } = null!;
+    public Guid? ScheduleId { get; set; }
+    public Schedule? Schedule { get; set; }
     public ICollection<AutomationWorkflowSource> WorkflowSources { get; set; } = new List<AutomationWorkflowSource>();
     public ICollection<AutomationWorkflowDestination> Destinations { get; set; } = new List<AutomationWorkflowDestination>();
     public ICollection<Draft> Drafts { get; set; } = new List<Draft>();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public static AutomationWorkflow Create(Guid userId, string title, string? instructionPrompt = null)
+    public static AutomationWorkflow Create(Guid userId, string title, string? instructionPrompt = null, Guid? scheduleId = null)
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Workflow title is required.", nameof(title));
@@ -29,6 +31,7 @@ public class AutomationWorkflow
             InstructionPrompt = string.IsNullOrWhiteSpace(instructionPrompt)
                 ? "Summarize this article as a thread."
                 : instructionPrompt.Trim(),
+            ScheduleId = scheduleId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

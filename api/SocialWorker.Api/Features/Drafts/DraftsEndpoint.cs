@@ -20,12 +20,30 @@ public static class DraftsEndpoint
     {
         var group = app.MapGroup("/api/drafts").RequireAuthorization();
 
-        group.MapGet("/", async (ClaimsPrincipal principal, DraftsService draftsService, CancellationToken ct) =>
+        group.MapGet("/", async (
+            ClaimsPrincipal principal,
+            DraftsService draftsService,
+            Guid? workflowId,
+            DraftStatus? status,
+            PlatformThreadStage? stage,
+            bool? isPublished,
+            DateTime? since,
+            int? limit,
+            CancellationToken ct) =>
         {
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            var drafts = await draftsService.GetDraftsForUserAsync(userId.Value, ct);
+            var filter = new DraftQueryFilter(
+                WorkflowId: workflowId,
+                Status: status,
+                Stage: stage,
+                IsPublished: isPublished,
+                Since: since,
+                Limit: limit
+            );
+
+            var drafts = await draftsService.GetDraftsForUserAsync(userId.Value, filter, ct);
             return Results.Ok(drafts);
         });
 
@@ -50,11 +68,11 @@ public static class DraftsEndpoint
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Conflict(ex.Message);
+                return Results.Conflict(new ApiErrorResponse(ex.Message));
             }
             catch (ArgumentException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
         }).WithValidation<CreateReplyDraftFromUrlRequest>();
 
@@ -70,7 +88,7 @@ public static class DraftsEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
         });
 
@@ -86,7 +104,7 @@ public static class DraftsEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
         }).WithValidation<UpdateDraftRequest>();
 
@@ -113,15 +131,15 @@ public static class DraftsEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Conflict(ex.Message);
+                return Results.Conflict(new ApiErrorResponse(ex.Message));
             }
             catch (ArgumentException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
         }).WithValidation<UpdateDraftBlueskyReplyTargetRequest>();
 
@@ -137,15 +155,15 @@ public static class DraftsEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Conflict(ex.Message);
+                return Results.Conflict(new ApiErrorResponse(ex.Message));
             }
             catch (ArgumentException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
         }).WithValidation<UpdateDraftBlueskyReplyTargetFromUrlRequest>();
 
@@ -161,7 +179,7 @@ public static class DraftsEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
         });
 
@@ -177,11 +195,11 @@ public static class DraftsEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Conflict(ex.Message);
+                return Results.Conflict(new ApiErrorResponse(ex.Message));
             }
         }).WithValidation<CreatePlatformThreadRequest>();
 
@@ -203,11 +221,11 @@ public static class DraftsEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft or thread not found."));
             }
             catch (InvalidOperationException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
         });
     }

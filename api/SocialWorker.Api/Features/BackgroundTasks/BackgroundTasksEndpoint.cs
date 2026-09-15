@@ -108,7 +108,7 @@ public static class BackgroundTasksEndpoint
             if (userId is null) return Results.Unauthorized();
 
             var success = await queue.RetryTaskAsync(id, ct);
-            if (!success) return Results.NotFound();
+            if (!success) return Results.NotFound(new ApiErrorResponse("Task not found."));
 
             return Results.Ok(new { success = true });
         });
@@ -123,7 +123,7 @@ public static class BackgroundTasksEndpoint
             if (userId is null) return Results.Unauthorized();
 
             var success = await queue.CancelTaskAsync(id, ct);
-            if (!success) return Results.NotFound();
+            if (!success) return Results.NotFound(new ApiErrorResponse("Task not found."));
 
             return Results.Ok(new { success = true });
         });
@@ -138,7 +138,7 @@ public static class BackgroundTasksEndpoint
             if (userId is null) return Results.Unauthorized();
 
             var success = await queue.DeleteTaskAsync(id, ct);
-            if (!success) return Results.NotFound();
+            if (!success) return Results.NotFound(new ApiErrorResponse("Task not found."));
 
             return Results.NoContent();
         });

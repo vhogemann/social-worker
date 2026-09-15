@@ -32,7 +32,7 @@ public static class ApiKeyEndpoints
 
             if (string.IsNullOrWhiteSpace(req.Name))
             {
-                return Results.BadRequest("Name is required.");
+                return Results.BadRequest(new ApiErrorResponse("Name is required."));
             }
 
             var result = await apiKeyService.CreateApiKeyAsync(userId.Value, req.Name, req.Scopes, req.ExpiresAt, ct);
@@ -45,7 +45,7 @@ public static class ApiKeyEndpoints
             if (userId is null) return Results.Unauthorized();
 
             var revoked = await apiKeyService.RevokeApiKeyAsync(userId.Value, id, ct);
-            return revoked ? Results.NoContent() : Results.NotFound();
+            return revoked ? Results.NoContent() : Results.NotFound(new ApiErrorResponse("API key not found."));
         });
     }
 }

@@ -35,13 +35,13 @@ public static class PublishingEndpoint
                 .Include(t => t.Draft)
                 .FirstOrDefaultAsync(t => t.Id == threadId && t.DraftId == draftId && t.Draft.UserId == userId, ct);
 
-            if (thread == null) return Results.NotFound();
+            if (thread == null) return Results.NotFound(new ApiErrorResponse("Platform thread not found."));
 
             // Validate content before publishing
             var validationError = ValidateThreadContent(thread.Content ?? "", thread.Platform, blueskyContentValidator);
             if (validationError != null)
             {
-                return Results.BadRequest(validationError);
+                return Results.BadRequest(new ApiErrorResponse(validationError));
             }
 
             Account? account = null;
@@ -55,13 +55,13 @@ public static class PublishingEndpoint
             }
             if (account == null)
             {
-                return Results.BadRequest($"No connected account found for platform: {thread.Platform}");
+                return Results.BadRequest(new ApiErrorResponse($"No connected account found for platform: {thread.Platform}"));
             }
 
             var publisher = publisherResolver.Resolve(thread.Platform);
             if (publisher == null)
             {
-                return Results.BadRequest($"No publisher configured for platform: {thread.Platform}");
+                return Results.BadRequest(new ApiErrorResponse($"No publisher configured for platform: {thread.Platform}"));
             }
 
             var result = await publisher.PublishAsync(thread, account, ct);

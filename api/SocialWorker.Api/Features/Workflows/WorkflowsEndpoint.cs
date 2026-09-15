@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
-using SocialWorker.Api.Features.Feeds;
+using SocialWorker.Api.Features.Workflows.Abstractions;
 using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Validation;
 
@@ -32,8 +32,11 @@ public static class WorkflowsEndpoint
 
             var workflows = await db.AutomationWorkflows
                 .Where(w => w.UserId == userId.Value)
+                .Include(w => w.Schedule)
                 .Include(w => w.WorkflowSources)
                     .ThenInclude(ws => ws.FeedSubscription)
+                .Include(w => w.WorkflowSources)
+                    .ThenInclude(ws => ws.SourceWorkflow)
                 .Include(w => w.Destinations)
                     .ThenInclude(d => d.Account)
                 .Include(w => w.Destinations)
@@ -54,10 +57,34 @@ public static class WorkflowsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            var workflow = AutomationWorkflow.Create(userId.Value, req.Title, req.InstructionPrompt);
+            var workflow = AutomationWorkflow.Create(userId.Value, req.Title, req.InstructionPrompt, req.ScheduleId);
             db.AutomationWorkflows.Add(workflow);
 
-            if (req.FeedSubscriptionIds != null && req.FeedSubscriptionIds.Count > 0)
+            if (req.Sources != null && req.Sources.Count > 0)
+            {
+                foreach (var src in req.Sources)
+                {
+                    if (src.Kind == WorkflowSourceKind.Feed && src.FeedSubscriptionId.HasValue)
+                    {
+                        var exists = await db.FeedSubscriptions.AnyAsync(s => s.Id == src.FeedSubscriptionId.Value && s.UserId == userId.Value, ct);
+                        if (exists)
+                        {
+                            workflow.WorkflowSources.Add(AutomationWorkflowSource.CreateFeedSource(workflow.Id, src.FeedSubscriptionId.Value));
+                        }
+                    }
+                    else if (src.Kind == WorkflowSourceKind.WorkflowHighlights)
+                    {
+                        Guid? sourceWfId = src.SourceWorkflowId;
+                        if (sourceWfId.HasValue)
+                        {
+                            var exists = await db.AutomationWorkflows.AnyAsync(w => w.Id == sourceWfId.Value && w.UserId == userId.Value, ct);
+                            if (!exists) sourceWfId = null;
+                        }
+                        workflow.WorkflowSources.Add(AutomationWorkflowSource.CreateWorkflowHighlightsSource(workflow.Id, sourceWfId ?? Guid.Empty, src.ConfigurationJson));
+                    }
+                }
+            }
+            else if (req.FeedSubscriptionIds != null && req.FeedSubscriptionIds.Count > 0)
             {
                 var validSubIds = await db.FeedSubscriptions
                     .Where(s => s.UserId == userId.Value && req.FeedSubscriptionIds.Contains(s.Id))
@@ -66,7 +93,7 @@ public static class WorkflowsEndpoint
 
                 foreach (var subId in validSubIds)
                 {
-                    workflow.WorkflowSources.Add(AutomationWorkflowSource.Create(workflow.Id, subId));
+                    workflow.WorkflowSources.Add(AutomationWorkflowSource.CreateFeedSource(workflow.Id, subId));
                 }
             }
 
@@ -86,10 +113,12 @@ public static class WorkflowsEndpoint
 
             await db.SaveChangesAsync(ct);
 
-            // Re-query with includes to return full DTO
             var created = await db.AutomationWorkflows
+                .Include(w => w.Schedule)
                 .Include(w => w.WorkflowSources)
                     .ThenInclude(ws => ws.FeedSubscription)
+                .Include(w => w.WorkflowSources)
+                    .ThenInclude(ws => ws.SourceWorkflow)
                 .Include(w => w.Destinations)
                     .ThenInclude(d => d.Account)
                 .Include(w => w.Destinations)
@@ -109,15 +138,18 @@ public static class WorkflowsEndpoint
             if (userId is null) return Results.Unauthorized();
 
             var workflow = await db.AutomationWorkflows
+                .Include(w => w.Schedule)
                 .Include(w => w.WorkflowSources)
                     .ThenInclude(ws => ws.FeedSubscription)
+                .Include(w => w.WorkflowSources)
+                    .ThenInclude(ws => ws.SourceWorkflow)
                 .Include(w => w.Destinations)
                     .ThenInclude(d => d.Account)
                 .Include(w => w.Destinations)
                     .ThenInclude(d => d.Schedule)
                 .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId.Value, ct);
 
-            if (workflow == null) return Results.NotFound();
+            if (workflow == null) return Results.NotFound(new ApiErrorResponse("Workflow not found."));
 
             return Results.Ok(new AutomationWorkflowDto(workflow));
         });
@@ -135,19 +167,43 @@ public static class WorkflowsEndpoint
             var workflow = await db.AutomationWorkflows
                 .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId.Value, ct);
 
-            if (workflow == null) return Results.NotFound();
+            if (workflow == null) return Results.NotFound(new ApiErrorResponse("Workflow not found."));
 
             workflow.Title = string.IsNullOrWhiteSpace(req.Title) ? "Untitled Workflow" : req.Title.Trim();
             workflow.InstructionPrompt = req.InstructionPrompt ?? "";
+            workflow.ScheduleId = req.ScheduleId;
             workflow.UpdatedAt = DateTime.UtcNow;
 
-            // Sync feed subscriptions
             var existingSources = await db.AutomationWorkflowSources
                 .Where(s => s.AutomationWorkflowId == id)
                 .ToListAsync(ct);
             db.AutomationWorkflowSources.RemoveRange(existingSources);
 
-            if (req.FeedSubscriptionIds != null && req.FeedSubscriptionIds.Count > 0)
+            if (req.Sources != null && req.Sources.Count > 0)
+            {
+                foreach (var src in req.Sources)
+                {
+                    if (src.Kind == WorkflowSourceKind.Feed && src.FeedSubscriptionId.HasValue)
+                    {
+                        var exists = await db.FeedSubscriptions.AnyAsync(s => s.Id == src.FeedSubscriptionId.Value && s.UserId == userId.Value, ct);
+                        if (exists)
+                        {
+                            db.AutomationWorkflowSources.Add(AutomationWorkflowSource.CreateFeedSource(workflow.Id, src.FeedSubscriptionId.Value));
+                        }
+                    }
+                    else if (src.Kind == WorkflowSourceKind.WorkflowHighlights)
+                    {
+                        Guid? sourceWfId = src.SourceWorkflowId;
+                        if (sourceWfId.HasValue)
+                        {
+                            var exists = await db.AutomationWorkflows.AnyAsync(w => w.Id == sourceWfId.Value && w.UserId == userId.Value, ct);
+                            if (!exists) sourceWfId = null;
+                        }
+                        db.AutomationWorkflowSources.Add(AutomationWorkflowSource.CreateWorkflowHighlightsSource(workflow.Id, sourceWfId ?? Guid.Empty, src.ConfigurationJson));
+                    }
+                }
+            }
+            else if (req.FeedSubscriptionIds != null && req.FeedSubscriptionIds.Count > 0)
             {
                 var validSubIds = await db.FeedSubscriptions
                     .Where(s => s.UserId == userId.Value && req.FeedSubscriptionIds.Contains(s.Id))
@@ -156,11 +212,10 @@ public static class WorkflowsEndpoint
 
                 foreach (var subId in validSubIds)
                 {
-                    db.AutomationWorkflowSources.Add(AutomationWorkflowSource.Create(workflow.Id, subId));
+                    db.AutomationWorkflowSources.Add(AutomationWorkflowSource.CreateFeedSource(workflow.Id, subId));
                 }
             }
 
-            // Sync destinations
             var existingDestinations = await db.AutomationWorkflowDestinations
                 .Where(d => d.AutomationWorkflowId == id)
                 .ToListAsync(ct);
@@ -183,8 +238,11 @@ public static class WorkflowsEndpoint
             await db.SaveChangesAsync(ct);
 
             var updated = await db.AutomationWorkflows
+                .Include(w => w.Schedule)
                 .Include(w => w.WorkflowSources)
                     .ThenInclude(ws => ws.FeedSubscription)
+                .Include(w => w.WorkflowSources)
+                    .ThenInclude(ws => ws.SourceWorkflow)
                 .Include(w => w.Destinations)
                     .ThenInclude(d => d.Account)
                 .Include(w => w.Destinations)
@@ -206,7 +264,7 @@ public static class WorkflowsEndpoint
             var workflow = await db.AutomationWorkflows
                 .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId.Value, ct);
 
-            if (workflow == null) return Results.NotFound();
+            if (workflow == null) return Results.NotFound(new ApiErrorResponse("Workflow not found."));
 
             db.AutomationWorkflows.Remove(workflow);
             await db.SaveChangesAsync(ct);
@@ -217,7 +275,7 @@ public static class WorkflowsEndpoint
         group.MapPost("/{id:guid}/trigger", async (
             ClaimsPrincipal principal,
             AppDbContext db,
-            FeedPollingService pollingService,
+            IEnumerable<IWorkflowSourceHandler> sourceHandlers,
             Guid id,
             CancellationToken ct) =>
         {
@@ -226,13 +284,22 @@ public static class WorkflowsEndpoint
 
             var workflow = await db.AutomationWorkflows
                 .Include(w => w.WorkflowSources)
+                .Include(w => w.Destinations)
+                    .ThenInclude(d => d.Account)
+                .Include(w => w.Destinations)
+                    .ThenInclude(d => d.Schedule)
                 .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId.Value, ct);
 
-            if (workflow == null) return Results.NotFound();
+            if (workflow == null) return Results.NotFound(new ApiErrorResponse("Workflow not found."));
 
+            var handlersList = sourceHandlers.ToList();
             foreach (var source in workflow.WorkflowSources)
             {
-                await pollingService.PollSubscriptionAsync(source.FeedSubscriptionId, ct);
+                var handler = handlersList.FirstOrDefault(h => h.Kind == source.Kind);
+                if (handler != null)
+                {
+                    await handler.ProcessAsync(workflow, source, ct);
+                }
             }
 
             return Results.Ok(new ApiSuccessResponse(true, "Workflow triggered successfully."));
@@ -249,7 +316,7 @@ public static class WorkflowsEndpoint
 
             var workflowExists = await db.AutomationWorkflows
                 .AnyAsync(w => w.Id == id && w.UserId == userId.Value, ct);
-            if (!workflowExists) return Results.NotFound();
+            if (!workflowExists) return Results.NotFound(new ApiErrorResponse("Workflow not found."));
 
             var drafts = await db.Drafts
                 .Include(d => d.Threads).ThenInclude(t => t.Account)
@@ -267,7 +334,29 @@ public static class WorkflowsEndpoint
     }
 }
 
-public sealed record WorkflowSourceDto(Guid FeedSubscriptionId, string Title, string FeedUrl);
+public sealed record WorkflowSourceDto(
+    Guid Id,
+    WorkflowSourceKind Kind,
+    Guid? FeedSubscriptionId,
+    string? Title,
+    string? FeedUrl,
+    Guid? SourceWorkflowId = null,
+    string? SourceWorkflowTitle = null,
+    string? ConfigurationJson = null)
+{
+    public WorkflowSourceDto(AutomationWorkflowSource s)
+        : this(
+            s.Id,
+            s.Kind,
+            s.FeedSubscriptionId,
+            s.Kind == WorkflowSourceKind.Feed ? (s.FeedSubscription?.Title ?? "") : (s.Kind == WorkflowSourceKind.WorkflowHighlights ? (s.SourceWorkflow?.Title ?? "") : ""),
+            s.FeedSubscription?.FeedUrl,
+            s.SourceWorkflowId,
+            s.SourceWorkflow?.Title,
+            s.ConfigurationJson)
+    {
+    }
+}
 
 public sealed record WorkflowDestinationDto(
     Guid Id,
@@ -291,6 +380,8 @@ public sealed record AutomationWorkflowDto(
     string InstructionPrompt,
     List<WorkflowSourceDto> Sources,
     List<WorkflowDestinationDto> Destinations,
+    Guid? ScheduleId,
+    string? ScheduleName,
     DateTime CreatedAt,
     DateTime UpdatedAt)
 {
@@ -299,16 +390,21 @@ public sealed record AutomationWorkflowDto(
             w.Id,
             w.Title,
             w.InstructionPrompt,
-            w.WorkflowSources.Select(s => new WorkflowSourceDto(
-                s.FeedSubscriptionId,
-                s.FeedSubscription?.Title ?? "",
-                s.FeedSubscription?.FeedUrl ?? "")).ToList(),
+            w.WorkflowSources.Select(s => new WorkflowSourceDto(s)).ToList(),
             w.Destinations.Select(d => new WorkflowDestinationDto(d)).ToList(),
+            w.ScheduleId,
+            w.Schedule?.Name,
             w.CreatedAt,
             w.UpdatedAt)
     {
     }
 }
+
+public sealed record CreateWorkflowSourceRequest(
+    WorkflowSourceKind Kind = WorkflowSourceKind.Feed,
+    Guid? FeedSubscriptionId = null,
+    Guid? SourceWorkflowId = null,
+    string? ConfigurationJson = null);
 
 public sealed record CreateWorkflowDestinationRequest(
     string Platform,
@@ -320,8 +416,10 @@ public sealed record CreateWorkflowDestinationRequest(
 public sealed record CreateAutomationWorkflowRequest(
     string Title,
     string? InstructionPrompt,
-    List<Guid>? FeedSubscriptionIds,
-    List<CreateWorkflowDestinationRequest>? Destinations);
+    List<Guid>? FeedSubscriptionIds = null,
+    List<CreateWorkflowSourceRequest>? Sources = null,
+    List<CreateWorkflowDestinationRequest>? Destinations = null,
+    Guid? ScheduleId = null);
 
 public sealed record WorkflowDraftThreadDto(
     string Platform,

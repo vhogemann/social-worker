@@ -44,6 +44,11 @@ services:
       LinkedIn__ClientId: ${LINKEDIN__CLIENTID:-}
       LinkedIn__ClientSecret: ${LINKEDIN__CLIENTSECRET:-}
       LinkedIn__RedirectUri: ${LINKEDIN__REDIRECTURI:-}
+      LinkedIn__Scopes: ${LINKEDIN__SCOPES:-}
+      LinkedIn__CompanyClientId: ${LINKEDIN__COMPANY__CLIENTID:-}
+      LinkedIn__CompanyClientSecret: ${LINKEDIN__COMPANY__CLIENTSECRET:-}
+      LinkedIn__CompanyRedirectUri: ${LINKEDIN__COMPANY__REDIRECTURI:-}
+      LinkedIn__CompanyScopes: ${LINKEDIN__COMPANY__SCOPES:-}
       DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-}
     depends_on:
       db:

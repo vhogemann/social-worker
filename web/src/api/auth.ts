@@ -21,6 +21,22 @@ export interface RefreshResponse {
   expiresAt: string;
 }
 
+async function extractErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const text = await res.text();
+    if (!text) return fallback;
+    try {
+      const data = JSON.parse(text);
+      if (typeof data === "string") return data;
+      return data.error || data.message || fallback;
+    } catch {
+      return text;
+    }
+  } catch {
+    return fallback;
+  }
+}
+
 export async function login(emailOrUsername: string, password: string): Promise<LoginResponse> {
   const res = await fetch("/api/auth/login", {
     method: "POST",
@@ -29,7 +45,8 @@ export async function login(emailOrUsername: string, password: string): Promise<
   });
 
   if (!res.ok) {
-    throw new Error("Invalid credentials");
+    const error = await extractErrorMessage(res, "Invalid credentials");
+    throw new Error(error);
   }
 
   return res.json();
@@ -43,7 +60,8 @@ export async function refresh(refreshToken: string): Promise<RefreshResponse> {
   });
 
   if (!res.ok) {
-    throw new Error("Session expired");
+    const error = await extractErrorMessage(res, "Session expired");
+    throw new Error(error);
   }
 
   return res.json();
@@ -60,7 +78,8 @@ export async function logout(refreshToken: string): Promise<void> {
 export async function getMe(): Promise<UserDto> {
   const res = await apiFetch("/api/auth/me");
   if (!res.ok) {
-    throw new Error("Unauthorized");
+    const error = await extractErrorMessage(res, "Unauthorized");
+    throw new Error(error);
   }
   return res.json();
 }
@@ -72,15 +91,16 @@ export async function changePassword(currentPassword: string, newPassword: strin
   });
 
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Failed to change password");
+    const error = await extractErrorMessage(res, "Failed to change password");
+    throw new Error(error);
   }
 }
 
 export async function listUsers(): Promise<UserDto[]> {
   const res = await apiFetch("/api/users");
   if (!res.ok) {
-    throw new Error("Failed to load users");
+    const error = await extractErrorMessage(res, "Failed to load users");
+    throw new Error(error);
   }
   return res.json();
 }
@@ -92,8 +112,8 @@ export async function createUser(req: Record<string, string>): Promise<UserDto> 
   });
 
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Failed to create user");
+    const error = await extractErrorMessage(res, "Failed to create user");
+    throw new Error(error);
   }
 
   return res.json();
@@ -106,7 +126,8 @@ export async function updateUser(id: string, req: Partial<Pick<UserDto, 'usernam
   });
 
   if (!res.ok) {
-    throw new Error("Failed to update user");
+    const error = await extractErrorMessage(res, "Failed to update user");
+    throw new Error(error);
   }
 
   return res.json();
@@ -119,7 +140,8 @@ export async function resetUserPassword(id: string, req: Record<string, string>)
   });
 
   if (!res.ok) {
-    throw new Error("Failed to reset password");
+    const error = await extractErrorMessage(res, "Failed to reset password");
+    throw new Error(error);
   }
 }
 
@@ -130,6 +152,7 @@ export async function setPreferredProvider(providerId: string | null): Promise<v
   });
 
   if (!res.ok) {
-    throw new Error("Failed to update preferred provider");
+    const error = await extractErrorMessage(res, "Failed to update preferred provider");
+    throw new Error(error);
   }
 }

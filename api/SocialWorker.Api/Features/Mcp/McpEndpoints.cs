@@ -71,19 +71,19 @@ public static class McpEndpoints
         {
             if (!ctx.Request.Query.TryGetValue("sessionId", out var sessionIdVal) || string.IsNullOrWhiteSpace(sessionIdVal))
             {
-                return Results.BadRequest("Missing 'sessionId' query parameter.");
+                return Results.BadRequest(new ApiErrorResponse("Missing 'sessionId' query parameter."));
             }
 
             var session = sessionManager.GetSession(sessionIdVal.ToString());
             if (session == null)
             {
-                return Results.NotFound("Session not found or expired.");
+                return Results.NotFound(new ApiErrorResponse("Session not found or expired."));
             }
 
             var request = await ctx.Request.ReadFromJsonAsync<McpRequest>(cancellationToken: ct);
             if (request == null)
             {
-                return Results.BadRequest("Invalid JSON-RPC request.");
+                return Results.BadRequest(new ApiErrorResponse("Invalid JSON-RPC request."));
             }
 
             var response = await mcpServer.HandleRequestAsync(request, session.UserId, ct);
@@ -108,11 +108,11 @@ public static class McpEndpoints
                 var session = sessionManager.GetSession(sessionIdVal.ToString());
                 if (session == null)
                 {
-                    return Results.NotFound("Session not found or expired.");
+                    return Results.NotFound(new ApiErrorResponse("Session not found or expired."));
                 }
 
                 var request = await ctx.Request.ReadFromJsonAsync<McpRequest>(cancellationToken: ct);
-                if (request == null) return Results.BadRequest("Invalid JSON-RPC request.");
+                if (request == null) return Results.BadRequest(new ApiErrorResponse("Invalid JSON-RPC request."));
 
                 var response = await mcpServer.HandleRequestAsync(request, session.UserId, ct);
                 if (response != null)
@@ -127,7 +127,7 @@ public static class McpEndpoints
             if (userId is null) return Results.Unauthorized();
 
             var directReq = await ctx.Request.ReadFromJsonAsync<McpRequest>(cancellationToken: ct);
-            if (directReq == null) return Results.BadRequest("Invalid JSON-RPC request.");
+            if (directReq == null) return Results.BadRequest(new ApiErrorResponse("Invalid JSON-RPC request."));
 
             var directRes = await mcpServer.HandleRequestAsync(directReq, userId.Value, ct);
             return directRes != null ? Results.Ok(directRes) : Results.NoContent();

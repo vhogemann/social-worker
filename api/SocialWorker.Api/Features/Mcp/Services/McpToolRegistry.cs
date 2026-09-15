@@ -18,6 +18,7 @@ using SocialWorker.Api.Features.Scheduling.Models;
 using SocialWorker.Api.Features.Scheduling.Services;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Features.Workflows;
+using SocialWorker.Api.Features.Workflows.Abstractions;
 
 namespace SocialWorker.Api.Features.Mcp.Services;
 
@@ -34,6 +35,7 @@ public sealed class McpToolRegistry
     private readonly IScheduleQueueService? _queueService;
     private readonly ScheduleSlotEvaluatorService? _evaluatorService;
     private readonly ICalendarProjectionService? _calendarService;
+    private readonly IEnumerable<IWorkflowSourceHandler>? _sourceHandlers;
 
     public McpToolRegistry(
         AppDbContext db,
@@ -46,7 +48,8 @@ public sealed class McpToolRegistry
         IBlueskyReplyTargetResolver replyTargetResolver,
         IScheduleQueueService? queueService = null,
         ScheduleSlotEvaluatorService? evaluatorService = null,
-        ICalendarProjectionService? calendarService = null)
+        ICalendarProjectionService? calendarService = null,
+        IEnumerable<IWorkflowSourceHandler>? sourceHandlers = null)
     {
         _db = db;
         _draftsService = draftsService;
@@ -59,16 +62,22 @@ public sealed class McpToolRegistry
         _queueService = queueService;
         _evaluatorService = evaluatorService;
         _calendarService = calendarService;
+        _sourceHandlers = sourceHandlers;
     }
 
     public List<McpToolDefinition> ListTools()
     {
         return new List<McpToolDefinition>
         {
-            new("list_drafts", "List user social media drafts with status and title.", CreateSchema("""
+            new("list_drafts", "List user social media drafts with status, published posts, workflow attribution, and filtering options.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
+                    "workflowId": { "type": "string", "description": "Optional UUID of a specific workflow to filter." },
+                    "isPublished": { "type": "boolean", "description": "Filter by published status (true = only published drafts)." },
+                    "status": { "type": "string", "description": "Filter by draft status (Editing, Formatting, Ready, Sent, Failed)." },
+                    "stage": { "type": "string", "description": "Filter by platform thread stage (Draft, Sourcing, Refining, Formatting, Ready, Sent)." },
+                    "since": { "type": "string", "description": "ISO-8601 timestamp to filter drafts created/updated after this date." },
                     "limit": { "type": "integer", "description": "Maximum number of drafts to return (default 20)" }
                 }
             }
@@ -303,14 +312,70 @@ public sealed class McpToolRegistry
     private async Task<McpToolCallResult> HandleListDraftsAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
         var limit = args.TryGetProperty("limit", out var l) && l.TryGetInt32(out var lim) ? lim : 20;
-        var drafts = await _draftsService.GetDraftsForUserAsync(userId, ct);
-        var selected = drafts.Take(limit).Select(d => new
+
+        Guid? workflowId = null;
+        if (args.TryGetProperty("workflowId", out var wfProp) && Guid.TryParse(wfProp.GetString(), out var parsedWf))
         {
-            d.Id,
-            d.Title,
-            d.Status,
-            d.TargetPlatform,
-            d.UpdatedAt
+            workflowId = parsedWf;
+        }
+
+        bool? isPublished = null;
+        if (args.TryGetProperty("isPublished", out var pubProp) && pubProp.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            isPublished = pubProp.GetBoolean();
+        }
+
+        DraftStatus? status = null;
+        if (args.TryGetProperty("status", out var stProp) && Enum.TryParse<DraftStatus>(stProp.GetString(), true, out var parsedStatus))
+        {
+            status = parsedStatus;
+        }
+
+        PlatformThreadStage? stage = null;
+        if (args.TryGetProperty("stage", out var stageProp) && Enum.TryParse<PlatformThreadStage>(stageProp.GetString(), true, out var parsedStage))
+        {
+            stage = parsedStage;
+        }
+
+        DateTime? since = null;
+        if (args.TryGetProperty("since", out var sinceProp) && DateTime.TryParse(sinceProp.GetString(), out var parsedSince))
+        {
+            since = parsedSince;
+        }
+
+        var filter = new DraftQueryFilter(
+            WorkflowId: workflowId,
+            IsPublished: isPublished,
+            Status: status,
+            Stage: stage,
+            Since: since,
+            Limit: limit
+        );
+
+        var drafts = await _draftsService.GetDraftsForUserAsync(userId, filter, ct);
+        var selected = drafts.Select(d =>
+        {
+            var isPub = (d.Threads != null && d.Threads.Any(t => t.Stage == "Sent")) || (d.Variants != null && d.Variants.Any(v => v.Threads != null && v.Threads.Any(vt => vt.Stage == "Sent")));
+            var variantPosts = d.Variants != null ? d.Variants.SelectMany(v => v.Threads != null ? v.Threads.SelectMany(vt => vt.Posts ?? Enumerable.Empty<PostDto>()) : Enumerable.Empty<PostDto>()) : Enumerable.Empty<PostDto>();
+            var urls = (d.Threads != null ? d.Threads.SelectMany(t => t.Posts ?? Enumerable.Empty<PostDto>()) : Enumerable.Empty<PostDto>())
+                .Concat(variantPosts)
+                .Where(p => !string.IsNullOrEmpty(p.Url))
+                .Select(p => p.Url!)
+                .Distinct()
+                .ToList();
+
+            return new
+            {
+                d.Id,
+                d.Title,
+                d.Status,
+                d.TargetPlatform,
+                d.AutomationWorkflowId,
+                d.AutomationWorkflowTitle,
+                IsPublished = isPub,
+                PublishedUrls = urls,
+                d.UpdatedAt
+            };
         });
         return TextResult(JsonSerializer.Serialize(selected, JsonOptions));
     }
@@ -449,17 +514,37 @@ public sealed class McpToolRegistry
             return TextError("workflowId must be a valid UUID.");
         }
 
-        var sources = await _db.AutomationWorkflowSources
-            .Where(s => s.AutomationWorkflowId == workflowId)
-            .Select(s => s.FeedSubscriptionId)
-            .ToListAsync(ct);
+        var workflow = await _db.AutomationWorkflows
+            .Include(w => w.WorkflowSources)
+            .Include(w => w.Destinations)
+                .ThenInclude(d => d.Account)
+            .Include(w => w.Destinations)
+                .ThenInclude(d => d.Schedule)
+            .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
 
-        foreach (var subId in sources)
+        if (workflow == null)
         {
-            await _feedPollingService.PollSubscriptionAsync(subId, ct);
+            return TextError($"Workflow {workflowId} not found.");
         }
 
-        return TextResult($"Triggered polling for workflow {workflowId} across {sources.Count} linked feed(s).");
+        var handlersList = (_sourceHandlers ?? Array.Empty<IWorkflowSourceHandler>()).ToList();
+        var processedCount = 0;
+        foreach (var source in workflow.WorkflowSources)
+        {
+            var handler = handlersList.FirstOrDefault(h => h.Kind == source.Kind);
+            if (handler != null)
+            {
+                await handler.ProcessAsync(workflow, source, ct);
+                processedCount++;
+            }
+            else if (source.Kind == WorkflowSourceKind.Feed && source.FeedSubscriptionId.HasValue)
+            {
+                await _feedPollingService.PollSubscriptionAsync(source.FeedSubscriptionId.Value, ct);
+                processedCount++;
+            }
+        }
+
+        return TextResult($"Triggered workflow {workflowId} across {processedCount} source(s).");
     }
 
     private async Task<McpToolCallResult> HandleListFeedsAsync(Guid userId, CancellationToken ct)

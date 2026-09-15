@@ -1,6 +1,6 @@
 import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBolt, faEdit, faRss, faTrashCan } from "@fortawesome/free-solid-svg-icons";
+import { faBolt, faEdit, faLayerGroup, faRss, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import { type AutomationWorkflowDto } from "../../api/workflows";
 import { Button } from "../common/Button";
 
@@ -43,18 +43,28 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
             Ingestion Sources ({workflow.sources.length})
           </span>
           {workflow.sources.length === 0 ? (
-            <span className="text-[11px] text-muted italic">No linked feeds</span>
+            <span className="text-[11px] text-muted italic">No linked sources</span>
           ) : (
             <div className="flex flex-wrap gap-1.5">
-              {workflow.sources.map((src) => (
-                <span
-                  key={src.feedSubscriptionId}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-bg border border-border text-[11px] text-foreground font-mono"
-                >
-                  <FontAwesomeIcon icon={faRss} className="text-[9px] text-accent" />
-                  <span className="line-clamp-1">{src.title}</span>
-                </span>
-              ))}
+              {workflow.sources.map((src, index) => {
+                const isHighlights = src.kind === "WorkflowHighlights";
+                return (
+                  <span
+                    key={src.id || src.feedSubscriptionId || src.sourceWorkflowId || index}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-bg border border-border text-[11px] text-foreground font-mono"
+                  >
+                    <FontAwesomeIcon
+                      icon={isHighlights ? faLayerGroup : faRss}
+                      className={`text-[9px] ${isHighlights ? "text-purple-400" : "text-accent"}`}
+                    />
+                    <span className="line-clamp-1">
+                      {isHighlights
+                        ? `Highlights: ${src.sourceWorkflowTitle || src.title || "Workflow"}`
+                        : (src.title || "Feed Source")}
+                    </span>
+                  </span>
+                );
+              })}
             </div>
           )}
         </div>

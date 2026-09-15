@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl } from "./accounts";
+import { listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, submitLinkedInCallback } from "./accounts";
 
 vi.mock("./client", () => ({
   apiFetch: vi.fn(),
@@ -75,12 +75,22 @@ describe("accounts API", () => {
   });
 
   describe("getLinkedInAuthUrl", () => {
-    it("returns authUrl on success", async () => {
+    it("returns authUrl on success for personal", async () => {
       mockApiFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify({ authUrl: "https://linkedin.com/auth" }), { status: 200 })
+        new Response(JSON.stringify({ authUrl: "https://linkedin.com/auth?state=personal" }), { status: 200 })
       );
-      const res = await getLinkedInAuthUrl();
-      expect(res.authUrl).toBe("https://linkedin.com/auth");
+      const res = await getLinkedInAuthUrl("personal");
+      expect(res.authUrl).toBe("https://linkedin.com/auth?state=personal");
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/accounts/linkedin/auth-url?type=personal");
+    });
+
+    it("returns authUrl on success for company", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ authUrl: "https://linkedin.com/auth?state=company" }), { status: 200 })
+      );
+      const res = await getLinkedInAuthUrl("company");
+      expect(res.authUrl).toBe("https://linkedin.com/auth?state=company");
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/accounts/linkedin/auth-url?type=company");
     });
 
     it("throws detailed server error message on failure", async () => {
@@ -88,6 +98,35 @@ describe("accounts API", () => {
         new Response(JSON.stringify({ error: "LinkedIn client ID or redirect URI is not configured." }), { status: 400 })
       );
       await expect(getLinkedInAuthUrl()).rejects.toThrow("LinkedIn client ID or redirect URI is not configured.");
+    });
+  });
+
+  describe("submitLinkedInCallback", () => {
+    it("returns personal and organization handles on success", async () => {
+      const responseData = {
+        personalHandle: "urn:li:person:user123",
+        organizationHandles: ["Acme Corp (urn:li:organization:998877)"],
+      };
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify(responseData), { status: 200 })
+      );
+      const res = await submitLinkedInCallback("auth-code", "company");
+      expect(res.personalHandle).toBe("urn:li:person:user123");
+      expect(res.organizationHandles).toEqual(["Acme Corp (urn:li:organization:998877)"]);
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/accounts/linkedin/callback",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ code: "auth-code", accountType: "company" }),
+        })
+      );
+    });
+
+    it("throws on callback failure", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Code expired" }), { status: 400 })
+      );
+      await expect(submitLinkedInCallback("bad-code")).rejects.toThrow("Code expired");
     });
   });
 });

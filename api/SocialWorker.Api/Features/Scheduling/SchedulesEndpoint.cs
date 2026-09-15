@@ -46,7 +46,7 @@ public static class SchedulesEndpoint
             if (userId is null) return Results.Unauthorized();
 
             if (string.IsNullOrWhiteSpace(request.Name))
-                return Results.BadRequest("Schedule name is required.");
+                return Results.BadRequest(new ApiErrorResponse("Schedule name is required."));
 
             var schedule = Schedule.Create(userId.Value, request.Name, request.Timezone);
             db.Schedules.Add(schedule);
@@ -70,7 +70,7 @@ public static class SchedulesEndpoint
                 .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId.Value, ct);
 
             if (schedule == null)
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Schedule not found."));
 
             return Results.Ok(new ScheduleDetailDto(schedule));
         });
@@ -83,10 +83,10 @@ public static class SchedulesEndpoint
 
             var schedule = await db.Schedules.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId.Value, ct);
             if (schedule == null)
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Schedule not found."));
 
             if (string.IsNullOrWhiteSpace(request.Name))
-                return Results.BadRequest("Schedule name is required.");
+                return Results.BadRequest(new ApiErrorResponse("Schedule name is required."));
 
             schedule.Name = request.Name.Trim();
             if (!string.IsNullOrWhiteSpace(request.Timezone))
@@ -162,17 +162,17 @@ public static class SchedulesEndpoint
 
             if (!CronExpressionBuilder.TryValidate(cron, out var cronError))
             {
-                return Results.BadRequest($"Invalid cron expression: {cronError}");
+                return Results.BadRequest(new ApiErrorResponse($"Invalid cron expression: {cronError}"));
             }
 
             if (request.EndTime < request.StartTime)
             {
-                return Results.BadRequest("End time cannot be earlier than start time.");
+                return Results.BadRequest(new ApiErrorResponse("End time cannot be earlier than start time."));
             }
 
             if (request.PostCapacity < 1)
             {
-                return Results.BadRequest("Post capacity must be at least 1.");
+                return Results.BadRequest(new ApiErrorResponse("Post capacity must be at least 1."));
             }
 
             var rule = ScheduleSlotRule.Create(
@@ -205,7 +205,7 @@ public static class SchedulesEndpoint
                 .Include(r => r.Schedule)
                 .FirstOrDefaultAsync(r => r.Id == slotId && r.ScheduleId == id && r.Schedule.UserId == userId.Value, ct);
 
-            if (rule == null) return Results.NotFound();
+            if (rule == null) return Results.NotFound(new ApiErrorResponse("Slot rule not found."));
 
             db.ScheduleSlotRules.Remove(rule);
             await db.SaveChangesAsync(ct);
@@ -219,7 +219,7 @@ public static class SchedulesEndpoint
             if (userId is null) return Results.Unauthorized();
 
             var exists = await db.Schedules.AnyAsync(s => s.Id == id && s.UserId == userId.Value, ct);
-            if (!exists) return Results.NotFound();
+            if (!exists) return Results.NotFound(new ApiErrorResponse("Schedule not found."));
 
             var queue = await queueService.GetQueueAsync(id, ct);
             return Results.Ok(queue.Select(q => new ScheduleQueueItemDto(q)).ToList());
@@ -239,7 +239,7 @@ public static class SchedulesEndpoint
             if (userId is null) return Results.Unauthorized();
 
             var exists = await db.Schedules.AnyAsync(s => s.Id == id && s.UserId == userId.Value, ct);
-            if (!exists) return Results.NotFound();
+            if (!exists) return Results.NotFound(new ApiErrorResponse("Schedule not found."));
 
             Guid resolvedThreadId;
             if (request.PlatformThreadId.HasValue && request.PlatformThreadId.Value != Guid.Empty)
@@ -253,12 +253,12 @@ public static class SchedulesEndpoint
                     .FirstOrDefaultAsync(d => d.Id == request.DraftId && d.UserId == userId.Value, ct);
                 if (draft == null)
                 {
-                    return Results.BadRequest($"Draft with ID '{request.DraftId}' was not found.");
+                    return Results.BadRequest(new ApiErrorResponse($"Draft with ID '{request.DraftId}' was not found."));
                 }
                 var thread = draft.Threads.FirstOrDefault();
                 if (thread == null)
                 {
-                    return Results.BadRequest($"No platform thread found for draft '{request.DraftId}'.");
+                    return Results.BadRequest(new ApiErrorResponse($"No platform thread found for draft '{request.DraftId}'."));
                 }
                 resolvedThreadId = thread.Id;
             }
@@ -271,7 +271,7 @@ public static class SchedulesEndpoint
             }
             catch (InvalidOperationException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
         });
 
@@ -361,7 +361,7 @@ public static class SchedulesEndpoint
             var toUtc = end ?? fromUtc.AddDays(30);
 
             if (toUtc <= fromUtc)
-                return Results.BadRequest("End date must be greater than start date.");
+                return Results.BadRequest(new ApiErrorResponse("End date must be greater than start date."));
 
             var events = await calendarService.GetCalendarEventsAsync(userId.Value, fromUtc, toUtc, scheduleId, ct);
             return Results.Ok(events);

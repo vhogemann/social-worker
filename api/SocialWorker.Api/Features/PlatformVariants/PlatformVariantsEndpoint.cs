@@ -32,7 +32,7 @@ public static class PlatformVariantsEndpoint
 
             if (!hasAccountIds && !hasPlatforms)
             {
-                return Results.BadRequest("At least one platform or account is required.");
+                return Results.BadRequest(new ApiErrorResponse("At least one platform or account is required."));
             }
 
             try
@@ -42,11 +42,11 @@ public static class PlatformVariantsEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
             catch (ArgumentException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
         });
 

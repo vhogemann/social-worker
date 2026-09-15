@@ -46,6 +46,16 @@ public sealed record BlueskyReplyTargetDto(
     string? ReplyParentAvatarUrl
 );
 
+public sealed record DraftQueryFilter(
+    IReadOnlyList<Guid>? WorkflowIds = null,
+    Guid? WorkflowId = null,
+    DraftStatus? Status = null,
+    PlatformThreadStage? Stage = null,
+    bool? IsPublished = null,
+    DateTime? Since = null,
+    int? Limit = null
+);
+
 public sealed record DraftDto(
     Guid Id,
     string Title,
@@ -98,6 +108,40 @@ public sealed class DraftsService
         DraftBlueskyMetadata? blueskyMetadata = null,
         List<DraftDto>? variants = null)
     {
+        var threadDtos = threads.Select(t =>
+        {
+            var threadPosts = posts.Where(p => p.PlatformThreadId == t.Id).Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url)).ToList();
+            return new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content, threadPosts, t.AccountId, t.Account?.Handle);
+        }).ToList();
+
+        var mediaDtos = media.Select(m => new MediaAssetMiniDto(
+            m.Id,
+            m.DraftId,
+            m.FileName,
+            m.MimeType,
+            m.AltText,
+            m.FilePath,
+            m.SizeBytes,
+            m.Width,
+            m.Height,
+            m.CreatedAt
+        )).ToList();
+
+        BlueskyReplyTargetDto? blueskyDto = null;
+        if (blueskyMetadata != null)
+        {
+            blueskyDto = new BlueskyReplyTargetDto(
+                blueskyMetadata.ReplyRootUri,
+                blueskyMetadata.ReplyRootCid,
+                blueskyMetadata.ReplyParentUri,
+                blueskyMetadata.ReplyParentCid,
+                blueskyMetadata.ReplyParentUrl,
+                blueskyMetadata.ReplyParentAuthor,
+                blueskyMetadata.ReplyParentText,
+                blueskyMetadata.ReplyParentAvatarUrl
+            );
+        }
+
         return new DraftDto(
             draft.Id,
             draft.Title,
@@ -105,27 +149,9 @@ public sealed class DraftsService
             draft.Content,
             draft.TargetPlatform?.ToString(),
             draft.CanonicalDraftId,
-            threads.Select(t => new PlatformThreadDto(
-                t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
-                posts.Where(p => p.PlatformThreadId == t.Id)
-                     .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
-                     .ToList(),
-                t.AccountId,
-                t.Account?.Handle))
-                .ToList(),
-            media.Select(m => new MediaAssetMiniDto(m.Id, m.DraftId, m.FileName, m.MimeType, m.AltText, m.FilePath, m.SizeBytes, m.Width, m.Height, m.CreatedAt))
-                .ToList(),
-            blueskyMetadata is null
-                ? null
-                : new BlueskyReplyTargetDto(
-                    blueskyMetadata.ReplyRootUri ?? string.Empty,
-                    blueskyMetadata.ReplyRootCid ?? string.Empty,
-                    blueskyMetadata.ReplyParentUri ?? string.Empty,
-                    blueskyMetadata.ReplyParentCid ?? string.Empty,
-                    blueskyMetadata.ReplyParentUrl,
-                    blueskyMetadata.ReplyParentAuthor,
-                    blueskyMetadata.ReplyParentText,
-                    blueskyMetadata.ReplyParentAvatarUrl),
+            threadDtos,
+            mediaDtos,
+            blueskyDto,
             draft.ChatHistory,
             draft.ChatSummary,
             draft.LastSummarizedMessageCount,
@@ -139,15 +165,61 @@ public sealed class DraftsService
         );
     }
 
-    public async Task<List<DraftDto>> GetDraftsForUserAsync(Guid userId, CancellationToken ct)
+    public async Task<List<DraftDto>> GetDraftsForUserAsync(Guid userId, DraftQueryFilter? filter = null, CancellationToken ct = default)
     {
-        var drafts = await _db.Drafts
+        var query = _db.Drafts
             .Include(d => d.TargetAccount)
             .Include(d => d.AutomationWorkflow)
-            .Where(d => d.UserId == userId && d.Status != DraftStatus.Deleted)
-            .OrderByDescending(d => d.UpdatedAt)
-            .ToListAsync(ct);
+            .Include(d => d.Threads)
+            .Include(d => d.Variants).ThenInclude(v => v.Threads)
+            .Where(d => d.UserId == userId && d.Status != DraftStatus.Deleted);
 
+        if (filter != null)
+        {
+            if (filter.WorkflowId.HasValue)
+            {
+                query = query.Where(d => d.AutomationWorkflowId == filter.WorkflowId.Value);
+            }
+
+            if (filter.WorkflowIds != null && filter.WorkflowIds.Count > 0)
+            {
+                query = query.Where(d => d.AutomationWorkflowId.HasValue && filter.WorkflowIds.Contains(d.AutomationWorkflowId.Value));
+            }
+
+            if (filter.Status.HasValue)
+            {
+                query = query.Where(d => d.Status == filter.Status.Value);
+            }
+
+            if (filter.Since.HasValue)
+            {
+                var sinceUtc = filter.Since.Value.ToUniversalTime();
+                query = query.Where(d => d.CreatedAt >= sinceUtc || d.UpdatedAt >= sinceUtc);
+            }
+
+            if (filter.IsPublished == true)
+            {
+                query = query.Where(d =>
+                    d.Threads.Any(t => t.Stage == PlatformThreadStage.Sent) ||
+                    d.Variants.Any(v => v.Threads.Any(vt => vt.Stage == PlatformThreadStage.Sent)));
+            }
+
+            if (filter.Stage.HasValue)
+            {
+                query = query.Where(d =>
+                    d.Threads.Any(t => t.Stage == filter.Stage.Value) ||
+                    d.Variants.Any(v => v.Threads.Any(vt => vt.Stage == filter.Stage.Value)));
+            }
+        }
+
+        query = query.OrderByDescending(d => d.UpdatedAt);
+
+        if (filter?.Limit.HasValue == true && filter.Limit.Value > 0)
+        {
+            query = query.Take(filter.Limit.Value);
+        }
+
+        var drafts = await query.ToListAsync(ct);
         var draftIds = drafts.Select(d => d.Id).ToList();
 
         var threads = await _db.PlatformThreads

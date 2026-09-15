@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SocialWorker.Api.Data;
@@ -61,10 +62,17 @@ public sealed class BackgroundTaskHostedServiceTests : SqliteTestBase
         BackgroundTask? stored = null;
         for (int i = 0; i < 50; i++)
         {
-            using var verifyDb = CreateDbContext();
-            stored = await verifyDb.BackgroundTasks.FindAsync(taskId);
-            if (stored?.Status == BackgroundTaskStatus.Completed)
-                break;
+            try
+            {
+                using var verifyDb = CreateDbContext();
+                stored = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                    verifyDb.BackgroundTasks.AsNoTracking(), t => t.Id == taskId);
+                if (stored?.Status == BackgroundTaskStatus.Completed)
+                    break;
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException)
+            {
+            }
             await Task.Delay(100);
         }
 
@@ -103,10 +111,17 @@ public sealed class BackgroundTaskHostedServiceTests : SqliteTestBase
         BackgroundTask? stored = null;
         for (int i = 0; i < 50; i++)
         {
-            using var verifyDb = CreateDbContext();
-            stored = await verifyDb.BackgroundTasks.FindAsync(taskId);
-            if (stored?.Status == BackgroundTaskStatus.Pending && stored.LastError != null)
-                break;
+            try
+            {
+                using var verifyDb = CreateDbContext();
+                stored = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                    verifyDb.BackgroundTasks.AsNoTracking(), t => t.Id == taskId);
+                if (stored?.Status == BackgroundTaskStatus.Pending && stored.LastError != null)
+                    break;
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException)
+            {
+            }
             await Task.Delay(100);
         }
 

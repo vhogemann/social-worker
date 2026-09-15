@@ -30,14 +30,14 @@ public static class MediaEndpoint
 
             if (file.Length == 0)
             {
-                return Results.BadRequest("No file uploaded");
+                return Results.BadRequest(new ApiErrorResponse("No file uploaded."));
             }
 
             var mimeType = file.ContentType.ToLowerInvariant();
             var allowedMimeTypes = new[] { "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp", "image/x-bmp" };
             if (!allowedMimeTypes.Contains(mimeType))
             {
-                return Results.BadRequest($"Unsupported image format '{mimeType}'. Supported formats: JPG, PNG, WEBP, GIF");
+                return Results.BadRequest(new ApiErrorResponse($"Unsupported image format '{mimeType}'. Supported formats: JPG, PNG, WEBP, GIF"));
             }
 
             try
@@ -53,11 +53,11 @@ public static class MediaEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
             catch (Exception ex)
             {
-                return Results.BadRequest($"Failed to upload image: {ex.Message}");
+                return Results.BadRequest(new ApiErrorResponse($"Failed to upload image: {ex.Message}"));
             }
         }).RequireAuthorization().DisableAntiforgery();
 
@@ -74,7 +74,7 @@ public static class MediaEndpoint
 
             if (string.IsNullOrWhiteSpace(req.Url))
             {
-                return Results.BadRequest("A valid image URL is required.");
+                return Results.BadRequest(new ApiErrorResponse("A valid image URL is required."));
             }
 
             try
@@ -97,19 +97,19 @@ public static class MediaEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound();
+                return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
             catch (ArgumentException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
             catch (InvalidOperationException ex)
             {
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
             catch (Exception ex)
             {
-                return Results.BadRequest($"Failed to import image: {ex.Message}");
+                return Results.BadRequest(new ApiErrorResponse($"Failed to import image: {ex.Message}"));
             }
         }).RequireAuthorization().WithValidation<ImportMediaFromUrlRequest>();
 

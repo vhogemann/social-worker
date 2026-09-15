@@ -48,7 +48,7 @@ public static class TemplateEndpoints
         group.MapGet("/{id:guid}", async (Guid id, AppDbContext db, CancellationToken ct) =>
         {
             var template = await db.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
-            if (template == null) return Results.NotFound("Template not found.");
+            if (template == null) return Results.NotFound(new ApiErrorResponse("Template not found."));
 
             return Results.Ok(new TemplateDto(template));
         });
@@ -56,9 +56,9 @@ public static class TemplateEndpoints
         group.MapPost("/", async (CreateTemplateRequest req, AppDbContext db, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(req.Name))
-                return Results.BadRequest("Template name is required.");
+                return Results.BadRequest(new ApiErrorResponse("Template name is required."));
             if (string.IsNullOrWhiteSpace(req.Schema))
-                return Results.BadRequest("Template schema JSON is required.");
+                return Results.BadRequest(new ApiErrorResponse("Template schema JSON is required."));
 
             var template = new Template
             {
@@ -82,12 +82,12 @@ public static class TemplateEndpoints
         group.MapPut("/{id:guid}", async (Guid id, UpdateTemplateRequest req, AppDbContext db, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(req.Name))
-                return Results.BadRequest("Template name is required.");
+                return Results.BadRequest(new ApiErrorResponse("Template name is required."));
             if (string.IsNullOrWhiteSpace(req.Schema))
-                return Results.BadRequest("Template schema JSON is required.");
+                return Results.BadRequest(new ApiErrorResponse("Template schema JSON is required."));
 
             var template = await db.Templates.FirstOrDefaultAsync(t => t.Id == id, ct);
-            if (template == null) return Results.NotFound("Template not found.");
+            if (template == null) return Results.NotFound(new ApiErrorResponse("Template not found."));
 
             template.Name = req.Name.Trim();
             template.Description = req.Description?.Trim();
@@ -105,7 +105,7 @@ public static class TemplateEndpoints
         group.MapDelete("/{id:guid}", async (Guid id, AppDbContext db, CancellationToken ct) =>
         {
             var template = await db.Templates.FirstOrDefaultAsync(t => t.Id == id, ct);
-            if (template == null) return Results.NotFound("Template not found.");
+            if (template == null) return Results.NotFound(new ApiErrorResponse("Template not found."));
 
             db.Templates.Remove(template);
             await db.SaveChangesAsync(ct);
@@ -119,13 +119,13 @@ public static class TemplateEndpoints
             CancellationToken ct) =>
         {
             if (file == null || file.Length == 0)
-                return Results.BadRequest("No file uploaded.");
+                return Results.BadRequest(new ApiErrorResponse("No file uploaded."));
 
             var mimeType = file.ContentType.ToLowerInvariant();
             var allowedMimeTypes = new[] { "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/bmp", "image/x-bmp" };
             if (!allowedMimeTypes.Contains(mimeType))
             {
-                return Results.BadRequest($"Unsupported image format '{mimeType}'. Supported formats: PNG, JPG, WEBP, GIF, SVG");
+                return Results.BadRequest(new ApiErrorResponse($"Unsupported image format '{mimeType}'. Supported formats: PNG, JPG, WEBP, GIF, SVG"));
             }
 
             try
@@ -145,7 +145,7 @@ public static class TemplateEndpoints
             }
             catch (Exception ex)
             {
-                return Results.BadRequest($"Failed to upload template asset: {ex.Message}");
+                return Results.BadRequest(new ApiErrorResponse($"Failed to upload template asset: {ex.Message}"));
             }
         }).RequireAuthorization().DisableAntiforgery();
 
@@ -158,7 +158,7 @@ public static class TemplateEndpoints
             CancellationToken ct) =>
         {
             var template = await db.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
-            if (template == null) return Results.NotFound("Template not found.");
+            if (template == null) return Results.NotFound(new ApiErrorResponse("Template not found."));
 
             var slots = req?.Slots ?? TemplateGeneratorService.GenerateSampleSlots(template.Schema);
             var images = new Dictionary<string, (System.IO.Stream Stream, string FileName, string MimeType)>();
@@ -183,7 +183,7 @@ public static class TemplateEndpoints
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(req.Schema))
-                return Results.BadRequest("Template schema is required.");
+                return Results.BadRequest(new ApiErrorResponse("Template schema is required."));
 
             var slots = req.Slots ?? TemplateGeneratorService.GenerateSampleSlots(req.Schema);
             var images = new Dictionary<string, (System.IO.Stream Stream, string FileName, string MimeType)>();
@@ -197,7 +197,7 @@ public static class TemplateEndpoints
             }
             catch (Exception ex)
             {
-                return Results.BadRequest($"Render preview failed: {ex.Message}");
+                return Results.BadRequest(new ApiErrorResponse($"Render preview failed: {ex.Message}"));
             }
             finally
             {
@@ -212,13 +212,13 @@ public static class TemplateEndpoints
             CancellationToken ct) =>
         {
             if (!httpRequest.HasFormContentType)
-                return Results.BadRequest("multipart/form-data required");
+                return Results.BadRequest(new ApiErrorResponse("multipart/form-data required"));
 
             var form = await httpRequest.ReadFormAsync(ct);
             var schema = form["schema"].FirstOrDefault();
 
             if (string.IsNullOrWhiteSpace(schema))
-                return Results.BadRequest("Template schema is required.");
+                return Results.BadRequest(new ApiErrorResponse("Template schema is required."));
 
             var slots = new Dictionary<string, string>();
             foreach (var key in form.Keys.Where(k => k.StartsWith("slots[") && k.EndsWith(']')))
@@ -249,7 +249,7 @@ public static class TemplateEndpoints
             }
             catch (Exception ex)
             {
-                return Results.BadRequest($"Render preview failed: {ex.Message}");
+                return Results.BadRequest(new ApiErrorResponse($"Render preview failed: {ex.Message}"));
             }
             finally
             {
@@ -266,7 +266,7 @@ public static class TemplateEndpoints
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(req.Prompt))
-                return Results.BadRequest("Prompt is required.");
+                return Results.BadRequest(new ApiErrorResponse("Prompt is required."));
 
             var userId = principal.GetUserId();
             AppUser? user = null;
@@ -280,7 +280,7 @@ public static class TemplateEndpoints
 
             if (provider == null)
             {
-                return Results.BadRequest("No active LLM provider configured.");
+                return Results.BadRequest(new ApiErrorResponse("No active LLM provider configured."));
             }
 
             var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
@@ -291,7 +291,7 @@ public static class TemplateEndpoints
             }
             catch (Exception ex)
             {
-                return Results.BadRequest($"Failed to generate template: {ex.Message}");
+                return Results.BadRequest(new ApiErrorResponse($"Failed to generate template: {ex.Message}"));
             }
         }).RequireAuthorization();
 

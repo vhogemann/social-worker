@@ -8,7 +8,7 @@ Read this first, then use AGENTS.md for stricter policy and workflow rules.
 
 ## Product in one paragraph
 
-social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky (threads) and LinkedIn (single-post MVP) are production-ready; other publishers are stubs.
+social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky (threads) and LinkedIn (single-post personal profile and company page publishing) are production-ready; other publishers are stubs.
 
 ## System shape
 
@@ -34,7 +34,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
 - Feed automation: api/SocialWorker.Api/Features/Feeds/
 - Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService, ScheduleSlotEvaluatorService worker, Review Outbox)
-- Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/
+- Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/ (IWorkflowSourceHandler, FeedWorkflowSourceHandler, DigestWorkflowSourceHandler, extensible sources)
 - Background tasks & durable queue: api/SocialWorker.Api/Features/BackgroundTasks/
 - Background task worker pool: api/SocialWorker.Api/Features/BackgroundTasks/Services/BackgroundTaskHostedService.cs
 - Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/
@@ -48,7 +48,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - App shell & routing: web/src/App.tsx, web/src/components/Navigation/AppHeader.tsx
 - Content Calendar & Views: web/src/components/Calendar/ (CalendarPage, MonthView, WeekView, DayView, QueueSidebar, ScheduleManagerModal, SlotRuleFormModal, DraftPickerModal)
 - Review Outbox Triage: web/src/components/Outbox/ReviewOutboxPage.tsx
-- Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/
+- Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/ (polymorphic sources: RSS/YouTube feeds, Workflow Highlights/Digests)
 - Drafts Library Page: web/src/components/Drafts/DraftsPage.tsx
 - Full-width 2-pane Composer: web/src/components/Composer/ComposerPage.tsx
 - Scoped Composer Draft Context: web/src/components/Composer/ComposerDraftContext.tsx (local draft, editor doc, autosave, scoped sources)
@@ -56,13 +56,14 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Navigation & Breadcrumbs: web/src/components/Navigation/
 - Template Studio & WYSIWYG Editor: web/src/components/TemplateStudio/
 - Draft library cache: web/src/store/draftStore.ts
+- Global error catcher & crash safety: web/src/components/common/GlobalErrorToaster.tsx, web/src/components/common/ErrorBoundary.tsx
 - API contract clients: web/src/api/ (schedules.ts, outbox.ts, drafts.ts, workflows.ts)
 
 ### Tests
 
-- API unit/integration tests (500 tests): api/SocialWorker.Api.Tests/
+- API unit/integration tests (513 tests): api/SocialWorker.Api.Tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
-- Web tests (Vitest, 428 tests in 87 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- Web tests (Vitest, 453 tests in 89 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
 
 ## Core user flow mental model

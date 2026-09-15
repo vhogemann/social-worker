@@ -36,8 +36,9 @@ export async function deleteAccount(id: string): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete account");
 }
 
-export async function getLinkedInAuthUrl(): Promise<{ authUrl: string }> {
-  const res = await apiFetch("/api/accounts/linkedin/auth-url");
+export async function getLinkedInAuthUrl(type: "personal" | "company" = "personal"): Promise<{ authUrl: string; accountType?: string }> {
+  const query = type ? `?type=${encodeURIComponent(type)}` : "";
+  const res = await apiFetch(`/api/accounts/linkedin/auth-url${query}`);
   if (!res.ok) {
     const err = await res.json().catch(() => null);
     throw new Error(err?.error || "Failed to fetch LinkedIn auth URL");
@@ -45,14 +46,20 @@ export async function getLinkedInAuthUrl(): Promise<{ authUrl: string }> {
   return res.json();
 }
 
-export async function submitLinkedInCallback(code: string): Promise<void> {
+export interface LinkedInCallbackResponse {
+  personalHandle?: string | null;
+  organizationHandles: string[];
+}
+
+export async function submitLinkedInCallback(code: string, accountType?: string): Promise<LinkedInCallbackResponse> {
   const res = await apiFetch("/api/accounts/linkedin/callback", {
     method: "POST",
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ code, accountType }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
     throw new Error(err?.error || "Failed to exchange LinkedIn auth code");
   }
+  return res.json();
 }
 

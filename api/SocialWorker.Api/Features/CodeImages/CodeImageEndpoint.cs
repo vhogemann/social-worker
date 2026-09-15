@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
+using SocialWorker.Api.Infrastructure;
+
 namespace SocialWorker.Api.Features.CodeImages;
 
 public static class CodeImageEndpoint
@@ -32,7 +34,7 @@ public static class CodeImageEndpoint
             if (userId is null) return Results.Unauthorized();
 
             if (string.IsNullOrWhiteSpace(request.Code))
-                return Results.BadRequest("Code is required.");
+                return Results.BadRequest(new ApiErrorResponse("Code is required."));
 
             var block = new CodeBlock(request.Language, request.Code);
             var theme = CodeTheme.FromString(request.Theme);
@@ -44,7 +46,7 @@ public static class CodeImageEndpoint
             }
             catch (KeyNotFoundException)
             {
-                return Results.NotFound("Draft not found or access denied.");
+                return Results.NotFound(new ApiErrorResponse("Draft not found or access denied."));
             }
         }).RequireAuthorization();
     }
