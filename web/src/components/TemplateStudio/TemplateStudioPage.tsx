@@ -18,7 +18,7 @@ export function TemplateStudioPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
+  const [isSeedingDefaults, setIsSeedingDefaults] = useState(false);
 
   const loadTemplates = async () => {
     try {
@@ -66,15 +66,15 @@ export function TemplateStudioPage() {
     }
   };
 
-  const handleRestoreDefaults = async () => {
+  const handleCreateDefaults = async () => {
     try {
-      setIsRestoring(true);
+      setIsSeedingDefaults(true);
       const restored = await restoreDefaultTemplates();
       setTemplates(restored);
     } catch (err: any) {
-      alert(`Restore defaults failed: ${err.message}`);
+      alert(`Create default templates failed: ${err.message}`);
     } finally {
-      setIsRestoring(false);
+      setIsSeedingDefaults(false);
     }
   };
 
@@ -129,12 +129,12 @@ export function TemplateStudioPage() {
 
           <button
             type="button"
-            onClick={handleRestoreDefaults}
-            disabled={isRestoring}
+            onClick={handleCreateDefaults}
+            disabled={isSeedingDefaults}
             className="px-3 py-1.5 border border-border hover:bg-panel text-muted hover:text-foreground text-xs font-mono rounded shrink-0 transition-colors"
-            title="Restore missing default templates"
+            title="Load starter default templates into your library"
           >
-            {isRestoring ? "Restoring..." : "Restore Defaults"}
+            {isSeedingDefaults ? "Creating..." : "Create Default Templates"}
           </button>
 
           <button
@@ -169,24 +169,32 @@ export function TemplateStudioPage() {
           </div>
         ) : templates.length === 0 ? (
           <div className="border border-dashed border-border rounded-xl p-16 text-center max-w-lg mx-auto bg-panel">
-            <p className="text-sm text-foreground font-semibold">No templates found</p>
+            <p className="text-sm text-foreground font-semibold">No templates in your library</p>
             <p className="text-xs text-muted mt-1 mb-4">
-              Get started by creating a new template, generating one with AI, or restoring defaults.
+              Get started by loading the starter template pack, generating with AI, or creating a new template.
             </p>
-            <div className="flex justify-center gap-3">
+            <div className="flex flex-wrap justify-center gap-3">
               <button
                 type="button"
-                onClick={handleRestoreDefaults}
-                className="px-3 py-1.5 border border-border text-xs font-mono rounded hover:bg-bg"
+                onClick={handleCreateDefaults}
+                disabled={isSeedingDefaults}
+                className="px-3 py-1.5 bg-accent text-accent-foreground text-xs font-mono font-medium rounded hover:opacity-90 transition-opacity"
               >
-                Restore Defaults
+                {isSeedingDefaults ? "Creating..." : "Create Default Templates"}
               </button>
               <button
                 type="button"
                 onClick={() => setIsAiModalOpen(true)}
-                className="px-3 py-1.5 bg-accent text-accent-foreground text-xs font-mono rounded hover:opacity-90"
+                className="px-3 py-1.5 border border-border text-xs font-mono rounded hover:bg-bg"
               >
                 Generate with AI
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/templates/editor")}
+                className="px-3 py-1.5 border border-border text-xs font-mono rounded hover:bg-bg"
+              >
+                + New Template
               </button>
             </div>
           </div>

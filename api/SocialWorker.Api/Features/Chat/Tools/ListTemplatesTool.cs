@@ -82,7 +82,7 @@ public sealed class ListTemplatesTool : ChatToolBase<ListTemplatesArgs, ListTemp
 
     public override async Task<ListTemplatesResult> ExecuteAsync(ListTemplatesArgs args, Models.ToolExecutionContext context)
     {
-        var query = _db.Templates.AsNoTracking();
+        var query = _db.Templates.AsNoTracking().Where(t => t.UserId == context.UserId);
 
         if (!string.IsNullOrWhiteSpace(args.Search))
         {

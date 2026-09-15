@@ -8,6 +8,7 @@ import {
   generateTemplate,
   previewTemplate,
   previewTemplateWithImages,
+  seedDefaultTemplates,
   restoreDefaultTemplates,
   type TemplateDto,
 } from "./templates";
@@ -21,6 +22,7 @@ const mockApiFetch = apiFetch as Mock;
 
 const makeTemplate = (id = "t1"): TemplateDto => ({
   id,
+  userId: "u1",
   name: "Quote Card",
   description: "Minimal quote card",
   width: 1080,
@@ -45,6 +47,7 @@ describe("templates API", () => {
       const result = await fetchTemplates();
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Quote Card");
+      expect(result[0].userId).toBe("u1");
       expect(mockApiFetch).toHaveBeenCalledWith("/api/templates");
     });
 
@@ -64,6 +67,7 @@ describe("templates API", () => {
       );
       const result = await fetchTemplate("t1");
       expect(result.id).toBe("t1");
+      expect(result.userId).toBe("u1");
       expect(mockApiFetch).toHaveBeenCalledWith("/api/templates/t1");
     });
   });
@@ -178,6 +182,21 @@ describe("templates API", () => {
       expect(result).toBeInstanceOf(Blob);
       expect(mockApiFetch).toHaveBeenCalledWith(
         "/api/templates/preview-with-images",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+  });
+
+  describe("seedDefaultTemplates", () => {
+    it("sends POST to /seed-defaults and returns seeded templates", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify([makeTemplate()]), { status: 200 })
+      );
+
+      const result = await seedDefaultTemplates();
+      expect(result).toHaveLength(1);
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/templates/seed-defaults",
         expect.objectContaining({ method: "POST" })
       );
     });

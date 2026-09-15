@@ -2,6 +2,7 @@ import { apiFetch } from "./client";
 
 export interface TemplateDto {
   id: string;
+  userId: string;
   name: string;
   description?: string | null;
   width: number;
@@ -165,6 +166,17 @@ export async function uploadTemplateAsset(file: File): Promise<TemplateAssetUplo
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
     throw new Error(msg || `uploadTemplateAsset failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function seedDefaultTemplates(): Promise<TemplateDto[]> {
+  const res = await apiFetch("/api/templates/seed-defaults", {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || `seedDefaultTemplates failed: ${res.status}`);
   }
   return res.json();
 }

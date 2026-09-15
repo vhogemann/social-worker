@@ -14,7 +14,7 @@ namespace SocialWorker.Api.Tests.Features.Chat;
 public sealed class CreateTemplateToolTests : SqliteTestBase
 {
     [Fact]
-    public async Task ExecuteAsync_CreatesTemplateAndSavesToDb()
+    public async Task ExecuteAsync_CreatesTemplateAndSavesToDbWithUserId()
     {
         await using var db = CreateDbContext();
         var user = CreateSeedUser(db);
@@ -43,6 +43,7 @@ public sealed class CreateTemplateToolTests : SqliteTestBase
         var saved = await db.Templates.FirstOrDefaultAsync(t => t.Id == result.TemplateId.Value);
         Assert.NotNull(saved);
         Assert.Equal("Minimal Card", saved.Name);
+        Assert.Equal(user.Id, saved.UserId);
         Assert.Equal(1080, saved.Width);
         Assert.Equal(1080, saved.Height);
     }
@@ -80,6 +81,7 @@ public sealed class CreateTemplateToolTests : SqliteTestBase
         var saved = await db.Templates.FirstOrDefaultAsync(t => t.Id == result.TemplateId!.Value);
         Assert.NotNull(saved);
         Assert.NotNull(saved.ThumbnailMediaAssetId);
+        Assert.Equal(user.Id, saved.UserId);
     }
 
     [Fact]

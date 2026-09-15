@@ -6,6 +6,7 @@ namespace SocialWorker.Api.Features.Templates;
 
 public sealed record TemplateDto(
     Guid Id,
+    Guid UserId,
     string Name,
     string? Description,
     int Width,
@@ -18,6 +19,7 @@ public sealed record TemplateDto(
 {
     public TemplateDto(Template template) : this(
         template.Id,
+        template.UserId,
         template.Name,
         template.Description,
         template.Width,

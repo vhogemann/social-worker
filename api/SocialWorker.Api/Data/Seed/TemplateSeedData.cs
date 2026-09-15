@@ -1,32 +1,29 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using SocialWorker.Api.Data.Entities;
 
 namespace SocialWorker.Api.Data.Seed;
 
 public static class TemplateSeedData
 {
-    public static readonly Guid QuoteCardSquareId = Guid.Parse("a1000000-0000-0000-0000-000000000001");
-    public static readonly Guid QuoteCardPortraitId = Guid.Parse("a1000000-0000-0000-0000-000000000002");
-    public static readonly Guid StatHighlightId = Guid.Parse("a1000000-0000-0000-0000-000000000003");
-    public static readonly Guid AnnouncementCardId = Guid.Parse("a1000000-0000-0000-0000-000000000004");
-    public static readonly Guid CarouselSlideId = Guid.Parse("a1000000-0000-0000-0000-000000000005");
-    public static readonly Guid CodeSnippetCardId = Guid.Parse("a1000000-0000-0000-0000-000000000006");
+    public sealed record TemplateSeedDefinition(
+        string Name,
+        string Description,
+        int Width,
+        int Height,
+        string Schema);
 
-    public static List<Template> GetDefaultTemplates()
+    public static IReadOnlyList<TemplateSeedDefinition> GetDefaultDefinitions()
     {
-        var now = DateTime.UtcNow;
-
-        return new List<Template>
+        return new List<TemplateSeedDefinition>
         {
-            new Template
-            {
-                Id = QuoteCardSquareId,
-                Name = "Quote Card (Square)",
-                Description = "Modern square 1:1 quote card with optional background image, dark scrim, quote text, author attribution, and tagline.",
-                Width = 1080,
-                Height = 1080,
-                Schema = """
+            new TemplateSeedDefinition(
+                "Quote Card (Square)",
+                "Modern square 1:1 quote card with optional background image, dark scrim, quote text, author attribution, and tagline.",
+                1080,
+                1080,
+                """
                 {
                   "name": "Quote Card (Square)",
                   "width": 1080,
@@ -48,18 +45,13 @@ public static class TemplateSeedData
                     { "type": "text", "slot": "author", "x": 100, "y": 920, "fontSize": 28, "fontFamily": "Inter, sans-serif", "fontWeight": "normal", "color": "#94a3b8", "prefix": "— " }
                   ]
                 }
-                """,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new Template
-            {
-                Id = QuoteCardPortraitId,
-                Name = "Quote Card (Portrait)",
-                Description = "Instagram-optimized 4:5 vertical quote card with high legibility, typography scale, and author footer.",
-                Width = 1080,
-                Height = 1350,
-                Schema = """
+                """),
+            new TemplateSeedDefinition(
+                "Quote Card (Portrait)",
+                "Instagram-optimized 4:5 vertical quote card with high legibility, typography scale, and author footer.",
+                1080,
+                1350,
+                """
                 {
                   "name": "Quote Card (Portrait)",
                   "width": 1080,
@@ -80,18 +72,13 @@ public static class TemplateSeedData
                     { "type": "text", "slot": "author", "x": 100, "y": 1150, "fontSize": 32, "fontFamily": "Inter, sans-serif", "color": "#e4e4e7", "prefix": "— " }
                   ]
                 }
-                """,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new Template
-            {
-                Id = StatHighlightId,
-                Name = "Stat Highlight",
-                Description = "High-impact metric card with large KPI value, contextual label, trend indicator, and footnote.",
-                Width = 1080,
-                Height = 1080,
-                Schema = """
+                """),
+            new TemplateSeedDefinition(
+                "Stat Highlight",
+                "High-impact metric card with large KPI value, contextual label, trend indicator, and footnote.",
+                1080,
+                1080,
+                """
                 {
                   "name": "Stat Highlight",
                   "width": 1080,
@@ -111,18 +98,13 @@ public static class TemplateSeedData
                     { "type": "text", "slot": "footnote", "x": 140, "y": 860, "maxWidth": 800, "fontSize": 22, "fontFamily": "Inter, sans-serif", "color": "#6b7280" }
                   ]
                 }
-                """,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new Template
-            {
-                Id = AnnouncementCardId,
-                Name = "Announcement Card",
-                Description = "Bold announcement card with category pill, headline, summary text, and brand handle.",
-                Width = 1080,
-                Height = 1080,
-                Schema = """
+                """),
+            new TemplateSeedDefinition(
+                "Announcement Card",
+                "Bold announcement card with category pill, headline, summary text, and brand handle.",
+                1080,
+                1080,
+                """
                 {
                   "name": "Announcement Card",
                   "width": 1080,
@@ -142,18 +124,13 @@ public static class TemplateSeedData
                     { "type": "text", "slot": "brand_handle", "x": 100, "y": 920, "fontSize": 24, "fontFamily": "Inter, sans-serif", "color": "#34d399" }
                   ]
                 }
-                """,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new Template
-            {
-                Id = CarouselSlideId,
-                Name = "Carousel Slide",
-                Description = "Standard 4:5 carousel slide with slide number, section title, takeaway body, and swipe indicator.",
-                Width = 1080,
-                Height = 1350,
-                Schema = """
+                """),
+            new TemplateSeedDefinition(
+                "Carousel Slide",
+                "Standard 4:5 carousel slide with slide number, section title, takeaway body, and swipe indicator.",
+                1080,
+                1350,
+                """
                 {
                   "name": "Carousel Slide",
                   "width": 1080,
@@ -174,18 +151,13 @@ public static class TemplateSeedData
                     { "type": "text", "slot": "footer_cta", "x": 140, "y": 1160, "maxWidth": 800, "fontSize": 22, "fontFamily": "Inter, sans-serif", "color": "#71717a" }
                   ]
                 }
-                """,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new Template
-            {
-                Id = CodeSnippetCardId,
-                Name = "Code Snippet Card",
-                Description = "Dark terminal style card with window controls, language badge, code text, and caption.",
-                Width = 1080,
-                Height = 1080,
-                Schema = """
+                """),
+            new TemplateSeedDefinition(
+                "Code Snippet Card",
+                "Dark terminal style card with window controls, language badge, code text, and caption.",
+                1080,
+                1080,
+                """
                 {
                   "name": "Code Snippet Card",
                   "width": 1080,
@@ -207,10 +179,14 @@ public static class TemplateSeedData
                     { "type": "text", "slot": "caption", "x": 120, "y": 920, "maxWidth": 840, "fontSize": 22, "fontFamily": "Inter, sans-serif", "color": "#64748b" }
                   ]
                 }
-                """,
-                CreatedAt = now,
-                UpdatedAt = now
-            }
+                """)
         };
+    }
+
+    public static List<Template> CreateDefaultTemplatesForUser(Guid userId)
+    {
+        return GetDefaultDefinitions()
+            .Select(d => Template.Create(userId, d.Name, d.Description, d.Width, d.Height, d.Schema))
+            .ToList();
     }
 }

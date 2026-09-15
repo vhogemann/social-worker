@@ -333,11 +333,15 @@ public class AppDbContext : DbContext
             e.Property(x => x.Name).HasMaxLength(150);
             e.Property(x => x.Description).HasMaxLength(1000);
             e.Property(x => x.Schema).HasColumnType("text");
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.ThumbnailMediaAsset)
                 .WithMany()
                 .HasForeignKey(x => x.ThumbnailMediaAssetId)
                 .OnDelete(DeleteBehavior.SetNull);
-            e.HasIndex(x => x.Name);
+            e.HasIndex(x => new { x.UserId, x.Name });
         });
 
         modelBuilder.Entity<BackgroundTask>(e =>

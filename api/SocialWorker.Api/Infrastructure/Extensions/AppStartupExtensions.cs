@@ -61,7 +61,6 @@ static class AppStartupExtensions
         await SeedAdminUserAsync(scope.ServiceProvider, db);
         await SeedDefaultApiKeyAsync(db);
         await SeedDefaultLlmProviderAsync(scope.ServiceProvider, db);
-        await SeedDefaultTemplatesAsync(db);
         await RecoverStuckDraftsAsync(db);
     }
 
@@ -152,17 +151,6 @@ static class AppStartupExtensions
         await db.SaveChangesAsync();
     }
 
-    private static async Task SeedDefaultTemplatesAsync(AppDbContext db)
-    {
-        if (await db.Templates.AnyAsync())
-        {
-            return;
-        }
-
-        var defaults = TemplateSeedData.GetDefaultTemplates();
-        db.Templates.AddRange(defaults);
-        await db.SaveChangesAsync();
-    }
 
     private static async Task RecoverStuckDraftsAsync(AppDbContext db)
     {

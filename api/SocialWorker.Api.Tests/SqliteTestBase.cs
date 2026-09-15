@@ -27,13 +27,13 @@ public abstract class SqliteTestBase : IDisposable
 
     protected AppDbContext CreateDbContext() => new(Options);
 
-    protected AppUser CreateSeedUser(AppDbContext? db = null)
+    protected AppUser CreateSeedUser(AppDbContext? db = null, string username = "testuser", string email = "test@example.com")
     {
         var user = new AppUser
         {
             Id = Guid.NewGuid(),
-            Username = "testuser",
-            Email = "test@example.com",
+            Username = username,
+            Email = email,
             PasswordHash = "hash"
         };
         var ctx = db ?? CreateDbContext();

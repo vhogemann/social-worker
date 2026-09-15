@@ -13,6 +13,7 @@ vi.mock("../../api/templates", () => ({
   deleteTemplate: vi.fn(),
   generateTemplate: vi.fn(),
   previewTemplate: vi.fn(),
+  seedDefaultTemplates: vi.fn(),
   restoreDefaultTemplates: vi.fn(),
 }));
 
@@ -25,6 +26,7 @@ describe("TemplateStudio", () => {
     vi.mocked(templatesApi.fetchTemplates).mockResolvedValue([
       {
         id: "t-1",
+        userId: "u-1",
         name: "Quote Card (Square)",
         description: "Modern square 1:1 quote card",
         width: 1080,
@@ -43,6 +45,7 @@ describe("TemplateStudio", () => {
       },
       {
         id: "t-2",
+        userId: "u-1",
         name: "Stat Highlight",
         description: "High impact metric highlight card",
         width: 1080,
@@ -77,6 +80,21 @@ describe("TemplateStudio", () => {
       expect(screen.getByText("quote_text")).toBeInTheDocument();
       expect(screen.getByText("author")).toBeInTheDocument();
       expect(screen.getByText("metric_value")).toBeInTheDocument();
+    });
+  });
+
+  it("renders empty state with Create Default Templates button when no templates exist", async () => {
+    vi.mocked(templatesApi.fetchTemplates).mockResolvedValueOnce([]);
+
+    render(
+      <MemoryRouter future={routerFuture}>
+        <TemplateStudio />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("No templates in your library")).toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: /Create Default Templates/i }).length).toBeGreaterThanOrEqual(1);
     });
   });
 

@@ -103,13 +103,13 @@ public sealed class RenderTemplateTool : ChatToolBase<RenderTemplateArgs, Render
         Template? template = null;
         if (Guid.TryParse(args.TemplateId.Trim(), out var templateGuid))
         {
-            template = await _db.Templates.FirstOrDefaultAsync(t => t.Id == templateGuid, context.CancellationToken);
+            template = await _db.Templates.FirstOrDefaultAsync(t => t.Id == templateGuid && t.UserId == context.UserId, context.CancellationToken);
         }
 
         if (template == null)
         {
             var searchName = args.TemplateId.Trim().ToLower();
-            template = await _db.Templates.FirstOrDefaultAsync(t => t.Name.ToLower() == searchName, context.CancellationToken);
+            template = await _db.Templates.FirstOrDefaultAsync(t => t.Name.ToLower() == searchName && t.UserId == context.UserId, context.CancellationToken);
         }
 
         if (template == null)

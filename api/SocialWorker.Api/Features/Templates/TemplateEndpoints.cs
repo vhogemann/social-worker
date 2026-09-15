@@ -26,9 +26,12 @@ public static class TemplateEndpoints
     {
         var group = app.MapGroup("/api/templates");
 
-        group.MapGet("/", async (string? search, AppDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (string? search, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
         {
-            var query = db.Templates.AsNoTracking();
+            var userId = principal.GetUserId();
+            if (userId == null) return Results.Unauthorized();
+
+            var query = db.Templates.AsNoTracking().Where(t => t.UserId == userId.Value);
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -43,35 +46,37 @@ public static class TemplateEndpoints
                 .ToListAsync(ct);
 
             return Results.Ok(templates);
-        });
+        }).RequireAuthorization();
 
-        group.MapGet("/{id:guid}", async (Guid id, AppDbContext db, CancellationToken ct) =>
+        group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
         {
-            var template = await db.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
+            var userId = principal.GetUserId();
+            if (userId == null) return Results.Unauthorized();
+
+            var template = await db.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId.Value, ct);
             if (template == null) return Results.NotFound(new ApiErrorResponse("Template not found."));
 
             return Results.Ok(new TemplateDto(template));
-        });
+        }).RequireAuthorization();
 
-        group.MapPost("/", async (CreateTemplateRequest req, AppDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (CreateTemplateRequest req, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
         {
+            var userId = principal.GetUserId();
+            if (userId == null) return Results.Unauthorized();
+
             if (string.IsNullOrWhiteSpace(req.Name))
                 return Results.BadRequest(new ApiErrorResponse("Template name is required."));
             if (string.IsNullOrWhiteSpace(req.Schema))
                 return Results.BadRequest(new ApiErrorResponse("Template schema JSON is required."));
 
-            var template = new Template
-            {
-                Id = Guid.NewGuid(),
-                Name = req.Name.Trim(),
-                Description = req.Description?.Trim(),
-                Width = req.Width > 0 ? req.Width : 1080,
-                Height = req.Height > 0 ? req.Height : 1080,
-                Schema = req.Schema,
-                ThumbnailMediaAssetId = req.ThumbnailMediaAssetId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+            var template = Template.Create(
+                userId.Value,
+                req.Name,
+                req.Description,
+                req.Width,
+                req.Height,
+                req.Schema,
+                req.ThumbnailMediaAssetId);
 
             db.Templates.Add(template);
             await db.SaveChangesAsync(ct);
@@ -79,14 +84,17 @@ public static class TemplateEndpoints
             return Results.Created($"/api/templates/{template.Id}", new TemplateDto(template));
         }).RequireAuthorization();
 
-        group.MapPut("/{id:guid}", async (Guid id, UpdateTemplateRequest req, AppDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id:guid}", async (Guid id, UpdateTemplateRequest req, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
         {
+            var userId = principal.GetUserId();
+            if (userId == null) return Results.Unauthorized();
+
             if (string.IsNullOrWhiteSpace(req.Name))
                 return Results.BadRequest(new ApiErrorResponse("Template name is required."));
             if (string.IsNullOrWhiteSpace(req.Schema))
                 return Results.BadRequest(new ApiErrorResponse("Template schema JSON is required."));
 
-            var template = await db.Templates.FirstOrDefaultAsync(t => t.Id == id, ct);
+            var template = await db.Templates.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId.Value, ct);
             if (template == null) return Results.NotFound(new ApiErrorResponse("Template not found."));
 
             template.Name = req.Name.Trim();
@@ -102,9 +110,12 @@ public static class TemplateEndpoints
             return Results.Ok(new TemplateDto(template));
         }).RequireAuthorization();
 
-        group.MapDelete("/{id:guid}", async (Guid id, AppDbContext db, CancellationToken ct) =>
+        group.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
         {
-            var template = await db.Templates.FirstOrDefaultAsync(t => t.Id == id, ct);
+            var userId = principal.GetUserId();
+            if (userId == null) return Results.Unauthorized();
+
+            var template = await db.Templates.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId.Value, ct);
             if (template == null) return Results.NotFound(new ApiErrorResponse("Template not found."));
 
             db.Templates.Remove(template);
@@ -152,12 +163,16 @@ public static class TemplateEndpoints
         group.MapPost("/{id:guid}/render", async (
             Guid id,
             RenderTemplateTestRequest? req,
+            ClaimsPrincipal principal,
             AppDbContext db,
             MediaService mediaService,
             IImageEngineClient imageEngine,
             CancellationToken ct) =>
         {
-            var template = await db.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
+            var userId = principal.GetUserId();
+            if (userId == null) return Results.Unauthorized();
+
+            var template = await db.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId.Value, ct);
             if (template == null) return Results.NotFound(new ApiErrorResponse("Template not found."));
 
             var slots = req?.Slots ?? TemplateGeneratorService.GenerateSampleSlots(template.Schema);
@@ -174,7 +189,7 @@ public static class TemplateEndpoints
             {
                 foreach (var d in disposables) d.Dispose();
             }
-        });
+        }).RequireAuthorization();
 
         group.MapPost("/preview", async (
             PreviewTemplateApiRequest req,
@@ -295,21 +310,68 @@ public static class TemplateEndpoints
             }
         }).RequireAuthorization();
 
-        group.MapPost("/restore-defaults", async (AppDbContext db, CancellationToken ct) =>
+        group.MapPost("/seed-defaults", async (ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
         {
-            var defaultTemplates = TemplateSeedData.GetDefaultTemplates();
-            var existingIds = await db.Templates.Select(t => t.Id).ToListAsync(ct);
+            var userId = principal.GetUserId();
+            if (userId == null) return Results.Unauthorized();
 
-            var toAdd = defaultTemplates.Where(d => !existingIds.Contains(d.Id)).ToList();
+            var defaultDefs = TemplateSeedData.GetDefaultDefinitions();
+            var existingNames = await db.Templates
+                .Where(t => t.UserId == userId.Value)
+                .Select(t => t.Name.ToLower())
+                .ToListAsync(ct);
+
+            var toAdd = defaultDefs
+                .Where(d => !existingNames.Contains(d.Name.ToLower()))
+                .Select(d => Template.Create(userId.Value, d.Name, d.Description, d.Width, d.Height, d.Schema))
+                .ToList();
+
             if (toAdd.Count > 0)
             {
                 db.Templates.AddRange(toAdd);
                 await db.SaveChangesAsync(ct);
             }
 
-            var allTemplates = await db.Templates.AsNoTracking().OrderBy(t => t.Name).Select(t => new TemplateDto(t)).ToListAsync(ct);
+            var allTemplates = await db.Templates
+                .AsNoTracking()
+                .Where(t => t.UserId == userId.Value)
+                .OrderBy(t => t.Name)
+                .Select(t => new TemplateDto(t))
+                .ToListAsync(ct);
+
+            return Results.Ok(allTemplates);
+        }).RequireAuthorization();
+
+        group.MapPost("/restore-defaults", async (ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId == null) return Results.Unauthorized();
+
+            var defaultDefs = TemplateSeedData.GetDefaultDefinitions();
+            var existingNames = await db.Templates
+                .Where(t => t.UserId == userId.Value)
+                .Select(t => t.Name.ToLower())
+                .ToListAsync(ct);
+
+            var toAdd = defaultDefs
+                .Where(d => !existingNames.Contains(d.Name.ToLower()))
+                .Select(d => Template.Create(userId.Value, d.Name, d.Description, d.Width, d.Height, d.Schema))
+                .ToList();
+
+            if (toAdd.Count > 0)
+            {
+                db.Templates.AddRange(toAdd);
+                await db.SaveChangesAsync(ct);
+            }
+
+            var allTemplates = await db.Templates
+                .AsNoTracking()
+                .Where(t => t.UserId == userId.Value)
+                .OrderBy(t => t.Name)
+                .Select(t => new TemplateDto(t))
+                .ToListAsync(ct);
+
             return Results.Ok(allTemplates);
         }).RequireAuthorization();
     }
 }
-

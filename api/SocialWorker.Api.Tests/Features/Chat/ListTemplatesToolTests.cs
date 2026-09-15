@@ -10,19 +10,19 @@ namespace SocialWorker.Api.Tests.Features.Chat;
 public sealed class ListTemplatesToolTests : SqliteTestBase
 {
     [Fact]
-    public async Task ExecuteAsync_ReturnsTemplatesWithSlots()
+    public async Task ExecuteAsync_ReturnsTemplatesWithSlots_ForCurrentUserOnly()
     {
         await using var db = CreateDbContext();
-        var user = CreateSeedUser(db);
+        var userA = CreateSeedUser(db, "userA", "userA@test.com");
+        var userB = CreateSeedUser(db, "userB", "userB@test.com");
 
-        var template = new Template
-        {
-            Id = Guid.NewGuid(),
-            Name = "Quote Template",
-            Description = "A clean quote template",
-            Width = 1080,
-            Height = 1080,
-            Schema = """
+        var templateA = Template.Create(
+            userA.Id,
+            "Quote Template",
+            "A clean quote template",
+            1080,
+            1080,
+            """
             {
                 "name": "Quote Template",
                 "slots": [
@@ -31,16 +31,21 @@ public sealed class ListTemplatesToolTests : SqliteTestBase
                 ],
                 "layers": []
             }
-            """,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+            """);
 
-        db.Templates.Add(template);
+        var templateB = Template.Create(
+            userB.Id,
+            "Other User Template",
+            "Belongs to User B",
+            1080,
+            1080,
+            "{}");
+
+        db.Templates.AddRange(templateA, templateB);
         await db.SaveChangesAsync();
 
         var tool = new ListTemplatesTool(db);
-        var result = await tool.ExecuteAsync(new ListTemplatesArgs(), ToolExecutionContext.Create(user.Id, null));
+        var result = await tool.ExecuteAsync(new ListTemplatesArgs(), ToolExecutionContext.Create(userA.Id, null));
 
         Assert.Single(result.Items);
         Assert.Equal("Quote Template", result.Items[0].Name);
@@ -57,8 +62,8 @@ public sealed class ListTemplatesToolTests : SqliteTestBase
         var user = CreateSeedUser(db);
 
         db.Templates.AddRange(
-            new Template { Id = Guid.NewGuid(), Name = "Instagram Story", Width = 1080, Height = 1920, Schema = "{}", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new Template { Id = Guid.NewGuid(), Name = "Twitter Banner", Width = 1500, Height = 500, Schema = "{}", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            Template.Create(user.Id, "Instagram Story", null, 1080, 1920, "{}"),
+            Template.Create(user.Id, "Twitter Banner", null, 1500, 500, "{}")
         );
         await db.SaveChangesAsync();
 

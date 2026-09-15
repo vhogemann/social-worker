@@ -9,34 +9,31 @@ namespace SocialWorker.Api.Tests.Data;
 public sealed class TemplateSeedDataTests
 {
     [Fact]
-    public void GetDefaultTemplates_ReturnsSixValidTemplates()
+    public void GetDefaultDefinitions_ReturnsSixValidTemplateDefinitions()
     {
-        var templates = TemplateSeedData.GetDefaultTemplates();
+        var definitions = TemplateSeedData.GetDefaultDefinitions();
 
-        Assert.NotNull(templates);
-        Assert.Equal(6, templates.Count);
+        Assert.NotNull(definitions);
+        Assert.Equal(6, definitions.Count);
 
-        var ids = templates.Select(t => t.Id).Distinct().ToList();
-        Assert.Equal(6, ids.Count);
-
-        var names = templates.Select(t => t.Name).Distinct().ToList();
+        var names = definitions.Select(t => t.Name).Distinct().ToList();
         Assert.Equal(6, names.Count);
 
-        foreach (var template in templates)
+        foreach (var def in definitions)
         {
-            Assert.False(string.IsNullOrWhiteSpace(template.Name));
-            Assert.False(string.IsNullOrWhiteSpace(template.Description));
-            Assert.True(template.Width > 0);
-            Assert.True(template.Height > 0);
-            Assert.False(string.IsNullOrWhiteSpace(template.Schema));
+            Assert.False(string.IsNullOrWhiteSpace(def.Name));
+            Assert.False(string.IsNullOrWhiteSpace(def.Description));
+            Assert.True(def.Width > 0);
+            Assert.True(def.Height > 0);
+            Assert.False(string.IsNullOrWhiteSpace(def.Schema));
 
             // Validate that the schema string is valid JSON and contains slots and layers
-            using var doc = JsonDocument.Parse(template.Schema);
+            using var doc = JsonDocument.Parse(def.Schema);
             var root = doc.RootElement;
 
             Assert.True(root.TryGetProperty("name", out _));
-            Assert.True(root.TryGetProperty("width", out var w) && w.GetInt32() == template.Width);
-            Assert.True(root.TryGetProperty("height", out var h) && h.GetInt32() == template.Height);
+            Assert.True(root.TryGetProperty("width", out var w) && w.GetInt32() == def.Width);
+            Assert.True(root.TryGetProperty("height", out var h) && h.GetInt32() == def.Height);
             Assert.True(root.TryGetProperty("slots", out var slots) && slots.ValueKind == JsonValueKind.Array);
             Assert.True(root.TryGetProperty("layers", out var layers) && layers.ValueKind == JsonValueKind.Array);
             Assert.True(layers.GetArrayLength() > 0);
@@ -44,15 +41,13 @@ public sealed class TemplateSeedDataTests
     }
 
     [Fact]
-    public void DefaultTemplateIds_AreDeterministicAndExpected()
+    public void CreateDefaultTemplatesForUser_GeneratesUserTemplatesWithUniqueIds()
     {
-        var templates = TemplateSeedData.GetDefaultTemplates();
+        var userId = Guid.NewGuid();
+        var templates = TemplateSeedData.CreateDefaultTemplatesForUser(userId);
 
-        Assert.Contains(templates, t => t.Id == TemplateSeedData.QuoteCardSquareId && t.Name == "Quote Card (Square)");
-        Assert.Contains(templates, t => t.Id == TemplateSeedData.QuoteCardPortraitId && t.Name == "Quote Card (Portrait)");
-        Assert.Contains(templates, t => t.Id == TemplateSeedData.StatHighlightId && t.Name == "Stat Highlight");
-        Assert.Contains(templates, t => t.Id == TemplateSeedData.AnnouncementCardId && t.Name == "Announcement Card");
-        Assert.Contains(templates, t => t.Id == TemplateSeedData.CarouselSlideId && t.Name == "Carousel Slide");
-        Assert.Contains(templates, t => t.Id == TemplateSeedData.CodeSnippetCardId && t.Name == "Code Snippet Card");
+        Assert.Equal(6, templates.Count);
+        Assert.All(templates, t => Assert.Equal(userId, t.UserId));
+        Assert.Equal(6, templates.Select(t => t.Id).Distinct().Count());
     }
 }

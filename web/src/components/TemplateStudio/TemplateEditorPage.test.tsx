@@ -65,6 +65,7 @@ describe('TemplateEditorPage', () => {
   it('loads existing template by ID', async () => {
     vi.mocked(templatesApi.fetchTemplate).mockResolvedValueOnce({
       id: 't-edit-1',
+      userId: 'u-1',
       name: 'Custom Edit Template',
       description: 'Editable description',
       width: 1080,

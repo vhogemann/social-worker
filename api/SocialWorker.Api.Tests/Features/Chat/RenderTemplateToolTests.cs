@@ -27,16 +27,13 @@ public sealed class RenderTemplateToolTests : SqliteTestBase
         };
         db.Drafts.Add(draft);
 
-        var template = new Template
-        {
-            Id = Guid.NewGuid(),
-            Name = "Quote Card",
-            Width = 1080,
-            Height = 1080,
-            Schema = "{\"name\":\"Quote Card\",\"layers\":[]}",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+        var template = Template.Create(
+            user.Id,
+            "Quote Card",
+            null,
+            1080,
+            1080,
+            "{\"name\":\"Quote Card\",\"layers\":[]}");
         db.Templates.Add(template);
         await db.SaveChangesAsync();
 
@@ -76,16 +73,13 @@ public sealed class RenderTemplateToolTests : SqliteTestBase
         };
         db.Drafts.Add(draft);
 
-        var template = new Template
-        {
-            Id = Guid.NewGuid(),
-            Name = "Quote Card",
-            Width = 1080,
-            Height = 1080,
-            Schema = "{\"name\":\"Quote Card\",\"slots\":[{\"name\":\"quote_text\",\"type\":\"text\",\"required\":true}],\"layers\":[]}",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+        var template = Template.Create(
+            user.Id,
+            "Quote Card",
+            null,
+            1080,
+            1080,
+            "{\"name\":\"Quote Card\",\"slots\":[{\"name\":\"quote_text\",\"type\":\"text\",\"required\":true}],\"layers\":[]}");
         db.Templates.Add(template);
         await db.SaveChangesAsync();
 

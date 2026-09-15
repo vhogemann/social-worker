@@ -119,17 +119,13 @@ public sealed class CreateTemplateTool : ChatToolBase<CreateTemplateArgs, Create
         var width = args.Width is > 0 ? args.Width.Value : 1080;
         var height = args.Height is > 0 ? args.Height.Value : 1080;
 
-        var template = new Template
-        {
-            Id = Guid.NewGuid(),
-            Name = args.Name.Trim(),
-            Description = args.Description?.Trim(),
-            Width = width,
-            Height = height,
-            Schema = args.Schema,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+        var template = Template.Create(
+            context.UserId,
+            args.Name,
+            args.Description,
+            width,
+            height,
+            args.Schema);
 
         string? markdownTag = null;
 
