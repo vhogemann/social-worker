@@ -97,26 +97,103 @@ public sealed class FeedPollingServiceTests : SqliteTestBase
     }
 
     [Fact]
-    public void FeedItem_FallbackDeduplicationKey_HandlesLinklessItems()
+    public async Task PollSubscription_OnInitialPoll_EnqueuesAllFeedItems_WithoutTruncation()
     {
-        string? link = null;
-        string? id = "urn:uuid:12345-67890";
-        string title = "Audio Podcast Ep 1";
-        DateTime? pubDate = new DateTime(2026, 8, 30, 12, 0, 0, DateTimeKind.Utc);
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
 
-        var itemIdentifier = !string.IsNullOrWhiteSpace(link)
-            ? link
-            : (!string.IsNullOrWhiteSpace(id) ? id : $"{title}_{pubDate:O}");
+        var feed = FeedSubscription.Create(user.Id, "YouTube Playlist", "https://youtube.com/playlist.xml");
+        db.FeedSubscriptions.Add(feed);
+        var wf = AutomationWorkflow.Create(user.Id, "LinkedIn Posts", "Summarize");
+        db.AutomationWorkflows.Add(wf);
+        await db.SaveChangesAsync();
 
-        Assert.Equal("urn:uuid:12345-67890", itemIdentifier);
+        db.AutomationWorkflowSources.Add(AutomationWorkflowSource.Create(wf.Id, feed.Id));
+        await db.SaveChangesAsync();
 
-        // Fallback when id is also missing
-        id = null;
-        var fallbackIdentifier = !string.IsNullOrWhiteSpace(link)
-            ? link
-            : (!string.IsNullOrWhiteSpace(id) ? id : $"{title}_{pubDate:O}");
+        var xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<rss version=""2.0"">
+  <channel>
+    <title>Playlist</title>
+    <item><title>Video 1</title><link>https://youtube.com/watch?v=1</link><pubDate>Wed, 19 Aug 2026 08:30:00 GMT</pubDate></item>
+    <item><title>Video 2</title><link>https://youtube.com/watch?v=2</link><pubDate>Sat, 22 Aug 2026 19:15:00 GMT</pubDate></item>
+    <item><title>Video 3</title><link>https://youtube.com/watch?v=3</link><pubDate>Wed, 26 Aug 2026 10:16:00 GMT</pubDate></item>
+    <item><title>Video 4</title><link>https://youtube.com/watch?v=4</link><pubDate>Thu, 27 Aug 2026 08:30:00 GMT</pubDate></item>
+    <item><title>Video 5</title><link>https://youtube.com/watch?v=5</link><pubDate>Sat, 20 Jun 2026 09:03:00 GMT</pubDate></item>
+    <item><title>Video 6</title><link>https://youtube.com/watch?v=6</link><pubDate>Tue, 25 Aug 2026 09:30:00 GMT</pubDate></item>
+    <item><title>Video 7</title><link>https://youtube.com/watch?v=7</link><pubDate>Sat, 29 Aug 2026 09:00:00 GMT</pubDate></item>
+    <item><title>Video 8</title><link>https://youtube.com/watch?v=8</link><pubDate>Thu, 10 Sep 2026 19:13:00 GMT</pubDate></item>
+  </channel>
+</rss>";
 
-        Assert.Equal("Audio Podcast Ep 1_2026-08-30T12:00:00.0000000Z", fallbackIdentifier);
+        var parsedFeed = CodeHollow.FeedReader.FeedReader.ReadFromString(xml);
+        var fakeReader = new FakeFeedReaderService(parsedFeed);
+        var queue = new TestBackgroundTaskQueue();
+        var pollingService = new FeedPollingService(db, queue, NullLogger<FeedPollingService>.Instance, fakeReader);
+
+        await pollingService.PollSubscriptionAsync(feed.Id, CancellationToken.None);
+
+        Assert.Equal(8, queue.EnqueuedTasks.Count);
+        Assert.All(queue.EnqueuedTasks, t => Assert.Equal("feed-ingestion", t.TaskType));
+
+        var updatedFeed = await db.FeedSubscriptions.FindAsync(feed.Id);
+        Assert.NotNull(updatedFeed?.LastPolledAt);
+    }
+
+    [Fact]
+    public async Task PollSubscription_WithForceAll_EnqueuesAllFeedItems_EvenIfLastPolledAtIsRecent()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+
+        var feed = FeedSubscription.Create(user.Id, "YouTube Playlist", "https://youtube.com/playlist.xml");
+        feed.LastPolledAt = DateTime.UtcNow; // Already polled recently
+        db.FeedSubscriptions.Add(feed);
+        var wf = AutomationWorkflow.Create(user.Id, "LinkedIn Posts", "Summarize");
+        db.AutomationWorkflows.Add(wf);
+        await db.SaveChangesAsync();
+
+        db.AutomationWorkflowSources.Add(AutomationWorkflowSource.Create(wf.Id, feed.Id));
+        await db.SaveChangesAsync();
+
+        var xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<rss version=""2.0"">
+  <channel>
+    <title>Playlist</title>
+    <item><title>Video 1</title><link>https://youtube.com/watch?v=1</link><pubDate>Wed, 19 Aug 2026 08:30:00 GMT</pubDate></item>
+    <item><title>Video 2</title><link>https://youtube.com/watch?v=2</link><pubDate>Sat, 22 Aug 2026 19:15:00 GMT</pubDate></item>
+    <item><title>Video 3</title><link>https://youtube.com/watch?v=3</link><pubDate>Wed, 26 Aug 2026 10:16:00 GMT</pubDate></item>
+  </channel>
+</rss>";
+
+        var parsedFeed = CodeHollow.FeedReader.FeedReader.ReadFromString(xml);
+        var fakeReader = new FakeFeedReaderService(parsedFeed);
+        var queue = new TestBackgroundTaskQueue();
+        var pollingService = new FeedPollingService(db, queue, NullLogger<FeedPollingService>.Instance, fakeReader);
+
+        // Without forceAll -> 0 items because pubDate is older than LastPolledAt
+        await pollingService.PollSubscriptionAsync(feed.Id, CancellationToken.None, forceAll: false);
+        Assert.Empty(queue.EnqueuedTasks);
+
+        // With forceAll -> all 3 items enqueued
+        await pollingService.PollSubscriptionAsync(feed.Id, CancellationToken.None, forceAll: true);
+        Assert.Equal(3, queue.EnqueuedTasks.Count);
+    }
+
+    private sealed class FakeFeedReaderService : IFeedReaderService
+    {
+        private readonly CodeHollow.FeedReader.Feed _feed;
+
+        public FakeFeedReaderService(CodeHollow.FeedReader.Feed feed)
+        {
+            _feed = feed;
+        }
+
+        public Task<CodeHollow.FeedReader.Feed> ReadFeedAsync(string feedUrl, CancellationToken ct = default)
+        {
+            return Task.FromResult(_feed);
+        }
     }
 }
+
 

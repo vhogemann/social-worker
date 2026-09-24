@@ -22,7 +22,7 @@ public class FeedWorkflowSourceHandler : IWorkflowSourceHandler
     {
         if (source.FeedSubscriptionId.HasValue)
         {
-            await _pollingService.PollSubscriptionAsync(source.FeedSubscriptionId.Value, ct);
+            await _pollingService.PollSubscriptionAsync(source.FeedSubscriptionId.Value, ct, forceAll: true);
             return 1;
         }
 

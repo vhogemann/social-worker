@@ -14,6 +14,8 @@ vi.mock("../../api/workflows", () => ({
   updateWorkflow: vi.fn(),
   deleteWorkflow: vi.fn(),
   triggerWorkflow: vi.fn(),
+  retryWorkflowFailedDrafts: vi.fn(),
+  retryWorkflowDraft: vi.fn(),
 }));
 
 vi.mock("../../api/feeds", () => ({
@@ -240,4 +242,68 @@ describe("WorkflowDetailPage", () => {
       );
     });
   });
+
+  it("renders Retry Failed button and triggers bulk retry when clicked", async () => {
+    const failedDrafts: workflowsApi.WorkflowDraftSummaryDto[] = [
+      ...mockDrafts,
+      {
+        id: "draft-failed-1",
+        title: "Failed Post Example",
+        status: "Failed",
+        targetPlatform: null,
+        threads: [],
+        createdAt: "2026-08-23T10:00:00Z",
+        updatedAt: "2026-08-23T10:00:00Z",
+      }
+    ];
+
+    vi.mocked(workflowsApi.fetchWorkflowDrafts).mockResolvedValue(failedDrafts);
+    vi.mocked(workflowsApi.retryWorkflowFailedDrafts).mockResolvedValue({ retriedCount: 1, message: "Retrying 1 failed draft(s)" });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workflow-retry-failed-btn")).toBeInTheDocument();
+      expect(screen.getByText("Retry Failed (1)")).toBeInTheDocument();
+      expect(screen.getByTestId("workflow-draft-failed-badge")).toBeInTheDocument();
+    });
+
+    const retryFailedBtn = screen.getByTestId("workflow-retry-failed-btn");
+    fireEvent.click(retryFailedBtn);
+
+    await waitFor(() => {
+      expect(workflowsApi.retryWorkflowFailedDrafts).toHaveBeenCalledWith("wf-1");
+    });
+  });
+
+  it("triggers individual draft retry when clicking retry on failed draft card", async () => {
+    const failedDrafts: workflowsApi.WorkflowDraftSummaryDto[] = [
+      {
+        id: "draft-failed-1",
+        title: "Failed Post Example",
+        status: "Failed",
+        targetPlatform: null,
+        threads: [],
+        createdAt: "2026-08-23T10:00:00Z",
+        updatedAt: "2026-08-23T10:00:00Z",
+      }
+    ];
+
+    vi.mocked(workflowsApi.fetchWorkflowDrafts).mockResolvedValue(failedDrafts);
+    vi.mocked(workflowsApi.retryWorkflowDraft).mockResolvedValue();
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workflow-draft-retry-btn-draft-failed-1")).toBeInTheDocument();
+    });
+
+    const retryBtn = screen.getByTestId("workflow-draft-retry-btn-draft-failed-1");
+    fireEvent.click(retryBtn);
+
+    await waitFor(() => {
+      expect(workflowsApi.retryWorkflowDraft).toHaveBeenCalledWith("wf-1", "draft-failed-1");
+    });
+  });
 });
+

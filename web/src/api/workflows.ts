@@ -142,3 +142,25 @@ export async function triggerWorkflow(id: string): Promise<void> {
     throw new Error(msg || `triggerWorkflow failed: ${res.status}`);
   }
 }
+
+export async function retryWorkflowFailedDrafts(id: string): Promise<{ retriedCount: number; message: string }> {
+  const res = await apiFetch(`/api/workflows/${id}/retry-failed`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || `retryWorkflowFailedDrafts failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function retryWorkflowDraft(id: string, draftId: string): Promise<void> {
+  const res = await apiFetch(`/api/workflows/${id}/drafts/${draftId}/retry`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || `retryWorkflowDraft failed: ${res.status}`);
+  }
+}
+

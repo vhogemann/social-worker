@@ -331,8 +331,93 @@ public static class WorkflowsEndpoint
             var dtos = drafts.Select(d => new WorkflowDraftSummaryDto(d)).ToList();
             return Results.Ok(dtos);
         });
+
+        group.MapPost("/{id:guid}/retry-failed", async (
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            SocialWorker.Api.Features.BackgroundTasks.Abstractions.IBackgroundTaskQueue queue,
+            Guid id,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var workflow = await db.AutomationWorkflows
+                .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId.Value, ct);
+
+            if (workflow == null) return Results.NotFound(new ApiErrorResponse("Workflow not found."));
+
+            var failedDrafts = await db.Drafts
+                .Where(d => d.AutomationWorkflowId == id
+                         && d.UserId == userId.Value
+                         && d.CanonicalDraftId == null
+                         && d.Status == DraftStatus.Failed)
+                .ToListAsync(ct);
+
+            var retriedCount = 0;
+            foreach (var draft in failedDrafts)
+            {
+                draft.Status = DraftStatus.Formatting;
+                draft.UpdatedAt = DateTime.UtcNow;
+
+                await queue.EnqueueAsync(
+                    SocialWorker.Api.Features.Workflows.Handlers.WorkflowDraftRetryTaskHandler.TaskTypeName,
+                    new SocialWorker.Api.Features.Workflows.Handlers.WorkflowDraftRetryPayload(draft.Id),
+                    SocialWorker.Api.Features.BackgroundTasks.Models.EnqueueTaskOptions.WithDeduplication($"workflow-draft-retry:{draft.Id}"),
+                    ct);
+
+                retriedCount++;
+            }
+
+            if (retriedCount > 0)
+            {
+                await db.SaveChangesAsync(ct);
+            }
+
+            return Results.Ok(new RetryWorkflowFailedDraftsResponse(retriedCount, $"Queued {retriedCount} failed draft(s) for retry."));
+        });
+
+        group.MapPost("/{id:guid}/drafts/{draftId:guid}/retry", async (
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            SocialWorker.Api.Features.BackgroundTasks.Abstractions.IBackgroundTaskQueue queue,
+            Guid id,
+            Guid draftId,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var workflow = await db.AutomationWorkflows
+                .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId.Value, ct);
+
+            if (workflow == null) return Results.NotFound(new ApiErrorResponse("Workflow not found."));
+
+            var draft = await db.Drafts
+                .FirstOrDefaultAsync(d => d.Id == draftId
+                                       && d.AutomationWorkflowId == id
+                                       && d.UserId == userId.Value
+                                       && d.CanonicalDraftId == null
+                                       && d.Status != DraftStatus.Deleted, ct);
+
+            if (draft == null) return Results.NotFound(new ApiErrorResponse("Draft not found."));
+
+            draft.Status = DraftStatus.Formatting;
+            draft.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+
+            await queue.EnqueueAsync(
+                SocialWorker.Api.Features.Workflows.Handlers.WorkflowDraftRetryTaskHandler.TaskTypeName,
+                new SocialWorker.Api.Features.Workflows.Handlers.WorkflowDraftRetryPayload(draft.Id),
+                SocialWorker.Api.Features.BackgroundTasks.Models.EnqueueTaskOptions.WithDeduplication($"workflow-draft-retry:{draft.Id}"),
+                ct);
+
+            return Results.Ok(new ApiSuccessResponse(true, "Draft queued for retry."));
+        });
     }
 }
+
+public sealed record RetryWorkflowFailedDraftsResponse(int RetriedCount, string Message);
 
 public sealed record WorkflowSourceDto(
     Guid Id,

@@ -8,6 +8,8 @@ import {
   updateWorkflow,
   deleteWorkflow,
   triggerWorkflow,
+  retryWorkflowFailedDrafts,
+  retryWorkflowDraft,
   type AutomationWorkflowDto,
   type WorkflowDraftSummaryDto
 } from "../../api/workflows";
@@ -31,6 +33,8 @@ export const WorkflowDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [triggering, setTriggering] = useState(false);
+  const [isRetryingFailed, setIsRetryingFailed] = useState(false);
+  const [retryingDraftId, setRetryingDraftId] = useState<string | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -67,6 +71,8 @@ export const WorkflowDetailPage: React.FC = () => {
       title: data.title,
       instructionPrompt: data.instructionPrompt,
       feedSubscriptionIds: data.feedSubscriptionIds,
+      sources: data.sources,
+      scheduleId: data.scheduleId,
       destinations: data.destinations.map((d) => ({
         platform: d.platform,
         autoPublish: d.autoPublish,
@@ -98,6 +104,34 @@ export const WorkflowDetailPage: React.FC = () => {
       setError(err?.message || "Failed to trigger workflow.");
     } finally {
       setTriggering(false);
+    }
+  };
+
+  const handleRetryFailed = async () => {
+    if (!id) return;
+    setIsRetryingFailed(true);
+    setError(null);
+    try {
+      await retryWorkflowFailedDrafts(id);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || "Failed to retry failed drafts.");
+    } finally {
+      setIsRetryingFailed(false);
+    }
+  };
+
+  const handleRetryDraft = async (draftId: string) => {
+    if (!id) return;
+    setRetryingDraftId(draftId);
+    setError(null);
+    try {
+      await retryWorkflowDraft(id, draftId);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || "Failed to retry draft.");
+    } finally {
+      setRetryingDraftId(null);
     }
   };
 
@@ -154,6 +188,10 @@ export const WorkflowDetailPage: React.FC = () => {
           drafts={drafts}
           isTriggering={triggering}
           onTrigger={handleTrigger}
+          isRetryingFailed={isRetryingFailed}
+          retryingDraftId={retryingDraftId}
+          onRetryFailed={handleRetryFailed}
+          onRetryDraft={handleRetryDraft}
         />
 
         {/* Edit Modal (shared with WorkflowsPanel) */}

@@ -19,6 +19,7 @@ static partial class ServiceCollectionExtensions
         {
             client.Timeout = TimeSpan.FromSeconds(30);
         });
+        builder.Services.AddScoped<IFeedReaderService, DefaultFeedReaderService>();
         builder.Services.AddScoped<FeedSourceIngestionService>();
         builder.Services.AddScoped<FeedThreadGenerationService>();
         builder.Services.AddScoped<DraftValidationService>();

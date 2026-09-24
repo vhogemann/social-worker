@@ -132,7 +132,7 @@ public static class FeedsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            await pollingService.PollSubscriptionAsync(id, ct);
+            await pollingService.PollSubscriptionAsync(id, ct, forceAll: true);
             return Results.Ok(new ApiSuccessResponse(true, "Polling triggered successfully."));
         });
 

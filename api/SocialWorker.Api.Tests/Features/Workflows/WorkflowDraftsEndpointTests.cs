@@ -157,4 +157,48 @@ public sealed class WorkflowDraftsEndpointTests : SqliteTestBase
         Assert.Equal("Sent", dto.Threads[0].Stage);
         Assert.Equal(variantDraft.Id, dto.Threads[0].VariantId);
     }
+
+    [Fact]
+    public async Task RetryFailedDrafts_FindsAndUpdatesFailedDrafts()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Workflow", "Prompt");
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        var failedDraft1 = Draft.Create(user.Id, "Failed Draft 1", "Content", null, workflow.Id);
+        failedDraft1.Status = DraftStatus.Failed;
+        var failedDraft2 = Draft.Create(user.Id, "Failed Draft 2", "Content", null, workflow.Id);
+        failedDraft2.Status = DraftStatus.Failed;
+        var successfulDraft = Draft.Create(user.Id, "Successful Draft", "Content", null, workflow.Id);
+        successfulDraft.Status = DraftStatus.Editing;
+
+        db.Drafts.AddRange(failedDraft1, failedDraft2, successfulDraft);
+        await db.SaveChangesAsync();
+
+        var failedDrafts = await db.Drafts
+            .Where(d => d.AutomationWorkflowId == workflow.Id
+                     && d.UserId == user.Id
+                     && d.CanonicalDraftId == null
+                     && d.Status == DraftStatus.Failed)
+            .ToListAsync();
+
+        Assert.Equal(2, failedDrafts.Count);
+
+        foreach (var d in failedDrafts)
+        {
+            d.Status = DraftStatus.Formatting;
+        }
+        await db.SaveChangesAsync();
+
+        var reloaded = await db.Drafts
+            .Where(d => d.AutomationWorkflowId == workflow.Id && d.CanonicalDraftId == null)
+            .ToListAsync();
+
+        Assert.All(reloaded.Where(d => d.Id == failedDraft1.Id || d.Id == failedDraft2.Id), d => Assert.Equal(DraftStatus.Formatting, d.Status));
+        Assert.Equal(DraftStatus.Editing, reloaded.First(d => d.Id == successfulDraft.Id).Status);
+    }
 }
+
