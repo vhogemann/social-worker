@@ -9,7 +9,7 @@ namespace SocialWorker.Api.Features.BackgroundTasks.Abstractions;
 public interface IBackgroundTaskQueue
 {
     Task<Guid> EnqueueAsync<T>(string taskType, T payload, EnqueueTaskOptions? options = null, CancellationToken ct = default);
-    Task<BackgroundTask?> DequeueNextAsync(string workerId, TimeSpan defaultLease, CancellationToken ct = default);
+    Task<BackgroundTask?> DequeueNextAsync(string workerId, TimeSpan defaultLease, IReadOnlyCollection<string>? allowedTaskTypes = null, CancellationToken ct = default);
     Task MarkCompletedAsync(Guid taskId, CancellationToken ct = default);
     Task MarkRetryAsync(Guid taskId, string error, TimeSpan retryDelay, CancellationToken ct = default);
     Task MarkFailedAsync(Guid taskId, string error, CancellationToken ct = default);

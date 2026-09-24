@@ -60,6 +60,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./transcripts:/app/transcripts
+      - ./config:/app/config:ro
       - ./SYSTEM_PROMPT.md:/app/SYSTEM_PROMPT.md:ro
       - api-dataprotection-keys:/root/.aspnet/DataProtection-Keys
     restart: unless-stopped

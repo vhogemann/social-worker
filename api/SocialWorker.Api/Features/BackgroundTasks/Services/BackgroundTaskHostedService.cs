@@ -17,7 +17,7 @@ public sealed class BackgroundTaskHostedService : BackgroundService
     private readonly ITaskHandlerResolver _resolver;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<BackgroundTaskHostedService> _logger;
-    private readonly int _workerCount;
+    private readonly List<WorkerOptions> _workers;
 
     public BackgroundTaskHostedService(
         IBackgroundTaskQueue queue,
@@ -31,33 +31,76 @@ public sealed class BackgroundTaskHostedService : BackgroundService
         _scopeFactory = scopeFactory;
         _logger = logger;
 
-        var count = config?.GetValue<int?>("BackgroundTasks:WorkerCount") ?? DefaultWorkerCount;
-        _workerCount = count < 1 ? DefaultWorkerCount : count;
+        var configuredWorkers = config?.GetSection("BackgroundTasks:Workers").Get<List<WorkerOptions>>();
+        if (configuredWorkers != null && configuredWorkers.Count > 0)
+        {
+            _workers = configuredWorkers;
+        }
+        else
+        {
+            var count = config?.GetValue<int?>("BackgroundTasks:WorkerCount") ?? DefaultWorkerCount;
+            if (count > 0 && config?.GetSection("BackgroundTasks:Workers").Exists() != true && count != DefaultWorkerCount)
+            {
+                _workers = Enumerable.Range(1, count)
+                    .Select(i => new WorkerOptions
+                    {
+                        Name = $"worker-{i}",
+                        AllowedTaskTypes = new List<string> { "*" }
+                    })
+                    .ToList();
+            }
+            else
+            {
+                _workers = new List<WorkerOptions>
+                {
+                    new()
+                    {
+                        Name = "worker-transcription",
+                        AllowedTaskTypes = new List<string> { "source-transcription" }
+                    },
+                    new()
+                    {
+                        Name = "worker-general-1",
+                        AllowedTaskTypes = new List<string> { "feed-ingestion", "source-scrape", "draft-chat-summary", "workflow-draft-retry", "scheduled-publishing" }
+                    },
+                    new()
+                    {
+                        Name = "worker-general-2",
+                        AllowedTaskTypes = new List<string> { "feed-ingestion", "source-scrape", "draft-chat-summary", "workflow-draft-retry", "scheduled-publishing" }
+                    },
+                    new()
+                    {
+                        Name = "worker-general-3",
+                        AllowedTaskTypes = new List<string> { "feed-ingestion", "source-scrape", "draft-chat-summary", "workflow-draft-retry", "scheduled-publishing" }
+                    }
+                };
+            }
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Background task processor started with {WorkerCount} concurrent workers", _workerCount);
+        _logger.LogInformation("Background task processor started with {WorkerCount} configured workers: {Workers}",
+            _workers.Count,
+            string.Join(", ", _workers.Select(w => $"{w.Name} [{string.Join("/", w.AllowedTaskTypes)}]" )));
 
-        var workers = new Task[_workerCount];
-        for (int i = 0; i < _workerCount; i++)
-        {
-            var workerId = $"worker-{i + 1}";
-            workers[i] = RunWorkerLoopAsync(workerId, stoppingToken);
-        }
+        var workerTasks = _workers
+            .Select(worker => RunWorkerLoopAsync(worker, stoppingToken))
+            .ToArray();
 
-        await Task.WhenAll(workers);
+        await Task.WhenAll(workerTasks);
         _logger.LogInformation("Background task processor stopped");
     }
 
-    private async Task RunWorkerLoopAsync(string workerId, CancellationToken stoppingToken)
+    private async Task RunWorkerLoopAsync(WorkerOptions worker, CancellationToken stoppingToken)
     {
+        var workerId = string.IsNullOrWhiteSpace(worker.Name) ? Guid.NewGuid().ToString() : worker.Name;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 var defaultLease = TimeSpan.FromMinutes(5);
-                var task = await _queue.DequeueNextAsync(workerId, defaultLease, stoppingToken);
+                var task = await _queue.DequeueNextAsync(workerId, defaultLease, worker.AllowedTaskTypes, stoppingToken);
 
                 if (task != null)
                 {

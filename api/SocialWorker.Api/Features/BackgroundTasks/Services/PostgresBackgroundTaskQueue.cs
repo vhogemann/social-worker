@@ -76,17 +76,21 @@ public sealed class PostgresBackgroundTaskQueue : IBackgroundTaskQueue
     public async Task<BackgroundTask?> DequeueNextAsync(
         string workerId,
         TimeSpan defaultLease,
+        IReadOnlyCollection<string>? allowedTaskTypes = null,
         CancellationToken ct = default)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var now = DateTime.UtcNow;
+        var allowedList = allowedTaskTypes?.Where(t => !string.IsNullOrWhiteSpace(t)).ToArray();
+        var hasFilter = allowedList != null && allowedList.Length > 0 && !allowedList.Contains("*");
 
         if (db.Database.IsNpgsql())
         {
             var leaseSeconds = (int)Math.Max(1, defaultLease.TotalSeconds);
-            var sql = @"
+            var filterClause = hasFilter ? " AND \"TaskType\" = ANY(@p2)" : "";
+            var sql = $@"
 UPDATE ""BackgroundTasks""
 SET ""Status"" = 1,
     ""LockedUntil"" = NOW() + (@p0 || ' seconds')::interval,
@@ -97,7 +101,7 @@ WHERE ""Id"" = (
     SELECT ""Id""
     FROM ""BackgroundTasks""
     WHERE (""Status"" = 0 OR (""Status"" = 1 AND ""LockedUntil"" < NOW()))
-      AND ""NextAttemptAt"" <= NOW()
+      AND ""NextAttemptAt"" <= NOW(){filterClause}
     ORDER BY ""Priority"" DESC, ""NextAttemptAt"" ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED
@@ -123,6 +127,14 @@ RETURNING ""Id"", ""TaskType"", ""PayloadJson"", ""Status"", ""Priority"", ""Att
             p1.Value = workerId;
             command.Parameters.Add(p1);
 
+            if (hasFilter)
+            {
+                var p2 = command.CreateParameter();
+                p2.ParameterName = "@p2";
+                p2.Value = allowedList!;
+                command.Parameters.Add(p2);
+            }
+
             await using var reader = await command.ExecuteReaderAsync(ct);
             if (await reader.ReadAsync(ct))
             {
@@ -133,9 +145,16 @@ RETURNING ""Id"", ""TaskType"", ""PayloadJson"", ""Status"", ""Priority"", ""Att
         }
         else
         {
-            var candidate = await db.BackgroundTasks
+            var query = db.BackgroundTasks
                 .Where(t => (t.Status == BackgroundTaskStatus.Pending || (t.Status == BackgroundTaskStatus.Running && t.LockedUntil < now)) &&
-                            t.NextAttemptAt <= now)
+                            t.NextAttemptAt <= now);
+
+            if (hasFilter)
+            {
+                query = query.Where(t => allowedList!.Contains(t.TaskType));
+            }
+
+            var candidate = await query
                 .OrderByDescending(t => t.Priority)
                 .ThenBy(t => t.NextAttemptAt)
                 .FirstOrDefaultAsync(ct);

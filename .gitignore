@@ -45,3 +45,6 @@ e2e/output/
 AGENT_COMPLIANCE_REPORT.json
 .agents/mcp_config.json
 
+# custom runtime configuration
+config/appsettings.json
+!config/appsettings.example.json

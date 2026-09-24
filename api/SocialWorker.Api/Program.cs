@@ -4,6 +4,12 @@ using SocialWorker.Api.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration
+    .AddJsonFile("config/appsettings.json", optional: true, reloadOnChange: true)
+    .AddJsonFile("/app/config/appsettings.json", optional: true, reloadOnChange: true);
+
+builder.Configuration.AddEnvironmentVariables();
+
 builder.AddLlm();
 builder.AddChat();
 builder.AddSources();

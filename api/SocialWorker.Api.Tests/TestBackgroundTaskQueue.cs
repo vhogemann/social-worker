@@ -27,9 +27,19 @@ public class TestBackgroundTaskQueue : IBackgroundTaskQueue
         return Task.FromResult(task.Id);
     }
 
-    public Task<BackgroundTask?> DequeueNextAsync(string workerId, TimeSpan defaultLease, CancellationToken ct = default)
+    public Task<BackgroundTask?> DequeueNextAsync(
+        string workerId,
+        TimeSpan defaultLease,
+        IReadOnlyCollection<string>? allowedTaskTypes = null,
+        CancellationToken ct = default)
     {
-        var task = _tasks.FirstOrDefault(t => t.Status == BackgroundTaskStatus.Pending);
+        var allowedList = allowedTaskTypes?.Where(t => !string.IsNullOrWhiteSpace(t)).ToArray();
+        var hasFilter = allowedList != null && allowedList.Length > 0 && !allowedList.Contains("*");
+
+        var task = _tasks.FirstOrDefault(t =>
+            t.Status == BackgroundTaskStatus.Pending &&
+            (!hasFilter || allowedList!.Contains(t.TaskType)));
+
         if (task != null)
         {
             task.MarkRunning(workerId, defaultLease);

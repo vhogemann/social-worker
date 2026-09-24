@@ -193,4 +193,44 @@ public sealed class PostgresBackgroundTaskQueueTests : SqliteTestBase
         Assert.Equal(0, stored.AttemptCount);
         Assert.Null(stored.LastError);
     }
+
+    [Fact]
+    public async Task DequeueNextAsync_WithAllowedTaskTypes_OnlyDequeuesMatchingTasks()
+    {
+        using var db = CreateDbContext();
+        var queue = CreateQueue();
+
+        var ytTaskId = await queue.EnqueueAsync("source-transcription", new SamplePayload("YT", 1));
+        var feedTaskId = await queue.EnqueueAsync("feed-ingestion", new SamplePayload("Feed", 2));
+
+        // Worker allowing only source-transcription
+        var ytClaimed = await queue.DequeueNextAsync("worker-yt", TimeSpan.FromMinutes(5), new[] { "source-transcription" });
+        Assert.NotNull(ytClaimed);
+        Assert.Equal(ytTaskId, ytClaimed!.Id);
+        Assert.Equal("source-transcription", ytClaimed.TaskType);
+
+        // Another query from worker-yt should return null (since only feed-ingestion remains)
+        var ytSecondClaim = await queue.DequeueNextAsync("worker-yt", TimeSpan.FromMinutes(5), new[] { "source-transcription" });
+        Assert.Null(ytSecondClaim);
+
+        // General worker allowing feed-ingestion
+        var feedClaimed = await queue.DequeueNextAsync("worker-general", TimeSpan.FromMinutes(5), new[] { "feed-ingestion" });
+        Assert.NotNull(feedClaimed);
+        Assert.Equal(feedTaskId, feedClaimed!.Id);
+        Assert.Equal("feed-ingestion", feedClaimed.TaskType);
+    }
+
+    [Fact]
+    public async Task DequeueNextAsync_WithWildcardAllowedTaskTypes_DequeuesAnyTask()
+    {
+        using var db = CreateDbContext();
+        var queue = CreateQueue();
+
+        var taskId = await queue.EnqueueAsync("special-task", new SamplePayload("Special", 100));
+
+        var claimed = await queue.DequeueNextAsync("worker-wildcard", TimeSpan.FromMinutes(5), new[] { "*" });
+        Assert.NotNull(claimed);
+        Assert.Equal(taskId, claimed!.Id);
+        Assert.Equal("special-task", claimed.TaskType);
+    }
 }
