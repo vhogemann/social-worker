@@ -67,7 +67,8 @@ public sealed class SourceTranscriptionTaskHandler : BackgroundTaskHandlerBase<S
                     }
                 }
                 await _db.SaveChangesAsync(ct);
-                return TaskResult.Retry(TimeSpan.FromSeconds(30), result.Error ?? "Transcription extraction returned failure");
+                var retryDelay = CalculateRetryDelay(result.Error, context.AttemptCount);
+                return TaskResult.Retry(retryDelay, result.Error ?? "Transcription extraction returned failure");
             }
 
             source.TranscriptPath = result.TranscriptPath;
@@ -136,7 +137,30 @@ public sealed class SourceTranscriptionTaskHandler : BackgroundTaskHandlerBase<S
                 }
             }
             await _db.SaveChangesAsync(ct);
-            return TaskResult.Retry(TimeSpan.FromSeconds(30), ex.Message);
+            var retryDelay = CalculateRetryDelay(ex.Message, context.AttemptCount);
+            return TaskResult.Retry(retryDelay, ex.Message);
         }
+    }
+
+    private static TimeSpan CalculateRetryDelay(string? errorMessage, int attemptCount)
+    {
+        var isRateLimit = !string.IsNullOrWhiteSpace(errorMessage) &&
+            (errorMessage.Contains("429", StringComparison.OrdinalIgnoreCase) ||
+             errorMessage.Contains("too many requests", StringComparison.OrdinalIgnoreCase) ||
+             errorMessage.Contains("blocking requests", StringComparison.OrdinalIgnoreCase) ||
+             errorMessage.Contains("IP has been blocked", StringComparison.OrdinalIgnoreCase) ||
+             errorMessage.Contains("temporarily unavailable", StringComparison.OrdinalIgnoreCase));
+
+        if (isRateLimit)
+        {
+            return attemptCount switch
+            {
+                <= 1 => TimeSpan.FromMinutes(2),
+                2 => TimeSpan.FromMinutes(5),
+                _ => TimeSpan.FromMinutes(15)
+            };
+        }
+
+        return TimeSpan.FromSeconds(30);
     }
 }

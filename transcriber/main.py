@@ -26,6 +26,9 @@ SUMMARY_API_KEY = os.getenv("SUMMARY_API_KEY", "").strip()
 SUMMARY_MAX_CHARS = int(os.getenv("SUMMARY_MAX_CHARS", "12000"))
 YOUTUBE_TRANSCRIPT_RETRIES = max(1, int(os.getenv("YOUTUBE_TRANSCRIPT_RETRIES", "3")))
 YOUTUBE_TRANSCRIPT_RETRY_BACKOFF_SECONDS = float(os.getenv("YOUTUBE_TRANSCRIPT_RETRY_BACKOFF_SECONDS", "1.0"))
+YOUTUBE_REQUEST_DELAY_SECONDS = float(os.getenv("YOUTUBE_REQUEST_DELAY_SECONDS", "2.0"))
+_last_youtube_request_time = 0.0
+_youtube_pacing_lock = threading.Lock()
 
 TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -69,9 +72,90 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok", whisperModel=WHISPER_MODEL_NAME)
 
 
+def _is_youtube_url(url: str) -> bool:
+    lower = url.lower()
+    return "youtube.com" in lower or "youtu.be" in lower
+
+
+def _pace_youtube_request() -> None:
+    global _last_youtube_request_time
+    if YOUTUBE_REQUEST_DELAY_SECONDS <= 0:
+        return
+    with _youtube_pacing_lock:
+        now = time.time()
+        elapsed = now - _last_youtube_request_time
+        if elapsed < YOUTUBE_REQUEST_DELAY_SECONDS:
+            time.sleep(YOUTUBE_REQUEST_DELAY_SECONDS - elapsed)
+        _last_youtube_request_time = time.time()
+
+
+def _fetch_youtube_oembed_metadata(video_url: str) -> Optional[dict]:
+    try:
+        resp = requests.get(
+            f"https://www.youtube.com/oembed?url={video_url}&format=json",
+            timeout=10,
+            headers={"User-Agent": "Mozilla/5.0"}
+        )
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return None
+
+
+def _extract_video_metadata_fallback(video_url: str) -> Optional[str]:
+    metadata_parts = []
+
+    # 1. Try oEmbed
+    oembed = _fetch_youtube_oembed_metadata(video_url)
+    if oembed:
+        title = oembed.get("title")
+        author = oembed.get("author_name")
+        if title:
+            metadata_parts.append(f"Title: {title}")
+        if author:
+            metadata_parts.append(f"Channel: {author}")
+
+    # 2. Try yt-dlp metadata-only extraction (no video/audio download)
+    try:
+        base_options = {
+            "skip_download": True,
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "extract_flat": "in_playlist",
+        }
+        with yt_dlp.YoutubeDL(base_options) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            if info:
+                title = info.get("title")
+                desc = info.get("description")
+                uploader = info.get("uploader") or info.get("channel")
+                tags = info.get("tags")
+                
+                if title and not any(p.startswith("Title:") for p in metadata_parts):
+                    metadata_parts.append(f"Title: {title}")
+                if uploader and not any(p.startswith("Channel:") for p in metadata_parts):
+                    metadata_parts.append(f"Channel: {uploader}")
+                if desc:
+                    metadata_parts.append(f"Description:\n{desc}")
+                if tags:
+                    tag_str = ", ".join(tags[:10])
+                    metadata_parts.append(f"Tags: {tag_str}")
+    except Exception:
+        pass
+
+    if metadata_parts:
+        return "[Source Video Metadata - Full Audio Transcript Unavailable]\n\n" + "\n\n".join(metadata_parts)
+    return None
+
+
 @app.post("/extract-transcript", response_model=ExtractTranscriptResponse)
 def extract_transcript(request: ExtractTranscriptRequest) -> ExtractTranscriptResponse:
     output_path = _resolve_output_path(request.outputPath)
+    is_yt = _is_youtube_url(request.videoUrl)
+    if is_yt:
+        _pace_youtube_request()
 
     try:
         with tempfile.TemporaryDirectory(prefix="sw-transcriber-") as tmp_dir:
@@ -112,6 +196,26 @@ def extract_transcript(request: ExtractTranscriptRequest) -> ExtractTranscriptRe
                     source_errors.append(f"yt-dlp subtitles failed: {subtitle_error}")
                     subtitle_result = None
                 if subtitle_result is None:
+                    # Try metadata fallback before raising error
+                    if is_yt:
+                        fallback_text = _extract_video_metadata_fallback(request.videoUrl)
+                        if fallback_text:
+                            payload = {
+                                "videoUrl": request.videoUrl,
+                                "language": "en",
+                                "duration": None,
+                                "transcript": fallback_text,
+                                "segments": [],
+                            }
+                            output_path.parent.mkdir(parents=True, exist_ok=True)
+                            output_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+                            return ExtractTranscriptResponse(
+                                status="success",
+                                transcriptPath=str(output_path.relative_to(TRANSCRIPTS_DIR)),
+                                duration=None,
+                                language="en",
+                            )
+
                     raise RuntimeError(_join_source_errors(source_errors))
 
             if subtitle_result is not None:
@@ -134,12 +238,54 @@ def extract_transcript(request: ExtractTranscriptRequest) -> ExtractTranscriptRe
                     language=detected_language,
                 )
 
+            # Check audio file validity before running Whisper
+            if not audio_path.exists() or audio_path.stat().st_size < 10240:
+                audio_size = audio_path.stat().st_size if audio_path.exists() else 0
+                source_errors.append(f"Downloaded audio file is invalid ({audio_size} bytes)")
+                if is_yt:
+                    fallback_text = _extract_video_metadata_fallback(request.videoUrl)
+                    if fallback_text:
+                        payload = {
+                            "videoUrl": request.videoUrl,
+                            "language": "en",
+                            "duration": None,
+                            "transcript": fallback_text,
+                            "segments": [],
+                        }
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
+                        output_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+                        return ExtractTranscriptResponse(
+                            status="success",
+                            transcriptPath=str(output_path.relative_to(TRANSCRIPTS_DIR)),
+                            duration=None,
+                            language="en",
+                        )
+                raise RuntimeError(_join_source_errors(source_errors))
+
             try:
                 model = _get_model()
                 use_fp16 = torch.cuda.is_available()
                 result = model.transcribe(str(audio_path), fp16=use_fp16, language=request.language, verbose=False)
             except Exception as whisper_error:
                 source_errors.append(f"whisper failed: {whisper_error}")
+                if is_yt:
+                    fallback_text = _extract_video_metadata_fallback(request.videoUrl)
+                    if fallback_text:
+                        payload = {
+                            "videoUrl": request.videoUrl,
+                            "language": "en",
+                            "duration": None,
+                            "transcript": fallback_text,
+                            "segments": [],
+                        }
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
+                        output_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+                        return ExtractTranscriptResponse(
+                            status="success",
+                            transcriptPath=str(output_path.relative_to(TRANSCRIPTS_DIR)),
+                            duration=None,
+                            language="en",
+                        )
                 raise RuntimeError(_join_source_errors(source_errors))
 
             transcript = (result.get("text") or "").strip()
