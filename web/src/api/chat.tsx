@@ -11,6 +11,63 @@ export interface ScopedChatProviderProps {
   children: React.ReactNode;
 }
 
+export function sanitizeChatHistory<T>(data: T): T {
+  if (!data || typeof data !== "object") return data;
+
+  const raw = data as Record<string, any>;
+  if (!Array.isArray(raw.messages)) return data;
+
+  const sanitizedMessages = raw.messages.map((entry: any) => {
+    if (!entry || !entry.message || typeof entry.message !== "object") return entry;
+
+    const msg = { ...entry.message };
+
+    if (msg.status?.type === "running") {
+      msg.status = { type: "complete", reason: "stop" };
+    }
+
+    if (Array.isArray(msg.content)) {
+      msg.content = msg.content
+        .filter((part: any) => !(part?.type === "text" && part.text === "" && part.status?.type === "running"))
+        .map((part: any) => {
+          if (part && typeof part === "object" && part.status?.type === "running") {
+            return {
+              ...part,
+              status: { type: "complete", reason: "stop" },
+            };
+          }
+          return part;
+        });
+    }
+
+    if (msg.metadata && typeof msg.metadata === "object" && Array.isArray(msg.metadata.steps)) {
+      msg.metadata = {
+        ...msg.metadata,
+        steps: msg.metadata.steps.map((step: any) => {
+          if (step && typeof step === "object" && step.state === "running") {
+            return {
+              ...step,
+              state: "finished",
+              finishReason: step.finishReason || "stop",
+            };
+          }
+          return step;
+        }),
+      };
+    }
+
+    return {
+      ...entry,
+      message: msg,
+    };
+  });
+
+  return {
+    ...raw,
+    messages: sanitizedMessages,
+  } as T;
+}
+
 function ChatRuntimeInner({
   draftId,
   initialChatHistory,
@@ -34,7 +91,8 @@ function ChatRuntimeInner({
     if (initialChatHistory) {
       try {
         const parsed = JSON.parse(initialChatHistory);
-        runtime.thread.import(parsed);
+        const sanitized = sanitizeChatHistory(parsed);
+        runtime.thread.import(sanitized);
       } catch (err) {
         console.error("Failed to parse initial chat history for draft", draftId, err);
       }
@@ -45,7 +103,8 @@ function ChatRuntimeInner({
   useEffect(() => {
     if (prevIsRunningRef.current && !isRunning) {
       const exported = runtime.thread.export();
-      void patchDraft(draftId, { chatHistory: JSON.stringify(exported) }).catch((err) => {
+      const sanitized = sanitizeChatHistory(exported);
+      void patchDraft(draftId, { chatHistory: JSON.stringify(sanitized) }).catch((err) => {
         console.error("Failed to auto-save chat history for draft", draftId, err);
       });
     }
@@ -58,7 +117,8 @@ function ChatRuntimeInner({
       try {
         const exported = runtime.thread.export();
         if (exported && exported.messages && exported.messages.length > 0) {
-          void patchDraft(draftId, { chatHistory: JSON.stringify(exported) }).catch(() => {});
+          const sanitized = sanitizeChatHistory(exported);
+          void patchDraft(draftId, { chatHistory: JSON.stringify(sanitized) }).catch(() => {});
         }
       } catch {
         // Ignored

@@ -1,7 +1,101 @@
 use_default_settings: true
+
 server:
   secret_key: "social-worker-searxng-secret-key"
+
 search:
+  safe_search: 0
+  autocomplete: ""
   formats:
     - html
     - json
+
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 10.0
+  useragent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+
+engines:
+  # Reliable general search engines
+  - name: bing
+    engine: bing
+    disabled: false
+    weight: 2
+
+  - name: wikipedia
+    engine: wikipedia
+    disabled: false
+    weight: 1
+
+  - name: wikidata
+    engine: wikidata
+    disabled: false
+    weight: 1
+
+  - name: mojeek
+    engine: mojeek
+    disabled: false
+    weight: 1
+
+  - name: seznam
+    engine: seznam
+    disabled: false
+    weight: 1
+
+  # Reliable image search engines
+  - name: bing images
+    engine: bing_images
+    disabled: false
+
+  - name: duckduckgo images
+    engine: duckduckgo_images
+    disabled: false
+
+  - name: wikimedia
+    engine: wikimedia
+    disabled: false
+
+  - name: unsplash
+    engine: unsplash
+    disabled: false
+
+  # Disable rate-limited / CAPTCHA-blocked scrapers
+  - name: google
+    engine: google
+    disabled: true
+
+  - name: google cse
+    engine: google_cse
+    disabled: true
+
+  - name: brave
+    engine: brave
+    disabled: true
+
+  - name: startpage
+    engine: startpage
+    disabled: true
+
+  - name: qwant
+    engine: qwant
+    disabled: true
+
+  - name: yahoo
+    engine: yahoo
+    disabled: true
+
+  - name: duckduckgo
+    engine: duckduckgo
+    disabled: true
+
+  - name: brave.images
+    engine: brave
+    disabled: true
+
+  - name: google cse images
+    engine: google_cse
+    disabled: true
+
+  - name: startpage images
+    engine: startpage
+    disabled: true
