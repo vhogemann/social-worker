@@ -60,9 +60,19 @@ public sealed class LinkedInShareMedia
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LinkedInTextObject? Title { get; set; }
 
+    [JsonPropertyName("thumbnails")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<LinkedInThumbnail>? Thumbnails { get; set; }
+
     [JsonPropertyName("media")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? MediaUrn { get; set; }
+}
+
+public sealed class LinkedInThumbnail
+{
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
 }
 
 public sealed class LinkedInTextObject

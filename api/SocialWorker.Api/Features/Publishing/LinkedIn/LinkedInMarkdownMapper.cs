@@ -91,12 +91,27 @@ public static class LinkedInMarkdownMapper
         else if (!string.IsNullOrEmpty(youtubeUrl))
         {
             mediaKind = LinkedInMediaKind.Article;
-            article = new LinkedInArticlePayload(youtubeUrl, youtubeTitle ?? youtubeUrl);
+            string? thumbUrl = null;
+            var videoId = TryExtractYouTubeVideoId(youtubeUrl);
+            if (!string.IsNullOrEmpty(videoId))
+            {
+                thumbUrl = $"https://img.youtube.com/vi/{videoId}/hqdefault.jpg";
+            }
+            article = new LinkedInArticlePayload(youtubeUrl, youtubeTitle ?? youtubeUrl, ThumbnailUrl: thumbUrl);
         }
         else if (!string.IsNullOrEmpty(linkUrl))
         {
             mediaKind = LinkedInMediaKind.Article;
-            article = new LinkedInArticlePayload(linkUrl, linkTitle ?? linkUrl);
+            string? thumbUrl = null;
+            if (ThreadSegmentDocument.IsYouTubeUrl(linkUrl))
+            {
+                var videoId = TryExtractYouTubeVideoId(linkUrl);
+                if (!string.IsNullOrEmpty(videoId))
+                {
+                    thumbUrl = $"https://img.youtube.com/vi/{videoId}/hqdefault.jpg";
+                }
+            }
+            article = new LinkedInArticlePayload(linkUrl, linkTitle ?? linkUrl, ThumbnailUrl: thumbUrl);
         }
 
         return LinkedInPostContract.Create(
@@ -121,5 +136,48 @@ public static class LinkedInMarkdownMapper
         cleaned = PlatformContentPolicyBase.HeadingRegex.Replace(cleaned, "");
         cleaned = MarkdownLinkRegex.Replace(cleaned, "$1");
         return cleaned.Trim();
+    }
+
+    public static string? TryExtractYouTubeVideoId(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        if (uri.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
+        {
+            var id = uri.AbsolutePath.Trim('/');
+            return string.IsNullOrWhiteSpace(id) ? null : id;
+        }
+
+        if (!uri.Host.Contains("youtube.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var path = uri.AbsolutePath.Trim('/');
+        if (path.StartsWith("shorts/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("embed/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("live/", StringComparison.OrdinalIgnoreCase))
+        {
+            var pieces = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (pieces.Length >= 2 && !string.IsNullOrWhiteSpace(pieces[1]))
+            {
+                return pieces[1];
+            }
+        }
+
+        var query = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in query)
+        {
+            var pieces = part.Split('=', 2);
+            if (pieces.Length == 2 && string.Equals(pieces[0], "v", StringComparison.OrdinalIgnoreCase))
+            {
+                return Uri.UnescapeDataString(pieces[1]);
+            }
+        }
+
+        return null;
     }
 }

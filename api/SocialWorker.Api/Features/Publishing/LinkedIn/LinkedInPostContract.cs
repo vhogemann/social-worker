@@ -30,7 +30,7 @@ public class LinkedInContractException : Exception
     }
 }
 
-public sealed record LinkedInArticlePayload(string OriginalUrl, string? Title = null, string? Description = null);
+public sealed record LinkedInArticlePayload(string OriginalUrl, string? Title = null, string? Description = null, string? ThumbnailUrl = null);
 public sealed record LinkedInImagePayload(string MediaAssetId, string? AltText = null);
 public sealed record LinkedInVideoPayload(string MediaAssetId, string? Title = null, string? Description = null);
 

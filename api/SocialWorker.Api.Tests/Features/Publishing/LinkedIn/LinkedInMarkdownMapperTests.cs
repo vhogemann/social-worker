@@ -66,6 +66,7 @@ public sealed class LinkedInMarkdownMapperTests
         Assert.NotNull(contract.Article);
         Assert.Equal("https://www.youtube.com/watch?v=12345", contract.Article.OriginalUrl);
         Assert.Equal("Demo Video", contract.Article.Title);
+        Assert.Equal("https://img.youtube.com/vi/12345/hqdefault.jpg", contract.Article.ThumbnailUrl);
     }
 
     [Fact]

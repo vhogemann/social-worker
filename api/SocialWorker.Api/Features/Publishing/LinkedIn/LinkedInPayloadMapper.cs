@@ -41,20 +41,27 @@ public static class LinkedInPayloadMapper
                 }
 
                 shareContent.ShareMediaCategory = "ARTICLE";
-                shareContent.Media = new List<LinkedInShareMedia>
+                var shareMedia = new LinkedInShareMedia
                 {
-                    new()
-                    {
-                        Status = "READY",
-                        OriginalUrl = contract.Article.OriginalUrl,
-                        Title = !string.IsNullOrEmpty(contract.Article.Title) 
-                            ? new LinkedInTextObject { Text = contract.Article.Title } 
-                            : null,
-                        Description = !string.IsNullOrEmpty(contract.Article.Description) 
-                            ? new LinkedInTextObject { Text = contract.Article.Description } 
-                            : null
-                    }
+                    Status = "READY",
+                    OriginalUrl = contract.Article.OriginalUrl,
+                    Title = !string.IsNullOrEmpty(contract.Article.Title) 
+                        ? new LinkedInTextObject { Text = contract.Article.Title } 
+                        : null,
+                    Description = !string.IsNullOrEmpty(contract.Article.Description) 
+                        ? new LinkedInTextObject { Text = contract.Article.Description } 
+                        : null
                 };
+
+                if (!string.IsNullOrWhiteSpace(contract.Article.ThumbnailUrl))
+                {
+                    shareMedia.Thumbnails = new List<LinkedInThumbnail>
+                    {
+                        new() { Url = contract.Article.ThumbnailUrl }
+                    };
+                }
+
+                shareContent.Media = new List<LinkedInShareMedia> { shareMedia };
                 break;
 
             case LinkedInMediaKind.Image:

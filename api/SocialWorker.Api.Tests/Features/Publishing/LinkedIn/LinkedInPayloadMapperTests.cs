@@ -101,7 +101,40 @@ public sealed class LinkedInPayloadMapperTests
         Assert.Equal("https://test.com/post", mediaItem.OriginalUrl);
         Assert.Equal("My Title", mediaItem.Title?.Text);
         Assert.Equal("My Description", mediaItem.Description?.Text);
+        Assert.Null(mediaItem.Thumbnails);
         Assert.Equal("CONNECTIONS", request.Visibility.MemberNetworkVisibility);
+    }
+
+    [Fact]
+    public void MapToUgcPostRequest_ArticleWithThumbnail_MapsThumbnailsCorrectly()
+    {
+        var article = new LinkedInArticlePayload("https://www.youtube.com/watch?v=12345", "YouTube Video", null, "https://img.youtube.com/vi/12345/hqdefault.jpg");
+        var contract = LinkedInPostContract.Create(
+            authorUrn: "urn:li:person:123",
+            bodyText: "Watch this",
+            visibility: "PUBLIC",
+            mediaKind: LinkedInMediaKind.Article,
+            article: article,
+            image: null,
+            video: null,
+            sourceSegmentIndex: 0,
+            draftId: Guid.Empty,
+            threadId: Guid.Empty
+        );
+
+        var request = LinkedInPayloadMapper.MapToUgcPostRequest(contract);
+
+        var shareContent = request.SpecificContent.ShareContent;
+        Assert.Equal("ARTICLE", shareContent.ShareMediaCategory);
+        Assert.NotNull(shareContent.Media);
+        Assert.Single(shareContent.Media);
+
+        var mediaItem = shareContent.Media[0];
+        Assert.Equal("READY", mediaItem.Status);
+        Assert.Equal("https://www.youtube.com/watch?v=12345", mediaItem.OriginalUrl);
+        Assert.NotNull(mediaItem.Thumbnails);
+        Assert.Single(mediaItem.Thumbnails);
+        Assert.Equal("https://img.youtube.com/vi/12345/hqdefault.jpg", mediaItem.Thumbnails[0].Url);
     }
 
     [Fact]
