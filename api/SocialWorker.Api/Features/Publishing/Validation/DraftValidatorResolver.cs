@@ -5,6 +5,8 @@ using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
 using SocialWorker.Api.Features.Publishing.MetaThreads.Validation;
 
+using SocialWorker.Api.Features.Publishing.Twitter.Validation;
+
 namespace SocialWorker.Api.Features.Publishing.Validation;
 
 public interface IDraftValidatorResolver
@@ -18,7 +20,7 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
     private readonly BlueskyDraftValidator _blueskyDraftValidator;
     private readonly LinkedInDraftValidator _linkedInDraftValidator;
     private readonly MetaThreadsDraftValidator _threadsValidator;
-    private readonly PlatformPolicyDraftValidator _twitterValidator;
+    private readonly TwitterDraftValidator _twitterValidator;
     private readonly PlatformPolicyDraftValidator _instagramValidator;
     private readonly PlatformPolicyDraftValidator _facebookValidator;
 
@@ -27,7 +29,7 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
         BlueskyDraftValidator blueskyDraftValidator,
         LinkedInDraftValidator linkedInDraftValidator,
         PlatformContentPolicy platformContentPolicy)
-        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, new MetaThreadsDraftValidator(), platformContentPolicy)
+        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, new MetaThreadsDraftValidator(), new TwitterDraftValidator(), platformContentPolicy)
     {
     }
 
@@ -37,12 +39,23 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
         LinkedInDraftValidator linkedInDraftValidator,
         MetaThreadsDraftValidator threadsValidator,
         PlatformContentPolicy platformContentPolicy)
+        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, threadsValidator, new TwitterDraftValidator(), platformContentPolicy)
+    {
+    }
+
+    public DraftValidatorResolver(
+        CanonicalDraftValidator canonicalDraftValidator,
+        BlueskyDraftValidator blueskyDraftValidator,
+        LinkedInDraftValidator linkedInDraftValidator,
+        MetaThreadsDraftValidator threadsValidator,
+        TwitterDraftValidator twitterValidator,
+        PlatformContentPolicy platformContentPolicy)
     {
         _canonicalDraftValidator = canonicalDraftValidator;
         _blueskyDraftValidator = blueskyDraftValidator;
         _linkedInDraftValidator = linkedInDraftValidator;
         _threadsValidator = threadsValidator;
-        _twitterValidator = new PlatformPolicyDraftValidator(SocialPlatform.Twitter, platformContentPolicy);
+        _twitterValidator = twitterValidator;
         _instagramValidator = new PlatformPolicyDraftValidator(SocialPlatform.Instagram, platformContentPolicy);
         _facebookValidator = new PlatformPolicyDraftValidator(SocialPlatform.Facebook, platformContentPolicy);
     }

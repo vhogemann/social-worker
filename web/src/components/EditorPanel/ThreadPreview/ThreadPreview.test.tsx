@@ -97,4 +97,53 @@ Second segment`} />);
     expect(screen.getByTestId("metathreads-preview")).toBeInTheDocument();
     expect(screen.getByText(/Exceeds 500-character Threads limit/i)).toBeInTheDocument();
   });
+
+  it("renders twitter preview when target platform is Twitter", () => {
+    useDraftStore.setState((s) => ({
+      ...s,
+      drafts: s.drafts.map((d) =>
+        d.id === "draft-1" ? { ...d, targetPlatform: "Twitter" } : d
+      ),
+    }));
+
+    render(
+      <ThreadPreview
+        content={`X post 1\n---\nX post 2`}
+      />
+    );
+
+    expect(screen.getByTestId("twitter-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("preview-card-0")).toHaveTextContent("X post 1");
+    expect(screen.getByTestId("preview-card-1")).toHaveTextContent("X post 2");
+  });
+
+  it("renders 280-character warning on Twitter preview when over limit", () => {
+    useDraftStore.setState((s) => ({
+      ...s,
+      drafts: s.drafts.map((d) =>
+        d.id === "draft-1" ? { ...d, targetPlatform: "Twitter" } : d
+      ),
+    }));
+
+    const longPost = "A".repeat(285);
+    render(<ThreadPreview content={longPost} />);
+
+    expect(screen.getByTestId("twitter-preview")).toBeInTheDocument();
+    expect(screen.getByText(/Exceeds 280 weighted-character limit/i)).toBeInTheDocument();
+  });
+
+  it("renders media warning on Twitter preview when images are attached", () => {
+    useDraftStore.setState((s) => ({
+      ...s,
+      drafts: s.drafts.map((d) =>
+        d.id === "draft-1" ? { ...d, targetPlatform: "Twitter" } : d
+      ),
+    }));
+
+    const postWithImage = "Check this chart:\n\n![Chart](media://61803512-ef24-4f81-a5d6-ec2d790757f5)";
+    render(<ThreadPreview content={postWithImage} />);
+
+    expect(screen.getByTestId("twitter-preview")).toBeInTheDocument();
+    expect(screen.getByText(/Media attachments are not supported for Twitter in v1/i)).toBeInTheDocument();
+  });
 });

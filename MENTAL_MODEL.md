@@ -8,7 +8,7 @@ Read this first, then use AGENTS.md for stricter policy and workflow rules.
 
 ## Product in one paragraph
 
-social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky (threads), LinkedIn (single-post personal profile and company page publishing), and Meta Threads (multi-post threads, carousel media, token lifecycle, and resilient resume) are production-ready; other publishers are stubs.
+social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky (threads), LinkedIn (single-post personal profile and company page publishing), Meta Threads (multi-post threads, carousel media, token lifecycle, and resilient resume), and Twitter / X (OAuth 2.0 PKCE, token rotation, chained reply tweets, 280 weighted-char validation, t.co budgeting, and resilient resume) are production-ready; other publishers are stubs.
 
 ## System shape
 
@@ -29,7 +29,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 - Chat: api/SocialWorker.Api/Features/Chat/
 - Draft lifecycle: api/SocialWorker.Api/Features/Drafts/
-- Publishing: api/SocialWorker.Api/Features/Publishing/ (Bluesky, LinkedIn, MetaThreads, Resilience/PublishResumePlanner)
+- Publishing: api/SocialWorker.Api/Features/Publishing/ (Bluesky, LinkedIn, MetaThreads, Twitter, Resilience/PublishResumePlanner)
 - Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Media/
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
 - Feed automation: api/SocialWorker.Api/Features/Feeds/

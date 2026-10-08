@@ -15,6 +15,7 @@ import { CalendarPage } from "./components/Calendar/CalendarPage";
 import { SettingsPage } from "./components/Settings/SettingsPage";
 import { LinkedInCallbackPage } from "./components/Settings/LinkedInCallbackPage";
 import { MetaThreadsCallbackPage } from "./components/Settings/MetaThreadsCallbackPage";
+import { TwitterCallbackPage } from "./components/Settings/TwitterCallbackPage";
 import { GlobalErrorToaster } from "./components/common/GlobalErrorToaster";
 
 export default function App() {
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/settings/:tab" element={<SettingsPage />} />
           <Route path="/oauth/callback/linkedin" element={<LinkedInCallbackPage />} />
           <Route path="/oauth/callback/threads" element={<MetaThreadsCallbackPage />} />
+          <Route path="/oauth/callback/twitter" element={<TwitterCallbackPage />} />
         </Routes>
         <GlobalErrorToaster />
       </div>

@@ -7,7 +7,7 @@ import { PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 
 export const ALL_PLATFORMS = [
   { id: "Bluesky", label: "Bluesky", description: "Multi-post thread (300 chars/post)" },
-  { id: "Twitter", label: "Twitter", description: "Multi-post thread (280 chars/post)" },
+  { id: "Twitter", label: "X (Twitter)", description: "Multi-post thread (280 chars/post)" },
   { id: "LinkedIn", label: "LinkedIn", description: "Single long-form post (~3000 chars)" },
   { id: "Facebook", label: "Facebook", description: "Conversational, no hard limit" },
   { id: "Instagram", label: "Instagram", description: "Visual-first, 2200 char caption" },

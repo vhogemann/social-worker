@@ -3,6 +3,7 @@ import { useDraftStore } from "../../../store/draftStore";
 import { BlueskyThreadPreview } from "./BlueskyThreadPreview";
 import { LinkedInPostPreview } from "./LinkedInPostPreview";
 import { MetaThreadsPostPreview } from "./MetaThreadsPostPreview";
+import { TwitterThreadPreview } from "./TwitterThreadPreview";
 
 interface ThreadPreviewProps {
   content: string;
@@ -20,6 +21,10 @@ export const ThreadPreview: React.FC<ThreadPreviewProps> = ({ content }) => {
 
   if (platform === "metathreads" || platform === "threads") {
     return <MetaThreadsPostPreview content={content} />;
+  }
+
+  if (platform === "twitter" || platform === "x") {
+    return <TwitterThreadPreview content={content} />;
   }
 
   return <BlueskyThreadPreview content={content} />;

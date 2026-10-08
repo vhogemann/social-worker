@@ -20,6 +20,7 @@ This file is the single source of truth for roadmap status and planning links.
 
 ### Recently closed and archived
 
+- Twitter / X support (OAuth 2.0 PKCE, refresh token rotation, chained reply tweets, 280 weighted-char validation, t.co budgeting, live X thread preview): [planning/TWITTER_SUPPORT.md](planning/TWITTER_SUPPORT.md)
 - Meta Threads support (OAuth lifecycle, multi-post thread publishing, carousel media, resilient resume, 500-char validation): [planning/THREADS_SUPPORT.md](planning/THREADS_SUPPORT.md)
 - Content Calendar & Scheduled Publishing Engine (Cronos recurrence, slot window pacing, BackgroundTasks queue, Review Outbox, Tailwind-native calendar UI): [planning/SCHEDULING_CALENDAR.md](planning/SCHEDULING_CALENDAR.md)
 - Drafts Page card grid, full-width 2-pane Composer, and workflow-grounded routing: [planning/archive/DRAFTS_PAGE_AND_WORKFLOW_ROUTING.md](planning/archive/DRAFTS_PAGE_AND_WORKFLOW_ROUTING.md)

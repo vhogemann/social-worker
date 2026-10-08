@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, submitLinkedInCallback } from "./accounts";
+import { listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, submitLinkedInCallback, getTwitterAuthUrl, submitTwitterCallback } from "./accounts";
 
 vi.mock("./client", () => ({
   apiFetch: vi.fn(),
@@ -127,6 +127,54 @@ describe("accounts API", () => {
         new Response(JSON.stringify({ error: "Code expired" }), { status: 400 })
       );
       await expect(submitLinkedInCallback("bad-code")).rejects.toThrow("Code expired");
+    });
+  });
+
+  describe("getTwitterAuthUrl", () => {
+    it("returns authUrl on success", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ authUrl: "https://twitter.com/i/oauth2/authorize?client_id=123" }), { status: 200 })
+      );
+      const res = await getTwitterAuthUrl();
+      expect(res.authUrl).toBe("https://twitter.com/i/oauth2/authorize?client_id=123");
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/accounts/twitter/auth-url");
+    });
+
+    it("throws detailed server error message on failure", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Twitter client ID is not configured." }), { status: 400 })
+      );
+      await expect(getTwitterAuthUrl()).rejects.toThrow("Twitter client ID is not configured.");
+    });
+  });
+
+  describe("submitTwitterCallback", () => {
+    it("returns account info on successful code exchange", async () => {
+      const responseData = {
+        externalId: "twitter_user_123",
+        username: "alice_dev",
+        tokenExpiresAt: "2026-10-09T00:00:00Z",
+      };
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify(responseData), { status: 200 })
+      );
+      const res = await submitTwitterCallback("auth-code", "state-nonce");
+      expect(res.externalId).toBe("twitter_user_123");
+      expect(res.username).toBe("alice_dev");
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/accounts/twitter/callback",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ code: "auth-code", state: "state-nonce" }),
+        })
+      );
+    });
+
+    it("throws on callback failure", async () => {
+      mockApiFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Invalid state parameter" }), { status: 400 })
+      );
+      await expect(submitTwitterCallback("bad-code", "bad-state")).rejects.toThrow("Invalid state parameter");
     });
   });
 });

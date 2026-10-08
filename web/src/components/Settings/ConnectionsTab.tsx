@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faTrashCan, faShareNodes } from "@fortawesome/free-solid-svg-icons";
-import { type AccountDto, listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, getMetaThreadsAuthUrl } from "../../api/accounts";
+import { type AccountDto, listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, getMetaThreadsAuthUrl, getTwitterAuthUrl } from "../../api/accounts";
 import { PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 import { Modal } from "../common/Modal";
 import { SettingsSection } from "./common/SettingsSection";
@@ -97,6 +97,21 @@ export function ConnectionsTab() {
       }
     } catch (err: any) {
       setModalError(err.message || "Failed to initiate Threads connection.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTwitterConnect = async () => {
+    try {
+      setIsSubmitting(true);
+      setModalError(null);
+      const data = await getTwitterAuthUrl();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (err: any) {
+      setModalError(err.message || "Failed to initiate Twitter / X connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -224,12 +239,40 @@ export function ConnectionsTab() {
               className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
             >
               <option value="Bluesky">Bluesky</option>
+              <option value="Twitter">X (Twitter)</option>
               <option value="LinkedIn">LinkedIn</option>
               <option value="MetaThreads">Threads</option>
             </select>
           </div>
 
-          {platform === "MetaThreads" ? (
+          {platform === "Twitter" ? (
+            <div className="pt-2 space-y-4">
+              <div className="p-3 border border-border bg-bg/40 rounded-lg text-xs text-muted font-sans space-y-2">
+                <div className="text-foreground font-medium flex items-center gap-2">
+                  <FontAwesomeIcon icon={PLATFORM_ICONS.Twitter} className="w-3.5 h-3.5 text-foreground" />
+                  <span>X (Twitter) OAuth 2.0 Connection</span>
+                </div>
+                <p>
+                  Authorize social-worker to publish threads directly to your X account using the official Twitter API v2.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTwitterConnect}
+                disabled={isSubmitting}
+                className="w-full inline-flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition duration-150 disabled:opacity-50 font-mono uppercase tracking-wider gap-2 shadow-sm border border-zinc-700"
+              >
+                <FontAwesomeIcon icon={PLATFORM_ICONS.Twitter} className="w-4 h-4 text-white" />
+                <span>
+                  {isSubmitting ? "Redirecting..." : "Connect with X"}
+                </span>
+              </button>
+              <p className="text-[11px] text-muted font-sans leading-normal text-center">
+                You will be redirected to X to authorize posting permissions for your account.
+              </p>
+            </div>
+          ) : platform === "MetaThreads" ? (
             <div className="pt-2 space-y-4">
               <div className="p-3 border border-border bg-bg/40 rounded-lg text-xs text-muted font-sans space-y-2">
                 <div className="text-foreground font-medium flex items-center gap-2">

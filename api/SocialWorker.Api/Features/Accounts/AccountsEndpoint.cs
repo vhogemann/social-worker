@@ -12,6 +12,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
 using SocialWorker.Api.Features.Publishing.MetaThreads;
+using SocialWorker.Api.Features.Publishing.Twitter;
 using SocialWorker.Api.Infrastructure.Security;
 using SocialWorker.Api.Infrastructure;
 using System.Text.Json;
@@ -261,6 +262,100 @@ public static class AccountsEndpoint
             await db.SaveChangesAsync(ct);
             return Results.Ok(new MetaThreadsCallbackResponse(profile.Id, profile.Username, expiresAt));
         });
+
+        group.MapGet("/twitter/auth-url", async (
+            ClaimsPrincipal user,
+            OAuthStateService oauthStateService,
+            TwitterOAuthService twitterOAuth) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var verifier = TwitterOAuthService.GenerateCodeVerifier();
+            var challenge = TwitterOAuthService.GenerateCodeChallenge(verifier);
+            var payloadJson = JsonSerializer.Serialize(new TwitterPkceState(verifier));
+
+            var nonce = await oauthStateService.IssueAsync(userId.Value, "twitter", payloadJson);
+            var authUrl = twitterOAuth.GetAuthorizationUrl(nonce, challenge);
+            return Results.Ok(new { authUrl });
+        });
+
+        group.MapPost("/twitter/callback", async (
+            TwitterCallbackRequest req,
+            ClaimsPrincipal user,
+            OAuthStateService oauthStateService,
+            AccountUpsertService upsertService,
+            TwitterOAuthService twitterOAuth,
+            AppDbContext db,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(req.Code))
+            {
+                return Results.BadRequest(new ApiErrorResponse("Authorization code is required."));
+            }
+
+            if (string.IsNullOrWhiteSpace(req.State))
+            {
+                return Results.BadRequest(new ApiErrorResponse("OAuth state parameter is required."));
+            }
+
+            var oauthState = await oauthStateService.ConsumeAsync(userId.Value, "twitter", req.State, ct);
+            if (oauthState is null)
+            {
+                return Results.BadRequest(new ApiErrorResponse("Invalid or expired OAuth state parameter."));
+            }
+
+            string codeVerifier;
+            try
+            {
+                var pkce = JsonSerializer.Deserialize<TwitterPkceState>(oauthState.PayloadJson ?? "");
+                codeVerifier = pkce?.CodeVerifier ?? "";
+            }
+            catch
+            {
+                codeVerifier = "";
+            }
+
+            if (string.IsNullOrWhiteSpace(codeVerifier))
+            {
+                return Results.BadRequest(new ApiErrorResponse("Missing PKCE code verifier in state."));
+            }
+
+            var encryptionKey = config["Auth:DbEncryptionKey"];
+            if (string.IsNullOrEmpty(encryptionKey))
+            {
+                return Results.Problem("Server encryption key not configured.");
+            }
+
+            var tokenResp = await twitterOAuth.ExchangeCodeAsync(req.Code, codeVerifier, ct);
+            var profile = await twitterOAuth.FetchUserProfileAsync(tokenResp.AccessToken, ct);
+
+            var credentials = new TwitterAccountCredentials(
+                AccessToken: tokenResp.AccessToken,
+                RefreshToken: tokenResp.RefreshToken,
+                TokenType: tokenResp.TokenType,
+                Scope: tokenResp.Scope);
+
+            var credentialsJson = JsonSerializer.Serialize(credentials);
+            var encryptedToken = CryptoHelper.EncryptString(credentialsJson, encryptionKey);
+            var expiresAt = DateTime.UtcNow.AddSeconds(tokenResp.ExpiresIn);
+
+            await upsertService.UpsertAsync(
+                userId: userId.Value,
+                platform: "Twitter",
+                handle: profile.Username,
+                credentialsEncrypted: encryptedToken,
+                externalId: profile.Id,
+                tokenExpiresAt: expiresAt,
+                ct: ct);
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new TwitterCallbackResponse(profile.Id, profile.Username, expiresAt));
+        });
     }
 }
 
@@ -269,5 +364,8 @@ public record LinkedInCallbackResponse(string? PersonalHandle, IReadOnlyList<str
 
 public record MetaThreadsCallbackRequest(string Code, string State);
 public record MetaThreadsCallbackResponse(string ExternalId, string Username, DateTime TokenExpiresAt);
+
+public record TwitterCallbackRequest(string Code, string State);
+public record TwitterCallbackResponse(string ExternalId, string Username, DateTime TokenExpiresAt);
 
 public record AccountRequest(string Platform, string Handle, string AppPassword);

@@ -6,6 +6,7 @@ using SocialWorker.Api.Features.Publishing.Validation;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
 using SocialWorker.Api.Features.Publishing.MetaThreads;
+using SocialWorker.Api.Features.Publishing.Twitter;
 using SocialWorker.Api.Features.Publishing.Resilience;
 using SocialWorker.Api.Features.Accounts.Tokens;
 
@@ -17,8 +18,11 @@ static partial class ServiceCollectionExtensions
     {
         builder.Services.Configure<LinkedInOptions>(builder.Configuration.GetSection(LinkedInOptions.SectionName));
         builder.Services.Configure<MetaThreadsOptions>(builder.Configuration.GetSection(MetaThreadsOptions.SectionName));
+        builder.Services.Configure<TwitterOptions>(builder.Configuration.GetSection(TwitterOptions.SectionName));
         builder.Services.AddHttpClient<MetaThreadsOAuthService>();
+        builder.Services.AddHttpClient<TwitterOAuthService>();
         builder.Services.AddScoped<ITokenRefresher, MetaThreadsTokenRefresher>();
+        builder.Services.AddScoped<ITokenRefresher, TwitterTokenRefresher>();
         builder.Services.AddHostedService<TokenRefreshHostedService>();
         builder.Services.AddSingleton<PlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, BlueskyPlatformContentPolicy>();
@@ -42,6 +46,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<CanonicalDraftValidator>();
         builder.Services.AddScoped<LinkedInDraftValidator>();
         builder.Services.AddScoped<SocialWorker.Api.Features.Publishing.MetaThreads.Validation.MetaThreadsDraftValidator>();
+        builder.Services.AddScoped<SocialWorker.Api.Features.Publishing.Twitter.Validation.TwitterDraftValidator>();
         builder.Services.AddScoped<IDraftValidatorResolver, DraftValidatorResolver>();
         builder.Services.AddScoped<PublishValidationService>();
         builder.Services.AddScoped<PublishOutcomeRecorder>();
@@ -50,6 +55,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<BlueskyFacetBuilder>();
         builder.Services.AddScoped<IPublisher, BlueskyPublisher>();
         builder.Services.AddHttpClient<IBlueskyReplyTargetResolver, BlueskyReplyTargetResolver>();
+        builder.Services.AddHttpClient<TwitterApiClient>();
         builder.Services.AddScoped<IPublisher, TwitterPublisher>();
         builder.Services.AddHttpClient<LinkedInApiClient>();
         builder.Services.AddHttpClient<LinkedInOAuthService>();

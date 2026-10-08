@@ -12,7 +12,9 @@ public sealed class TwitterPlatformContentPolicy : PlatformContentPolicyBase
     {
         return """
 Twitter rules:
-- 280 characters per post maximum, 2-3 posts typical
+- 280 characters per post maximum (weighted), 2-3 posts typical
+- URLs consume 23 characters each (budgeted via t.co)
+- Plain text only: markdown formatting (bold, italic, headers, anchor links) is not rendered
 - Punchy, conversational tone
 - Break into short posts, each standalone
 - Use hashtags sparingly (max 2)
@@ -26,9 +28,10 @@ Twitter rules:
         foreach (var segment in doc.Segments)
         {
             var cleaned = segment.PlainText;
-            if (cleaned.Length > 280)
+            var weight = SocialWorker.Api.Features.Publishing.Twitter.TwitterTextWeightCalculator.CalculateWeight(cleaned);
+            if (weight > 280)
             {
-                errors.Add($"Post exceeds 280 characters for {Platform} ({cleaned.Length}).");
+                errors.Add($"Post exceeds 280 characters for {Platform} ({weight}).");
             }
         }
     }

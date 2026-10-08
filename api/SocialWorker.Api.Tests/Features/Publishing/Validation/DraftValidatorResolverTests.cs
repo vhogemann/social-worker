@@ -62,9 +62,9 @@ public sealed class DraftValidatorResolverTests
     }
 
     [Fact]
-    public void Resolve_Twitter_ReturnsPlatformPolicyValidator()
+    public void Resolve_Twitter_ReturnsTwitterValidator()
     {
         var validator = _resolver.Resolve(SocialPlatform.Twitter);
-        Assert.IsType<PlatformPolicyDraftValidator>(validator);
+        Assert.IsType<SocialWorker.Api.Features.Publishing.Twitter.Validation.TwitterDraftValidator>(validator);
     }
 }

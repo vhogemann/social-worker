@@ -92,3 +92,30 @@ export async function submitMetaThreadsCallback(code: string, state: string): Pr
   return res.json();
 }
 
+export interface TwitterCallbackResponse {
+  externalId: string;
+  username: string;
+  tokenExpiresAt: string;
+}
+
+export async function getTwitterAuthUrl(): Promise<{ authUrl: string }> {
+  const res = await apiFetch("/api/accounts/twitter/auth-url");
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || err?.message || "Failed to fetch Twitter auth URL");
+  }
+  return res.json();
+}
+
+export async function submitTwitterCallback(code: string, state: string): Promise<TwitterCallbackResponse> {
+  const res = await apiFetch("/api/accounts/twitter/callback", {
+    method: "POST",
+    body: JSON.stringify({ code, state }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || err?.message || "Failed to exchange Twitter auth code");
+  }
+  return res.json();
+}
+

@@ -4,21 +4,6 @@ using SocialWorker.Api.Data.Entities;
 
 namespace SocialWorker.Api.Features.Publishing;
 
-public class TwitterPublisher : IPublisher
-{
-    public string Platform => "Twitter";
-
-    public Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)
-    {
-        return Task.FromResult(new PublishResult
-        {
-            Success = false,
-            ErrorMessage = "Not Implemented",
-            AuthUrl = "https://twitter.com/i/oauth2/authorize?placeholder"
-        });
-    }
-}
-
 public class FacebookPublisher : IPublisher
 {
     public string Platform => "Facebook";
