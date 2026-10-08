@@ -6,6 +6,7 @@ import { type WorkflowDraftSummaryDto } from "../../api/workflows";
 import { Button } from "../common/Button";
 import { EmptyState } from "../common/EmptyState";
 import { Badge } from "../common/Badge";
+import { getPlatformLabel } from "../../config/platformBadges";
 
 export interface WorkflowDraftsListProps {
   workflowId?: string;
@@ -170,7 +171,7 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
                               : "bg-bg text-foreground border border-border hover:border-accent"
                           }`}
                         >
-                          <span>{thread.platform}</span>
+                          <span>{getPlatformLabel(thread.platform)}</span>
                           <span className="opacity-60">({thread.stage})</span>
                         </button>
                       ))

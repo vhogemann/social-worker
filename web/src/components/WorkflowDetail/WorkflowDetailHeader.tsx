@@ -10,6 +10,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { type AutomationWorkflowDto } from "../../api/workflows";
 import { Button } from "../common/Button";
+import { getPlatformLabel } from "../../config/platformBadges";
 
 export interface WorkflowDetailHeaderProps {
   workflow: AutomationWorkflowDto;
@@ -50,7 +51,7 @@ export const WorkflowDetailHeader: React.FC<WorkflowDetailHeaderProps> = ({
                   className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-panel border border-border text-[11px] text-foreground font-mono"
                 >
                   <FontAwesomeIcon icon={faShareNodes} className="text-[10px] text-accent" />
-                  <span>{dest.platform}</span>
+                  <span>{getPlatformLabel(dest.platform)}</span>
                   {dest.accountHandle && <span className="opacity-70">@{dest.accountHandle}</span>}
                   {dest.publishingMode === "Scheduled" ? (
                     <span className="text-[8px] bg-blue-500/20 text-blue-400 font-semibold px-1 py-0.5 rounded uppercase">

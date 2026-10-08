@@ -7,7 +7,8 @@ public enum PlatformThreadStage
 {
     Draft,
     Scheduled,
-    Sent
+    Sent,
+    PartiallySent
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -45,7 +46,8 @@ public enum SocialPlatform
     Twitter,
     LinkedIn,
     Facebook,
-    Instagram
+    Instagram,
+    MetaThreads
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

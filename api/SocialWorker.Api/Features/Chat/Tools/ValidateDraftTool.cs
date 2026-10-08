@@ -124,7 +124,7 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, Validate
         SocialPlatform? targetPlatform = null;
 
         if (!string.IsNullOrWhiteSpace(args.Platform) &&
-            Enum.TryParse<SocialPlatform>(args.Platform, true, out var explicitPlatform))
+            SocialWorker.Api.Infrastructure.Platforms.SocialPlatformParser.TryParse(args.Platform, out var explicitPlatform))
         {
             targetPlatform = explicitPlatform;
         }

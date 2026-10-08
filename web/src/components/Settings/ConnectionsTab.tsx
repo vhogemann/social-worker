@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faTrashCan, faShareNodes } from "@fortawesome/free-solid-svg-icons";
-import { type AccountDto, listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl } from "../../api/accounts";
-import { PLATFORM_ICONS } from "../../config/platformBadges";
+import { type AccountDto, listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, getMetaThreadsAuthUrl } from "../../api/accounts";
+import { PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 import { Modal } from "../common/Modal";
 import { SettingsSection } from "./common/SettingsSection";
 import { SettingsEmptyState } from "./common/SettingsEmptyState";
@@ -87,6 +87,21 @@ export function ConnectionsTab() {
     }
   };
 
+  const handleMetaThreadsConnect = async () => {
+    try {
+      setIsSubmitting(true);
+      setModalError(null);
+      const data = await getMetaThreadsAuthUrl();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (err: any) {
+      setModalError(err.message || "Failed to initiate Threads connection.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to remove this connection?")) return;
     try {
@@ -121,7 +136,7 @@ export function ConnectionsTab() {
           <SettingsEmptyState
             icon={faShareNodes}
             title="No connections configured yet"
-            description="Add your Bluesky or LinkedIn accounts to start publishing threads directly from social-worker."
+            description="Add your Bluesky, LinkedIn, or Threads accounts to start publishing threads directly from social-worker."
             actionLabel="+ Add Connection"
             onAction={handleOpenAddModal}
           />
@@ -144,7 +159,7 @@ export function ConnectionsTab() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">{acc.platform}</span>
+                        <span className="text-sm font-medium text-foreground">{getPlatformLabel(acc.platform)}</span>
                         {acc.platform === "LinkedIn" && (
                           <span className={`text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border ${
                             acc.handle.toLowerCase().includes("organization")
@@ -152,6 +167,11 @@ export function ConnectionsTab() {
                               : "border-blue-800/40 bg-blue-950/30 text-blue-400"
                           }`}>
                             {acc.handle.toLowerCase().includes("organization") ? "Company Page" : "Personal"}
+                          </span>
+                        )}
+                        {acc.tokenExpiresAt && (
+                          <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800/60 text-zinc-300">
+                            Expires {new Date(acc.tokenExpiresAt).toLocaleDateString()}
                           </span>
                         )}
                         <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-green-800/40 bg-green-950/30 text-green-400">
@@ -205,10 +225,38 @@ export function ConnectionsTab() {
             >
               <option value="Bluesky">Bluesky</option>
               <option value="LinkedIn">LinkedIn</option>
+              <option value="MetaThreads">Threads</option>
             </select>
           </div>
 
-          {platform === "LinkedIn" ? (
+          {platform === "MetaThreads" ? (
+            <div className="pt-2 space-y-4">
+              <div className="p-3 border border-border bg-bg/40 rounded-lg text-xs text-muted font-sans space-y-2">
+                <div className="text-foreground font-medium flex items-center gap-2">
+                  <FontAwesomeIcon icon={PLATFORM_ICONS.MetaThreads} className="w-3.5 h-3.5 text-foreground" />
+                  <span>Threads OAuth Connection</span>
+                </div>
+                <p>
+                  Authorize social-worker to publish threads directly to your Meta Threads profile using the official Threads API.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleMetaThreadsConnect}
+                disabled={isSubmitting}
+                className="w-full inline-flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition duration-150 disabled:opacity-50 font-mono uppercase tracking-wider gap-2 shadow-sm border border-zinc-700"
+              >
+                <FontAwesomeIcon icon={PLATFORM_ICONS.MetaThreads} className="w-4 h-4 text-white" />
+                <span>
+                  {isSubmitting ? "Redirecting..." : "Connect Threads Profile"}
+                </span>
+              </button>
+              <p className="text-[11px] text-muted font-sans leading-normal text-center">
+                You will be redirected to Meta to authorize posting permissions for your Threads account.
+              </p>
+            </div>
+          ) : platform === "LinkedIn" ? (
             <div className="pt-2 space-y-4">
               <div>
                 <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">

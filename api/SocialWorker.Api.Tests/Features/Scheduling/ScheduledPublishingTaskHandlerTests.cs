@@ -12,6 +12,11 @@ using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Scheduling.Handlers;
 using SocialWorker.Api.Features.Scheduling.Models;
+using SocialWorker.Api.Features.Chat.Tools;
+using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
+using SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
+using SocialWorker.Api.Features.Publishing.LinkedIn;
+using SocialWorker.Api.Features.Publishing.Validation;
 using Xunit;
 
 namespace SocialWorker.Api.Tests.Features.Scheduling;
@@ -30,10 +35,24 @@ public sealed class ScheduledPublishingTaskHandlerTests : SqliteTestBase
         _user = CreateSeedUser(_db);
         _publisher = new StubPublisher();
         _resolver = new StubPublisherResolver(_publisher);
+        var canonicalValidator = new CanonicalDraftValidator();
+        var blueskyValidator = new BlueskyDraftValidator(
+            new BlueskyContentValidator(),
+            Array.Empty<IValidateDraftRule<BlueskySegmentValidation>>());
+        var linkedInValidator = new LinkedInDraftValidator();
+        var policy = new PlatformContentPolicy();
+        var validatorResolver = new DraftValidatorResolver(
+            canonicalValidator,
+            blueskyValidator,
+            linkedInValidator,
+            policy);
+        var validationService = new PublishValidationService(validatorResolver, _db);
+        var outcomeRecorder = new SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder(_db);
         _handler = new ScheduledPublishingTaskHandler(
             _db,
             _resolver,
-            new BlueskyContentValidator(),
+            validationService,
+            outcomeRecorder,
             NullLogger<ScheduledPublishingTaskHandler>.Instance);
     }
 

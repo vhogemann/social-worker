@@ -12,6 +12,7 @@ public class PlatformThread
     public Guid? AccountId { get; set; }
     public Account? Account { get; set; }
     public PlatformThreadStage Stage { get; set; } = PlatformThreadStage.Draft;
+    public string? LastPublishError { get; set; }
     public string? Content { get; set; }
     public ICollection<ScheduleQueueItem> ScheduleQueueItems { get; set; } = new List<ScheduleQueueItem>();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

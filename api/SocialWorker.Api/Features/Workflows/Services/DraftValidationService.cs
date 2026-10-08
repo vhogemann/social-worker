@@ -9,6 +9,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Publishing.Validation;
+using SocialWorker.Api.Infrastructure.Platforms;
 
 namespace SocialWorker.Api.Features.Workflows.Services;
 
@@ -64,7 +65,7 @@ public class DraftValidationService
 
         SocialPlatform? targetPlatform = null;
         if (!string.IsNullOrWhiteSpace(platformConstraint) &&
-            Enum.TryParse<SocialPlatform>(platformConstraint, true, out var explicitPlatform))
+            SocialPlatformParser.TryParse(platformConstraint, out var explicitPlatform))
         {
             targetPlatform = explicitPlatform;
         }

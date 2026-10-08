@@ -87,6 +87,12 @@ export const DraftVariantTabs: React.FC<DraftVariantTabsProps> = ({
                   title="Published"
                 />
               )}
+              {v.threads?.some((t) => t.stage === "PartiallySent") && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"
+                  title="Partially published"
+                />
+              )}
             </button>
           );
         })}

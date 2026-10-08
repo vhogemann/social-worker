@@ -5,6 +5,7 @@ using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
+using SocialWorker.Api.Features.Publishing.MetaThreads.Validation;
 using SocialWorker.Api.Features.Publishing.Validation;
 using Xunit;
 
@@ -21,12 +22,14 @@ public sealed class DraftValidatorResolverTests
             new BlueskyContentValidator(),
             Array.Empty<IValidateDraftRule<BlueskySegmentValidation>>());
         var linkedInValidator = new LinkedInDraftValidator();
+        var threadsValidator = new MetaThreadsDraftValidator();
         var policy = new PlatformContentPolicy();
 
         _resolver = new DraftValidatorResolver(
             canonicalValidator,
             blueskyValidator,
             linkedInValidator,
+            threadsValidator,
             policy);
     }
 
@@ -49,6 +52,13 @@ public sealed class DraftValidatorResolverTests
     {
         var validator = _resolver.Resolve(SocialPlatform.LinkedIn);
         Assert.IsType<LinkedInDraftValidator>(validator);
+    }
+
+    [Fact]
+    public void Resolve_MetaThreads_ReturnsMetaThreadsValidator()
+    {
+        var validator = _resolver.Resolve(SocialPlatform.MetaThreads);
+        Assert.IsType<MetaThreadsDraftValidator>(validator);
     }
 
     [Fact]

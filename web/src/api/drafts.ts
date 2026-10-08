@@ -6,6 +6,8 @@ export interface PostDto {
   segmentIndex: number;
   platform: string;
   remoteId?: string;
+  remoteCid?: string;
+  publishedText?: string;
   url?: string;
 }
 
@@ -18,6 +20,7 @@ export interface PlatformThreadDto {
   posts: PostDto[];
   accountId?: string | null;
   accountHandle?: string | null;
+  lastPublishError?: string | null;
 }
 
 export interface SourceDto {

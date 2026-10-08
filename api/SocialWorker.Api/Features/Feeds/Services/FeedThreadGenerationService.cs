@@ -12,6 +12,7 @@ using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Chat.Models;
 using SocialWorker.Api.Features.Chat.Services;
 using SocialWorker.Api.Features.Drafts;
+using SocialWorker.Api.Infrastructure.Platforms;
 
 namespace SocialWorker.Api.Features.Feeds;
 
@@ -175,7 +176,7 @@ public class FeedThreadGenerationService
             var freshCanonical = await _db.Drafts
                 .FirstOrDefaultAsync(d => d.Id == canonicalDraft.Id, ct) ?? canonicalDraft;
 
-            Enum.TryParse<SocialPlatform>(destination.Platform, true, out var platform);
+            SocialPlatformParser.TryParse(destination.Platform, out var platform);
 
             var variantDraft = new Draft
             {

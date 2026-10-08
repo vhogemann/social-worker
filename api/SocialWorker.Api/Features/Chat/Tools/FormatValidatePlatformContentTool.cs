@@ -48,7 +48,7 @@ public sealed class FormatValidatePlatformContentTool : ChatToolBase<FormatValid
           "properties": {
             "platform": {
               "type": "string",
-              "enum": ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram"],
+              "enum": ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads", "Threads"],
               "description": "Target platform to validate against."
             },
             "content": {
@@ -66,7 +66,7 @@ public sealed class FormatValidatePlatformContentTool : ChatToolBase<FormatValid
 
     public override Task<FormatValidatePlatformContentResult> ExecuteAsync(FormatValidatePlatformContentArgs args, Models.ToolExecutionContext context)
     {
-        if (!Enum.TryParse<SocialPlatform>(args.Platform, true, out var platform))
+        if (!SocialWorker.Api.Infrastructure.Platforms.SocialPlatformParser.TryParse(args.Platform, out var platform))
         {
             return Task.FromResult(new FormatValidatePlatformContentResult(
                 args.Platform,

@@ -117,7 +117,7 @@ describe("accounts API", () => {
         "/api/accounts/linkedin/callback",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ code: "auth-code", accountType: "company" }),
+          body: JSON.stringify({ code: "auth-code", state: "company" }),
         })
       );
     });

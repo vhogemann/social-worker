@@ -14,6 +14,7 @@ import { ReviewOutboxPage } from "./components/Outbox/ReviewOutboxPage";
 import { CalendarPage } from "./components/Calendar/CalendarPage";
 import { SettingsPage } from "./components/Settings/SettingsPage";
 import { LinkedInCallbackPage } from "./components/Settings/LinkedInCallbackPage";
+import { MetaThreadsCallbackPage } from "./components/Settings/MetaThreadsCallbackPage";
 import { GlobalErrorToaster } from "./components/common/GlobalErrorToaster";
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/settings" element={<Navigate to="/settings/account" replace />} />
           <Route path="/settings/:tab" element={<SettingsPage />} />
           <Route path="/oauth/callback/linkedin" element={<LinkedInCallbackPage />} />
+          <Route path="/oauth/callback/threads" element={<MetaThreadsCallbackPage />} />
         </Routes>
         <GlobalErrorToaster />
       </div>

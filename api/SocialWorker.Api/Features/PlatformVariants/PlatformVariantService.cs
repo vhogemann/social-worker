@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Drafts;
+using SocialWorker.Api.Infrastructure.Platforms;
 
 namespace SocialWorker.Api.Features.PlatformVariants;
 
@@ -74,7 +75,7 @@ public sealed class PlatformVariantService
                     continue;
                 }
 
-                if (!Enum.TryParse<SocialPlatform>(account.Platform, true, out var platform))
+                if (!SocialPlatformParser.TryParse(account.Platform, out var platform))
                 {
                     continue;
                 }
@@ -121,7 +122,7 @@ public sealed class PlatformVariantService
         {
             foreach (var platformStr in targetPlatforms!)
             {
-                if (!Enum.TryParse<SocialPlatform>(platformStr, true, out var platform))
+                if (!SocialPlatformParser.TryParse(platformStr, out var platform))
                 {
                     continue;
                 }
@@ -199,7 +200,7 @@ public sealed class PlatformVariantService
 
     public async Task<DraftDto?> GetVariantAsync(Guid userId, Guid canonicalDraftId, string platform, CancellationToken ct)
     {
-        if (!Enum.TryParse<SocialPlatform>(platform, true, out var targetPlatform))
+        if (!SocialPlatformParser.TryParse(platform, out var targetPlatform))
         {
             return null;
         }

@@ -8,6 +8,7 @@ import { ReplyTargetCard } from "./ReplyTargetCard";
 import { useComposerDraft } from "../Composer/ComposerDraftContext";
 import { useDraftStore } from "../../store/draftStore";
 import { enqueueQueueItem } from "../../api/schedules";
+import { Button } from "../common/Button";
 
 export const EditorPanel: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState(false);
@@ -34,6 +35,7 @@ export const EditorPanel: React.FC = () => {
     primaryThread?.stage === "Sent" ||
     activeDraft?.status === "Published" ||
     activeDraft?.status === "Sent";
+  const isPartiallySent = primaryThread?.stage === "PartiallySent";
   const publishedUrl =
     primaryThread?.posts?.find((p) => p.url)?.url ||
     activeDraft?.threads?.flatMap((t) => t.posts || []).find((p) => p.url)?.url;
@@ -92,6 +94,7 @@ export const EditorPanel: React.FC = () => {
         onChangeMode={setPanelMode}
         isCanonical={isCanonical}
         isSent={Boolean(isSent)}
+        isPartiallySent={Boolean(isPartiallySent)}
         canPublish={Boolean(activeDraft && (!isCanonical || primaryThread))}
         isPublishing={isPublishing}
         onOpenAdaptModal={() => setAdaptModalOpen(true)}
@@ -99,6 +102,30 @@ export const EditorPanel: React.FC = () => {
         onAddToSchedule={handleAddToSchedule}
         publishedUrl={publishedUrl}
       />
+
+      {isPartiallySent && !isSent && (
+        <div
+          className="mx-3 mt-2 px-3 py-2 text-xs rounded-md bg-amber-950/60 border border-amber-800 text-amber-300 flex items-center justify-between shadow-sm"
+          data-testid="partially-sent-banner"
+        >
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold">Publication incomplete</span>
+            <span>
+              {primaryThread?.posts?.length ?? 0} post(s) published.
+              {primaryThread?.lastPublishError ? ` Error: ${primaryThread.lastPublishError}` : ""}
+            </span>
+          </div>
+          <Button
+            size="xs"
+            variant="primary"
+            onClick={handlePublish}
+            loading={isPublishing}
+            data-testid="resume-publish-banner-btn"
+          >
+            Resume Publish
+          </Button>
+        </div>
+      )}
 
       {scheduleNotice && (
         <div

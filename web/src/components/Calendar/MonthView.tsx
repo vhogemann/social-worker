@@ -2,7 +2,7 @@ import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCheck, faPlus } from "@fortawesome/free-solid-svg-icons";
 import type { CalendarEventDto } from "../../api/schedules";
-import { PLATFORM_BADGE_COLORS, PLATFORM_ICONS } from "../../config/platformBadges";
+import { PLATFORM_BADGE_COLORS, PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 import {
   getMonthGrid,
   groupEventsByDate,
@@ -135,7 +135,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
                           onEventClick ? onEventClick(evt) : onSelectDate(cell.date);
                         }}
                         className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono truncate ${badgeClass}`}
-                        title={`${timeStr} - ${platformKey}: ${evt.title || "Scheduled Post"}`}
+                        title={`${timeStr} - ${getPlatformLabel(platformKey)}: ${evt.title || "Scheduled Post"}`}
                       >
                         {iconDef && (
                           <FontAwesomeIcon icon={iconDef} className="text-[9px] shrink-0" />

@@ -68,7 +68,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
             },
             "platforms": {
               "type": "array",
-              "items": { "type": "string", "enum": ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram"] },
+              "items": { "type": "string", "enum": ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads", "Threads"] },
               "description": "Target platforms to generate variants for."
             }
           },
@@ -106,7 +106,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
 
         foreach (var platform in args.Platforms)
         {
-            if (!Enum.TryParse<SocialPlatform>(platform, true, out var targetPlatform))
+            if (!SocialWorker.Api.Infrastructure.Platforms.SocialPlatformParser.TryParse(platform, out var targetPlatform))
             {
                 errors.Add($"Invalid platform: {platform}");
                 continue;

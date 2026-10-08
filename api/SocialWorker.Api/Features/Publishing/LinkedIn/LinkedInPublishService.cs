@@ -123,6 +123,7 @@ public sealed class LinkedInPublishService
             {
                 SegmentIndex = contract.SourceSegmentIndex,
                 RemoteId = remoteId,
+                PublishedText = contract.BodyText,
                 Url = postUrl
             };
 

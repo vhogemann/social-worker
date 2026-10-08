@@ -10,7 +10,9 @@ public class Account
     
     public string Platform { get; set; } = string.Empty;
     public string Handle { get; set; } = string.Empty;
+    public string? ExternalId { get; set; }
     public string CredentialsEncrypted { get; set; } = string.Empty;
+    public DateTime? TokenExpiresAt { get; set; }
     
     public string Status { get; set; } = "Active"; // Active, Invalid
     

@@ -5,6 +5,9 @@ using SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
 using SocialWorker.Api.Features.Publishing.Validation;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
+using SocialWorker.Api.Features.Publishing.MetaThreads;
+using SocialWorker.Api.Features.Publishing.Resilience;
+using SocialWorker.Api.Features.Accounts.Tokens;
 
 namespace SocialWorker.Api.Infrastructure.Extensions;
 
@@ -13,12 +16,17 @@ static partial class ServiceCollectionExtensions
     internal static void AddPublishing(this IHostApplicationBuilder builder)
     {
         builder.Services.Configure<LinkedInOptions>(builder.Configuration.GetSection(LinkedInOptions.SectionName));
+        builder.Services.Configure<MetaThreadsOptions>(builder.Configuration.GetSection(MetaThreadsOptions.SectionName));
+        builder.Services.AddHttpClient<MetaThreadsOAuthService>();
+        builder.Services.AddScoped<ITokenRefresher, MetaThreadsTokenRefresher>();
+        builder.Services.AddHostedService<TokenRefreshHostedService>();
         builder.Services.AddSingleton<PlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, BlueskyPlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, TwitterPlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, LinkedInPlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, InstagramPlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, FacebookPlatformContentPolicy>();
+        builder.Services.AddSingleton<IPlatformContentPolicy, MetaThreadsPlatformContentPolicy>();
         builder.Services.AddSingleton<BlueskyContentValidator>();
         builder.Services.AddSingleton<IValidateDraftRule<BlueskySegmentValidation>, BlueskyMaxCharactersRule>();
         builder.Services.AddSingleton<IValidateDraftRule<BlueskySegmentValidation>, BlueskyMaxImagesRule>();
@@ -33,7 +41,10 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<BlueskyDraftValidator>();
         builder.Services.AddScoped<CanonicalDraftValidator>();
         builder.Services.AddScoped<LinkedInDraftValidator>();
+        builder.Services.AddScoped<SocialWorker.Api.Features.Publishing.MetaThreads.Validation.MetaThreadsDraftValidator>();
         builder.Services.AddScoped<IDraftValidatorResolver, DraftValidatorResolver>();
+        builder.Services.AddScoped<PublishValidationService>();
+        builder.Services.AddScoped<PublishOutcomeRecorder>();
         builder.Services.AddHttpClient<BlueskyApiClient>();
         builder.Services.AddHttpClient<BlueskyContentPreparationService>();
         builder.Services.AddScoped<BlueskyFacetBuilder>();
@@ -44,6 +55,8 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddHttpClient<LinkedInOAuthService>();
         builder.Services.AddScoped<LinkedInPublishService>();
         builder.Services.AddScoped<IPublisher, LinkedInPublisher>();
+        builder.Services.AddHttpClient<MetaThreadsApiClient>();
+        builder.Services.AddScoped<IPublisher, MetaThreadsPublisher>();
         builder.Services.AddScoped<IPublisher, FacebookPublisher>();
         builder.Services.AddScoped<IPublisher, InstagramPublisher>();
         builder.Services.AddScoped<IPublisherResolver, PublisherResolver>();

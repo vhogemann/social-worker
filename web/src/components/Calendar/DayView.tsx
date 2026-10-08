@@ -10,7 +10,7 @@ import {
   faPenNib
 } from "@fortawesome/free-solid-svg-icons";
 import type { CalendarEventDto } from "../../api/schedules";
-import { PLATFORM_BADGE_COLORS, PLATFORM_ICONS } from "../../config/platformBadges";
+import { PLATFORM_BADGE_COLORS, PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 import { Button } from "../common/Button";
 import { Badge } from "../common/Badge";
 import { EmptyState } from "../common/EmptyState";
@@ -153,7 +153,7 @@ export const DayView: React.FC<DayViewProps> = ({
                             {iconDef && (
                               <FontAwesomeIcon icon={iconDef} className="mr-1 text-[10px]" />
                             )}
-                            {platformKey}
+                            {getPlatformLabel(platformKey)}
                           </Badge>
                         </div>
                         <h4 className="text-sm font-semibold text-foreground truncate">
@@ -204,7 +204,7 @@ export const DayView: React.FC<DayViewProps> = ({
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono ${badgeClass}`}
                           >
                             {iconDef && <FontAwesomeIcon icon={iconDef} className="text-[9px]" />}
-                            {platformKey}
+                            {getPlatformLabel(platformKey)}
                           </span>
 
                           {evt.totalCapacity && (

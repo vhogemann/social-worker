@@ -4,6 +4,8 @@ export interface AccountDto {
   id: string;
   platform: string;
   handle: string;
+  externalId?: string;
+  tokenExpiresAt?: string;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -51,14 +53,41 @@ export interface LinkedInCallbackResponse {
   organizationHandles: string[];
 }
 
-export async function submitLinkedInCallback(code: string, accountType?: string): Promise<LinkedInCallbackResponse> {
+export async function submitLinkedInCallback(code: string, state?: string, accountType?: string): Promise<LinkedInCallbackResponse> {
   const res = await apiFetch("/api/accounts/linkedin/callback", {
     method: "POST",
-    body: JSON.stringify({ code, accountType }),
+    body: JSON.stringify({ code, state, accountType }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
     throw new Error(err?.error || "Failed to exchange LinkedIn auth code");
+  }
+  return res.json();
+}
+
+export interface MetaThreadsCallbackResponse {
+  externalId: string;
+  username: string;
+  tokenExpiresAt: string;
+}
+
+export async function getMetaThreadsAuthUrl(): Promise<{ authUrl: string }> {
+  const res = await apiFetch("/api/accounts/metathreads/auth-url");
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || "Failed to fetch Threads auth URL");
+  }
+  return res.json();
+}
+
+export async function submitMetaThreadsCallback(code: string, state: string): Promise<MetaThreadsCallbackResponse> {
+  const res = await apiFetch("/api/accounts/metathreads/callback", {
+    method: "POST",
+    body: JSON.stringify({ code, state }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || "Failed to exchange Threads auth code");
   }
   return res.json();
 }

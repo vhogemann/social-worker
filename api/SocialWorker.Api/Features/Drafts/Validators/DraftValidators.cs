@@ -13,7 +13,7 @@ public sealed class CreateDraftRequestValidator : AbstractValidator<CreateDraftR
             .When(x => !string.IsNullOrEmpty(x.Title));
 
         RuleFor(x => x.TargetPlatform)
-            .Must(p => Enum.TryParse<SocialPlatform>(p, true, out _))
+            .Must(p => SocialWorker.Api.Infrastructure.Platforms.SocialPlatformParser.TryParse(p, out _))
             .WithMessage("Invalid target platform.")
             .When(x => !string.IsNullOrWhiteSpace(x.TargetPlatform));
     }
@@ -53,7 +53,7 @@ public sealed class CreatePlatformThreadRequestValidator : AbstractValidator<Cre
     {
         RuleFor(x => x.Platform)
             .NotEmpty().WithMessage("Platform is required.")
-            .Must(p => Enum.TryParse<SocialPlatform>(p, true, out _))
+            .Must(p => SocialWorker.Api.Infrastructure.Platforms.SocialPlatformParser.TryParse(p, out _))
             .WithMessage("Invalid platform name.");
     }
 }

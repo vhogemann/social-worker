@@ -22,6 +22,7 @@ import { EmptyState } from "../common/EmptyState";
 import { AlertBanner } from "../common/AlertBanner";
 import { Badge } from "../common/Badge";
 import { ConfirmModal } from "../common/ConfirmModal";
+import { getPlatformLabel } from "../../config/platformBadges";
 
 export const ReviewOutboxPage: React.FC = () => {
   const navigate = useNavigate();
@@ -199,7 +200,7 @@ export const ReviewOutboxPage: React.FC = () => {
                           key={t.threadId}
                           className="px-2 py-0.5 rounded bg-background border border-border text-foreground text-[11px] font-mono"
                         >
-                          {t.platform} {t.accountHandle ? `(${t.accountHandle})` : ""}
+                          {getPlatformLabel(t.platform)} {t.accountHandle ? `(${t.accountHandle})` : ""}
                         </span>
                       ))}
                     </div>

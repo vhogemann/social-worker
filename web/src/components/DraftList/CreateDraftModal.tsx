@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner, faArrowUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
 import { listAccounts, type AccountDto } from "../../api/accounts";
-import { PLATFORM_ICONS } from "../../config/platformBadges";
+import { PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 
 export const ALL_PLATFORMS = [
   { id: "Bluesky", label: "Bluesky", description: "Multi-post thread (300 chars/post)" },
@@ -11,6 +11,7 @@ export const ALL_PLATFORMS = [
   { id: "LinkedIn", label: "LinkedIn", description: "Single long-form post (~3000 chars)" },
   { id: "Facebook", label: "Facebook", description: "Conversational, no hard limit" },
   { id: "Instagram", label: "Instagram", description: "Visual-first, 2200 char caption" },
+  { id: "MetaThreads", label: "Threads", description: "Reply-chained thread (500 chars/post)" },
 ];
 
 interface Props {
@@ -130,7 +131,7 @@ export function CreateDraftModal({ isOpen, onClose, onCreate }: Props) {
                       <div className="flex items-center gap-2.5 min-w-0">
                         {icon && <FontAwesomeIcon icon={icon} className="w-4 h-4 text-accent shrink-0" />}
                         <div className="min-w-0 truncate">
-                          <span className="font-medium text-foreground mr-1.5">{acc.platform}</span>
+                          <span className="font-medium text-foreground mr-1.5">{getPlatformLabel(acc.platform)}</span>
                           <span className="text-xs text-muted font-mono truncate">@{acc.handle.replace(/^@/, '')}</span>
                         </div>
                       </div>

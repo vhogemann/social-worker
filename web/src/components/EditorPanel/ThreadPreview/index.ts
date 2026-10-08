@@ -1,4 +1,5 @@
 export { ThreadPreview } from "./ThreadPreview";
+export { MetaThreadsPostPreview } from "./MetaThreadsPostPreview";
 export { PreviewCard } from "./PreviewCard";
 export { PreviewCardHeader } from "./PreviewCardHeader";
 export { CodeFencesSection } from "./CodeFencesSection";

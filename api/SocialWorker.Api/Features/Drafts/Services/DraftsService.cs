@@ -15,12 +15,13 @@ using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Llm;
+using SocialWorker.Api.Infrastructure.Platforms;
 
 namespace SocialWorker.Api.Features.Drafts;
 
-public sealed record PostDto(Guid Id, Guid PlatformThreadId, int SegmentIndex, string Platform, string? RemoteId, string? Url);
+public sealed record PostDto(Guid Id, Guid PlatformThreadId, int SegmentIndex, string Platform, string? RemoteId, string? Url, string? RemoteCid = null, string? PublishedText = null);
 
-public sealed record PlatformThreadDto(Guid Id, Guid DraftId, string Platform, string Stage, string? Content, List<PostDto> Posts, Guid? AccountId = null, string? AccountHandle = null);
+public sealed record PlatformThreadDto(Guid Id, Guid DraftId, string Platform, string Stage, string? Content, List<PostDto> Posts, Guid? AccountId = null, string? AccountHandle = null, string? LastPublishError = null);
 
 public sealed record MediaAssetMiniDto(
     Guid Id,
@@ -110,8 +111,8 @@ public sealed class DraftsService
     {
         var threadDtos = threads.Select(t =>
         {
-            var threadPosts = posts.Where(p => p.PlatformThreadId == t.Id).Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url)).ToList();
-            return new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content, threadPosts, t.AccountId, t.Account?.Handle);
+            var threadPosts = posts.Where(p => p.PlatformThreadId == t.Id).Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url, p.RemoteCid, p.PublishedText)).ToList();
+            return new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content, threadPosts, t.AccountId, t.Account?.Handle, t.LastPublishError);
         }).ToList();
 
         var mediaDtos = media.Select(m => new MediaAssetMiniDto(
@@ -273,13 +274,13 @@ public sealed class DraftsService
         if (targetAccountId.HasValue)
         {
             targetAccount = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == targetAccountId.Value && a.UserId == userId, ct);
-            if (targetAccount != null && Enum.TryParse<SocialPlatform>(targetAccount.Platform, true, out var pFromAcc))
+            if (targetAccount != null && SocialPlatformParser.TryParse(targetAccount.Platform, out var pFromAcc))
             {
                 platform = pFromAcc;
             }
         }
 
-        if (platform == null && !string.IsNullOrWhiteSpace(targetPlatform) && Enum.TryParse<SocialPlatform>(targetPlatform, true, out var parsed))
+        if (platform == null && !string.IsNullOrWhiteSpace(targetPlatform) && SocialPlatformParser.TryParse(targetPlatform, out var parsed))
         {
             platform = parsed;
         }
@@ -595,10 +596,11 @@ public sealed class DraftsService
 
         return threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
             posts.Where(p => p.PlatformThreadId == t.Id)
-                 .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url))
+                 .Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url, p.RemoteCid, p.PublishedText))
                  .ToList(),
             t.AccountId,
-            t.Account?.Handle)).ToList();
+            t.Account?.Handle,
+            t.LastPublishError)).ToList();
     }
 
     public async Task<PlatformThreadDto> CreatePlatformThreadAsync(Guid userId, Guid id, string platform, Guid? accountId = null, CancellationToken ct = default)
@@ -636,7 +638,7 @@ public sealed class DraftsService
         _db.PlatformThreads.Add(thread);
         await _db.SaveChangesAsync(ct);
 
-        return new PlatformThreadDto(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>(), thread.AccountId, thread.Account?.Handle);
+        return new PlatformThreadDto(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content, new List<PostDto>(), thread.AccountId, thread.Account?.Handle, thread.LastPublishError);
     }
 
     public async Task<PlatformThreadDto> UpdatePlatformThreadAsync(
@@ -671,9 +673,10 @@ public sealed class DraftsService
 
         var posts = await _db.Posts.Where(p => p.PlatformThreadId == threadId).ToListAsync(ct);
         return new PlatformThreadDto(thread.Id, thread.DraftId, thread.Platform, thread.Stage.ToString(), thread.Content,
-            posts.Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url)).ToList(),
+            posts.Select(p => new PostDto(p.Id, p.PlatformThreadId, p.SegmentIndex, p.Platform, p.RemoteId, p.Url, p.RemoteCid, p.PublishedText)).ToList(),
             thread.AccountId,
-            thread.Account?.Handle);
+            thread.Account?.Handle,
+            thread.LastPublishError);
     }
 
     public Task ReconcileSegmentsAsync(Draft draft, string markdown, CancellationToken ct = default)

@@ -37,6 +37,8 @@ static partial class ServiceCollectionExtensions
 
         builder.Services.AddScoped<Features.Providers.Services.ProvidersService>();
         builder.Services.AddScoped<ApiKeyService>();
+        builder.Services.AddScoped<OAuthStateService>();
+        builder.Services.AddScoped<AccountUpsertService>();
 
         builder.Services.AddSingleton<Features.Mcp.Services.McpSessionManager>();
         builder.Services.AddScoped<Features.Mcp.Services.McpToolRegistry>();

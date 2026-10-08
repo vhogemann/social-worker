@@ -17,6 +17,7 @@ export interface EditorPanelHeaderProps {
   onChangeMode: (mode: "edit" | "preview") => void;
   isCanonical: boolean;
   isSent: boolean;
+  isPartiallySent?: boolean;
   canPublish: boolean;
   isPublishing: boolean;
   onOpenAdaptModal: () => void;
@@ -35,6 +36,7 @@ export const EditorPanelHeader: React.FC<EditorPanelHeaderProps> = ({
   onChangeMode,
   isCanonical,
   isSent,
+  isPartiallySent,
   canPublish,
   isPublishing,
   onOpenAdaptModal,
@@ -146,7 +148,7 @@ export const EditorPanelHeader: React.FC<EditorPanelHeaderProps> = ({
                   className="uppercase tracking-wider font-semibold rounded-r-none border-r border-accent-foreground/20"
                   data-testid="publish-primary-btn"
                 >
-                  {isPublishing ? "Publishing..." : "Publish"}
+                  {isPublishing ? "Publishing..." : isPartiallySent ? "Resume Publish" : "Publish"}
                 </Button>
 
                 {/* Split Dropdown Trigger */}

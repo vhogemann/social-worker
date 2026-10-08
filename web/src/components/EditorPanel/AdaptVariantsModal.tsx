@@ -5,9 +5,9 @@ import { faSpinner, faArrowUpRightFromSquare } from "@fortawesome/free-solid-svg
 import { useDraftStore } from "../../store/draftStore";
 import { generateVariants } from "../../api/drafts";
 import { listAccounts, type AccountDto } from "../../api/accounts";
-import { PLATFORM_ICONS } from "../../config/platformBadges";
+import { PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 
-const PLATFORMS = ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram"];
+const PLATFORMS = ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads"];
 
 interface Props {
   isOpen: boolean;
@@ -74,7 +74,7 @@ export function AdaptVariantsModal({ isOpen, onClose, draftId }: Props) {
       const data = await generateVariants(draftId, undefined, selectedAccountIds);
       const variants = data.variants || [];
       if (variants.length > 0) {
-        setResult(`Created ${variants.length} variant(s): ${variants.map((v: any) => `${v.targetPlatform || v.platform}${v.targetAccountHandle ? ` (@${v.targetAccountHandle})` : ""}`).join(", ")}`);
+        setResult(`Created ${variants.length} variant(s): ${variants.map((v: any) => `${getPlatformLabel(v.targetPlatform || v.platform)}${v.targetAccountHandle ? ` (@${v.targetAccountHandle})` : ""}`).join(", ")}`);
         useDraftStore.getState().loadDrafts();
       } else {
         setResult("No variants were created (they may already exist).");
@@ -92,7 +92,7 @@ export function AdaptVariantsModal({ isOpen, onClose, draftId }: Props) {
         <div className="px-4 py-3 border-b border-border">
           <h2 className="text-sm font-semibold text-foreground">Adapt to Other Accounts</h2>
           <p className="text-xs text-muted mt-0.5">
-            From {sourcePlatform}{activeDraft?.targetAccountHandle ? ` (@${activeDraft.targetAccountHandle})` : ""} to:
+            From {getPlatformLabel(sourcePlatform)}{activeDraft?.targetAccountHandle ? ` (@${activeDraft.targetAccountHandle})` : ""} to:
           </p>
         </div>
         <div className="px-4 py-3 space-y-2">
@@ -127,7 +127,7 @@ export function AdaptVariantsModal({ isOpen, onClose, draftId }: Props) {
                     <div className="flex items-center gap-2.5 min-w-0">
                       {icon && <FontAwesomeIcon icon={icon} className="w-4 h-4 text-accent shrink-0" />}
                       <div className="min-w-0 truncate">
-                        <span className="text-sm font-medium text-foreground mr-1.5">{acc.platform}</span>
+                        <span className="text-sm font-medium text-foreground mr-1.5">{getPlatformLabel(acc.platform)}</span>
                         <span className="text-xs text-muted font-mono truncate">@{acc.handle.replace(/^@/, '')}</span>
                       </div>
                     </div>

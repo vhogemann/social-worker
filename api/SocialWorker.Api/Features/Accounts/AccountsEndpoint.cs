@@ -11,8 +11,10 @@ using Microsoft.Extensions.Options;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
+using SocialWorker.Api.Features.Publishing.MetaThreads;
 using SocialWorker.Api.Infrastructure.Security;
 using SocialWorker.Api.Infrastructure;
+using System.Text.Json;
 
 namespace SocialWorker.Api.Features.Accounts;
 
@@ -34,6 +36,8 @@ public static class AccountsEndpoint
                     a.Id,
                     a.Platform,
                     a.Handle,
+                    a.ExternalId,
+                    a.TokenExpiresAt,
                     a.Status,
                     a.CreatedAt,
                     a.UpdatedAt
@@ -43,7 +47,7 @@ public static class AccountsEndpoint
             return Results.Ok(accounts);
         });
 
-        group.MapPost("/", async (AccountRequest req, AppDbContext db, ClaimsPrincipal user, IConfiguration config) =>
+        group.MapPost("/", async (AccountRequest req, AccountUpsertService upsertService, AppDbContext db, ClaimsPrincipal user, IConfiguration config) =>
         {
             var userId = user.GetUserId();
             if (userId is null) return Results.Unauthorized();
@@ -54,28 +58,8 @@ public static class AccountsEndpoint
                 return Results.Problem("Server encryption key not configured.");
             }
 
-            var existing = await db.Accounts
-                .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == req.Platform && a.Handle == req.Handle);
-
-            if (existing != null)
-            {
-                existing.CredentialsEncrypted = CryptoHelper.EncryptString(req.AppPassword, encryptionKey);
-                existing.UpdatedAt = DateTime.UtcNow;
-                existing.Status = "Active";
-            }
-            else
-            {
-                var account = new Account
-                {
-                    UserId = userId.Value,
-                    Platform = req.Platform,
-                    Handle = req.Handle,
-                    CredentialsEncrypted = CryptoHelper.EncryptString(req.AppPassword, encryptionKey),
-                    Status = "Active"
-                };
-                db.Accounts.Add(account);
-            }
-
+            var encryptedPassword = CryptoHelper.EncryptString(req.AppPassword, encryptionKey);
+            await upsertService.UpsertAsync(userId.Value, req.Platform, req.Handle, encryptedPassword);
             await db.SaveChangesAsync();
             return Results.Ok();
         });
@@ -95,8 +79,11 @@ public static class AccountsEndpoint
             return Results.Ok();
         });
 
-        group.MapGet("/linkedin/auth-url", (string? type, IOptions<LinkedInOptions> options) =>
+        group.MapGet("/linkedin/auth-url", async (string? type, IOptions<LinkedInOptions> options, OAuthStateService oauthStateService, ClaimsPrincipal user) =>
         {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
             var opts = options.Value;
             var isCompany = string.Equals(type, "company", StringComparison.OrdinalIgnoreCase);
 
@@ -120,13 +107,17 @@ public static class AccountsEndpoint
 
             var scopes = Uri.EscapeDataString(defaultScopes);
             var redirectUriEscaped = Uri.EscapeDataString(redirectUri);
-            var state = isCompany ? "company" : "personal";
-            var authUrl = $"https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={clientId}&redirect_uri={redirectUriEscaped}&scope={scopes}&state={state}";
+            var accountType = isCompany ? "company" : "personal";
 
-            return Results.Ok(new { authUrl, accountType = state });
+            var statePayload = JsonSerializer.Serialize(new { AccountType = accountType });
+            var stateNonce = await oauthStateService.IssueAsync(userId.Value, "LinkedIn", statePayload);
+
+            var authUrl = $"https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={clientId}&redirect_uri={redirectUriEscaped}&scope={scopes}&state={stateNonce}";
+
+            return Results.Ok(new { authUrl, accountType, state = stateNonce });
         });
 
-        group.MapPost("/linkedin/callback", async (LinkedInCallbackRequest req, LinkedInOAuthService oauth, AppDbContext db, ClaimsPrincipal user, IConfiguration config) =>
+        group.MapPost("/linkedin/callback", async (LinkedInCallbackRequest req, LinkedInOAuthService oauth, OAuthStateService oauthStateService, AccountUpsertService upsertService, AppDbContext db, ClaimsPrincipal user, IConfiguration config) =>
         {
             var userId = user.GetUserId();
             if (userId is null) return Results.Unauthorized();
@@ -137,7 +128,34 @@ public static class AccountsEndpoint
                 return Results.Problem("Server encryption key not configured.");
             }
 
-            var isCompany = string.Equals(req.AccountType, "company", StringComparison.OrdinalIgnoreCase);
+            var stateNonce = req.State;
+            string? targetAccountType = req.AccountType;
+
+            if (!string.IsNullOrWhiteSpace(stateNonce))
+            {
+                var oauthState = await oauthStateService.ConsumeAsync(userId.Value, "LinkedIn", stateNonce);
+                if (oauthState == null)
+                {
+                    return Results.BadRequest(new ApiErrorResponse("Invalid or expired OAuth state. Please try connecting again."));
+                }
+
+                if (!string.IsNullOrWhiteSpace(oauthState.PayloadJson))
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(oauthState.PayloadJson);
+                        if (doc.RootElement.TryGetProperty("AccountType", out var prop))
+                        {
+                            targetAccountType = prop.GetString();
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
+            var isCompany = string.Equals(targetAccountType, "company", StringComparison.OrdinalIgnoreCase);
             var tokenResp = await oauth.ExchangeCodeAsync(req.Code, isCompany, default);
             var userInfo = await oauth.FetchUserInfoAsync(tokenResp.AccessToken, default);
 
@@ -150,27 +168,8 @@ public static class AccountsEndpoint
                     authorUrn = $"urn:li:person:{authorUrn}";
                 }
 
-                var existing = await db.Accounts
-                    .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == "LinkedIn" && a.Handle == authorUrn);
-
-                if (existing != null)
-                {
-                    existing.CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey);
-                    existing.UpdatedAt = DateTime.UtcNow;
-                    existing.Status = "Active";
-                }
-                else
-                {
-                    var account = new Account
-                    {
-                        UserId = userId.Value,
-                        Platform = "LinkedIn",
-                        Handle = authorUrn,
-                        CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey),
-                        Status = "Active"
-                    };
-                    db.Accounts.Add(account);
-                }
+                var encryptedToken = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey);
+                await upsertService.UpsertAsync(userId.Value, "LinkedIn", authorUrn, encryptedToken);
             }
 
             var connectedOrgHandles = new List<string>();
@@ -181,30 +180,8 @@ public static class AccountsEndpoint
                     ? $"{org.Name} ({org.Urn})"
                     : org.Urn;
 
-                var orgExisting = await db.Accounts
-                    .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.Platform == "LinkedIn" 
-                        && (a.Handle == orgHandle || a.Handle == org.Urn));
-
-                if (orgExisting != null)
-                {
-                    orgExisting.Handle = orgHandle;
-                    orgExisting.CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey);
-                    orgExisting.UpdatedAt = DateTime.UtcNow;
-                    orgExisting.Status = "Active";
-                }
-                else
-                {
-                    var orgAccount = new Account
-                    {
-                        UserId = userId.Value,
-                        Platform = "LinkedIn",
-                        Handle = orgHandle,
-                        CredentialsEncrypted = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey),
-                        Status = "Active"
-                    };
-                    db.Accounts.Add(orgAccount);
-                }
-
+                var encryptedToken = CryptoHelper.EncryptString(tokenResp.AccessToken, encryptionKey);
+                await upsertService.UpsertAsync(userId.Value, "LinkedIn", orgHandle, encryptedToken);
                 connectedOrgHandles.Add(orgHandle);
             }
 
@@ -216,10 +193,81 @@ public static class AccountsEndpoint
             await db.SaveChangesAsync();
             return Results.Ok(new LinkedInCallbackResponse(authorUrn, connectedOrgHandles));
         });
+
+        group.MapGet("/metathreads/auth-url", async (
+            ClaimsPrincipal user,
+            OAuthStateService oauthStateService,
+            MetaThreadsOAuthService threadsOAuth) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var nonce = await oauthStateService.IssueAsync(userId.Value, "metathreads");
+            var authUrl = threadsOAuth.GetAuthorizationUrl(nonce);
+            return Results.Ok(new { authUrl });
+        });
+
+        group.MapPost("/metathreads/callback", async (
+            MetaThreadsCallbackRequest req,
+            ClaimsPrincipal user,
+            OAuthStateService oauthStateService,
+            AccountUpsertService upsertService,
+            MetaThreadsOAuthService threadsOAuth,
+            AppDbContext db,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(req.Code))
+            {
+                return Results.BadRequest(new ApiErrorResponse("Authorization code is required."));
+            }
+
+            if (string.IsNullOrWhiteSpace(req.State))
+            {
+                return Results.BadRequest(new ApiErrorResponse("OAuth state parameter is required."));
+            }
+
+            var oauthState = await oauthStateService.ConsumeAsync(userId.Value, "metathreads", req.State, ct);
+            if (oauthState is null)
+            {
+                return Results.BadRequest(new ApiErrorResponse("Invalid or expired OAuth state parameter."));
+            }
+
+            var encryptionKey = config["Auth:DbEncryptionKey"];
+            if (string.IsNullOrEmpty(encryptionKey))
+            {
+                return Results.Problem("Server encryption key not configured.");
+            }
+
+            var shortToken = await threadsOAuth.ExchangeCodeAsync(req.Code, ct);
+            var longToken = await threadsOAuth.ExchangeForLongLivedTokenAsync(shortToken.AccessToken, ct);
+            var profile = await threadsOAuth.FetchUserProfileAsync(longToken.AccessToken, ct);
+
+            var expiresAt = DateTime.UtcNow.AddSeconds(longToken.ExpiresIn);
+            var encryptedToken = CryptoHelper.EncryptString(longToken.AccessToken, encryptionKey);
+
+            await upsertService.UpsertAsync(
+                userId: userId.Value,
+                platform: "MetaThreads",
+                handle: profile.Username,
+                credentialsEncrypted: encryptedToken,
+                externalId: profile.Id,
+                tokenExpiresAt: expiresAt,
+                ct: ct);
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new MetaThreadsCallbackResponse(profile.Id, profile.Username, expiresAt));
+        });
     }
 }
 
-public record LinkedInCallbackRequest(string Code, string? AccountType = null);
+public record LinkedInCallbackRequest(string Code, string? State = null, string? AccountType = null);
 public record LinkedInCallbackResponse(string? PersonalHandle, IReadOnlyList<string> OrganizationHandles);
+
+public record MetaThreadsCallbackRequest(string Code, string State);
+public record MetaThreadsCallbackResponse(string ExternalId, string Username, DateTime TokenExpiresAt);
 
 public record AccountRequest(string Platform, string Handle, string AppPassword);

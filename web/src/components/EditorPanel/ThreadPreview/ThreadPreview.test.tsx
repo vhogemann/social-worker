@@ -63,4 +63,38 @@ Second segment`} />);
 
     expect(screen.getByText(/No content to preview/i)).toBeInTheDocument();
   });
+
+  it("renders metathreads preview when target platform is MetaThreads", () => {
+    useDraftStore.setState((s) => ({
+      ...s,
+      drafts: s.drafts.map((d) =>
+        d.id === "draft-1" ? { ...d, targetPlatform: "MetaThreads" } : d
+      ),
+    }));
+
+    render(
+      <ThreadPreview
+        content={`Threads post 1\n---\nThreads post 2`}
+      />
+    );
+
+    expect(screen.getByTestId("metathreads-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("preview-card-0")).toHaveTextContent("Threads post 1");
+    expect(screen.getByTestId("preview-card-1")).toHaveTextContent("Threads post 2");
+  });
+
+  it("renders 500-character warning on MetaThreads preview when over limit", () => {
+    useDraftStore.setState((s) => ({
+      ...s,
+      drafts: s.drafts.map((d) =>
+        d.id === "draft-1" ? { ...d, targetPlatform: "MetaThreads" } : d
+      ),
+    }));
+
+    const longPost = "A".repeat(505);
+    render(<ThreadPreview content={longPost} />);
+
+    expect(screen.getByTestId("metathreads-preview")).toBeInTheDocument();
+    expect(screen.getByText(/Exceeds 500-character Threads limit/i)).toBeInTheDocument();
+  });
 });

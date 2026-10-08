@@ -29,6 +29,7 @@ public class AppDbContext : DbContext
     public DbSet<Schedule> Schedules => Set<Schedule>();
     public DbSet<ScheduleSlotRule> ScheduleSlotRules => Set<ScheduleSlotRule>();
     public DbSet<ScheduleQueueItem> ScheduleQueueItems => Set<ScheduleQueueItem>();
+    public DbSet<OAuthState> OAuthStates => Set<OAuthState>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -105,6 +106,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.Platform).HasMaxLength(100);
             e.Property(x => x.Stage).HasConversion<string>().HasMaxLength(50);
             e.Property(x => x.Content).HasColumnType("text");
+            e.Property(x => x.LastPublishError).HasColumnType("text");
             e.HasOne(x => x.Draft)
                 .WithMany(d => d.Threads)
                 .HasForeignKey(x => x.DraftId)
@@ -177,8 +179,10 @@ public class AppDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Platform).HasMaxLength(100);
             e.Property(x => x.Handle).HasMaxLength(255);
+            e.Property(x => x.ExternalId).HasMaxLength(255);
             e.Property(x => x.Status).HasMaxLength(50);
             e.HasIndex(x => new { x.UserId, x.Platform, x.Handle }).IsUnique();
+            e.HasIndex(x => new { x.UserId, x.Platform, x.ExternalId });
             e.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
@@ -190,6 +194,8 @@ public class AppDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Platform).HasMaxLength(100);
             e.Property(x => x.RemoteId).HasMaxLength(255);
+            e.Property(x => x.RemoteCid).HasMaxLength(255);
+            e.Property(x => x.PublishedText).HasColumnType("text");
             e.Property(x => x.Url).HasMaxLength(1000);
             e.HasOne(x => x.Draft)
                 .WithMany()
@@ -423,6 +429,20 @@ public class AppDbContext : DbContext
             e.HasIndex(x => new { x.Status, x.AssignedSlotUtc });
             e.HasIndex(x => x.DraftId);
             e.HasIndex(x => x.PlatformThreadId);
+        });
+
+        modelBuilder.Entity<OAuthState>(e =>
+        {
+            e.HasKey(x => x.Nonce);
+            e.Property(x => x.Nonce).HasMaxLength(128);
+            e.Property(x => x.Provider).HasMaxLength(50);
+            e.Property(x => x.PayloadJson).HasColumnType("text");
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.UserId, x.Provider });
+            e.HasIndex(x => x.ExpiresAt);
         });
     }
 }

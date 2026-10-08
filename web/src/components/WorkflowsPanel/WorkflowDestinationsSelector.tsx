@@ -1,6 +1,7 @@
 import React from "react";
 import { type AccountDto } from "../../api/accounts";
 import { type ScheduleSummaryDto } from "../../api/schedules";
+import { getPlatformLabel } from "../../config/platformBadges";
 
 export type PublishingMode = "Manual" | "Automatic" | "Scheduled";
 
@@ -178,7 +179,7 @@ export const WorkflowDestinationsSelector: React.FC<WorkflowDestinationsSelector
       <div className="space-y-2 bg-bg border border-border rounded-lg p-3">
         {connectedAccounts.length > 0 ? (
           connectedAccounts.map((acc) =>
-            renderDestinationRow(acc.platform, acc.platform, `@${acc.handle}`, acc.id)
+            renderDestinationRow(acc.platform, getPlatformLabel(acc.platform), `@${acc.handle}`, acc.id)
           )
         ) : (
           renderDestinationRow("Bluesky", "Bluesky", "(Default)")

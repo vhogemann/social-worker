@@ -12,6 +12,7 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Publishing.Bluesky;
+using SocialWorker.Api.Features.Publishing.Validation;
 using SocialWorker.Api.Features.Scheduling.Models;
 using SocialWorker.Api.Features.Scheduling.Services;
 using SocialWorker.Api.Infrastructure;
@@ -72,7 +73,7 @@ public static class OutboxEndpoint
             IScheduleQueueService queueService,
             ScheduleSlotEvaluatorService evaluator,
             IPublisherResolver publisherResolver,
-            BlueskyContentValidator blueskyContentValidator,
+            PublishValidationService validationService,
             Guid draftId,
             ApproveOutboxRequest request,
             CancellationToken ct) =>
@@ -140,12 +141,9 @@ public static class OutboxEndpoint
                         return Results.BadRequest(new ApiErrorResponse($"No connected account found for platform: {thread.Platform}"));
                     }
 
-                    if (string.Equals(thread.Platform, "Bluesky", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var validationError = blueskyContentValidator.GetFirstPublishValidationError(thread.Content ?? string.Empty);
-                        if (validationError != null)
-                            return Results.BadRequest(new ApiErrorResponse(validationError));
-                    }
+                    var validationError = await validationService.ValidateForPublishAsync(thread, ct);
+                    if (validationError != null)
+                        return Results.BadRequest(new ApiErrorResponse(validationError));
 
                     var publisher = publisherResolver.Resolve(thread.Platform);
                     if (publisher == null)

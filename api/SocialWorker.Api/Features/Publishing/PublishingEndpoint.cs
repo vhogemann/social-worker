@@ -23,7 +23,8 @@ public static class PublishingEndpoint
             ClaimsPrincipal principal,
             AppDbContext db,
             IPublisherResolver publisherResolver,
-            BlueskyContentValidator blueskyContentValidator,
+            Validation.PublishValidationService validationService,
+            Resilience.PublishOutcomeRecorder outcomeRecorder,
             Guid draftId,
             Guid threadId,
             CancellationToken ct) =>
@@ -38,7 +39,7 @@ public static class PublishingEndpoint
             if (thread == null) return Results.NotFound(new ApiErrorResponse("Platform thread not found."));
 
             // Validate content before publishing
-            var validationError = ValidateThreadContent(thread.Content ?? "", thread.Platform, blueskyContentValidator);
+            var validationError = await validationService.ValidateForPublishAsync(thread, ct);
             if (validationError != null)
             {
                 return Results.BadRequest(new ApiErrorResponse(validationError));
@@ -66,36 +67,9 @@ public static class PublishingEndpoint
 
             var result = await publisher.PublishAsync(thread, account, ct);
 
-            if (result.Success)
-            {
-                foreach (var publishedPost in result.Posts)
-                {
-                    var post = new Post
-                    {
-                        DraftId = draftId,
-                        PlatformThreadId = threadId,
-                        SegmentIndex = publishedPost.SegmentIndex,
-                        Platform = thread.Platform,
-                        RemoteId = publishedPost.RemoteId,
-                        Url = publishedPost.Url
-                    };
-                    db.Posts.Add(post);
-                }
-                
-                thread.Stage = PlatformThreadStage.Sent;
-                thread.UpdatedAt = DateTime.UtcNow;
-                await db.SaveChangesAsync(ct);
-            }
+            await outcomeRecorder.RecordOutcomeAsync(thread, result, ct);
 
             return Results.Ok(result);
         });
-    }
-
-    private static string? ValidateThreadContent(string content, string platform, BlueskyContentValidator blueskyContentValidator)
-    {
-        if (!string.Equals(platform, "Bluesky", StringComparison.OrdinalIgnoreCase))
-            return null; // Only validate for Bluesky for now
-
-        return blueskyContentValidator.GetFirstPublishValidationError(content);
     }
 }

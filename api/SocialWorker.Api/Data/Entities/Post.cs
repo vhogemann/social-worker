@@ -15,6 +15,8 @@ public class Post
     public string Platform { get; set; } = string.Empty;
     
     public string? RemoteId { get; set; }
+    public string? RemoteCid { get; set; }
+    public string? PublishedText { get; set; }
     public string? Url { get; set; }
     public string? Error { get; set; }
     

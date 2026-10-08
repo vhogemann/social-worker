@@ -68,6 +68,17 @@ public sealed class BackgroundTaskRetentionService : BackgroundService
             _logger.LogInformation("Pruned {Count} stale background task records from database", staleTasks.Count);
         }
 
-        return staleTasks.Count;
+        var expiredOAuthStates = await db.OAuthStates
+            .Where(s => s.ExpiresAt < now)
+            .ToListAsync(ct);
+
+        if (expiredOAuthStates.Count > 0)
+        {
+            db.OAuthStates.RemoveRange(expiredOAuthStates);
+            await db.SaveChangesAsync(ct);
+            _logger.LogInformation("Pruned {Count} expired OAuth state records from database", expiredOAuthStates.Count);
+        }
+
+        return staleTasks.Count + expiredOAuthStates.Count;
     }
 }

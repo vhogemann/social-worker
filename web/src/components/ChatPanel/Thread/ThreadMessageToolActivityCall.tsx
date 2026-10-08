@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useComposerDraft } from "../../Composer/ComposerDraftContext";
+import { getPlatformLabel } from "../../../config/platformBadges";
 
 const TOOL_ACTIVITY_LABELS: Record<string, string> = {
   web_search: "web search",
@@ -35,10 +36,10 @@ function extractToolDetails(name: string, args: any): string | null {
     return args.url || null;
   }
   if (name === "format_validate_platform_content") {
-    return args.platform ? `platform: ${args.platform}` : null;
+    return args.platform ? `platform: ${getPlatformLabel(args.platform)}` : null;
   }
   if (name === "generate_platform_variants") {
-    return Array.isArray(args.platforms) ? args.platforms.join(", ") : null;
+    return Array.isArray(args.platforms) ? args.platforms.map((p: string) => getPlatformLabel(p)).join(", ") : null;
   }
   if (name === "set_bluesky_reply_target") {
     return args.replyParentUrl || null;

@@ -19,7 +19,8 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
 
     private readonly AppDbContext _db;
     private readonly IPublisherResolver _publisherResolver;
-    private readonly BlueskyContentValidator _blueskyContentValidator;
+    private readonly SocialWorker.Api.Features.Publishing.Validation.PublishValidationService _validationService;
+    private readonly SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder _outcomeRecorder;
     private readonly ILogger<ScheduledPublishingTaskHandler> _logger;
 
     public override string TaskType => TaskTypeName;
@@ -29,12 +30,14 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
     public ScheduledPublishingTaskHandler(
         AppDbContext db,
         IPublisherResolver publisherResolver,
-        BlueskyContentValidator blueskyContentValidator,
+        SocialWorker.Api.Features.Publishing.Validation.PublishValidationService validationService,
+        SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder outcomeRecorder,
         ILogger<ScheduledPublishingTaskHandler> logger)
     {
         _db = db;
         _publisherResolver = publisherResolver;
-        _blueskyContentValidator = blueskyContentValidator;
+        _validationService = validationService;
+        _outcomeRecorder = outcomeRecorder;
         _logger = logger;
     }
 
@@ -75,17 +78,6 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
             return TaskResult.Fatal("Platform thread not found.");
         }
 
-        if (string.Equals(thread.Platform, "Bluesky", StringComparison.OrdinalIgnoreCase))
-        {
-            var validationError = _blueskyContentValidator.GetFirstPublishValidationError(thread.Content ?? string.Empty);
-            if (validationError != null)
-            {
-                queueItem.Status = ScheduleQueueItemStatus.Failed;
-                queueItem.LastError = validationError;
-                await _db.SaveChangesAsync(ct);
-                return TaskResult.Fatal(validationError);
-            }
-        }
 
         Account? account = null;
         if (thread.AccountId.HasValue)
@@ -105,6 +97,15 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
             return TaskResult.Fatal(err);
         }
 
+        var validationError = await _validationService.ValidateForPublishAsync(thread, ct);
+        if (validationError != null)
+        {
+            queueItem.Status = ScheduleQueueItemStatus.Failed;
+            queueItem.LastError = validationError;
+            await _db.SaveChangesAsync(ct);
+            return TaskResult.Fatal(validationError);
+        }
+
         var publisher = _publisherResolver.Resolve(thread.Platform);
         if (publisher == null)
         {
@@ -116,25 +117,10 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
         }
 
         var publishResult = await publisher.PublishAsync(thread, account, ct);
+        await _outcomeRecorder.RecordOutcomeAsync(thread, publishResult, ct);
 
         if (publishResult.Success)
         {
-            foreach (var publishedPost in publishResult.Posts)
-            {
-                _db.Posts.Add(new Post
-                {
-                    DraftId = thread.DraftId,
-                    PlatformThreadId = thread.Id,
-                    SegmentIndex = publishedPost.SegmentIndex,
-                    Platform = thread.Platform,
-                    RemoteId = publishedPost.RemoteId,
-                    Url = publishedPost.Url
-                });
-            }
-
-            thread.Stage = PlatformThreadStage.Sent;
-            thread.UpdatedAt = DateTime.UtcNow;
-
             queueItem.Status = ScheduleQueueItemStatus.Succeeded;
             queueItem.LastError = null;
             queueItem.UpdatedAt = DateTime.UtcNow;

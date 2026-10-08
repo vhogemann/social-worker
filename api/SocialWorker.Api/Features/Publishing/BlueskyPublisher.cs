@@ -15,6 +15,7 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing.Bluesky;
+using SocialWorker.Api.Features.Publishing.Resilience;
 using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Markdown;
 using SocialWorker.Api.Infrastructure.Security;
@@ -52,7 +53,7 @@ public class BlueskyPublisher : IPublisher
     {
         if (string.IsNullOrEmpty(_encryptionKey))
         {
-            return new PublishResult { Success = false, ErrorMessage = "Server encryption key not configured." };
+            return PublishResult.Failed("Server encryption key not configured.");
         }
 
         string appPassword;
@@ -62,15 +63,16 @@ public class BlueskyPublisher : IPublisher
         }
         catch (Exception ex)
         {
-            return new PublishResult { Success = false, ErrorMessage = $"Failed to decrypt credentials: {ex.Message}" };
+            return PublishResult.Failed($"Failed to decrypt credentials: {ex.Message}");
         }
 
+        var publishedPosts = new List<PublishedPost>();
         try
         {
             var sessionRes = await _apiClient.CreateSessionAsync(account.Handle, appPassword, ct);
             if (!sessionRes.Success || sessionRes.Value is null)
             {
-                return new PublishResult { Success = false, ErrorMessage = sessionRes.Error };
+                return PublishResult.Failed(sessionRes.Error ?? "Failed to create Bluesky session.");
             }
 
             var session = sessionRes.Value;
@@ -78,7 +80,32 @@ public class BlueskyPublisher : IPublisher
             var doc = ThreadMarkdownDocument.Parse(thread.Content ?? "");
             if (doc.Segments.Count == 0 || (doc.Segments.Count == 1 && string.IsNullOrWhiteSpace(doc.Segments[0].PlainText)))
             {
-                return new PublishResult { Success = false, ErrorMessage = "Thread is empty." };
+                return PublishResult.Failed("Thread is empty.");
+            }
+
+            var existingPosts = await _db.Posts
+                .Where(p => p.PlatformThreadId == thread.Id)
+                .OrderBy(p => p.SegmentIndex)
+                .ToListAsync(ct);
+
+            var segmentTexts = doc.Segments.Select(s => _facetBuilder.Build(s).PlainText).ToList();
+            var resumePlan = PublishResumePlanner.CreatePlan(segmentTexts, existingPosts, "Bluesky");
+
+            if (!resumePlan.CanResume)
+            {
+                return PublishResult.Failed(resumePlan.ErrorMessage!);
+            }
+
+            if (resumePlan.IsFullyPublished)
+            {
+                return PublishResult.Succeeded(existingPosts.Select(p => new PublishedPost
+                {
+                    SegmentIndex = p.SegmentIndex,
+                    RemoteId = p.RemoteId ?? "",
+                    RemoteCid = p.RemoteCid,
+                    PublishedText = p.PublishedText,
+                    Url = p.Url ?? ""
+                }));
             }
 
             var replyMetadata = await _db.DraftBlueskyMetadata
@@ -94,23 +121,47 @@ public class BlueskyPublisher : IPublisher
                     || string.IsNullOrWhiteSpace(replyMetadata.ReplyParentUri)
                     || string.IsNullOrWhiteSpace(replyMetadata.ReplyParentCid))
                 {
-                    return new PublishResult
-                    {
-                        Success = false,
-                        ErrorMessage = "Draft reply target is incomplete. Please set root and parent URI/CID before publishing."
-                    };
+                    return PublishResult.Failed("Draft reply target is incomplete. Please set root and parent URI/CID before publishing.");
                 }
 
                 rootRef = new BlueskyRecordRef(replyMetadata.ReplyRootUri, replyMetadata.ReplyRootCid);
                 parentRef = new BlueskyRecordRef(replyMetadata.ReplyParentUri, replyMetadata.ReplyParentCid);
             }
 
-            var publishedPosts = new List<PublishedPost>();
+            if (resumePlan.ExistingPosts.Count > 0)
+            {
+                foreach (var p in resumePlan.ExistingPosts)
+                {
+                    publishedPosts.Add(new PublishedPost
+                    {
+                        SegmentIndex = p.SegmentIndex,
+                        RemoteId = p.RemoteId ?? "",
+                        RemoteCid = p.RemoteCid,
+                        PublishedText = p.PublishedText,
+                        Url = p.Url ?? ""
+                    });
+                }
+
+                if (replyMetadata is null)
+                {
+                    var first = resumePlan.ExistingPosts[0];
+                    rootRef = new BlueskyRecordRef(first.RemoteId ?? "", first.RemoteCid ?? "");
+                }
+                var last = resumePlan.ExistingPosts[^1];
+                parentRef = new BlueskyRecordRef(last.RemoteId ?? "", last.RemoteCid ?? "");
+            }
+
             int segmentIndex = 0;
 
             foreach (var segment in doc.Segments)
             {
-                if (string.IsNullOrWhiteSpace(segment.PlainText) && segment.MediaEmbeds.Count == 0 && segment.YouTubeEmbed == null) 
+                if (segmentIndex < resumePlan.ResumeFromSegmentIndex)
+                {
+                    segmentIndex++;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(segment.PlainText) && segment.MediaEmbeds.Count == 0 && segment.YouTubeEmbed == null)
                 {
                     segmentIndex++;
                     continue;
@@ -134,7 +185,10 @@ public class BlueskyPublisher : IPublisher
                 var postRes = await _apiClient.CreateRecordAsync(session.Did, postRecord, session.AccessJwt, ct);
                 if (!postRes.Success || postRes.Value is null)
                 {
-                    return new PublishResult { Success = false, ErrorMessage = postRes.Error };
+                    var errorMsg = postRes.Error ?? "Failed to create record on Bluesky.";
+                    return publishedPosts.Count > 0
+                        ? PublishResult.Partial(publishedPosts, errorMsg)
+                        : PublishResult.Failed(errorMsg);
                 }
 
                 var created = postRes.Value;
@@ -147,6 +201,8 @@ public class BlueskyPublisher : IPublisher
                 {
                     SegmentIndex = segmentIndex,
                     RemoteId = created.Uri,
+                    RemoteCid = created.Cid,
+                    PublishedText = textFacets.PlainText,
                     Url = postUrl
                 });
 
@@ -157,12 +213,14 @@ public class BlueskyPublisher : IPublisher
                 parentRef = currentRef;
             }
 
-            return new PublishResult { Success = true, Posts = publishedPosts };
+            return PublishResult.Succeeded(publishedPosts);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected Bluesky publish failure for account {Handle}", account.Handle);
-            return new PublishResult { Success = false, ErrorMessage = ex.Message };
+            return publishedPosts.Count > 0
+                ? PublishResult.Partial(publishedPosts, ex.Message)
+                : PublishResult.Failed(ex.Message);
         }
     }
 }

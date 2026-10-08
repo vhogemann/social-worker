@@ -8,7 +8,7 @@ Read this first, then use AGENTS.md for stricter policy and workflow rules.
 
 ## Product in one paragraph
 
-social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky (threads) and LinkedIn (single-post personal profile and company page publishing) are production-ready; other publishers are stubs.
+social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky (threads), LinkedIn (single-post personal profile and company page publishing), and Meta Threads (multi-post threads, carousel media, token lifecycle, and resilient resume) are production-ready; other publishers are stubs.
 
 ## System shape
 
@@ -29,7 +29,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 - Chat: api/SocialWorker.Api/Features/Chat/
 - Draft lifecycle: api/SocialWorker.Api/Features/Drafts/
-- Publishing: api/SocialWorker.Api/Features/Publishing/
+- Publishing: api/SocialWorker.Api/Features/Publishing/ (Bluesky, LinkedIn, MetaThreads, Resilience/PublishResumePlanner)
 - Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Media/
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
 - Feed automation: api/SocialWorker.Api/Features/Feeds/
@@ -38,7 +38,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Background tasks & durable queue: api/SocialWorker.Api/Features/BackgroundTasks/ (PostgreSQL atomic queue with Allow-List worker filtering, PostgresBackgroundTaskQueue)
 - Background task worker pool: api/SocialWorker.Api/Features/BackgroundTasks/Services/BackgroundTaskHostedService.cs (configurable worker workloads, dedicated transcription worker, general workers)
 - Configuration & Overrides: api/SocialWorker.Api/Program.cs (mounted host override `./config/appsettings.json` -> `/app/config/appsettings.json:ro`)
-- Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/
+- Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/ (TokenRefreshHostedService)
 - API Key Subsystem: api/SocialWorker.Api/Infrastructure/Auth/ (ApiKeyService, ApiKeyAuthenticationHandler, SHA-256 hash storage)
 - Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, McpToolRegistry, McpResourceRegistry)
 - Markdown AST & Thread Document: api/SocialWorker.Api/Infrastructure/Markdown/ (Markdig CommonMark AST parser for segments, media, links, and facets)
@@ -62,9 +62,9 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (513 tests): api/SocialWorker.Api.Tests/
+- API unit/integration tests (586 tests): api/SocialWorker.Api.Tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
-- Web tests (Vitest, 453 tests in 89 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- Web tests (Vitest, 462 tests in 90 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
 
 ## Core user flow mental model

@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBolt, faEdit, faLayerGroup, faRss, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import { type AutomationWorkflowDto } from "../../api/workflows";
 import { Button } from "../common/Button";
+import { getPlatformLabel } from "../../config/platformBadges";
 
 export interface WorkflowCardProps {
   workflow: AutomationWorkflowDto;
@@ -83,7 +84,7 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
                   key={dest.id}
                   className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-bg border border-border text-[11px] text-foreground font-mono"
                 >
-                  <span>{dest.platform}</span>
+                  <span>{getPlatformLabel(dest.platform)}</span>
                   {dest.accountHandle && (
                     <span className="opacity-75 font-mono text-[10px]">@{dest.accountHandle}</span>
                   )}

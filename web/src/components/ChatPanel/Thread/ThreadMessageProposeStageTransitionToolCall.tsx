@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useComposerDraft } from "../../Composer/ComposerDraftContext";
+import { getPlatformLabel } from "../../../config/platformBadges";
 
 export function ThreadMessageProposeStageTransitionToolCall({
   args,
@@ -26,7 +27,7 @@ export function ThreadMessageProposeStageTransitionToolCall({
   return (
     <div className="my-2 p-3 text-xs bg-bg rounded border border-border flex flex-col gap-2 max-w-sm">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-muted uppercase tracking-wider">Stage Proposal ({platform})</span>
+        <span className="font-mono text-muted uppercase tracking-wider">Stage Proposal ({getPlatformLabel(platform)})</span>
         {approved || isCurrentStage ? (
           <span className="text-green-400 font-mono font-medium">✓ Approved</span>
         ) : (
