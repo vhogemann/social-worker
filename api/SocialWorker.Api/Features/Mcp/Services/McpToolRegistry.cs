@@ -19,6 +19,7 @@ using SocialWorker.Api.Features.Scheduling.Services;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Features.Workflows;
 using SocialWorker.Api.Features.Workflows.Abstractions;
+using SocialWorker.Api.Infrastructure.Platforms;
 
 namespace SocialWorker.Api.Features.Mcp.Services;
 
@@ -36,6 +37,7 @@ public sealed class McpToolRegistry
     private readonly ScheduleSlotEvaluatorService? _evaluatorService;
     private readonly ICalendarProjectionService? _calendarService;
     private readonly IEnumerable<IWorkflowSourceHandler>? _sourceHandlers;
+    private readonly FeedDiscoveryService? _feedDiscoveryService;
 
     public McpToolRegistry(
         AppDbContext db,
@@ -49,7 +51,8 @@ public sealed class McpToolRegistry
         IScheduleQueueService? queueService = null,
         ScheduleSlotEvaluatorService? evaluatorService = null,
         ICalendarProjectionService? calendarService = null,
-        IEnumerable<IWorkflowSourceHandler>? sourceHandlers = null)
+        IEnumerable<IWorkflowSourceHandler>? sourceHandlers = null,
+        FeedDiscoveryService? feedDiscoveryService = null)
     {
         _db = db;
         _draftsService = draftsService;
@@ -63,6 +66,7 @@ public sealed class McpToolRegistry
         _evaluatorService = evaluatorService;
         _calendarService = calendarService;
         _sourceHandlers = sourceHandlers;
+        _feedDiscoveryService = feedDiscoveryService;
     }
 
     public List<McpToolDefinition> ListTools()
@@ -265,6 +269,90 @@ public sealed class McpToolRegistry
                 },
                 "required": ["start", "end"]
             }
+            """)),
+            new("list_accounts", "List connected social media accounts (Bluesky, MetaThreads, Twitter, LinkedIn) with handles, account IDs, and status (tokens and credentials omitted).", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "platform": { "type": "string", "description": "Optional platform filter (e.g. 'MetaThreads', 'Bluesky', 'Twitter', 'LinkedIn')." }
+                }
+            }
+            """)),
+            new("discover_feed", "Discover the RSS/Atom feed URL, channel title, and website URL from any website, YouTube channel/playlist, or Instagram profile (e.g. 'https://www.instagram.com/flaviobolsonaro').", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string", "description": "The URL of the website, YouTube channel/playlist, or Instagram profile." }
+                },
+                "required": ["url"]
+            }
+            """)),
+            new("add_feed", "Subscribe to a new RSS, YouTube, or Instagram feed (e.g. 'instagram://flaviobolsonaro').", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "title": { "type": "string", "description": "Display title for the feed." },
+                    "feedUrl": { "type": "string", "description": "Direct RSS/Atom feed URL (use discover_feed if you only have a channel or website URL)." },
+                    "websiteUrl": { "type": "string", "description": "Optional website or channel URL." },
+                    "includeFilters": { "type": "string", "description": "Optional comma-separated keywords that items must contain." },
+                    "excludeFilters": { "type": "string", "description": "Optional comma-separated keywords that items must not contain." }
+                },
+                "required": ["title", "feedUrl"]
+            }
+            """)),
+            new("update_feed", "Update an existing RSS or YouTube feed subscription's title, URLs, or include/exclude filters.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "subscriptionId": { "type": "string", "description": "The unique UUID of the feed subscription to update." },
+                    "title": { "type": "string", "description": "Optional display title for the feed." },
+                    "feedUrl": { "type": "string", "description": "Optional direct RSS/Atom feed URL." },
+                    "websiteUrl": { "type": "string", "description": "Optional website or channel URL." },
+                    "includeFilters": { "type": "string", "description": "Optional comma-separated keywords that items must contain." },
+                    "excludeFilters": { "type": "string", "description": "Optional comma-separated keywords that items must not contain." }
+                },
+                "required": ["subscriptionId"]
+            }
+            """)),
+            new("create_workflow", "Create a new automated publishing workflow connecting feed sources, instruction prompts, and account destinations.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "title": { "type": "string", "description": "Title of the workflow." },
+                    "instructionPrompt": { "type": "string", "description": "Instructions for LLM thread generation from feed items (include platform tone, YouTube embed rules, character limits)." },
+                    "feedSubscriptionIds": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "List of feed subscription UUIDs to ingest as sources."
+                    },
+                    "destinations": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "platform": { "type": "string", "description": "Target platform (e.g. 'MetaThreads', 'Bluesky', 'Twitter', 'LinkedIn')." },
+                                "accountId": { "type": "string", "description": "Connected account UUID (from list_accounts)." },
+                                "publishingMode": { "type": "string", "enum": ["Manual", "Automatic", "Scheduled"], "description": "Publishing mode (default: Manual)." },
+                                "autoPublish": { "type": "boolean", "description": "Set true to automatically publish when items are ingested (shortcut for publishingMode=Automatic)." },
+                                "scheduleId": { "type": "string", "description": "Schedule UUID if publishingMode is Scheduled." }
+                            },
+                            "required": ["platform"]
+                        },
+                        "description": "Target publishing destinations for generated threads."
+                    },
+                    "scheduleId": { "type": "string", "description": "Optional schedule UUID for workflow-level scheduling." }
+                },
+                "required": ["title"]
+            }
+            """)),
+            new("delete_workflow", "Delete an automated publishing workflow.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "workflowId": { "type": "string", "description": "The unique UUID of the workflow to delete." }
+                },
+                "required": ["workflowId"]
+            }
             """))
         };
     }
@@ -300,6 +388,12 @@ public sealed class McpToolRegistry
                 "enqueue_draft" => await HandleEnqueueDraftAsync(userId, args, ct),
                 "get_schedule_queue" => await HandleGetScheduleQueueAsync(userId, args, ct),
                 "get_calendar_events" => await HandleGetCalendarEventsAsync(userId, args, ct),
+                "list_accounts" => await HandleListAccountsAsync(userId, args, ct),
+                "discover_feed" => await HandleDiscoverFeedAsync(args, ct),
+                "add_feed" => await HandleAddFeedAsync(userId, args, ct),
+                "update_feed" => await HandleUpdateFeedAsync(userId, args, ct),
+                "create_workflow" => await HandleCreateWorkflowAsync(userId, args, ct),
+                "delete_workflow" => await HandleDeleteWorkflowAsync(userId, args, ct),
                 _ => TextError($"Unknown tool '{toolName}'.")
             };
         }
@@ -552,7 +646,7 @@ public sealed class McpToolRegistry
         var feeds = await _db.FeedSubscriptions
             .AsNoTracking()
             .Where(f => f.UserId == userId)
-            .Select(f => new { f.Id, f.Title, f.FeedUrl, f.WebsiteUrl, f.LastPolledAt })
+            .Select(f => new { f.Id, f.Title, f.FeedUrl, f.WebsiteUrl, f.IncludeFilters, f.ExcludeFilters, f.LastPolledAt })
             .ToListAsync(ct);
 
         return TextResult(JsonSerializer.Serialize(feeds, JsonOptions));
@@ -856,6 +950,246 @@ public sealed class McpToolRegistry
         {
             return TextError(ex.Message);
         }
+    }
+
+    private async Task<McpToolCallResult> HandleListAccountsAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        var query = _db.Accounts.AsNoTracking().Where(a => a.UserId == userId);
+
+        if (args.TryGetProperty("platform", out var pProp) && !string.IsNullOrWhiteSpace(pProp.GetString()))
+        {
+            var platformInput = pProp.GetString()!.Trim();
+            if (SocialPlatformParser.TryParse(platformInput, out var parsedPlatform))
+            {
+                var platformStr = parsedPlatform.ToString();
+                query = query.Where(a => a.Platform == platformStr || a.Platform == platformInput);
+            }
+            else
+            {
+                query = query.Where(a => a.Platform == platformInput);
+            }
+        }
+
+        var accounts = await query
+            .OrderByDescending(a => a.CreatedAt)
+            .Select(a => new
+            {
+                id = a.Id,
+                platform = a.Platform,
+                handle = a.Handle,
+                status = a.Status,
+                createdAt = a.CreatedAt
+            })
+            .ToListAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(accounts, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleDiscoverFeedAsync(JsonElement args, CancellationToken ct)
+    {
+        if (_feedDiscoveryService == null)
+        {
+            return TextError("Feed discovery service is not configured.");
+        }
+
+        if (!args.TryGetProperty("url", out var urlProp) || string.IsNullOrWhiteSpace(urlProp.GetString()))
+        {
+            return TextError("url is required.");
+        }
+
+        var url = urlProp.GetString()!.Trim();
+        var result = await _feedDiscoveryService.DiscoverAsync(url);
+        if (!result.Success)
+        {
+            return TextError(result.Error ?? "Failed to discover feed.");
+        }
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            feedUrl = result.FeedUrl,
+            title = result.Title,
+            websiteUrl = result.WebsiteUrl,
+            success = result.Success
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleAddFeedAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("title", out var titleProp) || string.IsNullOrWhiteSpace(titleProp.GetString()))
+        {
+            return TextError("title is required.");
+        }
+        if (!args.TryGetProperty("feedUrl", out var feedUrlProp) || string.IsNullOrWhiteSpace(feedUrlProp.GetString()))
+        {
+            return TextError("feedUrl is required.");
+        }
+
+        var title = titleProp.GetString()!.Trim();
+        var feedUrl = feedUrlProp.GetString()!.Trim();
+        var websiteUrl = args.TryGetProperty("websiteUrl", out var wProp) ? wProp.GetString()?.Trim() : null;
+        var includeFilters = args.TryGetProperty("includeFilters", out var iProp) ? iProp.GetString()?.Trim() : null;
+        var excludeFilters = args.TryGetProperty("excludeFilters", out var eProp) ? eProp.GetString()?.Trim() : null;
+
+        var req = new CreateFeedSubscriptionRequest(title, feedUrl, websiteUrl, includeFilters, excludeFilters);
+        var subscription = FeedSubscription.Create(userId, req);
+
+        _db.FeedSubscriptions.Add(subscription);
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(new FeedSubscriptionDto(subscription), JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleUpdateFeedAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("subscriptionId", out var idProp) || !Guid.TryParse(idProp.GetString(), out var subscriptionId))
+        {
+            return TextError("subscriptionId is required and must be a valid UUID.");
+        }
+
+        var subscription = await _db.FeedSubscriptions
+            .FirstOrDefaultAsync(s => s.Id == subscriptionId && s.UserId == userId, ct);
+
+        if (subscription == null)
+        {
+            return TextError("Feed subscription not found.");
+        }
+
+        if (args.TryGetProperty("title", out var titleProp) && !string.IsNullOrWhiteSpace(titleProp.GetString()))
+        {
+            subscription.Title = titleProp.GetString()!.Trim();
+        }
+
+        if (args.TryGetProperty("feedUrl", out var feedUrlProp) && !string.IsNullOrWhiteSpace(feedUrlProp.GetString()))
+        {
+            subscription.FeedUrl = feedUrlProp.GetString()!.Trim();
+        }
+
+        if (args.TryGetProperty("websiteUrl", out var wProp))
+        {
+            subscription.WebsiteUrl = wProp.GetString()?.Trim();
+        }
+
+        if (args.TryGetProperty("includeFilters", out var iProp))
+        {
+            subscription.IncludeFilters = iProp.GetString()?.Trim();
+        }
+
+        if (args.TryGetProperty("excludeFilters", out var eProp))
+        {
+            subscription.ExcludeFilters = eProp.GetString()?.Trim();
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return TextResult(JsonSerializer.Serialize(new FeedSubscriptionDto(subscription), JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleCreateWorkflowAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("title", out var titleProp) || string.IsNullOrWhiteSpace(titleProp.GetString()))
+        {
+            return TextError("title is required.");
+        }
+
+        var title = titleProp.GetString()!.Trim();
+        var instructionPrompt = args.TryGetProperty("instructionPrompt", out var instProp) ? instProp.GetString() : null;
+
+        Guid? scheduleId = null;
+        if (args.TryGetProperty("scheduleId", out var sProp) && Guid.TryParse(sProp.GetString(), out var parsedSched))
+        {
+            scheduleId = parsedSched;
+        }
+
+        var workflow = AutomationWorkflow.Create(userId, title, instructionPrompt, scheduleId);
+        _db.AutomationWorkflows.Add(workflow);
+
+        if (args.TryGetProperty("feedSubscriptionIds", out var feedsArray) && feedsArray.ValueKind == JsonValueKind.Array)
+        {
+            var requestedFeedIds = new List<Guid>();
+            foreach (var item in feedsArray.EnumerateArray())
+            {
+                if (Guid.TryParse(item.GetString(), out var feedId))
+                {
+                    requestedFeedIds.Add(feedId);
+                }
+            }
+
+            if (requestedFeedIds.Count > 0)
+            {
+                var validSubIds = await _db.FeedSubscriptions
+                    .Where(s => s.UserId == userId && requestedFeedIds.Contains(s.Id))
+                    .Select(s => s.Id)
+                    .ToListAsync(ct);
+
+                foreach (var subId in validSubIds)
+                {
+                    workflow.WorkflowSources.Add(AutomationWorkflowSource.CreateFeedSource(workflow.Id, subId));
+                }
+            }
+        }
+
+        if (args.TryGetProperty("destinations", out var destArray) && destArray.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var destEl in destArray.EnumerateArray())
+            {
+                var platform = destEl.TryGetProperty("platform", out var pProp) ? pProp.GetString()?.Trim() : null;
+                if (string.IsNullOrWhiteSpace(platform)) continue;
+
+                var autoPub = destEl.TryGetProperty("autoPublish", out var apProp) && apProp.GetBoolean();
+                var modeStr = destEl.TryGetProperty("publishingMode", out var pmProp) ? pmProp.GetString() : null;
+                var mode = Enum.TryParse<WorkflowPublishingMode>(modeStr, true, out var parsedMode)
+                    ? parsedMode
+                    : (autoPub ? WorkflowPublishingMode.Automatic : WorkflowPublishingMode.Manual);
+
+                Guid? destSchedId = null;
+                if (destEl.TryGetProperty("scheduleId", out var dsProp) && Guid.TryParse(dsProp.GetString(), out var parsedDs))
+                {
+                    destSchedId = parsedDs;
+                }
+
+                Guid? destAccountId = null;
+                if (destEl.TryGetProperty("accountId", out var daProp) && Guid.TryParse(daProp.GetString(), out var parsedDa))
+                {
+                    destAccountId = parsedDa;
+                }
+
+                workflow.Destinations.Add(AutomationWorkflowDestination.Create(workflow.Id, platform, mode, destSchedId, destAccountId));
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        var created = await _db.AutomationWorkflows
+            .Include(w => w.Schedule)
+            .Include(w => w.WorkflowSources)
+                .ThenInclude(ws => ws.FeedSubscription)
+            .Include(w => w.Destinations)
+                .ThenInclude(d => d.Account)
+            .Include(w => w.Destinations)
+                .ThenInclude(d => d.Schedule)
+            .FirstAsync(w => w.Id == workflow.Id, ct);
+
+        return TextResult(JsonSerializer.Serialize(new AutomationWorkflowDto(created), JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleDeleteWorkflowAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("workflowId", out var idProp) || !Guid.TryParse(idProp.GetString(), out var workflowId))
+        {
+            return TextError("workflowId is required and must be a valid UUID.");
+        }
+
+        var workflow = await _db.AutomationWorkflows
+            .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
+
+        if (workflow == null)
+        {
+            return TextError("Workflow not found.");
+        }
+
+        _db.AutomationWorkflows.Remove(workflow);
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult($"Workflow '{workflow.Title}' ({workflowId}) successfully deleted.");
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()

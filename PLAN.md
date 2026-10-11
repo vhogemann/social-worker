@@ -18,8 +18,7 @@ This file is the single source of truth for roadmap status and planning links.
 - Source ingestion stack is broad: URL, file, YouTube transcript, feed automation.
 - Frontend and API coverage sweeps were completed and moved to archive.
 
-### Recently closed and archived
-
+- Instagram Profile Sources via Meta Business Discovery API (Graph API client, credential provider, auto caller ID resolution, feed discovery & polling, setup guide): [planning/INSTAGRAM_PROFILE_SOURCES.md](planning/INSTAGRAM_PROFILE_SOURCES.md), [docs/INSTAGRAM_SETUP.md](docs/INSTAGRAM_SETUP.md)
 - Twitter / X support (OAuth 2.0 PKCE, refresh token rotation, chained reply tweets, 280 weighted-char validation, t.co budgeting, live X thread preview): [planning/TWITTER_SUPPORT.md](planning/TWITTER_SUPPORT.md)
 - Meta Threads support (OAuth lifecycle, multi-post thread publishing, carousel media, resilient resume, 500-char validation): [planning/THREADS_SUPPORT.md](planning/THREADS_SUPPORT.md)
 - Content Calendar & Scheduled Publishing Engine (Cronos recurrence, slot window pacing, BackgroundTasks queue, Review Outbox, Tailwind-native calendar UI): [planning/SCHEDULING_CALENDAR.md](planning/SCHEDULING_CALENDAR.md)
@@ -41,6 +40,7 @@ Status: `Active`
 1. Reliability hardening for source/search/scraper pipeline.
 2. E2E signal quality and release confidence (flake triage + stable smoke gates).
 3. Tighten operational runbook quality (startup, verification, troubleshooting).
+4. MCP Server capabilities enhancement & agent guidance: [planning/MCP_CAPABILITIES_ENHANCEMENT.md](planning/MCP_CAPABILITIES_ENHANCEMENT.md)
 
 Definition of done for this phase:
 
@@ -94,6 +94,7 @@ These should remain first-class and be kept current:
 | [planning/MULTI_ACCOUNT_SUPPORT.md](planning/MULTI_ACCOUNT_SUPPORT.md) | Multi-account support per platform across database constraints, account-first draft creation, and publishing |
 | [planning/FACEBOOK_SUPPORT.md](planning/FACEBOOK_SUPPORT.md) | Facebook Pages OAuth integration, token exchange, and post/comment/media publishing pipeline |
 | [planning/INSTAGRAM_SUPPORT.md](planning/INSTAGRAM_SUPPORT.md) | Instagram Professional/Creator publishing container pipeline, image validation, and OAuth integration |
+| [planning/INSTAGRAM_PROFILE_SOURCES.md](planning/INSTAGRAM_PROFILE_SOURCES.md) | Instagram profile content ingestion via Meta Business Discovery API and RSSHub sidecar bridge |
 | [planning/META_OAUTH.md](planning/META_OAUTH.md) | Shared Meta OAuth 2.0 infrastructure for Facebook Pages and Instagram Professional account discovery |
 | [planning/IMAGE_ENGINE.md](planning/IMAGE_ENGINE.md) | Image Engine microservice (Sharp + @napi-rs/canvas), data-driven JSON layer tree templates, Instagram image composition, and partial SkiaSharp extraction |
 | [planning/TEMPLATE_STUDIO.md](planning/TEMPLATE_STUDIO.md) | Template Studio UI, AI template generation, 1-shot auto-repair, and seed templates library |

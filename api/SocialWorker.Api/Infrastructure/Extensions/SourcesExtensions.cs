@@ -24,6 +24,17 @@ static partial class ServiceCollectionExtensions
             client.BaseAddress = new Uri(options.BaseUrl);
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
         });
+        builder.Services.Configure<SocialWorker.Api.Features.Sources.Instagram.InstagramOptions>(builder.Configuration.GetSection(SocialWorker.Api.Features.Sources.Instagram.InstagramOptions.SectionName));
+        builder.Services.AddHttpClient<SocialWorker.Api.Features.Sources.Instagram.IInstagramDiscoveryClient, SocialWorker.Api.Features.Sources.Instagram.InstagramBusinessDiscoveryClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        builder.Services.AddHttpClient<SocialWorker.Api.Features.Sources.Instagram.InstagramOAuthService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        builder.Services.AddScoped<SocialWorker.Api.Features.Sources.Instagram.IInstagramCredentialProvider, SocialWorker.Api.Features.Sources.Instagram.InstagramCredentialProvider>();
+
         builder.Services.AddScoped<SourceExtractor>();
         builder.Services.AddScoped<ISourceUrlValidator, SourceUrlValidator>();
         builder.Services.AddScoped<SourceReconciliationService>();

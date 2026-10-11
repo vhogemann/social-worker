@@ -21,9 +21,46 @@ public interface IFeedReaderService
 
 public sealed class DefaultFeedReaderService : IFeedReaderService
 {
-    public Task<Feed> ReadFeedAsync(string feedUrl, CancellationToken ct = default)
+    private const string BrowserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    private readonly SocialWorker.Api.Features.Sources.Instagram.IInstagramDiscoveryClient? _instagramClient;
+    private readonly SocialWorker.Api.Features.Sources.Instagram.IInstagramCredentialProvider? _instagramCredentialProvider;
+    private readonly ILogger<DefaultFeedReaderService>? _logger;
+
+    public DefaultFeedReaderService(
+        SocialWorker.Api.Features.Sources.Instagram.IInstagramDiscoveryClient? instagramClient = null,
+        SocialWorker.Api.Features.Sources.Instagram.IInstagramCredentialProvider? instagramCredentialProvider = null,
+        ILogger<DefaultFeedReaderService>? logger = null)
     {
-        return FeedReader.ReadAsync(feedUrl, ct);
+        _instagramClient = instagramClient;
+        _instagramCredentialProvider = instagramCredentialProvider;
+        _logger = logger;
+    }
+
+    public async Task<Feed> ReadFeedAsync(string feedUrl, CancellationToken ct = default)
+    {
+        if (SocialWorker.Api.Features.Sources.Instagram.InstagramUrlHelper.IsInstagramUrl(feedUrl))
+        {
+            var username = SocialWorker.Api.Features.Sources.Instagram.InstagramUrlHelper.ExtractUsername(feedUrl);
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                throw new InvalidOperationException($"Invalid Instagram feed URL: {feedUrl}");
+            }
+
+            if (_instagramClient == null || _instagramCredentialProvider == null)
+            {
+                throw new InvalidOperationException("Instagram discovery client or credential provider is not configured.");
+            }
+
+            var creds = await _instagramCredentialProvider.GetCredentialsAsync(null, ct);
+            if (creds == null)
+            {
+                throw new InvalidOperationException("Instagram polling requires a connected Instagram Professional account or configured credentials. Please connect your account in Settings or set INSTAGRAM__ACCESSTOKEN.");
+            }
+
+            return await _instagramClient.GetProfileFeedAsync(username, creds.CallerIgUserId, creds.AccessToken, 10, ct);
+        }
+
+        return await FeedReader.ReadAsync(feedUrl, ct, autoRedirect: true, userAgent: BrowserUserAgent);
     }
 }
 
@@ -106,6 +143,14 @@ public sealed class FeedPollingService
 
             var effectiveLink = !string.IsNullOrWhiteSpace(item.Link) ? item.Link : itemIdentifier;
 
+            string? mediaUrl = null;
+            string? mediaType = null;
+            if (item.SpecificItem is CodeHollow.FeedReader.Feeds.Rss20FeedItem rssItem && rssItem.Enclosure != null)
+            {
+                mediaUrl = rssItem.Enclosure.Url;
+                mediaType = rssItem.Enclosure.MediaType?.StartsWith("video", StringComparison.OrdinalIgnoreCase) == true ? "VIDEO" : rssItem.Enclosure.MediaType;
+            }
+
             foreach (var wf in sub.WorkflowSources)
             {
                 var deduplicationKey = $"feed:{subscriptionId}:{wf.AutomationWorkflowId}:{itemIdentifier}";
@@ -115,7 +160,9 @@ public sealed class FeedPollingService
                     item.Title ?? "Untitled Feed Item",
                     effectiveLink,
                     item.Description,
-                    item.PublishingDate);
+                    item.PublishingDate,
+                    mediaUrl,
+                    mediaType);
 
                 await _queue.EnqueueAsync(
                     "feed-ingestion",

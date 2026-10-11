@@ -13,6 +13,7 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
 using SocialWorker.Api.Features.Publishing.MetaThreads;
 using SocialWorker.Api.Features.Publishing.Twitter;
+using SocialWorker.Api.Features.Sources.Instagram;
 using SocialWorker.Api.Infrastructure.Security;
 using SocialWorker.Api.Infrastructure;
 using System.Text.Json;
@@ -48,7 +49,7 @@ public static class AccountsEndpoint
             return Results.Ok(accounts);
         });
 
-        group.MapPost("/", async (AccountRequest req, AccountUpsertService upsertService, AppDbContext db, ClaimsPrincipal user, IConfiguration config) =>
+        group.MapPost("/", async (AccountRequest req, AccountUpsertService upsertService, AppDbContext db, ClaimsPrincipal user, IConfiguration config, IServiceProvider sp) =>
         {
             var userId = user.GetUserId();
             if (userId is null) return Results.Unauthorized();
@@ -59,8 +60,24 @@ public static class AccountsEndpoint
                 return Results.Problem("Server encryption key not configured.");
             }
 
+            string? externalId = null;
+            if (req.Platform.Equals("Instagram", StringComparison.OrdinalIgnoreCase))
+            {
+                var igClient = sp.GetService<IInstagramDiscoveryClient>();
+                if (igClient != null)
+                {
+                    try
+                    {
+                        externalId = await igClient.ResolveCallerIgUserIdAsync(req.AppPassword);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
             var encryptedPassword = CryptoHelper.EncryptString(req.AppPassword, encryptionKey);
-            await upsertService.UpsertAsync(userId.Value, req.Platform, req.Handle, encryptedPassword);
+            await upsertService.UpsertAsync(userId.Value, req.Platform, req.Handle, encryptedPassword, externalId: externalId);
             await db.SaveChangesAsync();
             return Results.Ok();
         });
@@ -355,6 +372,74 @@ public static class AccountsEndpoint
 
             await db.SaveChangesAsync(ct);
             return Results.Ok(new TwitterCallbackResponse(profile.Id, profile.Username, expiresAt));
+        });
+
+        group.MapGet("/instagram/auth-url", async (
+            ClaimsPrincipal user,
+            OAuthStateService oauthStateService,
+            InstagramOAuthService instagramOAuth) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var nonce = await oauthStateService.IssueAsync(userId.Value, "instagram");
+            var authUrl = instagramOAuth.GetAuthorizationUrl(nonce);
+            return Results.Ok(new { authUrl });
+        });
+
+        group.MapPost("/instagram/callback", async (
+            InstagramCallbackRequest req,
+            ClaimsPrincipal user,
+            OAuthStateService oauthStateService,
+            AccountUpsertService upsertService,
+            InstagramOAuthService instagramOAuth,
+            AppDbContext db,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(req.Code))
+            {
+                return Results.BadRequest(new ApiErrorResponse("Authorization code is required."));
+            }
+
+            if (string.IsNullOrWhiteSpace(req.State))
+            {
+                return Results.BadRequest(new ApiErrorResponse("OAuth state parameter is required."));
+            }
+
+            var oauthState = await oauthStateService.ConsumeAsync(userId.Value, "instagram", req.State, ct);
+            if (oauthState is null)
+            {
+                return Results.BadRequest(new ApiErrorResponse("Invalid or expired OAuth state parameter."));
+            }
+
+            var encryptionKey = config["Auth:DbEncryptionKey"];
+            if (string.IsNullOrEmpty(encryptionKey))
+            {
+                return Results.Problem("Server encryption key not configured.");
+            }
+
+            var shortToken = await instagramOAuth.ExchangeCodeAsync(req.Code, ct);
+            var longToken = await instagramOAuth.ExchangeForLongLivedTokenAsync(shortToken.AccessToken, ct);
+            var (igUserId, username, tokenToStore) = await instagramOAuth.DiscoverInstagramAccountAsync(longToken.AccessToken, ct);
+
+            var encryptedToken = CryptoHelper.EncryptString(tokenToStore ?? longToken.AccessToken, encryptionKey);
+            var expiresAt = longToken.ExpiresIn.HasValue ? DateTime.UtcNow.AddSeconds(longToken.ExpiresIn.Value) : (DateTime?)null;
+
+            await upsertService.UpsertAsync(
+                userId: userId.Value,
+                platform: "Instagram",
+                handle: username.StartsWith('@') ? username : $"@{username}",
+                credentialsEncrypted: encryptedToken,
+                externalId: igUserId,
+                tokenExpiresAt: expiresAt,
+                ct: ct);
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new InstagramCallbackResponse(igUserId, username, expiresAt));
         });
     }
 }

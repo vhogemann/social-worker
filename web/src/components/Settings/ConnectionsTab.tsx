@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faTrashCan, faShareNodes } from "@fortawesome/free-solid-svg-icons";
-import { type AccountDto, listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, getMetaThreadsAuthUrl, getTwitterAuthUrl } from "../../api/accounts";
+import { type AccountDto, listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, getMetaThreadsAuthUrl, getTwitterAuthUrl, getInstagramAuthUrl } from "../../api/accounts";
 import { PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 import { Modal } from "../common/Modal";
 import { SettingsSection } from "./common/SettingsSection";
@@ -112,6 +112,21 @@ export function ConnectionsTab() {
       }
     } catch (err: any) {
       setModalError(err.message || "Failed to initiate Twitter / X connection.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleInstagramConnect = async () => {
+    try {
+      setIsSubmitting(true);
+      setModalError(null);
+      const data = await getInstagramAuthUrl();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (err: any) {
+      setModalError(err.message || "Failed to initiate Instagram connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -242,6 +257,7 @@ export function ConnectionsTab() {
               <option value="Twitter">X (Twitter)</option>
               <option value="LinkedIn">LinkedIn</option>
               <option value="MetaThreads">Threads</option>
+              <option value="Instagram">Instagram</option>
             </select>
           </div>
 
@@ -355,6 +371,73 @@ export function ConnectionsTab() {
                   ? "You will be redirected to LinkedIn to authorize organization management on your Company Pages."
                   : "You will be redirected to LinkedIn to authorize posting to your personal feed."}
               </p>
+            </div>
+          ) : platform === "Instagram" ? (
+            <div className="pt-2 space-y-4">
+              <div className="p-3 border border-border bg-bg/40 rounded-lg text-xs text-muted font-sans space-y-2">
+                <div className="text-foreground font-medium flex items-center gap-2">
+                  <FontAwesomeIcon icon={PLATFORM_ICONS.Instagram} className="w-3.5 h-3.5 text-pink-500" />
+                  <span>Instagram Professional Connection</span>
+                </div>
+                <p>
+                  Connect your Instagram Professional (Creator or Business) account via Meta Graph API to ingest posts and media from any public creator or politician.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleInstagramConnect}
+                disabled={isSubmitting}
+                className="w-full inline-flex items-center justify-center bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-90 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition duration-150 disabled:opacity-50 font-mono uppercase tracking-wider gap-2 shadow-sm"
+              >
+                <FontAwesomeIcon icon={PLATFORM_ICONS.Instagram} className="w-4 h-4 text-white" />
+                <span>
+                  {isSubmitting ? "Redirecting..." : "Connect Instagram via Meta"}
+                </span>
+              </button>
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-border"></div>
+                <span className="flex-shrink mx-3 text-muted text-[10px] font-mono uppercase">Or enter token directly</span>
+                <div className="flex-grow border-t border-border"></div>
+              </div>
+              <form onSubmit={handleSave} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1">
+                    Your Handle
+                  </label>
+                  <input
+                    type="text"
+                    value={handle}
+                    onChange={(e) => setHandle(e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder="@yourhandle"
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1">
+                    Meta Graph API Access Token
+                  </label>
+                  <input
+                    type="password"
+                    value={appPassword}
+                    onChange={(e) => setAppPassword(e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder="EAA..."
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
+                  />
+                  <p className="mt-1 text-[11px] text-muted font-sans leading-normal">
+                    Generate an access token with <code className="text-foreground">instagram_basic</code> and <code className="text-foreground">pages_show_list</code> permissions.
+                  </p>
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !handle || !appPassword}
+                  className="w-full bg-accent hover:bg-accent/90 text-white font-semibold text-xs py-2 px-4 rounded-lg transition duration-150 disabled:opacity-50 font-mono uppercase tracking-wider"
+                >
+                  Save Instagram Token
+                </button>
+              </form>
             </div>
           ) : (
             <form onSubmit={handleSave} className="space-y-4">

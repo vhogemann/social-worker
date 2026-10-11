@@ -1,6 +1,7 @@
 using System;
 using System.Net.Http;
 using System.Threading.Tasks;
+using SocialWorker.Api.Features.Sources.Instagram;
 
 namespace SocialWorker.Api.Features.Feeds;
 
@@ -15,18 +16,21 @@ public sealed class FeedDiscoveryService
 {
     private readonly YouTubeFeedDiscoveryService _youTubeDiscoveryService;
     private readonly RssFeedDiscoveryService _rssDiscoveryService;
+    private readonly InstagramFeedDiscoveryService _instagramDiscoveryService;
 
     public FeedDiscoveryService(HttpClient client)
-        : this(new YouTubeFeedDiscoveryService(client), new RssFeedDiscoveryService(client))
+        : this(new YouTubeFeedDiscoveryService(client), new RssFeedDiscoveryService(client), new InstagramFeedDiscoveryService())
     {
     }
 
     public FeedDiscoveryService(
         YouTubeFeedDiscoveryService youTubeDiscoveryService,
-        RssFeedDiscoveryService rssDiscoveryService)
+        RssFeedDiscoveryService rssDiscoveryService,
+        InstagramFeedDiscoveryService? instagramDiscoveryService = null)
     {
         _youTubeDiscoveryService = youTubeDiscoveryService;
         _rssDiscoveryService = rssDiscoveryService;
+        _instagramDiscoveryService = instagramDiscoveryService ?? new InstagramFeedDiscoveryService();
     }
 
     public async Task<FeedDiscoveryResult> DiscoverAsync(string url)
@@ -35,6 +39,11 @@ public sealed class FeedDiscoveryService
         if (string.IsNullOrWhiteSpace(normalizedUrl))
         {
             return new FeedDiscoveryResult(string.Empty, null, null, false, "URL is empty.");
+        }
+
+        if (normalizedUrl.StartsWith("instagram://", StringComparison.OrdinalIgnoreCase))
+        {
+            return await _instagramDiscoveryService.DiscoverAsync(normalizedUrl, new Uri(normalizedUrl));
         }
 
         if (!normalizedUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
@@ -46,6 +55,11 @@ public sealed class FeedDiscoveryService
         if (!Uri.TryCreate(normalizedUrl, UriKind.Absolute, out var uri))
         {
             return new FeedDiscoveryResult(normalizedUrl, null, null, false, "Invalid URL format.");
+        }
+
+        if (_instagramDiscoveryService.CanHandle(uri, normalizedUrl))
+        {
+            return await _instagramDiscoveryService.DiscoverAsync(normalizedUrl, uri);
         }
 
         if (_youTubeDiscoveryService.CanHandle(uri))

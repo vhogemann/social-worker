@@ -166,4 +166,58 @@ public sealed class FeedSourceIngestionServiceTests : SqliteTestBase
         Assert.NotNull(ytSource);
         Assert.Equal(SourceKind.YouTube, ytSource!.Kind);
     }
+
+    [Fact]
+    public async Task IngestSourceAsync_WhenInstagramVideo_ReturnsPendingTranscriptionAndEnqueuesTask()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        var sub = new FeedSubscription
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Title = "Instagram Profile",
+            FeedUrl = "instagram://flaviobolsonaro"
+        };
+        db.AutomationWorkflows.Add(workflow);
+        db.FeedSubscriptions.Add(sub);
+        await db.SaveChangesAsync();
+
+        var queue = new TestBackgroundTaskQueue();
+        var transcriptionService = new SourceTranscriptionService(queue);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
+        var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance, transcriptionService);
+
+        var videoUrl = "https://cdn.example.com/instagram/reel.mp4";
+        var permalink = "https://www.instagram.com/p/DB12345";
+        var result = await service.IngestSourceAsync(
+            sub,
+            workflow,
+            "Reel Title",
+            permalink,
+            "Reel caption text",
+            CancellationToken.None,
+            mediaUrl: videoUrl,
+            mediaType: "VIDEO");
+
+        Assert.Equal(IngestionStatus.PendingTranscription, result.Status);
+        Assert.NotNull(result.Draft);
+        Assert.NotNull(result.SourceId);
+
+        var queuedTask = Assert.Single(queue.EnqueuedTasks);
+        Assert.Equal("source-transcription", queuedTask.TaskType);
+        var payload = System.Text.Json.JsonSerializer.Deserialize<SocialWorker.Api.Features.Sources.Handlers.SourceTranscriptionPayload>(
+            queuedTask.PayloadJson,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Assert.NotNull(payload);
+        Assert.Equal(result.SourceId.Value, payload!.SourceId);
+        Assert.Equal(result.Draft!.Id, payload.DraftId);
+        Assert.Equal(videoUrl, payload.MediaUrl);
+
+        var savedSource = await db.Sources.FindAsync(result.SourceId.Value);
+        Assert.NotNull(savedSource);
+        Assert.Equal(permalink, savedSource!.Reference);
+        Assert.Equal("Reel caption text", savedSource.Content);
+    }
 }

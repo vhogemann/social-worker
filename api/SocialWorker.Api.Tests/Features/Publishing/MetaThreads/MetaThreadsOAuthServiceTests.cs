@@ -34,7 +34,7 @@ public sealed class MetaThreadsOAuthServiceTests
             AppId = "123456",
             AppSecret = "secret789",
             RedirectUri = "https://app.social-worker.local/oauth/callback/threads",
-            Scopes = "threads_basic,threads_content_publish"
+            Scopes = "threads_basic,threads_content_publish,threads_manage_replies"
         };
         var http = new HttpClient(new DelegatingHandlerStub(handler));
         var service = new MetaThreadsOAuthService(http, Options.Create(options), NullLogger<MetaThreadsOAuthService>.Instance);
@@ -50,7 +50,7 @@ public sealed class MetaThreadsOAuthServiceTests
 
         Assert.Contains("client_id=123456", url);
         Assert.Contains("state=test_nonce_123", url);
-        Assert.Contains("scope=threads_basic%2Cthreads_content_publish", url);
+        Assert.Contains("scope=threads_basic%2Cthreads_content_publish%2Cthreads_manage_replies", url);
         Assert.Contains("response_type=code", url);
         Assert.StartsWith("https://threads.net/oauth/authorize", url);
     }
@@ -72,6 +72,25 @@ public sealed class MetaThreadsOAuthServiceTests
 
         Assert.Equal("TH_SHORT_123", result.AccessToken);
         Assert.Equal("user_999", result.UserId);
+    }
+
+    [Fact]
+    public async Task ExchangeCodeAsync_ReturnsTokenResponse_WhenUserIdIsNumeric()
+    {
+        var (service, _) = CreateService(req =>
+        {
+            Assert.Equal(HttpMethod.Post, req.Method);
+            Assert.Equal("https://graph.threads.net/oauth/access_token", req.RequestUri!.ToString());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"access_token\":\"TH_SHORT_123\",\"user_id\":1585440656142454}")
+            };
+        });
+
+        var result = await service.ExchangeCodeAsync("auth_code_xyz");
+
+        Assert.Equal("TH_SHORT_123", result.AccessToken);
+        Assert.Equal("1585440656142454", result.UserId);
     }
 
     [Fact]

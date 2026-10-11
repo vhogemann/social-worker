@@ -17,9 +17,9 @@ public sealed class SourceTranscriptionService
         _logger = logger;
     }
 
-    public void QueueTranscriptExtraction(Guid sourceId, Guid draftId)
+    public void QueueTranscriptExtraction(Guid sourceId, Guid draftId, string? mediaUrl = null)
     {
-        _ = _queue.EnqueueAsync("source-transcription", new SourceTranscriptionPayload(sourceId, draftId))
+        _ = _queue.EnqueueAsync("source-transcription", new SourceTranscriptionPayload(sourceId, draftId, mediaUrl))
             .ContinueWith(t =>
             {
                 if (t.IsFaulted && t.Exception != null)

@@ -54,6 +54,7 @@ public sealed class McpServerTests : SqliteTestBase
         var queueService = new ScheduleQueueService(db, taskQueue);
         var evaluatorService = new ScheduleSlotEvaluatorService(db, taskQueue);
         var calendarService = new CalendarProjectionService(db);
+        var feedDiscoveryService = new FeedDiscoveryService(new HttpClient());
 
         var toolRegistry = new McpToolRegistry(
             db,
@@ -66,7 +67,8 @@ public sealed class McpServerTests : SqliteTestBase
             replyResolver,
             queueService,
             evaluatorService,
-            calendarService);
+            calendarService,
+            feedDiscoveryService: feedDiscoveryService);
 
         var resourceRegistry = new McpResourceRegistry(db, draftsService);
         var server = new McpServer(toolRegistry, resourceRegistry);
@@ -117,6 +119,12 @@ public sealed class McpServerTests : SqliteTestBase
         Assert.Contains("enqueue_draft", json);
         Assert.Contains("get_schedule_queue", json);
         Assert.Contains("get_calendar_events", json);
+        Assert.Contains("list_accounts", json);
+        Assert.Contains("discover_feed", json);
+        Assert.Contains("add_feed", json);
+        Assert.Contains("update_feed", json);
+        Assert.Contains("create_workflow", json);
+        Assert.Contains("delete_workflow", json);
     }
 
     [Fact]
@@ -328,6 +336,239 @@ public sealed class McpServerTests : SqliteTestBase
         Assert.Contains("Scheduled", result.Content[0].Text);
         Assert.Contains("Main Social Schedule", result.Content[0].Text);
         Assert.Contains("science.bsky.social", result.Content[0].Text);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_ListAccounts_ReturnsAccountsWithoutSecrets()
+    {
+        var (server, user, db) = CreateTestServer();
+        var account = new Account
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Platform = "MetaThreads",
+            Handle = "vhogemann",
+            CredentialsEncrypted = "secret-super-sensitive-token",
+            Status = "Active",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Accounts.Add(account);
+        await db.SaveChangesAsync();
+
+        // 1. All accounts
+        var allReq = new McpRequest("2.0", 60, "tools/call", JsonDocument.Parse("""
+        {
+            "name": "list_accounts",
+            "arguments": {}
+        }
+        """).RootElement);
+        var allResp = await server.HandleRequestAsync(allReq, user.Id, CancellationToken.None);
+        Assert.NotNull(allResp);
+        var allResult = Assert.IsType<McpToolCallResult>(allResp.Result);
+        Assert.False(allResult.IsError);
+        Assert.Contains("vhogemann", allResult.Content[0].Text);
+        Assert.Contains("MetaThreads", allResult.Content[0].Text);
+        Assert.DoesNotContain("secret-super-sensitive-token", allResult.Content[0].Text);
+        Assert.DoesNotContain("credentialsEncrypted", allResult.Content[0].Text, StringComparison.OrdinalIgnoreCase);
+
+        // 2. Filter by matching platform
+        var threadsReq = new McpRequest("2.0", 61, "tools/call", JsonDocument.Parse("""
+        {
+            "name": "list_accounts",
+            "arguments": { "platform": "Threads" }
+        }
+        """).RootElement);
+        var threadsResp = await server.HandleRequestAsync(threadsReq, user.Id, CancellationToken.None);
+        var threadsResult = Assert.IsType<McpToolCallResult>(threadsResp!.Result);
+        Assert.False(threadsResult.IsError);
+        Assert.Contains("vhogemann", threadsResult.Content[0].Text);
+
+        // 3. Filter by non-matching platform
+        var twitterReq = new McpRequest("2.0", 62, "tools/call", JsonDocument.Parse("""
+        {
+            "name": "list_accounts",
+            "arguments": { "platform": "Twitter" }
+        }
+        """).RootElement);
+        var twitterResp = await server.HandleRequestAsync(twitterReq, user.Id, CancellationToken.None);
+        var twitterResult = Assert.IsType<McpToolCallResult>(twitterResp!.Result);
+        Assert.False(twitterResult.IsError);
+        Assert.Equal("[]", twitterResult.Content[0].Text?.Trim());
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_AddFeed_PersistsSubscription()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var addFeedParams = JsonDocument.Parse("""
+        {
+            "name": "add_feed",
+            "arguments": {
+                "title": "ICL Notícias",
+                "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCTnRtQ9IkBGmCKcLB31BcyA",
+                "websiteUrl": "https://www.youtube.com/@iclnoticias"
+            }
+        }
+        """).RootElement;
+
+        var request = new McpRequest("2.0", 70, "tools/call", addFeedParams);
+        var response = await server.HandleRequestAsync(request, user.Id, CancellationToken.None);
+
+        Assert.NotNull(response);
+        Assert.Null(response!.Error);
+        var result = Assert.IsType<McpToolCallResult>(response.Result);
+        Assert.False(result.IsError);
+
+        var json = result.Content[0].Text!;
+        Assert.Contains("ICL Notícias", json);
+        Assert.Contains("UCTnRtQ9IkBGmCKcLB31BcyA", json);
+
+        var feedDoc = JsonDocument.Parse(json);
+        var feedId = Guid.Parse(feedDoc.RootElement.GetProperty("id").GetString()!);
+
+        var persisted = await db.FeedSubscriptions.FindAsync(feedId);
+        Assert.NotNull(persisted);
+        Assert.Equal("ICL Notícias", persisted.Title);
+        Assert.Equal(user.Id, persisted.UserId);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_UpdateFeed_UpdatesExistingSubscriptionFiltersAndTitle()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var feed = FeedSubscription.Create(user.Id, new CreateFeedSubscriptionRequest(
+            "Original Title",
+            "https://example.com/rss.xml",
+            null, null, null));
+        db.FeedSubscriptions.Add(feed);
+        await db.SaveChangesAsync();
+
+        var updateFeedParams = JsonDocument.Parse($$"""
+        {
+            "name": "update_feed",
+            "arguments": {
+                "subscriptionId": "{{feed.Id}}",
+                "title": "Updated Title",
+                "includeFilters": "Bolsonaro, 6x1",
+                "excludeFilters": "futebol, celebridade"
+            }
+        }
+        """).RootElement;
+
+        var request = new McpRequest("2.0", 71, "tools/call", updateFeedParams);
+        var response = await server.HandleRequestAsync(request, user.Id, CancellationToken.None);
+
+        Assert.NotNull(response);
+        Assert.Null(response!.Error);
+        var result = Assert.IsType<McpToolCallResult>(response.Result);
+        Assert.False(result.IsError);
+
+        var json = result.Content[0].Text!;
+        Assert.Contains("Updated Title", json);
+
+        var persisted = await db.FeedSubscriptions.FindAsync(feed.Id);
+        Assert.NotNull(persisted);
+        Assert.Equal("Updated Title", persisted.Title);
+        Assert.Equal("Bolsonaro, 6x1", persisted.IncludeFilters);
+        Assert.Equal("futebol, celebridade", persisted.ExcludeFilters);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_CreateWorkflow_CreatesWorkflowWithSourcesAndDestinations()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var feed = FeedSubscription.Create(user.Id, new CreateFeedSubscriptionRequest(
+            "Jones Manoel",
+            "https://www.youtube.com/feeds/videos.xml?channel_id=UC02coXfDPjEmU8uDT2G8Z2A",
+            null, null, null));
+        db.FeedSubscriptions.Add(feed);
+
+        var account = new Account
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Platform = "MetaThreads",
+            Handle = "vhogemann",
+            CredentialsEncrypted = "token",
+            Status = "Active",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Accounts.Add(account);
+        await db.SaveChangesAsync();
+
+        var createWorkflowParams = JsonDocument.Parse($$"""
+        {
+            "name": "create_workflow",
+            "arguments": {
+                "title": "Esquerda Radical para Threads",
+                "instructionPrompt": "Crie threads combativas para o Threads com video no primeiro post.",
+                "feedSubscriptionIds": ["{{feed.Id}}"],
+                "destinations": [
+                    {
+                        "platform": "MetaThreads",
+                        "accountId": "{{account.Id}}",
+                        "publishingMode": "Automatic",
+                        "autoPublish": true
+                    }
+                ]
+            }
+        }
+        """).RootElement;
+
+        var request = new McpRequest("2.0", 80, "tools/call", createWorkflowParams);
+        var response = await server.HandleRequestAsync(request, user.Id, CancellationToken.None);
+
+        Assert.NotNull(response);
+        Assert.Null(response!.Error);
+        var result = Assert.IsType<McpToolCallResult>(response.Result);
+        Assert.False(result.IsError);
+
+        var json = result.Content[0].Text!;
+        Assert.Contains("Esquerda Radical para Threads", json);
+        Assert.Contains("MetaThreads", json);
+        Assert.Contains("vhogemann", json);
+
+        var workflowDoc = JsonDocument.Parse(json);
+        var workflowId = Guid.Parse(workflowDoc.RootElement.GetProperty("id").GetString()!);
+
+        var persistedWf = await db.AutomationWorkflows.FindAsync(workflowId);
+        Assert.NotNull(persistedWf);
+        Assert.Equal("Esquerda Radical para Threads", persistedWf.Title);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_DeleteWorkflow_DeletesExistingWorkflow()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Temporary Workflow", null, null);
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        var deleteParams = JsonDocument.Parse($$"""
+        {
+            "name": "delete_workflow",
+            "arguments": {
+                "workflowId": "{{workflow.Id}}"
+            }
+        }
+        """).RootElement;
+
+        var request = new McpRequest("2.0", 72, "tools/call", deleteParams);
+        var response = await server.HandleRequestAsync(request, user.Id, CancellationToken.None);
+
+        Assert.NotNull(response);
+        Assert.Null(response!.Error);
+        var result = Assert.IsType<McpToolCallResult>(response.Result);
+        Assert.False(result.IsError);
+
+        var persisted = await db.AutomationWorkflows.FindAsync(workflow.Id);
+        Assert.Null(persisted);
     }
 
     private sealed class MockPublisherResolver : IPublisherResolver

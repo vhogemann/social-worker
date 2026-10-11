@@ -49,6 +49,18 @@ services:
       LinkedIn__CompanyClientSecret: ${LINKEDIN__COMPANY__CLIENTSECRET:-}
       LinkedIn__CompanyRedirectUri: ${LINKEDIN__COMPANY__REDIRECTURI:-}
       LinkedIn__CompanyScopes: ${LINKEDIN__COMPANY__SCOPES:-}
+      MetaThreads__AppId: ${METATHREADS__APPID:-}
+      MetaThreads__AppSecret: ${METATHREADS__APPSECRET:-}
+      MetaThreads__RedirectUri: ${METATHREADS__REDIRECTURI:-}
+      MetaThreads__PublicBaseUrl: ${METATHREADS__PUBLICBASEURL:-}
+      Twitter__ClientId: ${TWITTER__CLIENTID:-}
+      Twitter__ClientSecret: ${TWITTER__CLIENTSECRET:-}
+      Twitter__RedirectUri: ${TWITTER__REDIRECTURI:-}
+      Instagram__AppId: ${INSTAGRAM__APPID:-${METATHREADS__APPID:-}}
+      Instagram__AppSecret: ${INSTAGRAM__APPSECRET:-${METATHREADS__APPSECRET:-}}
+      Instagram__RedirectUri: ${INSTAGRAM__REDIRECTURI:-https://social.plopsaurus.xyz/oauth/callback/instagram}
+      Instagram__AccessToken: ${INSTAGRAM__ACCESSTOKEN:-}
+      Instagram__CallerUserId: ${INSTAGRAM__CALLERUSERID:-}
       DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-}
     depends_on:
       db:

@@ -95,6 +95,54 @@ public sealed class TaskHandlersTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task SourceTranscriptionTaskHandler_WithMediaUrl_PassesMediaUrlToTranscriber_AndCombinesWithExistingCaption()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = user.Id, Title = "Draft" };
+        var source = Source.CreateUrl("https://www.instagram.com/p/DB12345", "Reel");
+        source.Content = "Original Reel caption from politician";
+        db.Drafts.Add(draft);
+        db.Sources.Add(source);
+        await db.SaveChangesAsync();
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"transcripts-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var fakeTranscriber = new FakeTranscriber(tempDir);
+            var handler = new SourceTranscriptionTaskHandler(
+                db,
+                fakeTranscriber,
+                new ServiceCollection().BuildServiceProvider(),
+                NullLogger<SourceTranscriptionTaskHandler>.Instance);
+
+            var queue = new TestBackgroundTaskQueue();
+            var payload = new SourceTranscriptionPayload(source.Id, draft.Id, "https://cdn.example.com/video.mp4");
+            var task = BackgroundTask.Create("source-transcription", payload);
+            var context = new TaskExecutionContext(task, "worker", queue, CancellationToken.None);
+
+            var result = await handler.ExecuteAsync(payload, context, CancellationToken.None);
+
+            Assert.Equal(TaskOutcome.Success, result.Outcome);
+            Assert.Equal("https://cdn.example.com/video.mp4", fakeTranscriber.LastRequestedUrl);
+
+            var updatedSource = await db.Sources.FindAsync(source.Id);
+            Assert.Equal(SourceProcessingStatus.Complete, updatedSource!.ProcessingStatus);
+            Assert.Contains("Original Reel caption from politician", updatedSource.Content);
+            Assert.Contains("[Transcrição do Vídeo (Whisper)]", updatedSource.Content);
+            Assert.Contains("Extracted video transcript", updatedSource.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task FeedIngestionTaskHandler_SubscriptionNotFound_ReturnsFatal()
     {
         using var db = CreateDbContext();
@@ -213,6 +261,20 @@ public sealed class TaskHandlersTests : SqliteTestBase
             }
             return Task.CompletedTask;
         }
+
+        public override Task ProcessFeedItemAsync(
+            FeedSubscription subscription,
+            AutomationWorkflow workflow,
+            string itemTitle,
+            string itemLink,
+            string itemDescription,
+            DateTime? itemPublishDate,
+            CancellationToken ct,
+            string? mediaUrl,
+            string? mediaType)
+        {
+            return ProcessFeedItemAsync(subscription, workflow, itemTitle, itemLink, itemDescription, itemPublishDate, ct);
+        }
     }
 
     private sealed class SimpleHandler : HttpMessageHandler
@@ -236,6 +298,7 @@ public sealed class TaskHandlersTests : SqliteTestBase
     private sealed class FakeTranscriber : ITranscriptExtractionService
     {
         private readonly string _dir;
+        public string? LastRequestedUrl { get; private set; }
 
         public FakeTranscriber(string dir)
         {
@@ -244,6 +307,7 @@ public sealed class TaskHandlersTests : SqliteTestBase
 
         public async Task<TranscriptExtractionResult> ExtractAsync(string mediaUrl, string outputPath, CancellationToken ct)
         {
+            LastRequestedUrl = mediaUrl;
             var path = Path.Combine(_dir, outputPath);
             await File.WriteAllTextAsync(path, "{\"transcript\":\"Extracted video transcript\"}", ct);
             return new TranscriptExtractionResult(true, outputPath, 60, "en", null);

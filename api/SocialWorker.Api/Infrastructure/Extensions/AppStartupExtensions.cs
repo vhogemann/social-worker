@@ -96,10 +96,35 @@ static class AppStartupExtensions
         var adminUser = await db.Users.FirstOrDefaultAsync(u => u.Username == "admin");
         if (adminUser != null)
         {
-            if (adminUser.PasswordHash == "placeholder")
+            var needsUpdate = false;
+            if (!adminUser.IsActive)
             {
-                adminUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword(authOpts.AdminPassword);
-                adminUser.UpdatedAt = DateTime.UtcNow;
+                adminUser.IsActive = true;
+                needsUpdate = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(authOpts.AdminPassword))
+            {
+                var isPasswordValid = false;
+                try
+                {
+                    isPasswordValid = adminUser.PasswordHash != "placeholder" && BCrypt.Net.BCrypt.Verify(authOpts.AdminPassword, adminUser.PasswordHash);
+                }
+                catch
+                {
+                    isPasswordValid = false;
+                }
+
+                if (!isPasswordValid)
+                {
+                    adminUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword(authOpts.AdminPassword);
+                    adminUser.UpdatedAt = DateTime.UtcNow;
+                    needsUpdate = true;
+                }
+            }
+
+            if (needsUpdate)
+            {
                 await db.SaveChangesAsync();
             }
         }

@@ -35,7 +35,7 @@ public class FeedOrchestrationService
         _logger = logger;
     }
 
-    public virtual async Task ProcessFeedItemAsync(
+    public virtual Task ProcessFeedItemAsync(
         FeedSubscription subscription,
         AutomationWorkflow workflow,
         string itemTitle,
@@ -44,13 +44,23 @@ public class FeedOrchestrationService
         DateTime? itemPublishDate,
         CancellationToken ct)
     {
-        var ingestionResult = await _sourceIngestionService.IngestSourceAsync(
-            subscription,
-            workflow,
-            itemTitle,
-            itemLink,
-            itemDescription,
-            ct);
+        return ProcessFeedItemAsync(subscription, workflow, itemTitle, itemLink, itemDescription, itemPublishDate, ct, null, null);
+    }
+
+    public virtual async Task ProcessFeedItemAsync(
+        FeedSubscription subscription,
+        AutomationWorkflow workflow,
+        string itemTitle,
+        string itemLink,
+        string itemDescription,
+        DateTime? itemPublishDate,
+        CancellationToken ct,
+        string? mediaUrl,
+        string? mediaType)
+    {
+        var ingestionResult = (!string.IsNullOrWhiteSpace(mediaUrl) || !string.IsNullOrWhiteSpace(mediaType))
+            ? await _sourceIngestionService.IngestSourceAsync(subscription, workflow, itemTitle, itemLink, itemDescription, ct, mediaUrl, mediaType)
+            : await _sourceIngestionService.IngestSourceAsync(subscription, workflow, itemTitle, itemLink, itemDescription, ct);
 
         if (ingestionResult.Status == IngestionStatus.PendingTranscription)
         {

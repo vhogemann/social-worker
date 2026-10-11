@@ -30,7 +30,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Chat: api/SocialWorker.Api/Features/Chat/
 - Draft lifecycle: api/SocialWorker.Api/Features/Drafts/
 - Publishing: api/SocialWorker.Api/Features/Publishing/ (Bluesky, LinkedIn, MetaThreads, Twitter, Resilience/PublishResumePlanner)
-- Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Media/
+- Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Sources/Instagram/ (Instagram Business Discovery Graph API client, credential provider, OAuth, feed reader converter, setup guide in docs/INSTAGRAM_SETUP.md), api/SocialWorker.Api/Features/Media/
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
 - Feed automation: api/SocialWorker.Api/Features/Feeds/
 - Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService, ScheduleSlotEvaluatorService worker, Review Outbox)
@@ -62,17 +62,17 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (586 tests): api/SocialWorker.Api.Tests/
+- API unit/integration tests (666 tests): api/SocialWorker.Api.Tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
-- Web tests (Vitest, 462 tests in 90 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- Web tests (Vitest, 474 tests in 91 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
 
 ## Core user flow mental model
 
 1. User opens/creates a draft (via Web UI or MCP server).
 2. Chat and editor collaborate on thread content using CommonMark AST segmentation (`---`).
-3. User attaches sources (URLs, YouTube, files); backend scrapes content, runs Whisper transcription, and extracts text.
-4. Automation workflows poll RSS/YouTube feeds and autonomously generate drafts citing research/articles.
+3. User attaches sources (URLs, YouTube, Instagram reels/posts, files); backend scrapes content, runs Whisper transcription for video audio, and extracts text.
+4. Automation workflows poll RSS/YouTube/Instagram feeds and autonomously generate drafts citing research/articles.
 5. Platform thread variants are created/updated with server-enforced validation rules (character limits, facets, single-card embed constraints).
 6. Stage transitions are explicit and server-enforced.
 7. Publish is allowed only when validation rules are satisfied (readiness + character count + AST syntax checks).
@@ -81,7 +81,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ## Model Context Protocol (MCP) & API Keys
 
 - Endpoint: `/api/mcp` (Stateless JSON-RPC 2.0) and `/api/mcp/sse?api_key=...` (Server-Sent Events continuous stream).
-- Tools (20): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`, `list_schedules`, `get_schedule`, `create_schedule`, `add_slot_rule`, `enqueue_draft`, `get_schedule_queue`, `get_calendar_events`.
+- Tools (24): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`, `list_schedules`, `get_schedule`, `create_schedule`, `add_slot_rule`, `enqueue_draft`, `get_schedule_queue`, `get_calendar_events`, `list_accounts`, `discover_feed`, `add_feed`, `create_workflow`.
 - Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`.
 - Auth: `ApiKeyAuthenticationHandler` validates SHA-256 hashed keys (`sw_live_...`) routed through ASP.NET Core `PolicyScheme` ("Composite"). Dev key `sw_live_dev_admin_key_000000000000` seeded in development.
 

@@ -11,7 +11,7 @@ using SocialWorker.Api.Features.BackgroundTasks.Models;
 
 namespace SocialWorker.Api.Features.Sources.Handlers;
 
-public sealed record SourceTranscriptionPayload(Guid SourceId, Guid DraftId);
+public sealed record SourceTranscriptionPayload(Guid SourceId, Guid DraftId, string? MediaUrl = null);
 
 public sealed class SourceTranscriptionTaskHandler : BackgroundTaskHandlerBase<SourceTranscriptionPayload>
 {
@@ -50,9 +50,13 @@ public sealed class SourceTranscriptionTaskHandler : BackgroundTaskHandlerBase<S
         source.ProcessingStatus = SourceProcessingStatus.Processing;
         await _db.SaveChangesAsync(ct);
 
+        var videoUrl = !string.IsNullOrWhiteSpace(payload.MediaUrl)
+            ? payload.MediaUrl
+            : source.Reference;
+
         try
         {
-            var result = await _transcriber.ExtractAsync(source.Reference, $"{source.Id}.json", ct);
+            var result = await _transcriber.ExtractAsync(videoUrl, $"{source.Id}.json", ct);
             if (!result.Success || string.IsNullOrWhiteSpace(result.TranscriptPath))
             {
                 source.ProcessingStatus = SourceProcessingStatus.Failed;
@@ -77,13 +81,21 @@ public sealed class SourceTranscriptionTaskHandler : BackgroundTaskHandlerBase<S
             string? text = transcript?.Transcript;
             if (!string.IsNullOrWhiteSpace(text))
             {
-                source.Content = text;
+                if (!string.IsNullOrWhiteSpace(payload.MediaUrl) && !string.IsNullOrWhiteSpace(source.Content) && !source.Content.Contains(text))
+                {
+                    source.Content = $"{source.Content.Trim()}\n\n[Transcrição do Vídeo (Whisper)]:\n{text.Trim()}";
+                }
+                else
+                {
+                    source.Content = text;
+                }
+
                 var summarizer = _serviceProvider.GetService<SummarizationService>();
                 if (summarizer != null)
                 {
                     try
                     {
-                        source.Summary = await summarizer.SummarizeAsync(text, ct);
+                        source.Summary = await summarizer.SummarizeAsync(source.Content, ct);
                     }
                     catch (Exception ex)
                     {

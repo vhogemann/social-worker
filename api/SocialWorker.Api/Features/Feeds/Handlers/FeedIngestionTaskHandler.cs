@@ -15,7 +15,9 @@ public sealed record FeedIngestionPayload(
     string ItemTitle,
     string ItemLink,
     string? ItemDescription,
-    DateTime? ItemPublishedAt);
+    DateTime? ItemPublishedAt,
+    string? MediaUrl = null,
+    string? MediaType = null);
 
 public sealed class FeedIngestionTaskHandler : BackgroundTaskHandlerBase<FeedIngestionPayload>
 {
@@ -61,14 +63,30 @@ public sealed class FeedIngestionTaskHandler : BackgroundTaskHandlerBase<FeedIng
 
         try
         {
-            await _orchestrator.ProcessFeedItemAsync(
-                subscription,
-                workflow,
-                payload.ItemTitle,
-                payload.ItemLink,
-                payload.ItemDescription ?? string.Empty,
-                payload.ItemPublishedAt,
-                ct);
+            if (string.IsNullOrWhiteSpace(payload.MediaUrl) && string.IsNullOrWhiteSpace(payload.MediaType))
+            {
+                await _orchestrator.ProcessFeedItemAsync(
+                    subscription,
+                    workflow,
+                    payload.ItemTitle,
+                    payload.ItemLink,
+                    payload.ItemDescription ?? string.Empty,
+                    payload.ItemPublishedAt,
+                    ct);
+            }
+            else
+            {
+                await _orchestrator.ProcessFeedItemAsync(
+                    subscription,
+                    workflow,
+                    payload.ItemTitle,
+                    payload.ItemLink,
+                    payload.ItemDescription ?? string.Empty,
+                    payload.ItemPublishedAt,
+                    ct,
+                    payload.MediaUrl,
+                    payload.MediaType);
+            }
 
             return TaskResult.Success();
         }

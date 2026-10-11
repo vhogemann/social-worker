@@ -370,7 +370,39 @@ def _resolve_output_path(output_path: str) -> Path:
     return resolved
 
 
+def _is_direct_media_url(url: str) -> bool:
+    clean = url.lower().split("?")[0]
+    return clean.endswith((".mp4", ".m4a", ".mp3", ".wav", ".webm", ".ogg", ".aac")) or "cdninstagram.com" in clean or "fbcdn.net" in clean
+
+
+def _download_direct_media(media_url: str, tmp_dir: Path) -> Path:
+    clean = media_url.lower().split("?")[0]
+    ext = ".mp4"
+    for candidate_ext in [".mp4", ".m4a", ".mp3", ".wav", ".webm", ".ogg", ".aac"]:
+        if clean.endswith(candidate_ext):
+            ext = candidate_ext
+            break
+
+    dest = tmp_dir / f"source{ext}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    with requests.get(media_url, stream=True, headers=headers, timeout=60) as resp:
+        resp.raise_for_status()
+        with open(dest, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=65536):
+                if chunk:
+                    f.write(chunk)
+    return dest
+
+
 def _download_audio(video_url: str, tmp_dir: Path) -> Path:
+    if _is_direct_media_url(video_url):
+        try:
+            return _download_direct_media(video_url, tmp_dir)
+        except Exception:
+            pass
+
     output_template = str(tmp_dir / "source.%(ext)s")
     base_options = {
         "format": "bestaudio/best",
@@ -418,6 +450,10 @@ def _download_audio(video_url: str, tmp_dir: Path) -> Path:
             last_error = exc
 
     if downloaded is None:
+        try:
+            return _download_direct_media(video_url, tmp_dir)
+        except Exception:
+            pass
         raise RuntimeError(str(last_error) if last_error else "Failed to download audio for transcription.")
 
     if downloaded.exists():

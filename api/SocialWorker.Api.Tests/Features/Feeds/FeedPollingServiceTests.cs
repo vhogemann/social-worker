@@ -180,6 +180,104 @@ public sealed class FeedPollingServiceTests : SqliteTestBase
         Assert.Equal(3, queue.EnqueuedTasks.Count);
     }
 
+    [Fact]
+    public async Task DefaultFeedReaderService_WithInstagramUrl_CallsInstagramDiscoveryClient()
+    {
+        var profile = new SocialWorker.Api.Features.Sources.Instagram.InstagramProfileDiscovery(
+            Id: "1784140001",
+            Username: "flaviobolsonaro",
+            Name: "Flavio",
+            ProfilePictureUrl: null,
+            Biography: null,
+            Media: null);
+
+        var expectedFeed = SocialWorker.Api.Features.Sources.Instagram.InstagramFeedConverter.ToFeed(profile);
+
+        var client = new FakeInstagramClientForPolling(expectedFeed);
+        var creds = new FakeInstagramCredsForPolling(new SocialWorker.Api.Features.Sources.Instagram.InstagramCredentials("token", "1784149999"));
+
+        var reader = new DefaultFeedReaderService(client, creds);
+        var feed = await reader.ReadFeedAsync("instagram://flaviobolsonaro", CancellationToken.None);
+
+        Assert.NotNull(feed);
+        Assert.Equal("Flavio (@flaviobolsonaro) on Instagram", feed.Title);
+    }
+
+    [Fact]
+    public async Task PollSubscription_WhenItemHasEnclosure_ExtractsMediaUrlAndType()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var feed = FeedSubscription.Create(user.Id, "Instagram Feed", "instagram://flaviobolsonaro");
+        db.FeedSubscriptions.Add(feed);
+        var wf = AutomationWorkflow.Create(user.Id, "Test WF", "Prompt");
+        db.AutomationWorkflows.Add(wf);
+        await db.SaveChangesAsync();
+
+        db.AutomationWorkflowSources.Add(AutomationWorkflowSource.Create(wf.Id, feed.Id));
+        await db.SaveChangesAsync();
+
+        var xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<rss version=""2.0"">
+  <channel>
+    <title>Instagram Feed</title>
+    <item>
+      <title>Reel</title>
+      <link>https://www.instagram.com/p/DB12345</link>
+      <description>Reel caption</description>
+      <enclosure url=""https://cdn.example.com/video.mp4"" type=""video/mp4"" length=""0"" />
+    </item>
+  </channel>
+</rss>";
+
+        var parsedFeed = CodeHollow.FeedReader.FeedReader.ReadFromString(xml);
+        var fakeReader = new FakeFeedReaderService(parsedFeed);
+        var queue = new TestBackgroundTaskQueue();
+        var pollingService = new FeedPollingService(db, queue, NullLogger<FeedPollingService>.Instance, fakeReader);
+
+        await pollingService.PollSubscriptionAsync(feed.Id, CancellationToken.None);
+
+        var task = Assert.Single(queue.EnqueuedTasks);
+        var payload = System.Text.Json.JsonSerializer.Deserialize<SocialWorker.Api.Features.Feeds.Handlers.FeedIngestionPayload>(
+            task.PayloadJson,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Assert.NotNull(payload);
+        Assert.Equal("https://cdn.example.com/video.mp4", payload!.MediaUrl);
+        Assert.Equal("VIDEO", payload.MediaType);
+    }
+
+    private sealed class FakeInstagramClientForPolling : SocialWorker.Api.Features.Sources.Instagram.IInstagramDiscoveryClient
+    {
+        private readonly CodeHollow.FeedReader.Feed _feed;
+
+        public FakeInstagramClientForPolling(CodeHollow.FeedReader.Feed feed)
+        {
+            _feed = feed;
+        }
+
+        public Task<SocialWorker.Api.Features.Sources.Instagram.InstagramProfileDiscovery?> GetProfileWithMediaAsync(string callerIgUserId, string targetUsername, string accessToken, int limit = 10, CancellationToken ct = default)
+            => Task.FromResult<SocialWorker.Api.Features.Sources.Instagram.InstagramProfileDiscovery?>(null);
+
+        public Task<string?> ResolveCallerIgUserIdAsync(string accessToken, CancellationToken ct = default)
+            => Task.FromResult<string?>(null);
+
+        public Task<CodeHollow.FeedReader.Feed> GetProfileFeedAsync(string targetUsername, string callerIgUserId, string accessToken, int limit = 10, CancellationToken ct = default)
+            => Task.FromResult(_feed);
+    }
+
+    private sealed class FakeInstagramCredsForPolling : SocialWorker.Api.Features.Sources.Instagram.IInstagramCredentialProvider
+    {
+        private readonly SocialWorker.Api.Features.Sources.Instagram.InstagramCredentials _creds;
+
+        public FakeInstagramCredsForPolling(SocialWorker.Api.Features.Sources.Instagram.InstagramCredentials creds)
+        {
+            _creds = creds;
+        }
+
+        public Task<SocialWorker.Api.Features.Sources.Instagram.InstagramCredentials?> GetCredentialsAsync(Guid? userId = null, CancellationToken ct = default)
+            => Task.FromResult<SocialWorker.Api.Features.Sources.Instagram.InstagramCredentials?>(_creds);
+    }
+
     private sealed class FakeFeedReaderService : IFeedReaderService
     {
         private readonly CodeHollow.FeedReader.Feed _feed;

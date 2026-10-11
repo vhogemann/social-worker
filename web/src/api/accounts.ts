@@ -119,3 +119,30 @@ export async function submitTwitterCallback(code: string, state: string): Promis
   return res.json();
 }
 
+export interface InstagramCallbackResponse {
+  externalId: string;
+  username: string;
+  tokenExpiresAt: string | null;
+}
+
+export async function getInstagramAuthUrl(): Promise<{ authUrl: string }> {
+  const res = await apiFetch("/api/accounts/instagram/auth-url");
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || err?.message || "Failed to fetch Instagram auth URL");
+  }
+  return res.json();
+}
+
+export async function submitInstagramCallback(code: string, state: string): Promise<InstagramCallbackResponse> {
+  const res = await apiFetch("/api/accounts/instagram/callback", {
+    method: "POST",
+    body: JSON.stringify({ code, state }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || err?.message || "Failed to exchange Instagram auth code");
+  }
+  return res.json();
+}
+
