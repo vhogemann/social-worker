@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -17,6 +18,8 @@ using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
 using SocialWorker.Api.Features.Publishing.Validation;
+using SocialWorker.Api.Features.ReplyAgents.Abstractions;
+using SocialWorker.Api.Features.ReplyAgents.Models;
 using SocialWorker.Api.Features.Scheduling.Services;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Tests.Infrastructure;
@@ -26,14 +29,16 @@ namespace SocialWorker.Api.Tests.Features.Mcp;
 
 public sealed class McpServerTests : SqliteTestBase
 {
-    private (McpServer Server, AppUser User, AppDbContext Db) CreateTestServer()
+    private (McpServer Server, AppUser User, AppDbContext Db) CreateTestServer(
+        TestBackgroundTaskQueue? customQueue = null,
+        IReplyPlatformAdapterResolver? customAdapterResolver = null)
     {
         var db = CreateDbContext();
         var user = CreateSeedUser(db);
         var sourcesService = TestServiceFactory.CreateSourcesService(db);
         var storage = new FileStorageProvider(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
         var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService);
-        var taskQueue = new TestBackgroundTaskQueue();
+        var taskQueue = customQueue ?? new TestBackgroundTaskQueue();
         var feedPollingService = new FeedPollingService(db, taskQueue, NullLogger<FeedPollingService>.Instance);
         var publisherResolver = new MockPublisherResolver();
         var blueskyContentValidator = new BlueskyContentValidator();
@@ -55,6 +60,7 @@ public sealed class McpServerTests : SqliteTestBase
         var evaluatorService = new ScheduleSlotEvaluatorService(db, taskQueue);
         var calendarService = new CalendarProjectionService(db);
         var feedDiscoveryService = new FeedDiscoveryService(new HttpClient());
+        var defaultAdapterResolver = customAdapterResolver ?? new MockReplyAdapterResolver(new MockReplyPlatformAdapter());
 
         var toolRegistry = new McpToolRegistry(
             db,
@@ -68,7 +74,9 @@ public sealed class McpServerTests : SqliteTestBase
             queueService,
             evaluatorService,
             calendarService,
-            feedDiscoveryService: feedDiscoveryService);
+            feedDiscoveryService: feedDiscoveryService,
+            taskQueue: taskQueue,
+            replyAdapterResolver: defaultAdapterResolver);
 
         var resourceRegistry = new McpResourceRegistry(db, draftsService);
         var server = new McpServer(toolRegistry, resourceRegistry);
@@ -125,6 +133,11 @@ public sealed class McpServerTests : SqliteTestBase
         Assert.Contains("update_feed", json);
         Assert.Contains("create_workflow", json);
         Assert.Contains("delete_workflow", json);
+        Assert.Contains("get_reply_agent", json);
+        Assert.Contains("configure_reply_agent", json);
+        Assert.Contains("trigger_reply_check", json);
+        Assert.Contains("list_comment_audits", json);
+        Assert.Contains("reply_to_comment", json);
     }
 
     [Fact]
@@ -569,6 +582,321 @@ public sealed class McpServerTests : SqliteTestBase
 
         var persisted = await db.AutomationWorkflows.FindAsync(workflow.Id);
         Assert.Null(persisted);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_ConfigureAndGetReplyAgent_Succeeds()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Reply Agent Test Workflow", null, null);
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        // 1. configure_reply_agent
+        var configParams = JsonDocument.Parse($$"""
+        {
+            "name": "configure_reply_agent",
+            "arguments": {
+                "workflowId": "{{workflow.Id}}",
+                "isEnabled": true,
+                "personaPrompt": "You are a witty, factual social worker bot.",
+                "minRankingScore": 8,
+                "maxRepliesPerUser": 2,
+                "autoPublishReplies": false
+            }
+        }
+        """).RootElement;
+
+        var configReq = new McpRequest("2.0", 91, "tools/call", configParams);
+        var configResp = await server.HandleRequestAsync(configReq, user.Id, CancellationToken.None);
+        Assert.NotNull(configResp);
+        Assert.Null(configResp!.Error);
+        var configResult = Assert.IsType<McpToolCallResult>(configResp.Result);
+        Assert.False(configResult.IsError);
+
+        var agentDoc = JsonDocument.Parse(configResult.Content[0].Text!);
+        Assert.Equal("You are a witty, factual social worker bot.", agentDoc.RootElement.GetProperty("personaPrompt").GetString());
+        Assert.Equal(8, agentDoc.RootElement.GetProperty("minRankingScore").GetInt32());
+        Assert.False(agentDoc.RootElement.GetProperty("autoPublishReplies").GetBoolean());
+
+        // 2. get_reply_agent
+        var getParams = JsonDocument.Parse($$"""
+        {
+            "name": "get_reply_agent",
+            "arguments": {
+                "workflowId": "{{workflow.Id}}"
+            }
+        }
+        """).RootElement;
+
+        var getReq = new McpRequest("2.0", 92, "tools/call", getParams);
+        var getResp = await server.HandleRequestAsync(getReq, user.Id, CancellationToken.None);
+        Assert.NotNull(getResp);
+        Assert.Null(getResp!.Error);
+        var getResult = Assert.IsType<McpToolCallResult>(getResp.Result);
+        Assert.False(getResult.IsError);
+
+        var getDoc = JsonDocument.Parse(getResult.Content[0].Text!);
+        Assert.True(getDoc.RootElement.GetProperty("configured").GetBoolean());
+        Assert.Equal(8, getDoc.RootElement.GetProperty("agent").GetProperty("minRankingScore").GetInt32());
+        Assert.Equal(0, getDoc.RootElement.GetProperty("stats").GetProperty("totalAudited").GetInt32());
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_TriggerReplyCheck_EnqueuesTask()
+    {
+        var taskQueue = new TestBackgroundTaskQueue();
+        var (server, user, db) = CreateTestServer(customQueue: taskQueue);
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Polled Workflow", null, null);
+        db.AutomationWorkflows.Add(workflow);
+
+        var agent = WorkflowReplyAgent.Create(workflow.Id, "Persona", autoPublishReplies: true);
+        db.WorkflowReplyAgents.Add(agent);
+
+        var draft = Draft.Create(user.Id, "Workflow Post Draft", "Content");
+        draft.AutomationWorkflowId = workflow.Id;
+        db.Drafts.Add(draft);
+
+        var account = new Account { Id = Guid.NewGuid(), UserId = user.Id, Platform = "Bluesky", Handle = "test.bsky.social" };
+        db.Accounts.Add(account);
+
+        var pt = new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "Bluesky",
+            AccountId = account.Id
+        };
+        db.PlatformThreads.Add(pt);
+
+        var post = new Post
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            PlatformThreadId = pt.Id,
+            Platform = "Bluesky",
+            RemoteId = "at://did:plc:test/app.bsky.feed.post/post123",
+            PostedAt = DateTime.UtcNow
+        };
+        db.Posts.Add(post);
+        await db.SaveChangesAsync();
+
+        var triggerParams = JsonDocument.Parse($$"""
+        {
+            "name": "trigger_reply_check",
+            "arguments": {
+                "workflowId": "{{workflow.Id}}",
+                "runSynchronously": false
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 93, "tools/call", triggerParams);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        Assert.Null(resp!.Error);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        Assert.Contains("Enqueued reply check for 1 post(s)", result.Content[0].Text);
+        Assert.Contains(taskQueue.EnqueuedTasks, t => t.TaskType == "workflow-reply-check-post");
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_ListCommentAudits_FiltersByDecision()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Audit Workflow", null, null);
+        db.AutomationWorkflows.Add(workflow);
+
+        var agent = WorkflowReplyAgent.Create(workflow.Id, "Persona", autoPublishReplies: true);
+        db.WorkflowReplyAgents.Add(agent);
+
+        var draft = Draft.Create(user.Id, "Audit Draft", "Content");
+        draft.AutomationWorkflowId = workflow.Id;
+        db.Drafts.Add(draft);
+
+        var account = new Account { Id = Guid.NewGuid(), UserId = user.Id, Platform = "Bluesky", Handle = "test.bsky.social" };
+        db.Accounts.Add(account);
+
+        var pt = new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "Bluesky",
+            AccountId = account.Id
+        };
+        db.PlatformThreads.Add(pt);
+
+        var post = new Post
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            PlatformThreadId = pt.Id,
+            Platform = "Bluesky",
+            RemoteId = "at://did:plc:test/app.bsky.feed.post/post123",
+            PostedAt = DateTime.UtcNow
+        };
+        db.Posts.Add(post);
+
+        var audit1 = WorkflowCommentAudit.Create(
+            agent.Id, post.Id, "Bluesky", "at://did:plc:other/post/c1", "user1.bsky.social", "did:plc:u1",
+            "Great post!", DateTime.UtcNow, 9, "Praise", "Replied", generatedReplyText: "Thank you!");
+
+        var audit2 = WorkflowCommentAudit.Create(
+            agent.Id, post.Id, "Bluesky", "at://did:plc:other/post/c2", "user2.bsky.social", "did:plc:u2",
+            "Spam comment", DateTime.UtcNow, 2, "Spam", "SkippedBelowThreshold");
+
+        db.WorkflowCommentAudits.AddRange(audit1, audit2);
+        await db.SaveChangesAsync();
+
+        var listParams = JsonDocument.Parse($$"""
+        {
+            "name": "list_comment_audits",
+            "arguments": {
+                "workflowId": "{{workflow.Id}}",
+                "decision": "Replied"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 94, "tools/call", listParams);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        Assert.Null(resp!.Error);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var json = result.Content[0].Text!;
+        Assert.Contains("Great post!", json);
+        Assert.DoesNotContain("Spam comment", json);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_ReplyToComment_ApprovePendingAudit_Succeeds()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Manual Reply Workflow", null, null);
+        db.AutomationWorkflows.Add(workflow);
+
+        var agent = WorkflowReplyAgent.Create(workflow.Id, "Persona", autoPublishReplies: false);
+        db.WorkflowReplyAgents.Add(agent);
+
+        var draft = Draft.Create(user.Id, "Manual Reply Draft", "Content");
+        draft.AutomationWorkflowId = workflow.Id;
+        db.Drafts.Add(draft);
+
+        var account = new Account { Id = Guid.NewGuid(), UserId = user.Id, Platform = "Bluesky", Handle = "test.bsky.social" };
+        db.Accounts.Add(account);
+
+        var pt = new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "Bluesky",
+            AccountId = account.Id
+        };
+        db.PlatformThreads.Add(pt);
+
+        var post = new Post
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            PlatformThreadId = pt.Id,
+            Platform = "Bluesky",
+            RemoteId = "at://did:plc:test/app.bsky.feed.post/post123",
+            PostedAt = DateTime.UtcNow
+        };
+        db.Posts.Add(post);
+
+        var audit = WorkflowCommentAudit.Create(
+            agent.Id, post.Id, "Bluesky", "at://did:plc:other/post/c1", "user1.bsky.social", "did:plc:u1",
+            "Can you clarify this point?", DateTime.UtcNow, 8, "Question", "PendingApproval",
+            generatedReplyText: "Here is the clarification you requested.");
+        db.WorkflowCommentAudits.Add(audit);
+        await db.SaveChangesAsync();
+
+        var replyParams = JsonDocument.Parse($$"""
+        {
+            "name": "reply_to_comment",
+            "arguments": {
+                "auditId": "{{audit.Id}}"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 95, "tools/call", replyParams);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        Assert.Null(resp!.Error);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var updatedAudit = await db.WorkflowCommentAudits.FindAsync(audit.Id);
+        Assert.NotNull(updatedAudit);
+        Assert.Equal("Replied", updatedAudit.RankingDecision);
+        Assert.Equal("at://did:plc:test/app.bsky.feed.post/reply123", updatedAudit.RemoteReplyId);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ResourcesList_ReturnsReplyAgentResource()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Resource Workflow", null, null);
+        db.AutomationWorkflows.Add(workflow);
+
+        var agent = WorkflowReplyAgent.Create(workflow.Id, "Custom Persona", autoPublishReplies: true);
+        db.WorkflowReplyAgents.Add(agent);
+        await db.SaveChangesAsync();
+
+        // 1. resources/list
+        var listReq = new McpRequest("2.0", 96, "resources/list", null);
+        var listResp = await server.HandleRequestAsync(listReq, user.Id, CancellationToken.None);
+        Assert.NotNull(listResp);
+        Assert.Null(listResp!.Error);
+
+        var listJson = JsonSerializer.Serialize(listResp.Result);
+        var expectedUri = $"socialworker://workflows/{workflow.Id}/reply-agent";
+        Assert.Contains(expectedUri, listJson);
+
+        // 2. resources/read
+        var readParams = JsonDocument.Parse($$"""
+        {
+            "uri": "{{expectedUri}}"
+        }
+        """).RootElement;
+        var readReq = new McpRequest("2.0", 97, "resources/read", readParams);
+        var readResp = await server.HandleRequestAsync(readReq, user.Id, CancellationToken.None);
+        Assert.NotNull(readResp);
+        Assert.Null(readResp!.Error);
+
+        var readJson = JsonSerializer.Serialize(readResp.Result);
+        Assert.Contains("Custom Persona", readJson);
+    }
+
+    private sealed class MockReplyAdapterResolver : IReplyPlatformAdapterResolver
+    {
+        private readonly IReplyPlatformAdapter _adapter;
+        public MockReplyAdapterResolver(IReplyPlatformAdapter adapter) => _adapter = adapter;
+        public IReplyPlatformAdapter? Resolve(string platform) => _adapter;
+        public IReadOnlyCollection<string> SupportedPlatforms => new[] { "Bluesky", "MetaThreads" };
+    }
+
+    private sealed class MockReplyPlatformAdapter : IReplyPlatformAdapter
+    {
+        public string Platform => "Bluesky";
+        public Task<IReadOnlyList<PlatformCommentItem>> FetchCommentsAsync(Post post, Account account, DateTime since, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<PlatformCommentItem>>(Array.Empty<PlatformCommentItem>());
+
+        public Task<PublishReplyResult> PublishReplyAsync(Post post, Account account, PlatformCommentItem targetComment, string replyText, CancellationToken ct = default) =>
+            Task.FromResult(PublishReplyResult.Succeeded("at://did:plc:test/app.bsky.feed.post/reply123", "https://bsky.app/profile/test.bsky.social/post/reply123"));
     }
 
     private sealed class MockPublisherResolver : IPublisherResolver

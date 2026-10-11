@@ -9,6 +9,9 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Mcp.Models;
 
+using SocialWorker.Api.Features.ReplyAgents.Models;
+using SocialWorker.Api.Features.Workflows;
+
 namespace SocialWorker.Api.Features.Mcp.Services;
 
 public sealed class McpResourceRegistry
@@ -47,6 +50,21 @@ public sealed class McpResourceRegistry
                 "text/markdown"));
         }
 
+        var replyAgentWorkflows = await _db.AutomationWorkflows
+            .AsNoTracking()
+            .Where(w => w.UserId == userId && w.ReplyAgent != null)
+            .Select(w => new { w.Id, w.Title })
+            .ToListAsync(ct);
+
+        foreach (var wf in replyAgentWorkflows)
+        {
+            resources.Add(new(
+                $"socialworker://workflows/{wf.Id}/reply-agent",
+                $"Reply Agent: {wf.Title}",
+                $"Autonomous reply agent configuration and stats for workflow '{wf.Title}'",
+                "application/json"));
+        }
+
         return resources;
     }
 
@@ -72,12 +90,36 @@ public sealed class McpResourceRegistry
                 .Where(w => w.UserId == userId)
                 .Include(w => w.WorkflowSources)
                 .Include(w => w.Destinations)
+                .Include(w => w.ReplyAgent)
                 .ToListAsync(ct);
 
+            var dtos = workflows.Select(w => new AutomationWorkflowDto(w)).ToList();
             return new McpResourceReadResult(new List<McpResourceContent>
             {
-                new(uri, "application/json", JsonSerializer.Serialize(workflows, new JsonSerializerOptions { WriteIndented = true }))
+                new(uri, "application/json", JsonSerializer.Serialize(dtos, new JsonSerializerOptions { WriteIndented = true }))
             });
+        }
+
+        if (uri.StartsWith("socialworker://workflows/", StringComparison.OrdinalIgnoreCase) && uri.EndsWith("/reply-agent", StringComparison.OrdinalIgnoreCase))
+        {
+            var middle = uri.Substring("socialworker://workflows/".Length);
+            var idStr = middle.Substring(0, middle.Length - "/reply-agent".Length).Trim();
+            if (Guid.TryParse(idStr, out var workflowId))
+            {
+                var agent = await _db.WorkflowReplyAgents
+                    .AsNoTracking()
+                    .Include(a => a.AutomationWorkflow)
+                    .FirstOrDefaultAsync(a => a.AutomationWorkflowId == workflowId && a.AutomationWorkflow.UserId == userId, ct);
+
+                if (agent != null)
+                {
+                    var dto = new WorkflowReplyAgentDto(agent);
+                    return new McpResourceReadResult(new List<McpResourceContent>
+                    {
+                        new(uri, "application/json", JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true }))
+                    });
+                }
+            }
         }
 
         if (uri.StartsWith("socialworker://drafts/", StringComparison.OrdinalIgnoreCase))

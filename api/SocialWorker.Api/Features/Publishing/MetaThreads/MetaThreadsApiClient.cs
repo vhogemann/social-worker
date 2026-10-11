@@ -232,6 +232,23 @@ public class MetaThreadsApiClient
         return pubResponse;
     }
 
+    public virtual async Task<MetaThreadsRepliesResponse> GetRepliesAsync(
+        string mediaId,
+        string accessToken,
+        CancellationToken ct = default)
+    {
+        var url = $"{_options.BaseUrl.TrimEnd('/')}/{Uri.EscapeDataString(mediaId)}/replies?fields=id,text,timestamp,username,media_type,media_url,permalink,has_replies,replied_to,root_post&access_token={Uri.EscapeDataString(accessToken)}";
+        var res = await _httpClient.GetAsync(url, ct);
+        if (!res.IsSuccessStatusCode)
+        {
+            await ThrowApiExceptionAsync(res, ct);
+        }
+
+        var json = await res.Content.ReadAsStringAsync(ct);
+        return JsonSerializer.Deserialize<MetaThreadsRepliesResponse>(json) 
+            ?? new MetaThreadsRepliesResponse();
+    }
+
     private async Task<MetaThreadsContainerResponse> PostContainerAsync(
         string userId,
         Dictionary<string, string> parameters,

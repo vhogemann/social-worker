@@ -71,3 +71,25 @@ public sealed record MetaThreadsContainerStatusResponse(
 public sealed record MetaThreadsPublishResponse(
     [property: JsonPropertyName("id"), JsonConverter(typeof(MetaThreadsStringOrNumberConverter))] string Id
 );
+
+public sealed record MetaThreadsRepliedTo(
+    [property: JsonPropertyName("id"), JsonConverter(typeof(MetaThreadsStringOrNumberConverter))] string Id
+);
+
+public sealed record MetaThreadsReplyItem(
+    [property: JsonPropertyName("id"), JsonConverter(typeof(MetaThreadsStringOrNumberConverter))] string Id,
+    [property: JsonPropertyName("text")] string? Text,
+    [property: JsonPropertyName("timestamp")] string? Timestamp,
+    [property: JsonPropertyName("username")] string? Username,
+    [property: JsonPropertyName("media_type")] string? MediaType,
+    [property: JsonPropertyName("media_url")] string? MediaUrl,
+    [property: JsonPropertyName("permalink")] string? Permalink,
+    [property: JsonPropertyName("has_replies")] bool? HasReplies,
+    [property: JsonPropertyName("replied_to")] MetaThreadsRepliedTo? RepliedTo,
+    [property: JsonPropertyName("root_post")] MetaThreadsRepliedTo? RootPost
+);
+
+public sealed record MetaThreadsRepliesResponse(
+    [property: JsonPropertyName("data")] List<MetaThreadsReplyItem>? Data = null
+);
+

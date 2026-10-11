@@ -28,6 +28,13 @@ vi.mock("../../api/accounts", () => ({
   listAccounts: vi.fn(),
 }));
 
+vi.mock("../../api/replyAgents", () => ({
+  getWorkflowReplyAgent: vi.fn().mockResolvedValue(null),
+  getWorkflowCommentAudits: vi.fn().mockResolvedValue([]),
+  updateWorkflowReplyAgent: vi.fn(),
+  pollWorkflowReplyAgent: vi.fn(),
+}));
+
 vi.mock("../../api/schedules", () => ({
   fetchSchedules: vi.fn().mockResolvedValue([
     { id: "sched-1", name: "Main Social Schedule", timezone: "UTC", isDefault: true, slotCount: 3 }
@@ -106,7 +113,7 @@ describe("WorkflowDetailPage", () => {
     });
 
     // Verify drafts rendered
-    expect(screen.getByText("Generated Drafts")).toBeInTheDocument();
+    expect(screen.getAllByText("Generated Drafts").length).toBeGreaterThan(0);
     expect(screen.getByText("Why .NET 10 is Exciting")).toBeInTheDocument();
     expect(screen.getByText("React 19 Server Actions")).toBeInTheDocument();
     expect(screen.getByText("(Sent)")).toBeInTheDocument();
@@ -303,6 +310,20 @@ describe("WorkflowDetailPage", () => {
 
     await waitFor(() => {
       expect(workflowsApi.retryWorkflowDraft).toHaveBeenCalledWith("wf-1", "draft-failed-1");
+    });
+  });
+
+  it("switches to Reply Agent tab when clicking Reply Agent tab button", async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("tab-reply-agent")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("tab-reply-agent"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workflow-reply-agent-tab")).toBeInTheDocument();
     });
   });
 });

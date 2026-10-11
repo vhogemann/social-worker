@@ -18,6 +18,7 @@ import { listAccounts, type AccountDto } from "../../api/accounts";
 import { WorkflowExecutionHistoryModal } from "./WorkflowExecutionHistoryModal";
 import { WorkflowDetailHeader } from "./WorkflowDetailHeader";
 import { WorkflowDraftsList } from "./WorkflowDraftsList";
+import { WorkflowReplyAgentTab } from "./WorkflowReplyAgentTab";
 import { WorkflowFormModal, type WorkflowFormData } from "../WorkflowsPanel/WorkflowFormModal";
 import { AlertBanner } from "../common/AlertBanner";
 import { ConfirmModal } from "../common/ConfirmModal";
@@ -30,6 +31,7 @@ export const WorkflowDetailPage: React.FC = () => {
   const [drafts, setDrafts] = useState<WorkflowDraftSummaryDto[]>([]);
   const [availableFeeds, setAvailableFeeds] = useState<FeedSubscriptionDto[]>([]);
   const [connectedAccounts, setConnectedAccounts] = useState<AccountDto[]>([]);
+  const [activeTab, setActiveTab] = useState<"drafts" | "reply-agent">("drafts");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [triggering, setTriggering] = useState(false);
@@ -182,17 +184,49 @@ export const WorkflowDetailPage: React.FC = () => {
 
         {error && <AlertBanner variant="error" message={error} onDismiss={() => setError(null)} />}
 
-        {/* Main Content: Generated Drafts Grid */}
-        <WorkflowDraftsList
-          workflowId={workflow.id}
-          drafts={drafts}
-          isTriggering={triggering}
-          onTrigger={handleTrigger}
-          isRetryingFailed={isRetryingFailed}
-          retryingDraftId={retryingDraftId}
-          onRetryFailed={handleRetryFailed}
-          onRetryDraft={handleRetryDraft}
-        />
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-1 bg-panel border border-border rounded-lg p-1 w-full sm:w-auto self-start text-xs font-medium">
+          <button
+            type="button"
+            onClick={() => setActiveTab("drafts")}
+            className={`px-3 py-1.5 rounded-md transition ${
+              activeTab === "drafts"
+                ? "bg-border text-foreground font-semibold"
+                : "text-muted hover:text-foreground"
+            }`}
+            data-testid="tab-drafts"
+          >
+            Generated Drafts
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("reply-agent")}
+            className={`px-3 py-1.5 rounded-md transition ${
+              activeTab === "reply-agent"
+                ? "bg-border text-foreground font-semibold"
+                : "text-muted hover:text-foreground"
+            }`}
+            data-testid="tab-reply-agent"
+          >
+            Reply Agent
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === "drafts" ? (
+          <WorkflowDraftsList
+            workflowId={workflow.id}
+            drafts={drafts}
+            isTriggering={triggering}
+            onTrigger={handleTrigger}
+            isRetryingFailed={isRetryingFailed}
+            retryingDraftId={retryingDraftId}
+            onRetryFailed={handleRetryFailed}
+            onRetryDraft={handleRetryDraft}
+          />
+        ) : (
+          <WorkflowReplyAgentTab workflowId={workflow.id} />
+        )}
 
         {/* Edit Modal (shared with WorkflowsPanel) */}
         <WorkflowFormModal

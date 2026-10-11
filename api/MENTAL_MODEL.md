@@ -60,20 +60,29 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - `SourceTranscriptionService`: Submits media to the Python `transcriber` service and stores Whisper transcript results.
 - **`Feeds/`**: RSS/Atom, YouTube channel, and Instagram feed subscription, polling, entry deduplication, and workflow trigger dispatch.
 - **`Workflows/`**: Automated source-to-draft generation pipeline. Implements `IWorkflowSourceHandler` (e.g. `FeedWorkflowSourceHandler`, `DigestWorkflowSourceHandler`) to process feed items into formatted thread drafts using prompt templates.
+- **`ReplyAgents/`**: Autonomous reply agent assigned to workflows (`WorkflowReplyAgent`, `WorkflowCommentThread`, `WorkflowCommentAudit`).
+  - `IReplyPlatformAdapter`: Multi-platform abstraction for fetching post reply trees and publishing comments (implements `BlueskyReplyAdapter`, `MetaThreadsReplyAdapter`, Twitter/LinkedIn stubs).
+  - `CommentEnrichmentService`: Pre-fetches context for links (via `WebScraperService`) and images (via vision LLM).
+  - `CommentRankingService`: Two-phase evaluation, scoring 1-10, intent classification, and terminal closure detection.
+  - `ReplyGenerationService`: Persona-prompted reply synthesis.
+  - `CommentThreadSummarizer`: Rolling thread summary cache preventing redundant comment retrieval.
+  - Hard stop criteria: Branch depth limits, per-user limits, bot self-reply prevention, terminal sentiment closure detection.
+  - Background tasks: `"workflow-reply-check-post"` and `"reply-thread-summary"` queued by `ReplyAgentPollingHostedService`.
+  - Minimal API endpoints at `/api/workflows/{workflowId}/reply-agent`.
 - **`Scheduling/`**: Content calendar engine.
   - `ScheduleSlotEvaluatorService`: Recurring background evaluator matching queued drafts with available schedule slot windows calculated via `SlotWindowCalculator` and `Cronos`.
   - `ScheduleQueueService`: FIFO / priority draft queue management.
   - Review Outbox: Human-in-the-loop triage before post dispatch.
 - **`BackgroundTasks/`**: Robust asynchronous work orchestration.
   - `PostgresBackgroundTaskQueue`: Uses PostgreSQL 16 `FOR UPDATE SKIP LOCKED` for concurrency-safe, durable queueing across container restarts.
-  - `BackgroundTaskHostedService`: Worker pool executing transcriptions, web scraping, feed syncs, and AI summarization with lease heartbeat tracking and failure retries.
+  - `BackgroundTaskHostedService`: Worker pool executing transcriptions, web scraping, feed syncs, AI summarization, reply checks, and thread compaction with lease heartbeat tracking and failure retries.
 - **`Mcp/`**: Model Context Protocol integration.
   - Stateless JSON-RPC 2.0 at `POST /api/mcp` and streaming Server-Sent Events at `GET /api/mcp/sse`.
-  - Exposes 26 tools covering drafts, sources, workflows, feeds, schedules, calendar events, and accounts.
+  - Exposes 31 tools covering drafts, sources, workflows, feeds, schedules, calendar events, accounts, and reply agents (`get_reply_agent`, `configure_reply_agent`, `trigger_reply_check`, `list_comment_audits`, `reply_to_comment`).
 
 ### 2. Static Entity Factories & Invariant Protection
 
-Domain models enforce valid states through static factory methods (e.g., `Draft.Create`, `Source.CreateUrl`, `Source.CreateFile`, `LlmProvider.Create`, `FeedSubscription.Create`). Direct invalid instantiation is disallowed.
+Domain models enforce valid states through static factory methods (e.g., `Draft.Create`, `Source.CreateUrl`, `Source.CreateFile`, `LlmProvider.Create`, `FeedSubscription.Create`, `WorkflowReplyAgent.Create`). Direct invalid instantiation is disallowed.
 
 ### 3. Markdown AST & CommonMark Thread Segmentation
 
@@ -81,12 +90,8 @@ Threads are authored as CommonMark documents where posts are separated by horizo
 
 ## Database & Migrations
 
-- Migrations are generated inside the `api` container using `dotnet-ef`:
-  ```bash
-  docker compose --profile tooling run --rm dotnet ef migrations add <MigrationName>
-  ```
-- EF Core migration files reside in `Data/Migrations/`.
-- The `migrator` service in `docker-compose.yml` applies migrations automatically during startup.
+- Migrations are version-controlled SQL scripts residing in `Data/Migrations/`.
+- `DbUp` automatically discovers and applies unapplied SQL migrations on application startup in `Program.cs` / `AppStartupExtensions.cs`.
 
 ## Verification & Testing
 
@@ -96,9 +101,9 @@ All commands must be executed within Docker containers via the `tooling` profile
 # Build API project
 docker compose --profile tooling run --rm dotnet build
 
-# Run full test suite (666 tests)
+# Run full test suite (697 tests)
 docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
 
 # Run single test class or filter
-docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj --filter "FullyQualifiedName~McpServerTests"
+docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj --filter "FullyQualifiedName~ReplyAgents"
 ```

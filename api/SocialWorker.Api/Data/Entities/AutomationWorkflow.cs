@@ -15,6 +15,7 @@ public class AutomationWorkflow
     public ICollection<AutomationWorkflowSource> WorkflowSources { get; set; } = new List<AutomationWorkflowSource>();
     public ICollection<AutomationWorkflowDestination> Destinations { get; set; } = new List<AutomationWorkflowDestination>();
     public ICollection<Draft> Drafts { get; set; } = new List<Draft>();
+    public WorkflowReplyAgent? ReplyAgent { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

@@ -18,6 +18,7 @@ builder.AddMedia();
 builder.AddPublishing();
 builder.AddSearch();
 builder.AddFeeds();
+builder.AddReplyAgents();
 builder.AddBackgroundTasks();
 builder.AddInfrastructure();
 
