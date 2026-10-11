@@ -368,11 +368,59 @@ public sealed class McpToolRegistry
                 "required": ["workflowId"]
             }
             """)),
-            new("get_reply_agent", "Get the autonomous reply agent configuration, settings, and activity statistics for an automation workflow.", CreateSchema("""
+            new("list_reply_agents", "List all autonomous reply agents in the user's library with assignment status and summary stats.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {}
+            }
+            """)),
+            new("create_reply_agent", "Create a new autonomous reply agent in the user's library.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
-                    "workflowId": { "type": "string", "description": "The unique UUID of the automation workflow." }
+                    "name": { "type": "string", "description": "The name of the reply agent." },
+                    "description": { "type": "string", "description": "Optional description of what this reply agent is used for." },
+                    "isEnabled": { "type": "boolean", "description": "Enable or disable the reply agent (default: true)." },
+                    "personaPrompt": { "type": "string", "description": "Prompt defining persona, tone, guidelines, and rules for generating replies." },
+                    "minRankingScore": { "type": "integer", "description": "Minimum comment quality score (1-10) required to reply (default: 7)." },
+                    "maxRepliesPerCommentThread": { "type": "integer", "description": "Maximum replies the agent can post in a single thread branch (default: 3)." },
+                    "maxRepliesPerUser": { "type": "integer", "description": "Maximum replies the agent will post to any single user in the thread (default: 2)." },
+                    "maxThreadDepth": { "type": "integer", "description": "Maximum comment tree depth to reply to (default: 3)." },
+                    "maxCommentAgeHours": { "type": "integer", "description": "Ignore comments older than this age in hours (default: 24)." },
+                    "maxPostAgeDays": { "type": "integer", "description": "Only monitor comments on posts published within the last N days (default: 7)." },
+                    "autoPublishReplies": { "type": "boolean", "description": "Automatically post replies (true) or hold as PendingApproval for manual review (false). Default: true." },
+                    "checkIntervalMinutes": { "type": "integer", "description": "Polling interval in minutes (default: 15)." }
+                },
+                "required": ["name"]
+            }
+            """)),
+            new("update_reply_agent", "Update settings and prompt configuration for an autonomous reply agent.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "agentId": { "type": "string", "description": "The unique UUID of the reply agent." },
+                    "name": { "type": "string", "description": "The updated name of the reply agent." },
+                    "description": { "type": "string", "description": "Optional description of what this reply agent is used for." },
+                    "isEnabled": { "type": "boolean", "description": "Enable or disable the reply agent." },
+                    "personaPrompt": { "type": "string", "description": "Prompt defining persona, tone, guidelines, and rules for generating replies." },
+                    "minRankingScore": { "type": "integer", "description": "Minimum comment quality score (1-10) required to reply." },
+                    "maxRepliesPerCommentThread": { "type": "integer", "description": "Maximum replies the agent can post in a single thread branch." },
+                    "maxRepliesPerUser": { "type": "integer", "description": "Maximum replies the agent will post to any single user in the thread." },
+                    "maxThreadDepth": { "type": "integer", "description": "Maximum comment tree depth to reply to." },
+                    "maxCommentAgeHours": { "type": "integer", "description": "Ignore comments older than this age in hours." },
+                    "maxPostAgeDays": { "type": "integer", "description": "Only monitor comments on posts published within the last N days." },
+                    "autoPublishReplies": { "type": "boolean", "description": "Automatically post replies (true) or hold as PendingApproval for manual review (false)." },
+                    "checkIntervalMinutes": { "type": "integer", "description": "Polling interval in minutes." }
+                },
+                "required": ["agentId", "name"]
+            }
+            """)),
+            new("assign_reply_agent", "Assign or unassign an autonomous reply agent to/from an automation workflow.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "workflowId": { "type": "string", "description": "The unique UUID of the automation workflow." },
+                    "agentId": { "type": "string", "description": "The unique UUID of the reply agent to assign, or null/empty to unassign." }
                 },
                 "required": ["workflowId"]
             }
@@ -391,32 +439,41 @@ public sealed class McpToolRegistry
                     "maxCommentAgeHours": { "type": "integer", "description": "Ignore comments older than this age in hours (default: 24)." },
                     "maxPostAgeDays": { "type": "integer", "description": "Only monitor comments on posts published within the last N days (default: 7)." },
                     "autoPublishReplies": { "type": "boolean", "description": "Automatically post replies (true) or hold as PendingApproval for manual review (false). Default: true." },
-                    "checkIntervalMinutes": { "type": "integer", "description": "Polling interval in minutes (default: 5)." }
+                    "checkIntervalMinutes": { "type": "integer", "description": "Polling interval in minutes (default: 15)." }
                 },
                 "required": ["workflowId"]
             }
             """)),
-            new("trigger_reply_check", "Trigger the reply agent for a workflow to check for comments and evaluate replies. Can run synchronously to immediately return evaluation results or asynchronously in background.", CreateSchema("""
+            new("get_reply_agent", "Get the autonomous reply agent configuration, settings, assigned workflows, and activity statistics for a reply agent (by agentId) or for an automation workflow (by workflowId).", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
-                    "workflowId": { "type": "string", "description": "The unique UUID of the automation workflow." },
+                    "agentId": { "type": "string", "description": "The unique UUID of the reply agent (optional if workflowId is provided)." },
+                    "workflowId": { "type": "string", "description": "The unique UUID of the automation workflow (optional if agentId is provided)." }
+                }
+            }
+            """)),
+            new("trigger_reply_check", "Trigger comment evaluation and replies for a workflow or reply agent. Can run synchronously to immediately return evaluation results or asynchronously in background.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "workflowId": { "type": "string", "description": "The unique UUID of the automation workflow (optional if agentId is provided)." },
+                    "agentId": { "type": "string", "description": "The unique UUID of the reply agent (optional if workflowId is provided)." },
                     "postId": { "type": "string", "description": "Optional UUID of a specific post to check immediately." },
                     "runSynchronously": { "type": "boolean", "description": "If true, executes immediately and returns evaluated comments and replies. If false, queues background check tasks (default: false)." }
-                },
-                "required": ["workflowId"]
+                }
             }
             """)),
             new("list_comment_audits", "List audited comments seen by a workflow's reply agent, including LLM ranking scores, decisions, reasoning, and generated replies.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
-                    "workflowId": { "type": "string", "description": "The unique UUID of the automation workflow." },
+                    "workflowId": { "type": "string", "description": "The unique UUID of the automation workflow (optional if agentId is provided)." },
+                    "agentId": { "type": "string", "description": "The unique UUID of the reply agent (optional if workflowId is provided)." },
                     "decision": { "type": "string", "description": "Optional filter by decision: 'Replied', 'SkippedBelowThreshold', 'SkippedStopCriteria', 'PendingApproval', 'Failed'." },
                     "limit": { "type": "integer", "description": "Maximum number of audit records to return (default: 20)." },
                     "offset": { "type": "integer", "description": "Number of audit records to skip for pagination (default: 0)." }
-                },
-                "required": ["workflowId"]
+                }
             }
             """)),
             new("reply_to_comment", "Send or approve a reply to a comment. Can approve/send a pending reply from a comment audit ID, or post a custom reply text directly to a comment on Bluesky or Meta Threads.", CreateSchema("""
@@ -472,6 +529,10 @@ public sealed class McpToolRegistry
                 "update_feed" => await HandleUpdateFeedAsync(userId, args, ct),
                 "create_workflow" => await HandleCreateWorkflowAsync(userId, args, ct),
                 "delete_workflow" => await HandleDeleteWorkflowAsync(userId, args, ct),
+                "list_reply_agents" => await HandleListReplyAgentsAsync(userId, ct),
+                "create_reply_agent" => await HandleCreateReplyAgentAsync(userId, args, ct),
+                "update_reply_agent" => await HandleUpdateReplyAgentAsync(userId, args, ct),
+                "assign_reply_agent" => await HandleAssignReplyAgentAsync(userId, args, ct),
                 "get_reply_agent" => await HandleGetReplyAgentAsync(userId, args, ct),
                 "configure_reply_agent" => await HandleConfigureReplyAgentAsync(userId, args, ct),
                 "trigger_reply_check" => await HandleTriggerReplyCheckAsync(userId, args, ct),
@@ -1275,11 +1336,146 @@ public sealed class McpToolRegistry
         return TextResult($"Workflow '{workflow.Title}' ({workflowId}) successfully deleted.");
     }
 
-    private async Task<McpToolCallResult> HandleGetReplyAgentAsync(Guid userId, JsonElement args, CancellationToken ct)
+    private async Task<McpToolCallResult> HandleListReplyAgentsAsync(Guid userId, CancellationToken ct)
+    {
+        var agents = await _db.ReplyAgents
+            .Include(a => a.Workflows)
+            .Where(a => a.UserId == userId)
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync(ct);
+
+        var dtos = agents.Select(a => new ReplyAgentDto(a)).ToList();
+        return TextResult(JsonSerializer.Serialize(dtos, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleCreateReplyAgentAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("name", out var nameProp) || string.IsNullOrWhiteSpace(nameProp.GetString()))
+        {
+            return TextError("'name' is required.");
+        }
+
+        var name = nameProp.GetString()!.Trim();
+        var desc = args.TryGetProperty("description", out var dProp) ? dProp.GetString() : null;
+        var personaPrompt = args.TryGetProperty("personaPrompt", out var pProp) ? pProp.GetString() : "";
+        var isEnabled = !args.TryGetProperty("isEnabled", out var enProp) || enProp.ValueKind != JsonValueKind.False;
+        var maxCommentAgeHours = args.TryGetProperty("maxCommentAgeHours", out var ahProp) && ahProp.TryGetInt32(out var ah) ? ah : 24;
+        var maxPostAgeDays = args.TryGetProperty("maxPostAgeDays", out var pdProp) && pdProp.TryGetInt32(out var pd) ? pd : 7;
+        var minRankingScore = args.TryGetProperty("minRankingScore", out var msProp) && msProp.TryGetInt32(out var ms) ? ms : 7;
+        var maxRepliesPerBranch = args.TryGetProperty("maxRepliesPerCommentThread", out var mrProp) && mrProp.TryGetInt32(out var mr) ? mr : 3;
+        var maxRepliesPerUser = args.TryGetProperty("maxRepliesPerUser", out var muProp) && muProp.TryGetInt32(out var mu) ? mu : 2;
+        var maxThreadDepth = args.TryGetProperty("maxThreadDepth", out var tdProp) && tdProp.TryGetInt32(out var td) ? td : 3;
+        var autoPublishReplies = !args.TryGetProperty("autoPublishReplies", out var apProp) || apProp.ValueKind != JsonValueKind.False;
+        var checkIntervalMinutes = args.TryGetProperty("checkIntervalMinutes", out var ciProp) && ciProp.TryGetInt32(out var ci) ? ci : 15;
+
+        var agent = ReplyAgent.Create(
+            userId,
+            name,
+            desc,
+            personaPrompt,
+            maxCommentAgeHours,
+            maxPostAgeDays,
+            minRankingScore,
+            maxRepliesPerBranch,
+            maxRepliesPerUser,
+            maxThreadDepth,
+            autoPublishReplies,
+            checkIntervalMinutes);
+        agent.IsEnabled = isEnabled;
+
+        _db.ReplyAgents.Add(agent);
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(new ReplyAgentDto(agent), JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleUpdateReplyAgentAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("agentId", out var aProp) || !Guid.TryParse(aProp.GetString(), out var agentId))
+        {
+            return TextError("'agentId' is required and must be a valid UUID.");
+        }
+
+        var agent = await _db.ReplyAgents
+            .Include(a => a.Workflows)
+            .FirstOrDefaultAsync(a => a.Id == agentId && a.UserId == userId, ct);
+
+        if (agent == null)
+        {
+            return TextError($"Reply Agent '{agentId}' not found.");
+        }
+
+        if (args.TryGetProperty("name", out var nameProp) && !string.IsNullOrWhiteSpace(nameProp.GetString()))
+        {
+            agent.Name = nameProp.GetString()!.Trim();
+        }
+
+        if (args.TryGetProperty("description", out var dProp))
+        {
+            agent.Description = string.IsNullOrWhiteSpace(dProp.GetString()) ? null : dProp.GetString()!.Trim();
+        }
+
+        if (args.TryGetProperty("isEnabled", out var enProp))
+        {
+            agent.IsEnabled = enProp.ValueKind != JsonValueKind.False;
+        }
+
+        if (args.TryGetProperty("personaPrompt", out var pProp) && pProp.GetString() != null)
+        {
+            agent.PersonaPrompt = pProp.GetString()!.Trim();
+        }
+
+        if (args.TryGetProperty("maxCommentAgeHours", out var ahProp) && ahProp.TryGetInt32(out var ah))
+        {
+            agent.MaxCommentAgeHours = Math.Max(1, ah);
+        }
+
+        if (args.TryGetProperty("maxPostAgeDays", out var pdProp) && pdProp.TryGetInt32(out var pd))
+        {
+            agent.MaxPostAgeDays = Math.Max(1, pd);
+        }
+
+        if (args.TryGetProperty("minRankingScore", out var msProp) && msProp.TryGetInt32(out var ms))
+        {
+            agent.MinRankingScore = Math.Clamp(ms, 1, 10);
+        }
+
+        if (args.TryGetProperty("maxRepliesPerCommentThread", out var mrProp) && mrProp.TryGetInt32(out var mr))
+        {
+            agent.MaxRepliesPerCommentThread = Math.Max(1, mr);
+        }
+
+        if (args.TryGetProperty("maxRepliesPerUser", out var muProp) && muProp.TryGetInt32(out var mu))
+        {
+            agent.MaxRepliesPerUser = Math.Max(1, mu);
+        }
+
+        if (args.TryGetProperty("maxThreadDepth", out var tdProp) && tdProp.TryGetInt32(out var td))
+        {
+            agent.MaxThreadDepth = Math.Max(1, td);
+        }
+
+        if (args.TryGetProperty("autoPublishReplies", out var apProp))
+        {
+            agent.AutoPublishReplies = apProp.ValueKind != JsonValueKind.False;
+        }
+
+        if (args.TryGetProperty("checkIntervalMinutes", out var ciProp) && ciProp.TryGetInt32(out var ci))
+        {
+            agent.CheckIntervalMinutes = Math.Max(1, ci);
+        }
+
+        agent.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(new ReplyAgentDto(agent), JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleAssignReplyAgentAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
         if (!args.TryGetProperty("workflowId", out var wfProp) || !Guid.TryParse(wfProp.GetString(), out var workflowId))
         {
-            return TextError("workflowId is required and must be a valid UUID.");
+            return TextError("'workflowId' is required and must be a valid UUID.");
         }
 
         var workflow = await _db.AutomationWorkflows
@@ -1291,20 +1487,88 @@ public sealed class McpToolRegistry
             return TextError("Workflow not found.");
         }
 
-        if (workflow.ReplyAgent == null)
+        Guid? targetAgentId = null;
+        if (args.TryGetProperty("agentId", out var aProp) && !string.IsNullOrWhiteSpace(aProp.GetString()))
         {
-            return TextResult(JsonSerializer.Serialize(new { configured = false, workflowId }, JsonOptions));
+            if (!Guid.TryParse(aProp.GetString(), out var parsedAgentId))
+            {
+                return TextError("'agentId' must be a valid UUID.");
+            }
+            targetAgentId = parsedAgentId;
         }
 
-        var agent = workflow.ReplyAgent;
-        var totalAudits = await _db.WorkflowCommentAudits.CountAsync(a => a.WorkflowReplyAgentId == agent.Id, ct);
-        var repliedCount = await _db.WorkflowCommentAudits.CountAsync(a => a.WorkflowReplyAgentId == agent.Id && a.RankingDecision == "Replied", ct);
-        var pendingCount = await _db.WorkflowCommentAudits.CountAsync(a => a.WorkflowReplyAgentId == agent.Id && a.RankingDecision == "PendingApproval", ct);
+        if (targetAgentId.HasValue)
+        {
+            var agent = await _db.ReplyAgents
+                .Include(a => a.Workflows)
+                .FirstOrDefaultAsync(a => a.Id == targetAgentId.Value && a.UserId == userId, ct);
+
+            if (agent == null)
+            {
+                return TextError($"Reply Agent '{targetAgentId.Value}' not found.");
+            }
+
+            workflow.ReplyAgentId = agent.Id;
+            await _db.SaveChangesAsync(ct);
+
+            return TextResult(JsonSerializer.Serialize(new ReplyAgentDto(agent), JsonOptions));
+        }
+        else
+        {
+            workflow.ReplyAgentId = null;
+            await _db.SaveChangesAsync(ct);
+
+            return TextResult($"Reply Agent unassigned from workflow '{workflow.Title}'.");
+        }
+    }
+
+    private async Task<McpToolCallResult> HandleGetReplyAgentAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        ReplyAgent? agent = null;
+
+        if (args.TryGetProperty("agentId", out var aProp) && Guid.TryParse(aProp.GetString(), out var agentId))
+        {
+            agent = await _db.ReplyAgents
+                .Include(a => a.Workflows)
+                .FirstOrDefaultAsync(a => a.Id == agentId && a.UserId == userId, ct);
+
+            if (agent == null)
+            {
+                return TextError($"Reply Agent '{agentId}' not found.");
+            }
+        }
+        else if (args.TryGetProperty("workflowId", out var wfProp) && Guid.TryParse(wfProp.GetString(), out var workflowId))
+        {
+            var workflow = await _db.AutomationWorkflows
+                .Include(w => w.ReplyAgent)
+                    .ThenInclude(a => a!.Workflows)
+                .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
+
+            if (workflow == null)
+            {
+                return TextError("Workflow not found.");
+            }
+
+            if (workflow.ReplyAgent == null)
+            {
+                return TextResult(JsonSerializer.Serialize(new { configured = false, workflowId }, JsonOptions));
+            }
+
+            agent = workflow.ReplyAgent;
+        }
+        else
+        {
+            return TextError("Either 'agentId' or 'workflowId' must be provided.");
+        }
+
+        var totalAudits = await _db.WorkflowCommentAudits.CountAsync(a => a.ReplyAgentId == agent.Id, ct);
+        var repliedCount = await _db.WorkflowCommentAudits.CountAsync(a => a.ReplyAgentId == agent.Id && a.RankingDecision == "Replied", ct);
+        var pendingCount = await _db.WorkflowCommentAudits.CountAsync(a => a.ReplyAgentId == agent.Id && a.RankingDecision == "PendingApproval", ct);
 
         var response = new
         {
             configured = true,
-            agent = new WorkflowReplyAgentDto(agent),
+            agent = new ReplyAgentDto(agent),
             stats = new
             {
                 totalAudited = totalAudits,
@@ -1318,92 +1582,97 @@ public sealed class McpToolRegistry
 
     private async Task<McpToolCallResult> HandleConfigureReplyAgentAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
-        if (!args.TryGetProperty("workflowId", out var wfProp) || !Guid.TryParse(wfProp.GetString(), out var workflowId))
+        if (args.TryGetProperty("agentId", out var aProp) && Guid.TryParse(aProp.GetString(), out var agentId))
         {
-            return TextError("workflowId is required and must be a valid UUID.");
+            return await HandleUpdateReplyAgentAsync(userId, args, ct);
         }
 
-        var workflow = await _db.AutomationWorkflows
-            .Include(w => w.ReplyAgent)
-            .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
-
-        if (workflow == null)
+        if (args.TryGetProperty("workflowId", out var wfProp) && Guid.TryParse(wfProp.GetString(), out var workflowId))
         {
-            return TextError("Workflow not found.");
-        }
+            var workflow = await _db.AutomationWorkflows
+                .Include(w => w.ReplyAgent)
+                    .ThenInclude(a => a!.Workflows)
+                .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
 
-        var personaPrompt = args.TryGetProperty("personaPrompt", out var pProp) ? pProp.GetString() : null;
-        var isEnabled = !args.TryGetProperty("isEnabled", out var enProp) || enProp.ValueKind != JsonValueKind.False;
-        var maxCommentAgeHours = args.TryGetProperty("maxCommentAgeHours", out var ahProp) && ahProp.TryGetInt32(out var ah) ? ah : 24;
-        var maxPostAgeDays = args.TryGetProperty("maxPostAgeDays", out var pdProp) && pdProp.TryGetInt32(out var pd) ? pd : 7;
-        var minRankingScore = args.TryGetProperty("minRankingScore", out var msProp) && msProp.TryGetInt32(out var ms) ? ms : 7;
-        var maxRepliesPerBranch = args.TryGetProperty("maxRepliesPerCommentThread", out var mrProp) && mrProp.TryGetInt32(out var mr) ? mr : 3;
-        var maxRepliesPerUser = args.TryGetProperty("maxRepliesPerUser", out var muProp) && muProp.TryGetInt32(out var mu) ? mu : 2;
-        var maxThreadDepth = args.TryGetProperty("maxThreadDepth", out var tdProp) && tdProp.TryGetInt32(out var td) ? td : 3;
-        var autoPublishReplies = !args.TryGetProperty("autoPublishReplies", out var apProp) || apProp.ValueKind != JsonValueKind.False;
-        var checkIntervalMinutes = args.TryGetProperty("checkIntervalMinutes", out var ciProp) && ciProp.TryGetInt32(out var ci) ? ci : 5;
-
-        var agent = workflow.ReplyAgent;
-        if (agent == null)
-        {
-            agent = WorkflowReplyAgent.Create(
-                workflowId,
-                string.IsNullOrWhiteSpace(personaPrompt) ? "You are a helpful and polite social media assistant." : personaPrompt.Trim(),
-                maxCommentAgeHours,
-                maxPostAgeDays,
-                minRankingScore,
-                maxRepliesPerBranch,
-                maxRepliesPerUser,
-                maxThreadDepth,
-                autoPublishReplies,
-                checkIntervalMinutes);
-            agent.IsEnabled = isEnabled;
-            _db.WorkflowReplyAgents.Add(agent);
-        }
-        else
-        {
-            agent.IsEnabled = isEnabled;
-            if (!string.IsNullOrWhiteSpace(personaPrompt))
+            if (workflow == null)
             {
-                agent.PersonaPrompt = personaPrompt.Trim();
+                return TextError("Workflow not found.");
             }
-            agent.MaxCommentAgeHours = Math.Max(1, maxCommentAgeHours);
-            agent.MaxPostAgeDays = Math.Max(1, maxPostAgeDays);
-            agent.MinRankingScore = Math.Clamp(minRankingScore, 1, 10);
-            agent.MaxRepliesPerCommentThread = Math.Max(1, maxRepliesPerBranch);
-            agent.MaxRepliesPerUser = Math.Max(1, maxRepliesPerUser);
-            agent.MaxThreadDepth = Math.Max(1, maxThreadDepth);
-            agent.AutoPublishReplies = autoPublishReplies;
-            agent.CheckIntervalMinutes = Math.Max(1, checkIntervalMinutes);
-            agent.UpdatedAt = DateTime.UtcNow;
+
+            var agent = workflow.ReplyAgent;
+            if (agent == null)
+            {
+                var name = $"Reply Agent for {workflow.Title}";
+                var persona = args.TryGetProperty("personaPrompt", out var pp) ? pp.GetString() ?? "" : "";
+                var newAgent = ReplyAgent.Create(userId, name, personaPrompt: persona);
+                _db.ReplyAgents.Add(newAgent);
+                workflow.ReplyAgentId = newAgent.Id;
+                await _db.SaveChangesAsync(ct);
+                agent = newAgent;
+            }
+
+            var updateObj = JsonSerializer.Deserialize<Dictionary<string, object>>(args.GetRawText()) ?? new();
+            updateObj["agentId"] = agent.Id.ToString();
+            updateObj["name"] = agent.Name;
+            var updatedElement = JsonSerializer.SerializeToElement(updateObj);
+            return await HandleUpdateReplyAgentAsync(userId, updatedElement, ct);
         }
 
-        await _db.SaveChangesAsync(ct);
-        return TextResult(JsonSerializer.Serialize(new WorkflowReplyAgentDto(agent), JsonOptions));
+        return TextError("Either 'agentId' or 'workflowId' must be provided.");
     }
 
     private async Task<McpToolCallResult> HandleTriggerReplyCheckAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
-        if (!args.TryGetProperty("workflowId", out var wfProp) || !Guid.TryParse(wfProp.GetString(), out var workflowId))
+        ReplyAgent? agent = null;
+        List<Guid> workflowIds = new();
+
+        if (args.TryGetProperty("agentId", out var aProp) && Guid.TryParse(aProp.GetString(), out var agentId))
         {
-            return TextError("workflowId is required and must be a valid UUID.");
+            agent = await _db.ReplyAgents
+                .Include(a => a.Workflows)
+                .FirstOrDefaultAsync(a => a.Id == agentId && a.UserId == userId, ct);
+
+            if (agent == null)
+            {
+                return TextError($"Reply Agent '{agentId}' not found.");
+            }
+
+            workflowIds = agent.Workflows.Select(w => w.Id).ToList();
+        }
+        else if (args.TryGetProperty("workflowId", out var wfProp) && Guid.TryParse(wfProp.GetString(), out var workflowId))
+        {
+            var workflow = await _db.AutomationWorkflows
+                .Include(w => w.ReplyAgent)
+                .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
+
+            if (workflow == null)
+            {
+                return TextError("Workflow not found.");
+            }
+
+            if (workflow.ReplyAgent == null || !workflow.ReplyAgent.IsEnabled)
+            {
+                return TextError("Reply Agent is not configured or disabled for this workflow.");
+            }
+
+            agent = workflow.ReplyAgent;
+            workflowIds = new List<Guid> { workflow.Id };
+        }
+        else
+        {
+            return TextError("Either 'agentId' or 'workflowId' must be provided.");
         }
 
-        var workflow = await _db.AutomationWorkflows
-            .Include(w => w.ReplyAgent)
-            .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
-
-        if (workflow == null)
+        if (!agent.IsEnabled)
         {
-            return TextError("Workflow not found.");
+            return TextError("Reply Agent is disabled.");
         }
 
-        if (workflow.ReplyAgent == null || !workflow.ReplyAgent.IsEnabled)
+        if (workflowIds.Count == 0)
         {
-            return TextError("Reply Agent is not configured or disabled for this workflow.");
+            return TextResult($"Reply Agent '{agent.Name}' is not assigned to any workflows.");
         }
 
-        var agent = workflow.ReplyAgent;
         var runSynchronously = args.TryGetProperty("runSynchronously", out var syncProp) && syncProp.ValueKind == JsonValueKind.True;
 
         Guid? specificPostId = null;
@@ -1415,7 +1684,10 @@ public sealed class McpToolRegistry
         var cutoff = DateTime.UtcNow.Subtract(TimeSpan.FromDays(agent.MaxPostAgeDays));
         var postsQuery = _db.Posts
             .Include(p => p.Draft)
-            .Where(p => p.Draft.AutomationWorkflowId == workflow.Id && p.RemoteId != null && p.PostedAt >= cutoff);
+            .Where(p => p.Draft.AutomationWorkflowId.HasValue
+                && workflowIds.Contains(p.Draft.AutomationWorkflowId.Value)
+                && p.RemoteId != null
+                && p.PostedAt >= cutoff);
 
         if (specificPostId.HasValue)
         {
@@ -1425,7 +1697,7 @@ public sealed class McpToolRegistry
         var posts = await postsQuery.ToListAsync(ct);
         if (posts.Count == 0)
         {
-            return TextResult($"No eligible published posts found for workflow '{workflow.Title}'.");
+            return TextResult($"No eligible published posts found for reply agent '{agent.Name}'.");
         }
 
         if (runSynchronously && _replyCoordinator != null)
@@ -1437,7 +1709,7 @@ public sealed class McpToolRegistry
             }
 
             var recentAudits = await _db.WorkflowCommentAudits
-                .Where(a => a.WorkflowReplyAgentId == agent.Id && a.CreatedAt >= startTime.AddSeconds(-2))
+                .Where(a => a.ReplyAgentId == agent.Id && a.CreatedAt >= startTime.AddSeconds(-2))
                 .OrderByDescending(a => a.CreatedAt)
                 .ToListAsync(ct);
 
@@ -1469,32 +1741,39 @@ public sealed class McpToolRegistry
             enqueuedCount++;
         }
 
-        return TextResult($"Enqueued reply check for {enqueuedCount} post(s) for workflow '{workflow.Title}'.");
+        return TextResult($"Enqueued reply check for {enqueuedCount} post(s) for reply agent '{agent.Name}'.");
     }
 
     private async Task<McpToolCallResult> HandleListCommentAuditsAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
-        if (!args.TryGetProperty("workflowId", out var wfProp) || !Guid.TryParse(wfProp.GetString(), out var workflowId))
+        IQueryable<WorkflowCommentAudit> query = _db.WorkflowCommentAudits
+            .Include(a => a.ReplyAgent)
+            .Include(a => a.Post)
+                .ThenInclude(p => p.Draft);
+
+        if (args.TryGetProperty("agentId", out var aProp) && Guid.TryParse(aProp.GetString(), out var agentId))
         {
-            return TextError("workflowId is required and must be a valid UUID.");
+            var agent = await _db.ReplyAgents.FirstOrDefaultAsync(a => a.Id == agentId && a.UserId == userId, ct);
+            if (agent == null) return TextError($"Reply Agent '{agentId}' not found.");
+
+            query = query.Where(a => a.ReplyAgentId == agentId);
         }
-
-        var workflow = await _db.AutomationWorkflows
-            .Include(w => w.ReplyAgent)
-            .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
-
-        if (workflow == null)
+        else if (args.TryGetProperty("workflowId", out var wfProp) && Guid.TryParse(wfProp.GetString(), out var workflowId))
         {
-            return TextError("Workflow not found.");
-        }
+            var workflow = await _db.AutomationWorkflows
+                .Include(w => w.ReplyAgent)
+                .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
 
-        if (workflow.ReplyAgent == null)
+            if (workflow == null) return TextError("Workflow not found.");
+            if (workflow.ReplyAgent == null) return TextResult("[]");
+
+            query = query.Where(a => a.ReplyAgentId == workflow.ReplyAgent.Id
+                && a.Post.Draft.AutomationWorkflowId == workflow.Id);
+        }
+        else
         {
-            return TextResult("[]");
+            query = query.Where(a => a.ReplyAgent.UserId == userId);
         }
-
-        var query = _db.WorkflowCommentAudits
-            .Where(a => a.WorkflowReplyAgentId == workflow.ReplyAgent.Id);
 
         if (args.TryGetProperty("decision", out var decProp) && !string.IsNullOrWhiteSpace(decProp.GetString()))
         {
@@ -1525,8 +1804,7 @@ public sealed class McpToolRegistry
         if (args.TryGetProperty("auditId", out var auditProp) && Guid.TryParse(auditProp.GetString(), out var auditId))
         {
             var audit = await _db.WorkflowCommentAudits
-                .Include(a => a.WorkflowReplyAgent)
-                    .ThenInclude(ra => ra.AutomationWorkflow)
+                .Include(a => a.ReplyAgent)
                 .Include(a => a.Post)
                     .ThenInclude(p => p.PlatformThread)
                         .ThenInclude(pt => pt.Account)
@@ -1537,9 +1815,9 @@ public sealed class McpToolRegistry
                 return TextError($"Comment audit {auditId} not found.");
             }
 
-            if (audit.WorkflowReplyAgent?.AutomationWorkflow?.UserId != userId)
+            if (audit.ReplyAgent?.UserId != userId)
             {
-                return TextError("Unauthorized: Comment audit does not belong to your workflows.");
+                return TextError("Unauthorized: Comment audit does not belong to your reply agents.");
             }
 
             var customText = args.TryGetProperty("replyText", out var rtProp) ? rtProp.GetString() : null;
@@ -1552,6 +1830,12 @@ public sealed class McpToolRegistry
 
             var post = audit.Post;
             var account = post.PlatformThread?.Account;
+            if (account == null)
+            {
+                account = await _db.Accounts.FirstOrDefaultAsync(
+                    a => a.UserId == userId && a.Platform == post.Platform, ct);
+            }
+
             if (account == null)
             {
                 return TextError("Post has no associated Account for publishing.");
@@ -1631,6 +1915,12 @@ public sealed class McpToolRegistry
         }
 
         var manualAccount = manualPost.PlatformThread?.Account;
+        if (manualAccount == null)
+        {
+            manualAccount = await _db.Accounts.FirstOrDefaultAsync(
+                a => a.UserId == userId && a.Platform == manualPost.Platform, ct);
+        }
+
         if (manualAccount == null)
         {
             return TextError("Post has no associated Account for publishing.");

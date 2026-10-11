@@ -33,12 +33,12 @@ public sealed class WorkflowReplyCheckPostTaskHandler : BackgroundTaskHandlerBas
     {
         try
         {
-            await _coordinator.ProcessPostCommentsAsync(payload.WorkflowReplyAgentId, payload.PostId, ct);
+            await _coordinator.ProcessPostCommentsAsync(payload.ReplyAgentId, payload.PostId, ct);
             return TaskResult.Success();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to process reply check for agent {AgentId} and post {PostId}", payload.WorkflowReplyAgentId, payload.PostId);
+            _logger.LogError(ex, "Failed to process reply check for agent {AgentId} and post {PostId}", payload.ReplyAgentId, payload.PostId);
             return TaskResult.Retry(TimeSpan.FromMinutes(2), ex.Message);
         }
     }

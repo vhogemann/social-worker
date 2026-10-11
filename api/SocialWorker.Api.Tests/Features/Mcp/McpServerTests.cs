@@ -652,8 +652,9 @@ public sealed class McpServerTests : SqliteTestBase
         var workflow = AutomationWorkflow.Create(user.Id, "Polled Workflow", null, null);
         db.AutomationWorkflows.Add(workflow);
 
-        var agent = WorkflowReplyAgent.Create(workflow.Id, "Persona", autoPublishReplies: true);
-        db.WorkflowReplyAgents.Add(agent);
+        var agent = ReplyAgent.Create(user.Id, "Persona Agent", "Persona", autoPublishReplies: true);
+        db.ReplyAgents.Add(agent);
+        workflow.ReplyAgentId = agent.Id;
 
         var draft = Draft.Create(user.Id, "Workflow Post Draft", "Content");
         draft.AutomationWorkflowId = workflow.Id;
@@ -712,8 +713,9 @@ public sealed class McpServerTests : SqliteTestBase
         var workflow = AutomationWorkflow.Create(user.Id, "Audit Workflow", null, null);
         db.AutomationWorkflows.Add(workflow);
 
-        var agent = WorkflowReplyAgent.Create(workflow.Id, "Persona", autoPublishReplies: true);
-        db.WorkflowReplyAgents.Add(agent);
+        var agent = ReplyAgent.Create(user.Id, "Persona Agent", "Persona", autoPublishReplies: true);
+        db.ReplyAgents.Add(agent);
+        workflow.ReplyAgentId = agent.Id;
 
         var draft = Draft.Create(user.Id, "Audit Draft", "Content");
         draft.AutomationWorkflowId = workflow.Id;
@@ -784,8 +786,9 @@ public sealed class McpServerTests : SqliteTestBase
         var workflow = AutomationWorkflow.Create(user.Id, "Manual Reply Workflow", null, null);
         db.AutomationWorkflows.Add(workflow);
 
-        var agent = WorkflowReplyAgent.Create(workflow.Id, "Persona", autoPublishReplies: false);
-        db.WorkflowReplyAgents.Add(agent);
+        var agent = ReplyAgent.Create(user.Id, "Persona Agent", "Persona", autoPublishReplies: false);
+        db.ReplyAgents.Add(agent);
+        workflow.ReplyAgentId = agent.Id;
 
         var draft = Draft.Create(user.Id, "Manual Reply Draft", "Content");
         draft.AutomationWorkflowId = workflow.Id;
@@ -852,8 +855,9 @@ public sealed class McpServerTests : SqliteTestBase
         var workflow = AutomationWorkflow.Create(user.Id, "Resource Workflow", null, null);
         db.AutomationWorkflows.Add(workflow);
 
-        var agent = WorkflowReplyAgent.Create(workflow.Id, "Custom Persona", autoPublishReplies: true);
-        db.WorkflowReplyAgents.Add(agent);
+        var agent = ReplyAgent.Create(user.Id, "Resource Persona", "Custom Persona", autoPublishReplies: true);
+        db.ReplyAgents.Add(agent);
+        workflow.ReplyAgentId = agent.Id;
         await db.SaveChangesAsync();
 
         // 1. resources/list

@@ -55,7 +55,7 @@ web/
 | `/workflows` | `WorkflowsPanel` | Automated feed ingestion workflows list |
 | `/workflows/:id` | `WorkflowDetail` | Detailed workflow metrics, trigger runs, logs |
 | `/templates` | `TemplateStudio` | Canvas-based template designer and previewer |
-| `/settings` | `ConnectionsTab` | Manage platform accounts, OAuth, and API keys |
+| `/settings` | `SettingsPage` | User preferences, platform connections, brand voices, reply agents library, and feed subscriptions |
 | `/oauth/callback/*` | Callback pages | OAuth redirect handlers (Twitter, Threads, Instagram, LinkedIn) |
 
 ## State Management Architecture

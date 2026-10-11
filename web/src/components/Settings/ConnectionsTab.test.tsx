@@ -9,13 +9,15 @@ vi.mock("../../api/accounts", () => ({
   saveAccount: vi.fn(),
   deleteAccount: vi.fn(),
   getLinkedInAuthUrl: vi.fn(),
+  getMetaThreadsAuthUrl: vi.fn(),
 }));
 
-import { listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl } from "../../api/accounts";
+import { listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, getMetaThreadsAuthUrl } from "../../api/accounts";
 const mockListAccounts = listAccounts as Mock;
 const mockSaveAccount = saveAccount as Mock;
 const mockDeleteAccount = deleteAccount as Mock;
 const mockGetLinkedInAuthUrl = getLinkedInAuthUrl as Mock;
+const mockGetMetaThreadsAuthUrl = getMetaThreadsAuthUrl as Mock;
 
 const makeAccount = (id = "a1") => ({
   id,
@@ -179,6 +181,29 @@ describe("ConnectionsTab", () => {
 
     await waitFor(() => {
       expect(mockGetLinkedInAuthUrl).toHaveBeenCalledWith("company");
+    });
+  });
+
+  it("initiates Threads reconnection flow when Reconnect button is clicked on Threads account card", async () => {
+    mockListAccounts.mockResolvedValueOnce([
+      {
+        id: "th-1",
+        platform: "MetaThreads",
+        handle: "my_threads_handle",
+        status: "Active",
+        createdAt: "2026-01-01",
+        updatedAt: "2026-01-01",
+      },
+    ]);
+    mockGetMetaThreadsAuthUrl.mockResolvedValueOnce({ authUrl: "https://threads.net/oauth/authorize?test" });
+    render(<ConnectionsTab />);
+
+    expect(await screen.findByText(/my_threads_handle/)).toBeInTheDocument();
+    const reconnectBtn = screen.getByRole("button", { name: /reconnect/i });
+    fireEvent.click(reconnectBtn);
+
+    await waitFor(() => {
+      expect(mockGetMetaThreadsAuthUrl).toHaveBeenCalledTimes(1);
     });
   });
 });

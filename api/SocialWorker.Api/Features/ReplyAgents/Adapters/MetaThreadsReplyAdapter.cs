@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -47,18 +48,54 @@ public sealed class MetaThreadsReplyAdapter : IReplyPlatformAdapter
         try
         {
             var accessToken = CryptoHelper.DecryptString(account.CredentialsEncrypted, _encryptionKey);
-            var repliesRes = await _apiClient.GetRepliesAsync(post.RemoteId, accessToken, ct);
+            MetaThreadsRepliesResponse? repliesRes = null;
+            try
+            {
+                repliesRes = await _apiClient.GetConversationAsync(post.RemoteId, accessToken, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch conversation endpoint for Meta Threads post {RemoteId}, falling back to replies endpoint", post.RemoteId);
+            }
 
-            if (repliesRes.Data == null || repliesRes.Data.Count == 0)
+            if (repliesRes?.Data == null || repliesRes.Data.Count == 0)
+            {
+                repliesRes = await _apiClient.GetRepliesAsync(post.RemoteId, accessToken, ct);
+            }
+
+            if (repliesRes?.Data == null || repliesRes.Data.Count == 0)
             {
                 return Array.Empty<PlatformCommentItem>();
             }
 
-            var items = new List<PlatformCommentItem>();
-            foreach (var item in repliesRes.Data)
-            {
-                if (string.IsNullOrWhiteSpace(item.Id)) continue;
+            var rawItems = repliesRes.Data
+                .Where(item => !string.IsNullOrWhiteSpace(item.Id))
+                .ToList();
 
+            var parentMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in rawItems)
+            {
+                var parentId = item.RepliedTo?.Id ?? post.RemoteId;
+                parentMap[item.Id] = parentId;
+            }
+
+            int CalculateDepth(string commentId)
+            {
+                var depth = 1;
+                var current = commentId;
+                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                while (parentMap.TryGetValue(current, out var parent) && !string.Equals(parent, post.RemoteId, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!visited.Add(current) || visited.Count > 20) break;
+                    depth++;
+                    current = parent;
+                }
+                return depth;
+            }
+
+            var items = new List<PlatformCommentItem>();
+            foreach (var item in rawItems)
+            {
                 var createdAt = DateTime.UtcNow;
                 if (!string.IsNullOrWhiteSpace(item.Timestamp) && DateTime.TryParse(item.Timestamp, out var parsedDt))
                 {
@@ -84,6 +121,7 @@ public sealed class MetaThreadsReplyAdapter : IReplyPlatformAdapter
 
                 var parentId = item.RepliedTo?.Id ?? post.RemoteId;
                 var rootId = item.RootPost?.Id ?? post.RemoteId;
+                var depth = CalculateDepth(item.Id);
 
                 items.Add(new PlatformCommentItem(
                     Platform: Platform,
@@ -94,7 +132,7 @@ public sealed class MetaThreadsReplyAdapter : IReplyPlatformAdapter
                     RemoteAuthorId: item.Username ?? item.Id,
                     Text: text,
                     CreatedAt: createdAt,
-                    Depth: string.Equals(parentId, post.RemoteId, StringComparison.OrdinalIgnoreCase) ? 1 : 2,
+                    Depth: depth,
                     ExtractedUrls: extractedUrls,
                     ExtractedImages: images,
                     PlatformMetadata: null

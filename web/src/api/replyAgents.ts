@@ -1,8 +1,15 @@
 import { apiFetch } from "./client";
 
-export interface WorkflowReplyAgentDto {
+export interface ReplyAgentWorkflowSummaryDto {
   id: string;
-  automationWorkflowId: string;
+  title: string;
+}
+
+export interface ReplyAgentDto {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
   isEnabled: boolean;
   personaPrompt: string;
   maxCommentAgeHours: number;
@@ -14,11 +21,15 @@ export interface WorkflowReplyAgentDto {
   autoPublishReplies: boolean;
   checkIntervalMinutes: number;
   lastPolledAt: string | null;
+  assignedWorkflowsCount: number;
+  workflows: ReplyAgentWorkflowSummaryDto[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface UpdateWorkflowReplyAgentRequest {
+export interface CreateReplyAgentRequest {
+  name: string;
+  description?: string | null;
   isEnabled?: boolean;
   personaPrompt?: string;
   maxCommentAgeHours?: number;
@@ -31,13 +42,35 @@ export interface UpdateWorkflowReplyAgentRequest {
   checkIntervalMinutes?: number;
 }
 
+export interface UpdateReplyAgentRequest {
+  name: string;
+  description?: string | null;
+  isEnabled?: boolean;
+  personaPrompt?: string;
+  maxCommentAgeHours?: number;
+  maxPostAgeDays?: number;
+  minRankingScore?: number;
+  maxRepliesPerCommentThread?: number;
+  maxRepliesPerUser?: number;
+  maxThreadDepth?: number;
+  autoPublishReplies?: boolean;
+  checkIntervalMinutes?: number;
+}
+
+export interface AssignWorkflowReplyAgentRequest {
+  replyAgentId: string | null;
+}
+
 export interface WorkflowCommentAuditDto {
   id: string;
-  workflowReplyAgentId: string;
+  replyAgentId: string;
   postId: string;
   platform: string;
   remoteCommentId: string;
+  remoteParentId: string | null;
+  remoteRootId: string | null;
   remoteAuthorHandle: string;
+  remoteAuthorId: string;
   commentText: string;
   parsedLinksJson: string | null;
   parsedImagesJson: string | null;
@@ -48,39 +81,97 @@ export interface WorkflowCommentAuditDto {
   rankingReasoning: string | null;
   generatedReplyText: string | null;
   remoteReplyId: string | null;
+  publishedPostId: string | null;
   errorMessage: string | null;
   createdAt: string;
 }
 
-export async function getWorkflowReplyAgent(workflowId: string): Promise<WorkflowReplyAgentDto | null> {
-  const response = await apiFetch(`/api/workflows/${workflowId}/reply-agent`);
-  if (response.status === 404) {
-    return null;
-  }
+export async function listReplyAgents(): Promise<ReplyAgentDto[]> {
+  const response = await apiFetch("/api/reply-agents");
   if (!response.ok) {
-    throw new Error(`Failed to fetch workflow reply agent: ${response.statusText}`);
+    throw new Error(`Failed to list reply agents: ${response.statusText}`);
   }
   return response.json();
 }
 
-export async function updateWorkflowReplyAgent(
-  workflowId: string,
-  request: UpdateWorkflowReplyAgentRequest
-): Promise<WorkflowReplyAgentDto> {
-  const response = await apiFetch(`/api/workflows/${workflowId}/reply-agent`, {
+export async function getReplyAgent(id: string): Promise<ReplyAgentDto> {
+  const response = await apiFetch(`/api/reply-agents/${id}`);
+  if (!response.ok) {
+    throw new Error(`Failed to get reply agent: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function createReplyAgent(request: CreateReplyAgentRequest): Promise<ReplyAgentDto> {
+  const response = await apiFetch("/api/reply-agents", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create reply agent: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function updateReplyAgent(id: string, request: UpdateReplyAgentRequest): Promise<ReplyAgentDto> {
+  const response = await apiFetch(`/api/reply-agents/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
   if (!response.ok) {
-    throw new Error(`Failed to update workflow reply agent: ${response.statusText}`);
+    throw new Error(`Failed to update reply agent: ${response.statusText}`);
   }
   return response.json();
 }
 
+export async function deleteReplyAgent(id: string): Promise<void> {
+  const response = await apiFetch(`/api/reply-agents/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete reply agent: ${response.statusText}`);
+  }
+}
+
+export async function getWorkflowAssignedReplyAgent(workflowId: string): Promise<ReplyAgentDto | null> {
+  const response = await apiFetch(`/api/workflows/${workflowId}/reply-agent`);
+  if (response.status === 404 || response.status === 204) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`Failed to fetch workflow reply agent: ${response.statusText}`);
+  }
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+  return JSON.parse(text);
+}
+
+export async function assignWorkflowReplyAgent(
+  workflowId: string,
+  replyAgentId: string | null
+): Promise<ReplyAgentDto | null> {
+  const response = await apiFetch(`/api/workflows/${workflowId}/reply-agent`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ replyAgentId }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to assign reply agent: ${response.statusText}`);
+  }
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+  return JSON.parse(text);
+}
+
 export async function pollWorkflowReplyAgent(
   workflowId: string
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; postsChecked: number }> {
   const response = await apiFetch(`/api/workflows/${workflowId}/reply-agent/poll`, {
     method: "POST",
   });
@@ -92,11 +183,33 @@ export async function pollWorkflowReplyAgent(
 
 export async function getWorkflowCommentAudits(
   workflowId: string,
-  limit: number = 50
+  limit: number = 50,
+  decision?: string
 ): Promise<WorkflowCommentAuditDto[]> {
-  const response = await apiFetch(`/api/workflows/${workflowId}/reply-agent/audits?limit=${limit}`);
+  const params = new URLSearchParams();
+  params.set("limit", limit.toString());
+  if (decision) params.set("decision", decision);
+
+  const response = await apiFetch(`/api/workflows/${workflowId}/reply-agent/audits?${params.toString()}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch comment audits: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function approveWorkflowCommentReply(
+  workflowId: string,
+  auditId: string,
+  replyText?: string
+): Promise<{ success: boolean; remoteReplyId?: string; replyUrl?: string; replyText: string }> {
+  const response = await apiFetch(`/api/workflows/${workflowId}/reply-agent/audits/${auditId}/reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ replyText }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.errorMessage || errorData?.error || `Failed to approve and publish reply: ${response.statusText}`);
   }
   return response.json();
 }

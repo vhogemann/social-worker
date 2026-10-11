@@ -5,8 +5,8 @@ namespace SocialWorker.Api.Data.Entities;
 public class WorkflowCommentThread
 {
     public Guid Id { get; set; }
-    public Guid WorkflowReplyAgentId { get; set; }
-    public WorkflowReplyAgent WorkflowReplyAgent { get; set; } = null!;
+    public Guid ReplyAgentId { get; set; }
+    public ReplyAgent ReplyAgent { get; set; } = null!;
     public Guid PostId { get; set; }
     public Post Post { get; set; } = null!;
 
@@ -23,13 +23,13 @@ public class WorkflowCommentThread
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public static WorkflowCommentThread Create(
-        Guid workflowReplyAgentId,
+        Guid replyAgentId,
         Guid postId,
         string remoteThreadKey,
         string remoteBranchKey)
     {
-        if (workflowReplyAgentId == Guid.Empty)
-            throw new ArgumentException("WorkflowReplyAgentId is required.", nameof(workflowReplyAgentId));
+        if (replyAgentId == Guid.Empty)
+            throw new ArgumentException("ReplyAgentId is required.", nameof(replyAgentId));
         if (postId == Guid.Empty)
             throw new ArgumentException("PostId is required.", nameof(postId));
         if (string.IsNullOrWhiteSpace(remoteThreadKey))
@@ -40,7 +40,7 @@ public class WorkflowCommentThread
         return new WorkflowCommentThread
         {
             Id = Guid.NewGuid(),
-            WorkflowReplyAgentId = workflowReplyAgentId,
+            ReplyAgentId = replyAgentId,
             PostId = postId,
             RemoteThreadKey = remoteThreadKey.Trim(),
             RemoteBranchKey = remoteBranchKey.Trim(),

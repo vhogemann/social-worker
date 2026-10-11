@@ -110,7 +110,7 @@ public sealed class ReplyAgentCoordinatorServiceTests : SqliteTestBase
         }
     }
 
-    private (AutomationWorkflow Workflow, WorkflowReplyAgent Agent, Post Post, Account Account) SeedScenario(
+    private (AutomationWorkflow Workflow, ReplyAgent Agent, Post Post, Account Account) SeedScenario(
         AppDbContext db,
         bool isAgentEnabled = true,
         bool autoPublish = true,
@@ -124,8 +124,9 @@ public sealed class ReplyAgentCoordinatorServiceTests : SqliteTestBase
         var workflow = AutomationWorkflow.Create(user.Id, "Tech Feed", "Feed workflow");
         db.AutomationWorkflows.Add(workflow);
 
-        var agent = WorkflowReplyAgent.Create(
-            workflow.Id,
+        var agent = ReplyAgent.Create(
+            user.Id,
+            name: "Tech Agent",
             personaPrompt: "Polite tech assistant",
             maxCommentAgeHours: maxAgeHours,
             maxPostAgeDays: 7,
@@ -136,7 +137,9 @@ public sealed class ReplyAgentCoordinatorServiceTests : SqliteTestBase
             autoPublishReplies: autoPublish
         );
         agent.IsEnabled = isAgentEnabled;
-        db.WorkflowReplyAgents.Add(agent);
+        db.ReplyAgents.Add(agent);
+
+        workflow.ReplyAgentId = agent.Id;
 
         var account = new Account
         {

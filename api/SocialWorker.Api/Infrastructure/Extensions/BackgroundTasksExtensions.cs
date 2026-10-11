@@ -28,6 +28,9 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<ScheduleSlotEvaluatorService>();
         builder.Services.AddScoped<ICalendarProjectionService, CalendarProjectionService>();
 
+        builder.Services.AddScoped<SocialWorker.Api.Features.ReplyAgents.Handlers.WorkflowReplyCheckPostTaskHandler>();
+        builder.Services.AddScoped<SocialWorker.Api.Features.ReplyAgents.Handlers.ReplyThreadSummaryTaskHandler>();
+
         var resolver = new TaskHandlerResolver();
         resolver.Register<SourceTranscriptionTaskHandler>("source-transcription", TimeSpan.FromMinutes(15));
         resolver.Register<SourceScrapeTaskHandler>("source-scrape", TimeSpan.FromMinutes(3));
@@ -35,6 +38,8 @@ static partial class ServiceCollectionExtensions
         resolver.Register<FeedIngestionTaskHandler>("feed-ingestion", TimeSpan.FromMinutes(5));
         resolver.Register<ScheduledPublishingTaskHandler>(ScheduledPublishingTaskHandler.TaskTypeName, TimeSpan.FromMinutes(5));
         resolver.Register<SocialWorker.Api.Features.Workflows.Handlers.WorkflowDraftRetryTaskHandler>(SocialWorker.Api.Features.Workflows.Handlers.WorkflowDraftRetryTaskHandler.TaskTypeName, TimeSpan.FromMinutes(5));
+        resolver.Register<SocialWorker.Api.Features.ReplyAgents.Handlers.WorkflowReplyCheckPostTaskHandler>("workflow-reply-check-post", TimeSpan.FromMinutes(5));
+        resolver.Register<SocialWorker.Api.Features.ReplyAgents.Handlers.ReplyThreadSummaryTaskHandler>("reply-thread-summary", TimeSpan.FromMinutes(5));
 
         builder.Services.AddSingleton<ITaskHandlerResolver>(resolver);
 

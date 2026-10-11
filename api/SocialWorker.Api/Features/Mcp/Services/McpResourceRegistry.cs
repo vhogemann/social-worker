@@ -106,14 +106,20 @@ public sealed class McpResourceRegistry
             var idStr = middle.Substring(0, middle.Length - "/reply-agent".Length).Trim();
             if (Guid.TryParse(idStr, out var workflowId))
             {
-                var agent = await _db.WorkflowReplyAgents
+                var workflow = await _db.AutomationWorkflows
                     .AsNoTracking()
-                    .Include(a => a.AutomationWorkflow)
-                    .FirstOrDefaultAsync(a => a.AutomationWorkflowId == workflowId && a.AutomationWorkflow.UserId == userId, ct);
+                    .Include(w => w.ReplyAgent)
+                    .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
 
-                if (agent != null)
+                if (workflow?.ReplyAgent != null)
                 {
-                    var dto = new WorkflowReplyAgentDto(agent);
+                    var assignedWorkflows = await _db.AutomationWorkflows
+                        .AsNoTracking()
+                        .Where(w => w.ReplyAgentId == workflow.ReplyAgent.Id)
+                        .Select(w => new ReplyAgentWorkflowSummaryDto(w.Id, w.Title))
+                        .ToListAsync(ct);
+
+                    var dto = new ReplyAgentDto(workflow.ReplyAgent, assignedWorkflows);
                     return new McpResourceReadResult(new List<McpResourceContent>
                     {
                         new(uri, "application/json", JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true }))

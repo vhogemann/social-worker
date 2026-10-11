@@ -34,11 +34,21 @@ public sealed class MetaThreadsOAuthServiceTests
             AppId = "123456",
             AppSecret = "secret789",
             RedirectUri = "https://app.social-worker.local/oauth/callback/threads",
-            Scopes = "threads_basic,threads_content_publish,threads_manage_replies"
+            Scopes = "threads_basic,threads_content_publish,threads_manage_replies,threads_read_replies"
         };
         var http = new HttpClient(new DelegatingHandlerStub(handler));
         var service = new MetaThreadsOAuthService(http, Options.Create(options), NullLogger<MetaThreadsOAuthService>.Instance);
         return (service, options);
+    }
+
+    [Fact]
+    public void MetaThreadsOptions_DefaultScopes_IncludesReadReplies()
+    {
+        var options = new MetaThreadsOptions();
+        Assert.Contains("threads_read_replies", options.Scopes);
+        Assert.Contains("threads_manage_replies", options.Scopes);
+        Assert.Contains("threads_basic", options.Scopes);
+        Assert.Contains("threads_content_publish", options.Scopes);
     }
 
     [Fact]
@@ -50,7 +60,7 @@ public sealed class MetaThreadsOAuthServiceTests
 
         Assert.Contains("client_id=123456", url);
         Assert.Contains("state=test_nonce_123", url);
-        Assert.Contains("scope=threads_basic%2Cthreads_content_publish%2Cthreads_manage_replies", url);
+        Assert.Contains("scope=threads_basic%2Cthreads_content_publish%2Cthreads_manage_replies%2Cthreads_read_replies", url);
         Assert.Contains("response_type=code", url);
         Assert.StartsWith("https://threads.net/oauth/authorize", url);
     }

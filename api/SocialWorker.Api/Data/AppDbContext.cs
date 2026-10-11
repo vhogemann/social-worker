@@ -30,7 +30,7 @@ public class AppDbContext : DbContext
     public DbSet<ScheduleSlotRule> ScheduleSlotRules => Set<ScheduleSlotRule>();
     public DbSet<ScheduleQueueItem> ScheduleQueueItems => Set<ScheduleQueueItem>();
     public DbSet<OAuthState> OAuthStates => Set<OAuthState>();
-    public DbSet<WorkflowReplyAgent> WorkflowReplyAgents => Set<WorkflowReplyAgent>();
+    public DbSet<ReplyAgent> ReplyAgents => Set<ReplyAgent>();
     public DbSet<WorkflowCommentThread> WorkflowCommentThreads => Set<WorkflowCommentThread>();
     public DbSet<WorkflowCommentAudit> WorkflowCommentAudits => Set<WorkflowCommentAudit>();
 
@@ -269,6 +269,11 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.ScheduleId)
                 .OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(x => x.ScheduleId);
+            e.HasOne(x => x.ReplyAgent)
+                .WithMany(a => a.Workflows)
+                .HasForeignKey(x => x.ReplyAgentId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => x.ReplyAgentId);
         });
 
         modelBuilder.Entity<AutomationWorkflowSource>(e =>
@@ -448,15 +453,17 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.ExpiresAt);
         });
 
-        modelBuilder.Entity<WorkflowReplyAgent>(e =>
+        modelBuilder.Entity<ReplyAgent>(e =>
         {
             e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(150);
+            e.Property(x => x.Description).HasMaxLength(500);
             e.Property(x => x.PersonaPrompt).HasColumnType("text");
-            e.HasOne(x => x.AutomationWorkflow)
-                .WithOne(w => w.ReplyAgent)
-                .HasForeignKey<WorkflowReplyAgent>(x => x.AutomationWorkflowId)
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
-            e.HasIndex(x => x.AutomationWorkflowId).IsUnique();
+            e.HasIndex(x => x.UserId);
         });
 
         modelBuilder.Entity<WorkflowCommentThread>(e =>
@@ -467,16 +474,16 @@ public class AppDbContext : DbContext
             e.Property(x => x.SummarizedUpToRemoteId).HasMaxLength(500);
             e.Property(x => x.TerminalReason).HasMaxLength(100);
             e.Property(x => x.Summary).HasColumnType("text");
-            e.HasOne(x => x.WorkflowReplyAgent)
+            e.HasOne(x => x.ReplyAgent)
                 .WithMany(a => a.CommentThreads)
-                .HasForeignKey(x => x.WorkflowReplyAgentId)
+                .HasForeignKey(x => x.ReplyAgentId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Post)
                 .WithMany()
                 .HasForeignKey(x => x.PostId)
                 .OnDelete(DeleteBehavior.Cascade);
-            e.HasIndex(x => new { x.WorkflowReplyAgentId, x.RemoteBranchKey }).IsUnique();
-            e.HasIndex(x => new { x.WorkflowReplyAgentId, x.PostId });
+            e.HasIndex(x => new { x.ReplyAgentId, x.RemoteBranchKey }).IsUnique();
+            e.HasIndex(x => new { x.ReplyAgentId, x.PostId });
         });
 
         modelBuilder.Entity<WorkflowCommentAudit>(e =>
@@ -497,9 +504,9 @@ public class AppDbContext : DbContext
             e.Property(x => x.GeneratedReplyText).HasColumnType("text");
             e.Property(x => x.RemoteReplyId).HasMaxLength(500);
             e.Property(x => x.ErrorMessage).HasColumnType("text");
-            e.HasOne(x => x.WorkflowReplyAgent)
+            e.HasOne(x => x.ReplyAgent)
                 .WithMany(a => a.CommentAudits)
-                .HasForeignKey(x => x.WorkflowReplyAgentId)
+                .HasForeignKey(x => x.ReplyAgentId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Post)
                 .WithMany()
@@ -509,8 +516,8 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.PublishedPostId)
                 .OnDelete(DeleteBehavior.SetNull);
-            e.HasIndex(x => new { x.WorkflowReplyAgentId, x.RemoteCommentId }).IsUnique();
-            e.HasIndex(x => new { x.WorkflowReplyAgentId, x.CreatedAt });
+            e.HasIndex(x => new { x.ReplyAgentId, x.RemoteCommentId }).IsUnique();
+            e.HasIndex(x => new { x.ReplyAgentId, x.CreatedAt });
         });
     }
 }

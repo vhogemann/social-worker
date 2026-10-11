@@ -61,17 +61,17 @@ public sealed class BackgroundTaskHostedService : BackgroundService
                     new()
                     {
                         Name = "worker-general-1",
-                        AllowedTaskTypes = new List<string> { "feed-ingestion", "source-scrape", "draft-chat-summary", "workflow-draft-retry", "scheduled-publishing" }
+                        AllowedTaskTypes = new List<string> { "feed-ingestion", "source-scrape", "draft-chat-summary", "workflow-draft-retry", "scheduled-publishing", "workflow-reply-check-post", "reply-thread-summary" }
                     },
                     new()
                     {
                         Name = "worker-general-2",
-                        AllowedTaskTypes = new List<string> { "feed-ingestion", "source-scrape", "draft-chat-summary", "workflow-draft-retry", "scheduled-publishing" }
+                        AllowedTaskTypes = new List<string> { "feed-ingestion", "source-scrape", "draft-chat-summary", "workflow-draft-retry", "scheduled-publishing", "workflow-reply-check-post", "reply-thread-summary" }
                     },
                     new()
                     {
                         Name = "worker-general-3",
-                        AllowedTaskTypes = new List<string> { "feed-ingestion", "source-scrape", "draft-chat-summary", "workflow-draft-retry", "scheduled-publishing" }
+                        AllowedTaskTypes = new List<string> { "feed-ingestion", "source-scrape", "draft-chat-summary", "workflow-draft-retry", "scheduled-publishing", "workflow-reply-check-post", "reply-thread-summary" }
                     }
                 };
             }

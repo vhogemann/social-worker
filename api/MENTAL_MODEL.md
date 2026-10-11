@@ -60,7 +60,8 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - `SourceTranscriptionService`: Submits media to the Python `transcriber` service and stores Whisper transcript results.
 - **`Feeds/`**: RSS/Atom, YouTube channel, and Instagram feed subscription, polling, entry deduplication, and workflow trigger dispatch.
 - **`Workflows/`**: Automated source-to-draft generation pipeline. Implements `IWorkflowSourceHandler` (e.g. `FeedWorkflowSourceHandler`, `DigestWorkflowSourceHandler`) to process feed items into formatted thread drafts using prompt templates.
-- **`ReplyAgents/`**: Autonomous reply agent assigned to workflows (`WorkflowReplyAgent`, `WorkflowCommentThread`, `WorkflowCommentAudit`).
+- **`ReplyAgents/`**: Autonomous reply agent library (`ReplyAgent`, `WorkflowCommentThread`, `WorkflowCommentAudit`).
+  - Many-to-one workflow assignment: Workflows point to `ReplyAgentId` (nullable FK).
   - `IReplyPlatformAdapter`: Multi-platform abstraction for fetching post reply trees and publishing comments (implements `BlueskyReplyAdapter`, `MetaThreadsReplyAdapter`, Twitter/LinkedIn stubs).
   - `CommentEnrichmentService`: Pre-fetches context for links (via `WebScraperService`) and images (via vision LLM).
   - `CommentRankingService`: Two-phase evaluation, scoring 1-10, intent classification, and terminal closure detection.
@@ -68,7 +69,7 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - `CommentThreadSummarizer`: Rolling thread summary cache preventing redundant comment retrieval.
   - Hard stop criteria: Branch depth limits, per-user limits, bot self-reply prevention, terminal sentiment closure detection.
   - Background tasks: `"workflow-reply-check-post"` and `"reply-thread-summary"` queued by `ReplyAgentPollingHostedService`.
-  - Minimal API endpoints at `/api/workflows/{workflowId}/reply-agent`.
+  - Minimal API endpoints at `/api/reply-agents` (CRUD) and `/api/workflows/{workflowId}/reply-agent` (assignment & workflow audits).
 - **`Scheduling/`**: Content calendar engine.
   - `ScheduleSlotEvaluatorService`: Recurring background evaluator matching queued drafts with available schedule slot windows calculated via `SlotWindowCalculator` and `Cronos`.
   - `ScheduleQueueService`: FIFO / priority draft queue management.
@@ -78,11 +79,11 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - `BackgroundTaskHostedService`: Worker pool executing transcriptions, web scraping, feed syncs, AI summarization, reply checks, and thread compaction with lease heartbeat tracking and failure retries.
 - **`Mcp/`**: Model Context Protocol integration.
   - Stateless JSON-RPC 2.0 at `POST /api/mcp` and streaming Server-Sent Events at `GET /api/mcp/sse`.
-  - Exposes 31 tools covering drafts, sources, workflows, feeds, schedules, calendar events, accounts, and reply agents (`get_reply_agent`, `configure_reply_agent`, `trigger_reply_check`, `list_comment_audits`, `reply_to_comment`).
+  - Exposes 35 tools covering drafts, sources, workflows, feeds, schedules, calendar events, accounts, and reply agents (`list_reply_agents`, `create_reply_agent`, `update_reply_agent`, `assign_reply_agent`, `get_reply_agent`, `configure_reply_agent`, `trigger_reply_check`, `list_comment_audits`, `reply_to_comment`).
 
 ### 2. Static Entity Factories & Invariant Protection
 
-Domain models enforce valid states through static factory methods (e.g., `Draft.Create`, `Source.CreateUrl`, `Source.CreateFile`, `LlmProvider.Create`, `FeedSubscription.Create`, `WorkflowReplyAgent.Create`). Direct invalid instantiation is disallowed.
+Domain models enforce valid states through static factory methods (e.g., `Draft.Create`, `Source.CreateUrl`, `Source.CreateFile`, `LlmProvider.Create`, `FeedSubscription.Create`, `ReplyAgent.Create`). Direct invalid instantiation is disallowed.
 
 ### 3. Markdown AST & CommonMark Thread Segmentation
 

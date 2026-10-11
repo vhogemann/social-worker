@@ -219,6 +219,7 @@ static partial class WebApplicationExtensions
         app.MapSchedulesEndpoints();
         app.MapOutboxEndpoints();
         SocialWorker.Api.Features.ReplyAgents.ReplyAgentsEndpoint.Map(app);
+        SocialWorker.Api.Features.ReplyAgents.ReplyAgentsCrudEndpoint.Map(app);
         SocialWorker.Api.Features.Mcp.McpEndpoints.MapMcpEndpoints(app);
     }
 }

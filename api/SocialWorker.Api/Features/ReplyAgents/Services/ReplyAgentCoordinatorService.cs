@@ -46,14 +46,13 @@ public sealed class ReplyAgentCoordinatorService
     }
 
     public async Task ProcessPostCommentsAsync(
-        Guid workflowReplyAgentId,
+        Guid replyAgentId,
         Guid postId,
         CancellationToken ct = default)
     {
-        var agent = await _db.WorkflowReplyAgents
-            .Include(a => a.AutomationWorkflow)
-            .ThenInclude(w => w.User)
-            .FirstOrDefaultAsync(a => a.Id == workflowReplyAgentId, ct);
+        var agent = await _db.ReplyAgents
+            .Include(a => a.User)
+            .FirstOrDefaultAsync(a => a.Id == replyAgentId, ct);
 
         if (agent == null || !agent.IsEnabled)
         {
@@ -71,6 +70,18 @@ public sealed class ReplyAgentCoordinatorService
         }
 
         var account = post.PlatformThread?.Account;
+        if (account == null)
+        {
+            var userId = agent.UserId;
+            account = await _db.Accounts.FirstOrDefaultAsync(
+                a => a.UserId == userId && a.Platform == post.Platform, ct);
+
+            if (account != null && post.PlatformThread != null && post.PlatformThread.AccountId == null)
+            {
+                post.PlatformThread.AccountId = account.Id;
+            }
+        }
+
         if (account == null)
         {
             _logger.LogWarning("Post {PostId} has no associated Account for reply monitoring", post.Id);
@@ -91,7 +102,7 @@ public sealed class ReplyAgentCoordinatorService
             return;
         }
 
-        var user = agent.AutomationWorkflow.User;
+        var user = agent.User;
 
         foreach (var comment in comments.OrderBy(c => c.CreatedAt))
         {
@@ -103,7 +114,7 @@ public sealed class ReplyAgentCoordinatorService
     }
 
     private async Task ProcessSingleCommentAsync(
-        WorkflowReplyAgent agent,
+        ReplyAgent agent,
         Post post,
         Account account,
         AppUser user,
@@ -113,7 +124,7 @@ public sealed class ReplyAgentCoordinatorService
         CancellationToken ct)
     {
         var alreadyAudited = await _db.WorkflowCommentAudits
-            .AnyAsync(a => a.WorkflowReplyAgentId == agent.Id && a.RemoteCommentId == comment.RemoteCommentId, ct);
+            .AnyAsync(a => a.ReplyAgentId == agent.Id && a.RemoteCommentId == comment.RemoteCommentId, ct);
         if (alreadyAudited)
         {
             return;
@@ -127,7 +138,7 @@ public sealed class ReplyAgentCoordinatorService
 
         var branchKey = comment.RemoteParentId ?? comment.RemoteRootId;
         var thread = await _db.WorkflowCommentThreads
-            .FirstOrDefaultAsync(t => t.WorkflowReplyAgentId == agent.Id && t.RemoteBranchKey == branchKey, ct);
+            .FirstOrDefaultAsync(t => t.ReplyAgentId == agent.Id && t.RemoteBranchKey == branchKey, ct);
 
         if (thread == null)
         {
@@ -161,7 +172,7 @@ public sealed class ReplyAgentCoordinatorService
         }
 
         var userRepliesCount = await _db.WorkflowCommentAudits
-            .CountAsync(a => a.WorkflowReplyAgentId == agent.Id && a.PostId == post.Id && a.RemoteAuthorId == comment.RemoteAuthorId && a.RankingDecision == "Replied", ct);
+            .CountAsync(a => a.ReplyAgentId == agent.Id && a.PostId == post.Id && a.RemoteAuthorId == comment.RemoteAuthorId && a.RankingDecision == "Replied", ct);
         if (userRepliesCount >= agent.MaxRepliesPerUser)
         {
             await RecordAuditAsync(agent, post, comment, 0, "UserLimitReached", "SkippedStopCriteria", "MaxRepliesPerUser exceeded for this user on this post.", ct);
@@ -249,7 +260,7 @@ public sealed class ReplyAgentCoordinatorService
     }
 
     private async Task RecordAuditAsync(
-        WorkflowReplyAgent agent,
+        ReplyAgent agent,
         Post post,
         PlatformCommentItem comment,
         int score,
@@ -279,7 +290,7 @@ public sealed class ReplyAgentCoordinatorService
     }
 
     private async Task RecordAuditWithEnrichmentAsync(
-        WorkflowReplyAgent agent,
+        ReplyAgent agent,
         Post post,
         PlatformCommentItem comment,
         EnrichedCommentContext enrichedContext,

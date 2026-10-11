@@ -106,7 +106,7 @@ public sealed class MetaThreadsReplyAdapterTests
 
         var (adapter, _) = CreateAdapter(req =>
         {
-            if (req.RequestUri != null && req.RequestUri.ToString().Contains("/replies"))
+            if (req.RequestUri != null && (req.RequestUri.ToString().Contains("/conversation") || req.RequestUri.ToString().Contains("/replies")))
             {
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
@@ -124,8 +124,73 @@ public sealed class MetaThreadsReplyAdapterTests
         Assert.Equal("reply_2001", item.RemoteCommentId);
         Assert.Equal("threads_fan", item.RemoteAuthorHandle);
         Assert.Equal("Check this article: https://example.org/news", item.Text);
+        Assert.Equal(1, item.Depth);
         Assert.Single(item.ExtractedUrls);
         Assert.Equal("https://example.org/news", item.ExtractedUrls[0]);
+    }
+
+    [Fact]
+    public async Task FetchCommentsAsync_CalculatesCorrectDepthForNestedReplies()
+    {
+        var post = new Post { RemoteId = "1001" };
+        var account = new Account
+        {
+            ExternalId = "999",
+            CredentialsEncrypted = CryptoHelper.EncryptString("test-token", EncryptionKey)
+        };
+
+        var conversationJson = """
+        {
+          "data": [
+            {
+              "id": "reply_1",
+              "text": "First comment",
+              "username": "user1",
+              "timestamp": "2026-10-11T12:00:00+0000",
+              "replied_to": { "id": "1001" }
+            },
+            {
+              "id": "reply_2",
+              "text": "Agent reply to user1",
+              "username": "vhogemann",
+              "timestamp": "2026-10-11T12:05:00+0000",
+              "replied_to": { "id": "reply_1" }
+            },
+            {
+              "id": "reply_3",
+              "text": "User1 counter-reply to agent",
+              "username": "user1",
+              "timestamp": "2026-10-11T12:10:00+0000",
+              "replied_to": { "id": "reply_2" }
+            }
+          ]
+        }
+        """;
+
+        var (adapter, _) = CreateAdapter(req =>
+        {
+            if (req.RequestUri != null && req.RequestUri.ToString().Contains("/conversation"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(conversationJson, System.Text.Encoding.UTF8, "application/json")
+                };
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var since = DateTime.Parse("2026-10-11T11:00:00Z");
+        var items = await adapter.FetchCommentsAsync(post, account, since);
+
+        Assert.Equal(3, items.Count);
+        var r1 = items.First(i => i.RemoteCommentId == "reply_1");
+        var r2 = items.First(i => i.RemoteCommentId == "reply_2");
+        var r3 = items.First(i => i.RemoteCommentId == "reply_3");
+
+        Assert.Equal(1, r1.Depth);
+        Assert.Equal(2, r2.Depth);
+        Assert.Equal(3, r3.Depth);
+        Assert.Equal("reply_2", r3.RemoteParentId);
     }
 
     [Fact]

@@ -3,11 +3,13 @@ using System.Collections.Generic;
 
 namespace SocialWorker.Api.Data.Entities;
 
-public class WorkflowReplyAgent
+public class ReplyAgent
 {
     public Guid Id { get; set; }
-    public Guid AutomationWorkflowId { get; set; }
-    public AutomationWorkflow AutomationWorkflow { get; set; } = null!;
+    public Guid UserId { get; set; }
+    public AppUser User { get; set; } = null!;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public bool IsEnabled { get; set; } = true;
     public string PersonaPrompt { get; set; } = string.Empty;
     public int MaxCommentAgeHours { get; set; } = 24;
@@ -22,12 +24,15 @@ public class WorkflowReplyAgent
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    public ICollection<AutomationWorkflow> Workflows { get; set; } = new List<AutomationWorkflow>();
     public ICollection<WorkflowCommentThread> CommentThreads { get; set; } = new List<WorkflowCommentThread>();
     public ICollection<WorkflowCommentAudit> CommentAudits { get; set; } = new List<WorkflowCommentAudit>();
 
-    public static WorkflowReplyAgent Create(
-        Guid automationWorkflowId,
+    public static ReplyAgent Create(
+        Guid userId,
+        string name,
         string personaPrompt,
+        string? description = null,
         int maxCommentAgeHours = 24,
         int maxPostAgeDays = 7,
         int minRankingScore = 7,
@@ -37,13 +42,17 @@ public class WorkflowReplyAgent
         bool autoPublishReplies = true,
         int checkIntervalMinutes = 15)
     {
-        if (automationWorkflowId == Guid.Empty)
-            throw new ArgumentException("AutomationWorkflowId is required.", nameof(automationWorkflowId));
+        if (userId == Guid.Empty)
+            throw new ArgumentException("UserId is required.", nameof(userId));
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Name is required.", nameof(name));
 
-        return new WorkflowReplyAgent
+        return new ReplyAgent
         {
             Id = Guid.NewGuid(),
-            AutomationWorkflowId = automationWorkflowId,
+            UserId = userId,
+            Name = name.Trim(),
+            Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
             IsEnabled = true,
             PersonaPrompt = string.IsNullOrWhiteSpace(personaPrompt)
                 ? "You are a helpful and polite social media assistant. Respond concisely to questions and feedback."

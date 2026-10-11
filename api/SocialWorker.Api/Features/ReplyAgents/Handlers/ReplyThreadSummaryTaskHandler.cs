@@ -49,7 +49,7 @@ public sealed class ReplyThreadSummaryTaskHandler : BackgroundTaskHandlerBase<Re
         if (user == null) return TaskResult.Fatal("User not found or inactive.");
 
         var audits = await _db.WorkflowCommentAudits
-            .Where(a => a.WorkflowReplyAgentId == thread.WorkflowReplyAgentId && a.PostId == thread.PostId
+            .Where(a => a.ReplyAgentId == thread.ReplyAgentId && a.PostId == thread.PostId
                 && (a.RemoteParentId == thread.RemoteBranchKey || a.RemoteCommentId == thread.RemoteBranchKey))
             .OrderBy(a => a.CommentCreatedAt)
             .Take(20)

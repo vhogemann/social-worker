@@ -120,6 +120,7 @@ public class FeedAutoPublishService
                             };
                             _db.Posts.Add(post);
                         }
+                        thread.AccountId = account.Id;
                         thread.Stage = PlatformThreadStage.Sent;
                         thread.UpdatedAt = DateTime.UtcNow;
                         await _db.SaveChangesAsync(ct);

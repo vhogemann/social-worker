@@ -5,8 +5,8 @@ namespace SocialWorker.Api.Data.Entities;
 public class WorkflowCommentAudit
 {
     public Guid Id { get; set; }
-    public Guid WorkflowReplyAgentId { get; set; }
-    public WorkflowReplyAgent WorkflowReplyAgent { get; set; } = null!;
+    public Guid ReplyAgentId { get; set; }
+    public ReplyAgent ReplyAgent { get; set; } = null!;
     public Guid PostId { get; set; }
     public Post Post { get; set; } = null!;
 
@@ -32,7 +32,7 @@ public class WorkflowCommentAudit
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public static WorkflowCommentAudit Create(
-        Guid workflowReplyAgentId,
+        Guid replyAgentId,
         Guid postId,
         string platform,
         string remoteCommentId,
@@ -56,7 +56,7 @@ public class WorkflowCommentAudit
         return new WorkflowCommentAudit
         {
             Id = Guid.NewGuid(),
-            WorkflowReplyAgentId = workflowReplyAgentId,
+            ReplyAgentId = replyAgentId,
             PostId = postId,
             Platform = string.IsNullOrWhiteSpace(platform) ? "Bluesky" : platform,
             RemoteCommentId = remoteCommentId,

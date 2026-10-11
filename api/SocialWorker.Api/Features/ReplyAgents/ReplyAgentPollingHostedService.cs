@@ -44,16 +44,21 @@ public sealed class ReplyAgentPollingHostedService : BackgroundService
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var taskQueue = scope.ServiceProvider.GetRequiredService<IBackgroundTaskQueue>();
 
-                var agents = await db.WorkflowReplyAgents
+                var agents = await db.ReplyAgents
+                    .Include(a => a.Workflows)
                     .Where(a => a.IsEnabled)
                     .ToListAsync(stoppingToken);
 
                 foreach (var agent in agents)
                 {
+                    var workflowIds = agent.Workflows.Select(w => w.Id).ToList();
+                    if (workflowIds.Count == 0) continue;
+
                     var cutoff = DateTime.UtcNow.Subtract(TimeSpan.FromDays(agent.MaxPostAgeDays));
                     var posts = await db.Posts
                         .Include(p => p.Draft)
-                        .Where(p => p.Draft.AutomationWorkflowId == agent.AutomationWorkflowId
+                        .Where(p => p.Draft.AutomationWorkflowId.HasValue
+                            && workflowIds.Contains(p.Draft.AutomationWorkflowId.Value)
                             && p.RemoteId != null
                             && p.PostedAt >= cutoff)
                         .ToListAsync(stoppingToken);

@@ -1,11 +1,26 @@
 using System;
+using System.Collections.Generic;
 using SocialWorker.Api.Data.Entities;
 
 namespace SocialWorker.Api.Features.ReplyAgents.Models;
 
-public sealed record WorkflowReplyAgentDto(
+public sealed record ReplyAgentSummaryDto(
     Guid Id,
-    Guid AutomationWorkflowId,
+    string Name,
+    string? Description,
+    bool IsEnabled,
+    int CheckIntervalMinutes,
+    int AssignedWorkflowsCount,
+    DateTime? LastPolledAt,
+    DateTime CreatedAt,
+    DateTime UpdatedAt
+);
+
+public sealed record ReplyAgentDto(
+    Guid Id,
+    Guid UserId,
+    string Name,
+    string? Description,
     bool IsEnabled,
     string PersonaPrompt,
     int MaxCommentAgeHours,
@@ -17,13 +32,17 @@ public sealed record WorkflowReplyAgentDto(
     bool AutoPublishReplies,
     int CheckIntervalMinutes,
     DateTime? LastPolledAt,
+    int AssignedWorkflowsCount,
+    IReadOnlyList<ReplyAgentWorkflowSummaryDto> Workflows,
     DateTime CreatedAt,
     DateTime UpdatedAt
 )
 {
-    public WorkflowReplyAgentDto(WorkflowReplyAgent a) : this(
+    public ReplyAgentDto(ReplyAgent a, IReadOnlyList<ReplyAgentWorkflowSummaryDto>? workflows = null) : this(
         a.Id,
-        a.AutomationWorkflowId,
+        a.UserId,
+        a.Name,
+        a.Description,
         a.IsEnabled,
         a.PersonaPrompt,
         a.MaxCommentAgeHours,
@@ -35,14 +54,20 @@ public sealed record WorkflowReplyAgentDto(
         a.AutoPublishReplies,
         a.CheckIntervalMinutes,
         a.LastPolledAt,
+        workflows?.Count ?? a.Workflows?.Count ?? 0,
+        workflows ?? (a.Workflows != null ? a.Workflows.Select(w => new ReplyAgentWorkflowSummaryDto(w.Id, w.Title)).ToList() : Array.Empty<ReplyAgentWorkflowSummaryDto>()),
         a.CreatedAt,
         a.UpdatedAt
     ) { }
 }
 
-public sealed record UpdateWorkflowReplyAgentRequest(
-    bool IsEnabled,
-    string PersonaPrompt,
+public sealed record ReplyAgentWorkflowSummaryDto(Guid Id, string Title);
+
+public sealed record CreateReplyAgentRequest(
+    string Name,
+    string? Description = null,
+    bool IsEnabled = true,
+    string PersonaPrompt = "",
     int MaxCommentAgeHours = 24,
     int MaxPostAgeDays = 7,
     int MinRankingScore = 7,
@@ -53,9 +78,26 @@ public sealed record UpdateWorkflowReplyAgentRequest(
     int CheckIntervalMinutes = 15
 );
 
+public sealed record UpdateReplyAgentRequest(
+    string Name,
+    string? Description = null,
+    bool IsEnabled = true,
+    string PersonaPrompt = "",
+    int MaxCommentAgeHours = 24,
+    int MaxPostAgeDays = 7,
+    int MinRankingScore = 7,
+    int MaxRepliesPerCommentThread = 2,
+    int MaxRepliesPerUser = 3,
+    int MaxThreadDepth = 4,
+    bool AutoPublishReplies = true,
+    int CheckIntervalMinutes = 15
+);
+
+public sealed record AssignWorkflowReplyAgentRequest(Guid? ReplyAgentId);
+
 public sealed record WorkflowCommentAuditDto(
     Guid Id,
-    Guid WorkflowReplyAgentId,
+    Guid ReplyAgentId,
     Guid PostId,
     string Platform,
     string RemoteCommentId,
@@ -80,7 +122,7 @@ public sealed record WorkflowCommentAuditDto(
 {
     public WorkflowCommentAuditDto(WorkflowCommentAudit a) : this(
         a.Id,
-        a.WorkflowReplyAgentId,
+        a.ReplyAgentId,
         a.PostId,
         a.Platform,
         a.RemoteCommentId,
@@ -103,3 +145,13 @@ public sealed record WorkflowCommentAuditDto(
         a.CreatedAt
     ) { }
 }
+
+public sealed record ApproveCommentReplyRequest(string? ReplyText = null);
+
+public sealed record ApproveCommentReplyResponse(
+    bool Success,
+    string? RemoteReplyId,
+    string? ReplyUrl,
+    string ReplyText,
+    string? ErrorMessage = null
+);

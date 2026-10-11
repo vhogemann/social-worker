@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus, faTrashCan, faShareNodes } from "@fortawesome/free-solid-svg-icons";
+import { faPlus, faTrashCan, faShareNodes, faRotateRight } from "@fortawesome/free-solid-svg-icons";
 import { type AccountDto, listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, getMetaThreadsAuthUrl, getTwitterAuthUrl, getInstagramAuthUrl } from "../../api/accounts";
 import { PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 import { Modal } from "../common/Modal";
@@ -213,13 +213,51 @@ export function ConnectionsTab() {
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDelete(acc.id)}
-                    className="text-xs font-mono uppercase tracking-wider text-red-400 hover:text-red-300 px-2.5 py-1 border border-red-900/30 bg-red-950/20 hover:bg-red-950/40 rounded transition-colors inline-flex items-center gap-1.5"
-                  >
-                    <FontAwesomeIcon icon={faTrashCan} className="w-3 h-3" />
-                    <span>Remove</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {acc.platform === "MetaThreads" && (
+                      <button
+                        onClick={handleMetaThreadsConnect}
+                        disabled={isSubmitting}
+                        className="text-xs font-mono uppercase tracking-wider text-accent hover:text-accent/80 px-2.5 py-1 border border-accent/30 bg-accent/10 hover:bg-accent/20 rounded transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
+                        title="Re-authenticate Threads account"
+                      >
+                        <FontAwesomeIcon icon={faRotateRight} className={`w-3 h-3 ${isSubmitting ? "animate-spin" : ""}`} />
+                        <span>Reconnect</span>
+                      </button>
+                    )}
+                    {acc.platform === "Twitter" && (
+                      <button
+                        onClick={handleTwitterConnect}
+                        disabled={isSubmitting}
+                        className="text-xs font-mono uppercase tracking-wider text-accent hover:text-accent/80 px-2.5 py-1 border border-accent/30 bg-accent/10 hover:bg-accent/20 rounded transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
+                        title="Re-authenticate Twitter / X account"
+                      >
+                        <FontAwesomeIcon icon={faRotateRight} className={`w-3 h-3 ${isSubmitting ? "animate-spin" : ""}`} />
+                        <span>Reconnect</span>
+                      </button>
+                    )}
+                    {acc.platform === "LinkedIn" && (
+                      <button
+                        onClick={() => {
+                          setPlatform("LinkedIn");
+                          setIsAddModalOpen(true);
+                        }}
+                        disabled={isSubmitting}
+                        className="text-xs font-mono uppercase tracking-wider text-accent hover:text-accent/80 px-2.5 py-1 border border-accent/30 bg-accent/10 hover:bg-accent/20 rounded transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
+                        title="Re-authenticate LinkedIn account"
+                      >
+                        <FontAwesomeIcon icon={faRotateRight} className="w-3 h-3" />
+                        <span>Reconnect</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(acc.id)}
+                      className="text-xs font-mono uppercase tracking-wider text-red-400 hover:text-red-300 px-2.5 py-1 border border-red-900/30 bg-red-950/20 hover:bg-red-950/40 rounded transition-colors inline-flex items-center gap-1.5"
+                    >
+                      <FontAwesomeIcon icon={faTrashCan} className="w-3 h-3" />
+                      <span>Remove</span>
+                    </button>
+                  </div>
                 </div>
               );
             })}

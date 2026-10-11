@@ -1,26 +1,27 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBolt,
-  faCheck,
   faCommentDots,
-  faExternalLinkAlt,
   faImage,
   faLink,
+  faPaperPlane,
+  faPenToSquare,
   faRefresh,
   faRobot,
-  faSave,
-  faShieldHalved,
-  faSpinner
+  faSliders,
+  faSpinner,
 } from "@fortawesome/free-solid-svg-icons";
 import {
-  getWorkflowReplyAgent,
-  updateWorkflowReplyAgent,
+  getWorkflowAssignedReplyAgent,
+  assignWorkflowReplyAgent,
+  listReplyAgents,
   pollWorkflowReplyAgent,
   getWorkflowCommentAudits,
-  type WorkflowReplyAgentDto,
+  approveWorkflowCommentReply,
+  type ReplyAgentDto,
   type WorkflowCommentAuditDto,
-  type UpdateWorkflowReplyAgentRequest
 } from "../../api/replyAgents";
 import { Button } from "../common/Button";
 import { Badge, type BadgeVariant } from "../common/Badge";
@@ -32,49 +33,32 @@ export interface WorkflowReplyAgentTabProps {
 }
 
 export const WorkflowReplyAgentTab: React.FC<WorkflowReplyAgentTabProps> = ({ workflowId }) => {
-  const [agent, setAgent] = useState<WorkflowReplyAgentDto | null>(null);
+  const [assignedAgent, setAssignedAgent] = useState<ReplyAgentDto | null>(null);
+  const [availableAgents, setAvailableAgents] = useState<ReplyAgentDto[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [audits, setAudits] = useState<WorkflowCommentAuditDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingAssignment, setSavingAssignment] = useState(false);
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [approvingAuditId, setApprovingAuditId] = useState<string | null>(null);
+  const [editingAuditId, setEditingAuditId] = useState<string | null>(null);
+  const [editedReplies, setEditedReplies] = useState<Record<string, string>>({});
 
-  const [formData, setFormData] = useState<UpdateWorkflowReplyAgentRequest>({
-    isEnabled: true,
-    personaPrompt: "",
-    minRankingScore: 7,
-    maxCommentAgeHours: 24,
-    maxRepliesPerCommentThread: 2,
-    maxRepliesPerUser: 3,
-    maxThreadDepth: 4,
-    autoPublishReplies: true,
-    checkIntervalMinutes: 15
-  });
-
-  const loadAgentAndAudits = async () => {
+  const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [agentData, auditsData] = await Promise.all([
-        getWorkflowReplyAgent(workflowId),
-        getWorkflowCommentAudits(workflowId).catch(() => [] as WorkflowCommentAuditDto[])
+      const [assigned, allAgents, auditsData] = await Promise.all([
+        getWorkflowAssignedReplyAgent(workflowId),
+        listReplyAgents(),
+        getWorkflowCommentAudits(workflowId).catch(() => [] as WorkflowCommentAuditDto[]),
       ]);
 
-      if (agentData) {
-        setAgent(agentData);
-        setFormData({
-          isEnabled: agentData.isEnabled,
-          personaPrompt: agentData.personaPrompt,
-          minRankingScore: agentData.minRankingScore,
-          maxCommentAgeHours: agentData.maxCommentAgeHours,
-          maxRepliesPerCommentThread: agentData.maxRepliesPerCommentThread,
-          maxRepliesPerUser: agentData.maxRepliesPerUser,
-          maxThreadDepth: agentData.maxThreadDepth,
-          autoPublishReplies: agentData.autoPublishReplies,
-          checkIntervalMinutes: agentData.checkIntervalMinutes
-        });
-      }
+      setAssignedAgent(assigned);
+      setSelectedAgentId(assigned?.id || "");
+      setAvailableAgents(allAgents);
       setAudits(auditsData);
     } catch (err: any) {
       setError(err?.message || "Failed to load Reply Agent configuration.");
@@ -84,22 +68,24 @@ export const WorkflowReplyAgentTab: React.FC<WorkflowReplyAgentTabProps> = ({ wo
   };
 
   useEffect(() => {
-    void loadAgentAndAudits();
+    void loadData();
   }, [workflowId]);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+  const handleAssign = async () => {
+    setSavingAssignment(true);
     setError(null);
     setSuccessMessage(null);
     try {
-      const updated = await updateWorkflowReplyAgent(workflowId, formData);
-      setAgent(updated);
-      setSuccessMessage("Reply Agent settings saved successfully.");
+      const targetId = selectedAgentId ? selectedAgentId : null;
+      const updated = await assignWorkflowReplyAgent(workflowId, targetId);
+      setAssignedAgent(updated);
+      setSuccessMessage(updated ? `Assigned "${updated.name}" to this workflow.` : "Reply agent unassigned from this workflow.");
+      const updatedAudits = await getWorkflowCommentAudits(workflowId).catch(() => [] as WorkflowCommentAuditDto[]);
+      setAudits(updatedAudits);
     } catch (err: any) {
-      setError(err?.message || "Failed to save Reply Agent settings.");
+      setError(err?.message || "Failed to update reply agent assignment.");
     } finally {
-      setSaving(false);
+      setSavingAssignment(false);
     }
   };
 
@@ -109,15 +95,45 @@ export const WorkflowReplyAgentTab: React.FC<WorkflowReplyAgentTabProps> = ({ wo
     setSuccessMessage(null);
     try {
       const res = await pollWorkflowReplyAgent(workflowId);
-      setSuccessMessage(res.message || "Reply monitoring check triggered.");
+      setSuccessMessage(`Reply monitoring check complete. Checked ${res.postsChecked} post(s).`);
       const updatedAudits = await getWorkflowCommentAudits(workflowId).catch(() => [] as WorkflowCommentAuditDto[]);
       setAudits(updatedAudits);
-      const updatedAgent = await getWorkflowReplyAgent(workflowId);
-      if (updatedAgent) setAgent(updatedAgent);
     } catch (err: any) {
       setError(err?.message || "Failed to trigger comment polling.");
     } finally {
       setPolling(false);
+    }
+  };
+
+  const handleApproveReply = async (auditId: string) => {
+    try {
+      setApprovingAuditId(auditId);
+      setError(null);
+      const textToSend =
+        editedReplies[auditId] !== undefined
+          ? editedReplies[auditId]
+          : audits.find((a) => a.id === auditId)?.generatedReplyText ?? undefined;
+
+      const result = await approveWorkflowCommentReply(workflowId, auditId, textToSend);
+      setAudits((prev) =>
+        prev.map((a) =>
+          a.id === auditId
+            ? {
+                ...a,
+                rankingDecision: "Replied",
+                generatedReplyText: result.replyText,
+                remoteReplyId: result.remoteReplyId ?? null,
+                errorMessage: null,
+              }
+            : a
+        )
+      );
+      setEditingAuditId(null);
+      setSuccessMessage(`Reply published successfully! Remote ID: ${result.remoteReplyId || "Sent"}`);
+    } catch (err: any) {
+      setError(err?.message || "Failed to publish reply.");
+    } finally {
+      setApprovingAuditId(null);
     }
   };
 
@@ -164,7 +180,7 @@ export const WorkflowReplyAgentTab: React.FC<WorkflowReplyAgentTabProps> = ({ wo
     }
   };
 
-  if (loading && !agent) {
+  if (loading && !assignedAgent) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-muted" data-testid="reply-agent-loading">
         <FontAwesomeIcon icon={faSpinner} spin className="text-xl mb-3" />
@@ -178,214 +194,113 @@ export const WorkflowReplyAgentTab: React.FC<WorkflowReplyAgentTabProps> = ({ wo
       {error && <AlertBanner variant="error" message={error} onDismiss={() => setError(null)} />}
       {successMessage && <AlertBanner variant="info" message={successMessage} onDismiss={() => setSuccessMessage(null)} />}
 
-      {/* Top Banner / Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border border-border bg-card">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
-            <FontAwesomeIcon icon={faRobot} className="text-base" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-foreground">Reply Agent</h2>
-              <Badge variant={formData.isEnabled ? "success" : "neutral"}>
-                {formData.isEnabled ? "Active" : "Disabled"}
-              </Badge>
-              {formData.autoPublishReplies ? (
-                <Badge variant="accent">Auto-Publish</Badge>
-              ) : (
-                <Badge variant="neutral">Requires Approval</Badge>
-              )}
+      {/* Assignment Card */}
+      <div className="p-5 rounded-xl border border-border bg-card flex flex-col gap-5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
+              <FontAwesomeIcon icon={faRobot} className="text-base" />
             </div>
-            <p className="text-xs text-muted mt-0.5">
-              Monitors public replies to posts published by this workflow, ranks quality, and replies automatically.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-foreground">Assigned Reply Agent</h2>
+                {assignedAgent ? (
+                  <Badge variant={assignedAgent.isEnabled ? "success" : "neutral"}>
+                    {assignedAgent.isEnabled ? "Active" : "Disabled"}
+                  </Badge>
+                ) : (
+                  <Badge variant="neutral">None Assigned</Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted mt-0.5">
+                Assign a shared reply agent from your library to evaluate and respond to comments on posts published by this workflow.
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handlePoll}
-            disabled={polling || !formData.isEnabled}
-            data-testid="poll-replies-button"
-            className="flex-1 sm:flex-none"
+          <Link
+            to="/settings/reply-agents"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-mono text-muted hover:text-foreground hover:bg-bg transition-colors"
           >
-            <FontAwesomeIcon icon={polling ? faSpinner : faBolt} spin={polling} className="mr-1.5 text-xs" />
-            <span>{polling ? "Polling..." : "Poll Replies Now"}</span>
-          </Button>
+            <FontAwesomeIcon icon={faSliders} className="text-xs" />
+            <span>Manage Agents Library</span>
+          </Link>
         </div>
-      </div>
 
-      {/* Settings Form */}
-      <form onSubmit={handleSave} className="flex flex-col gap-6" data-testid="reply-agent-form">
-        <div className="p-5 rounded-xl border border-border bg-card flex flex-col gap-5">
-          <h3 className="text-sm font-semibold text-foreground border-b border-border pb-3">Agent Settings & Constraints</h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20">
-              <div>
-                <label htmlFor="agent-enabled" className="text-xs font-medium text-foreground block">
-                  Enable Reply Agent
-                </label>
-                <span className="text-[11px] text-muted">Allow the agent to scan replies and respond.</span>
-              </div>
-              <input
-                id="agent-enabled"
-                type="checkbox"
-                checked={formData.isEnabled ?? true}
-                onChange={(e) => setFormData((prev) => ({ ...prev, isEnabled: e.target.checked }))}
-                className="w-4 h-4 rounded text-accent focus:ring-accent border-border"
-                data-testid="agent-enabled-checkbox"
-              />
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20">
-              <div>
-                <label htmlFor="agent-auto-publish" className="text-xs font-medium text-foreground block">
-                  Auto-Publish Replies
-                </label>
-                <span className="text-[11px] text-muted">Directly publish responses without manual approval.</span>
-              </div>
-              <input
-                id="agent-auto-publish"
-                type="checkbox"
-                checked={formData.autoPublishReplies ?? true}
-                onChange={(e) => setFormData((prev) => ({ ...prev, autoPublishReplies: e.target.checked }))}
-                className="w-4 h-4 rounded text-accent focus:ring-accent border-border"
-                data-testid="agent-auto-publish-checkbox"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="agent-persona" className="text-xs font-medium text-foreground">
-              Persona & Instructions Prompt
+        <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
+          <div className="flex-1 w-full">
+            <label htmlFor="agent-select" className="text-xs font-medium text-foreground block mb-1">
+              Select Reply Agent
             </label>
-            <textarea
-              id="agent-persona"
-              rows={3}
-              value={formData.personaPrompt || ""}
-              onChange={(e) => setFormData((prev) => ({ ...prev, personaPrompt: e.target.value }))}
-              placeholder="e.g. You are a knowledgeable, concise technical assistant. Respond helpfully to genuine inquiries..."
-              className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-bg text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent font-sans"
-              data-testid="agent-persona-input"
-            />
+            <select
+              id="agent-select"
+              value={selectedAgentId}
+              onChange={(e) => setSelectedAgentId(e.target.value)}
+              className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+              data-testid="agent-select-dropdown"
+            >
+              <option value="">-- No Reply Agent Assigned --</option>
+              {availableAgents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} {!a.isEnabled ? "(Disabled)" : ""} ({a.autoPublishReplies ? "Auto-Publish" : "Requires Approval"})
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="min-ranking-score" className="text-xs font-medium text-foreground">
-                Min Ranking Score (1 - 10)
-              </label>
-              <input
-                id="min-ranking-score"
-                type="number"
-                min={1}
-                max={10}
-                value={formData.minRankingScore ?? 7}
-                onChange={(e) => setFormData((prev) => ({ ...prev, minRankingScore: parseInt(e.target.value, 10) || 7 }))}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-bg text-foreground"
-                data-testid="min-score-input"
-              />
-              <span className="text-[10px] text-muted">Comments below this score are skipped.</span>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label htmlFor="max-comment-age" className="text-xs font-medium text-foreground">
-                Max Comment Age (Hours)
-              </label>
-              <input
-                id="max-comment-age"
-                type="number"
-                min={1}
-                max={168}
-                value={formData.maxCommentAgeHours ?? 24}
-                onChange={(e) => setFormData((prev) => ({ ...prev, maxCommentAgeHours: parseInt(e.target.value, 10) || 24 }))}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-bg text-foreground"
-                data-testid="max-age-input"
-              />
-              <span className="text-[10px] text-muted">Ignore comments older than this threshold.</span>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label htmlFor="max-replies-branch" className="text-xs font-medium text-foreground">
-                Max Replies Per Branch
-              </label>
-              <input
-                id="max-replies-branch"
-                type="number"
-                min={1}
-                max={10}
-                value={formData.maxRepliesPerCommentThread ?? 2}
-                onChange={(e) => setFormData((prev) => ({ ...prev, maxRepliesPerCommentThread: parseInt(e.target.value, 10) || 2 }))}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-bg text-foreground"
-                data-testid="max-replies-branch-input"
-              />
-              <span className="text-[10px] text-muted">Stop criteria limit per sub-thread.</span>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label htmlFor="max-replies-user" className="text-xs font-medium text-foreground">
-                Max Replies Per User
-              </label>
-              <input
-                id="max-replies-user"
-                type="number"
-                min={1}
-                max={10}
-                value={formData.maxRepliesPerUser ?? 3}
-                onChange={(e) => setFormData((prev) => ({ ...prev, maxRepliesPerUser: parseInt(e.target.value, 10) || 3 }))}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-bg text-foreground"
-                data-testid="max-replies-user-input"
-              />
-              <span className="text-[10px] text-muted">Prevents endless back-and-forth loops.</span>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label htmlFor="max-thread-depth" className="text-xs font-medium text-foreground">
-                Max Thread Depth
-              </label>
-              <input
-                id="max-thread-depth"
-                type="number"
-                min={1}
-                max={10}
-                value={formData.maxThreadDepth ?? 4}
-                onChange={(e) => setFormData((prev) => ({ ...prev, maxThreadDepth: parseInt(e.target.value, 10) || 4 }))}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-bg text-foreground"
-                data-testid="max-thread-depth-input"
-              />
-              <span className="text-[10px] text-muted">Deep branches are ignored.</span>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label htmlFor="check-interval" className="text-xs font-medium text-foreground">
-                Check Interval (Minutes)
-              </label>
-              <input
-                id="check-interval"
-                type="number"
-                min={5}
-                max={1440}
-                value={formData.checkIntervalMinutes ?? 15}
-                onChange={(e) => setFormData((prev) => ({ ...prev, checkIntervalMinutes: parseInt(e.target.value, 10) || 15 }))}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-bg text-foreground"
-                data-testid="check-interval-input"
-              />
-              <span className="text-[10px] text-muted">Background polling schedule.</span>
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-2 border-t border-border">
-            <Button type="submit" variant="primary" size="sm" disabled={saving} data-testid="save-agent-settings-button">
-              <FontAwesomeIcon icon={saving ? faSpinner : faSave} spin={saving} className="mr-1.5 text-xs" />
-              <span>{saving ? "Saving..." : "Save Settings"}</span>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleAssign}
+              disabled={savingAssignment || selectedAgentId === (assignedAgent?.id || "")}
+              data-testid="save-assignment-button"
+            >
+              <FontAwesomeIcon icon={savingAssignment ? faSpinner : faRobot} spin={savingAssignment} className="mr-1.5 text-xs" />
+              <span>{savingAssignment ? "Saving..." : "Apply Assignment"}</span>
             </Button>
+
+            {assignedAgent && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handlePoll}
+                disabled={polling || !assignedAgent.isEnabled}
+                data-testid="poll-replies-button"
+              >
+                <FontAwesomeIcon icon={polling ? faSpinner : faBolt} spin={polling} className="mr-1.5 text-xs" />
+                <span>{polling ? "Polling..." : "Poll Replies Now"}</span>
+              </Button>
+            )}
           </div>
         </div>
-      </form>
+
+        {/* Assigned Agent Details Summary */}
+        {assignedAgent && (
+          <div className="mt-2 p-3.5 rounded-lg border border-border/60 bg-panel/30 text-xs flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-foreground">{assignedAgent.name}</span>
+              <span className="text-[11px] font-mono text-muted">
+                Polls every {assignedAgent.checkIntervalMinutes}m • Assigned to {assignedAgent.assignedWorkflowsCount} workflow(s)
+              </span>
+            </div>
+            {assignedAgent.description && (
+              <p className="text-muted text-[11px]">{assignedAgent.description}</p>
+            )}
+            <div className="bg-bg/60 p-2 rounded border border-border/40 font-mono text-[11px] text-muted line-clamp-2">
+              {assignedAgent.personaPrompt}
+            </div>
+            <div className="flex flex-wrap gap-2 text-[10px] font-mono text-muted pt-1">
+              <span className="px-2 py-0.5 bg-bg border border-border rounded">Min Score: {assignedAgent.minRankingScore}/10</span>
+              <span className="px-2 py-0.5 bg-bg border border-border rounded">Max Replies/Branch: {assignedAgent.maxRepliesPerCommentThread}</span>
+              <span className="px-2 py-0.5 bg-bg border border-border rounded">Max Depth: {assignedAgent.maxThreadDepth}</span>
+              <span className="px-2 py-0.5 bg-bg border border-border rounded">{assignedAgent.autoPublishReplies ? "Auto-Publish Replies" : "Requires Approval"}</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Audits History */}
       <div className="flex flex-col gap-4" data-testid="reply-audits-section">
@@ -394,7 +309,7 @@ export const WorkflowReplyAgentTab: React.FC<WorkflowReplyAgentTabProps> = ({ wo
             <h3 className="text-sm font-semibold text-foreground">Evaluated Comments & Activity</h3>
             <span className="text-xs font-mono text-muted">({audits.length})</span>
           </div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => void loadAgentAndAudits()} title="Refresh audits">
+          <Button type="button" variant="ghost" size="sm" onClick={() => void loadData()} title="Refresh audits">
             <FontAwesomeIcon icon={faRefresh} className="text-xs mr-1" />
             <span>Refresh</span>
           </Button>
@@ -464,18 +379,89 @@ export const WorkflowReplyAgentTab: React.FC<WorkflowReplyAgentTabProps> = ({ wo
                   )}
 
                   {audit.generatedReplyText && (
-                    <div className="mt-1 p-2.5 rounded-lg bg-accent/5 border border-accent/20 flex flex-col gap-1">
-                      <span className="text-[10px] uppercase font-mono tracking-wider text-accent font-semibold flex items-center gap-1">
-                        <FontAwesomeIcon icon={faCommentDots} className="text-[10px]" />
-                        <span>Generated Reply</span>
-                      </span>
-                      <span className="text-foreground text-xs leading-relaxed">
-                        {audit.generatedReplyText}
-                      </span>
+                    <div className="mt-1 p-2.5 rounded-lg bg-accent/5 border border-accent/20 flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-mono tracking-wider text-accent font-semibold flex items-center gap-1">
+                          <FontAwesomeIcon icon={faCommentDots} className="text-[10px]" />
+                          <span>Generated Reply</span>
+                        </span>
+                        {audit.rankingDecision === "PendingApproval" && (
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-amber-500 font-medium">
+                            Awaiting Review
+                          </span>
+                        )}
+                      </div>
+
+                      {editingAuditId === audit.id ? (
+                        <div className="flex flex-col gap-2">
+                          <textarea
+                            value={editedReplies[audit.id] ?? audit.generatedReplyText}
+                            onChange={(e) =>
+                              setEditedReplies((prev) => ({ ...prev, [audit.id]: e.target.value }))
+                            }
+                            rows={3}
+                            className="w-full text-xs font-sans rounded-lg border border-border bg-card p-2 text-foreground focus:outline-none focus:border-accent"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingAuditId(null)}
+                            >
+                              Cancel Edit
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-foreground text-xs leading-relaxed">
+                          {editedReplies[audit.id] ?? audit.generatedReplyText}
+                        </span>
+                      )}
+
                       {audit.remoteReplyId && (
                         <span className="text-[10px] text-muted font-mono mt-1">
                           Remote ID: {audit.remoteReplyId}
                         </span>
+                      )}
+
+                      {audit.rankingDecision === "PendingApproval" && (
+                        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-accent/20">
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            disabled={approvingAuditId === audit.id}
+                            onClick={() => void handleApproveReply(audit.id)}
+                            data-testid={`approve-reply-btn-${audit.id}`}
+                          >
+                            <FontAwesomeIcon
+                              icon={approvingAuditId === audit.id ? faSpinner : faPaperPlane}
+                              spin={approvingAuditId === audit.id}
+                              className="mr-1.5 text-xs"
+                            />
+                            <span>{approvingAuditId === audit.id ? "Sending..." : "Approve & Reply"}</span>
+                          </Button>
+                          {editingAuditId !== audit.id && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditingAuditId(audit.id);
+                                if (editedReplies[audit.id] === undefined) {
+                                  setEditedReplies((prev) => ({
+                                    ...prev,
+                                    [audit.id]: audit.generatedReplyText ?? "",
+                                  }));
+                                }
+                              }}
+                            >
+                              <FontAwesomeIcon icon={faPenToSquare} className="mr-1.5 text-xs" />
+                              <span>Edit Reply</span>
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

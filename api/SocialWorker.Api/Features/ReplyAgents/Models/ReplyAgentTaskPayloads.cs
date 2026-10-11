@@ -3,7 +3,7 @@ using System;
 namespace SocialWorker.Api.Features.ReplyAgents.Models;
 
 public sealed record WorkflowReplyCheckPostPayload(
-    Guid WorkflowReplyAgentId,
+    Guid ReplyAgentId,
     Guid PostId
 );
 
