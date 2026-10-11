@@ -10,12 +10,16 @@ Read this first, then use AGENTS.md for stricter policy and workflow rules.
 
 social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky (threads), LinkedIn (single-post personal profile and company page publishing), Meta Threads (multi-post threads, carousel media, token lifecycle, and resilient resume), and Twitter / X (OAuth 2.0 PKCE, token rotation, chained reply tweets, 280 weighted-char validation, t.co budgeting, and resilient resume) are production-ready; other publishers are stubs.
 
-## System shape
+## System shape & project breakdown
 
-- Frontend: React + Vite + TypeScript + Tailwind in web/
-- Backend: ASP.NET Core Minimal API + EF Core + Postgres in api/SocialWorker.Api/
-- Infra services: Postgres, SearXNG, transcriber (Whisper), plus Docker tooling/e2e services
-- Runtime model: Docker Compose is the canonical environment
+| Project | Location | Technology Stack | Mental Model |
+| :--- | :--- | :--- | :--- |
+| **Backend API** | `api/SocialWorker.Api/` | .NET 10 Minimal API, EF Core, Postgres 16 | [api/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/api/MENTAL_MODEL.md) |
+| **Frontend Web** | `web/` | React 19, TypeScript, Vite, Tailwind CSS, Zustand | [web/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/web/MENTAL_MODEL.md) |
+| **Transcriber** | `transcriber/` | Python 3.11, FastAPI, OpenAI Whisper, yt-dlp | [transcriber/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/transcriber/MENTAL_MODEL.md) |
+| **Image Engine** | `image-engine/` | Node.js 22, Fastify, Sharp, Canvas, Zod | [image-engine/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/image-engine/MENTAL_MODEL.md) |
+| **E2E Testing** | `e2e/` | Playwright, TypeScript, Docker stack (8200/8201) | [e2e/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/e2e/MENTAL_MODEL.md) |
+| **Infra Services** | root / `searxng/` | PostgreSQL 16, SearXNG, Traefik Gateway | [docker-compose.yml](file:///home/vhogemann/Projects/social-worker/docker-compose.yml) |
 
 ## Where to look first
 
@@ -63,8 +67,9 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ### Tests
 
 - API unit/integration tests (666 tests): api/SocialWorker.Api.Tests/
-- MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
 - Web tests (Vitest, 474 tests in 91 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- Image Engine tests (Vitest, 14 tests in 3 test files): image-engine/tests/
+- MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
 
 ## Core user flow mental model
@@ -81,7 +86,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ## Model Context Protocol (MCP) & API Keys
 
 - Endpoint: `/api/mcp` (Stateless JSON-RPC 2.0) and `/api/mcp/sse?api_key=...` (Server-Sent Events continuous stream).
-- Tools (24): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`, `list_schedules`, `get_schedule`, `create_schedule`, `add_slot_rule`, `enqueue_draft`, `get_schedule_queue`, `get_calendar_events`, `list_accounts`, `discover_feed`, `add_feed`, `create_workflow`.
+- Tools (26): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`, `list_schedules`, `get_schedule`, `create_schedule`, `add_slot_rule`, `enqueue_draft`, `get_schedule_queue`, `get_calendar_events`, `list_accounts`, `discover_feed`, `add_feed`, `update_feed`, `create_workflow`, `delete_workflow`.
 - Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`.
 - Auth: `ApiKeyAuthenticationHandler` validates SHA-256 hashed keys (`sw_live_...`) routed through ASP.NET Core `PolicyScheme` ("Composite"). Dev key `sw_live_dev_admin_key_000000000000` seeded in development.
 
@@ -92,10 +97,11 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Bring up stack with GPU: ./scripts/redeploy.sh --gpu
 - Safe refresh of running stack: ./scripts/redeploy.sh
 - API build (tooling profile): docker compose --profile tooling run --rm dotnet build
-- API tests (tooling profile): docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
-- MCP stress test: docker compose --profile tooling run --rm -v "$(pwd):/repo" -w /repo -e API_URL="http://api:8080" web-test node scripts/mcp-stress-test-suite.mjs
+- API tests (tooling profile): docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
 - Web test (tooling profile): docker compose --profile tooling run --rm web-test
 - Web check & build (tooling profile): docker compose --profile tooling run --rm web-test "npm run build && npm run typecheck" (or docker compose build web)
+- Image Engine test (tooling profile): docker compose --profile tooling run --rm image-engine-test
+- MCP stress test: docker compose --profile tooling run --rm -v "$(pwd):/repo" -w /repo -e API_URL="http://api:8080" web-test node scripts/mcp-stress-test-suite.mjs
 - E2E: ./scripts/run-e2e.sh
 - SQL against Postgres: ./scripts/sql.sh -c "select now();"
 
