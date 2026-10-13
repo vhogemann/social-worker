@@ -26,6 +26,7 @@ public sealed class ScheduleQueueService : IScheduleQueueService
         Guid platformThreadId,
         Guid draftId,
         int? targetPosition = null,
+        int? priorityScore = null,
         CancellationToken ct = default)
     {
         var scheduleExists = await _db.Schedules.AnyAsync(s => s.Id == scheduleId, ct);
@@ -36,9 +37,11 @@ public sealed class ScheduleQueueService : IScheduleQueueService
         if (thread == null)
             throw new InvalidOperationException($"Platform thread with ID '{platformThreadId}' was not found.");
 
-        var draftExists = await _db.Drafts.AnyAsync(d => d.Id == draftId, ct);
-        if (!draftExists)
+        var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId, ct);
+        if (draft == null)
             throw new InvalidOperationException($"Draft with ID '{draftId}' was not found.");
+
+        var resolvedPriority = priorityScore ?? draft.RelevanceScore;
 
         var existingItems = await _db.ScheduleQueueItems
             .Where(q => q.ScheduleId == scheduleId)
@@ -59,7 +62,7 @@ public sealed class ScheduleQueueService : IScheduleQueueService
             newPosition = existingItems.Count > 0 ? existingItems.Max(i => i.Position) + 1 : 0;
         }
 
-        var queueItem = ScheduleQueueItem.Create(scheduleId, draftId, platformThreadId, newPosition);
+        var queueItem = ScheduleQueueItem.Create(scheduleId, draftId, platformThreadId, newPosition, resolvedPriority);
         thread.Stage = PlatformThreadStage.Scheduled;
         thread.UpdatedAt = DateTime.UtcNow;
 

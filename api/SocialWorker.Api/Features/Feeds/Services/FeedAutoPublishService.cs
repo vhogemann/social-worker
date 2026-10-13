@@ -66,8 +66,9 @@ public class FeedAutoPublishService
 
                 if (isScheduled && _queueService != null)
                 {
-                    _logger.LogInformation("Enqueuing draft {DraftId} to schedule {ScheduleId} for platform {Platform}...", variant?.Id ?? canonicalDraft.Id, dest.ScheduleId!.Value, dest.Platform);
-                    await _queueService.EnqueueAsync(dest.ScheduleId.Value, thread.Id, variant?.Id ?? canonicalDraft.Id, ct: ct);
+                    var priorityScore = variant?.RelevanceScore ?? canonicalDraft.RelevanceScore;
+                    _logger.LogInformation("Enqueuing draft {DraftId} (Priority: {Priority}) to schedule {ScheduleId} for platform {Platform}...", variant?.Id ?? canonicalDraft.Id, priorityScore, dest.ScheduleId!.Value, dest.Platform);
+                    await _queueService.EnqueueAsync(dest.ScheduleId.Value, thread.Id, variant?.Id ?? canonicalDraft.Id, priorityScore: priorityScore, ct: ct);
                     if (_evaluator != null)
                     {
                         await _evaluator.EvaluateScheduleAsync(dest.ScheduleId.Value, ct: ct);

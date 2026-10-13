@@ -240,4 +240,30 @@ public sealed class ScheduleQueueServiceTests : SqliteTestBase
         Assert.Equal(0, queue[0].Position);
         Assert.Equal(otherWorkflowId, queue[0].Draft.AutomationWorkflowId);
     }
+
+    [Fact]
+    public async Task EnqueueAsync_WithExplicitPriorityScore_PersistsPriority()
+    {
+        var (schedule, draft, thread) = await CreateSeedEntitiesAsync();
+
+        var item = await _service.EnqueueAsync(schedule.Id, thread.Id, draft.Id, priorityScore: 9);
+
+        Assert.Equal(9, item.PriorityScore);
+        var inDb = await _db.ScheduleQueueItems.FindAsync(item.Id);
+        Assert.NotNull(inDb);
+        Assert.Equal(9, inDb.PriorityScore);
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_WithoutPriorityScore_FallsBackToDraftRelevanceScore()
+    {
+        var (schedule, draft, thread) = await CreateSeedEntitiesAsync();
+        draft.RelevanceScore = 8;
+        await _db.SaveChangesAsync();
+
+        var item = await _service.EnqueueAsync(schedule.Id, thread.Id, draft.Id);
+
+        Assert.Equal(8, item.PriorityScore);
+    }
 }
+

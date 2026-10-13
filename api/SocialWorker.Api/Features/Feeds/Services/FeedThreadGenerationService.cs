@@ -187,6 +187,8 @@ public class FeedThreadGenerationService
                 TargetPlatform = platform,
                 CanonicalDraftId = freshCanonical.Id,
                 AutomationWorkflowId = freshCanonical.AutomationWorkflowId,
+                RelevanceScore = freshCanonical.RelevanceScore,
+                DiscardReason = freshCanonical.DiscardReason,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };

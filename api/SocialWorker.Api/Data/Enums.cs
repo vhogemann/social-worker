@@ -85,7 +85,8 @@ public enum ScheduleQueueItemStatus
     Dispatched,
     Succeeded,
     Failed,
-    Paused
+    Paused,
+    Expired
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

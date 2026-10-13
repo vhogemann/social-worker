@@ -8,7 +8,7 @@ namespace SocialWorker.Api.Features.Scheduling.Services;
 
 public interface IScheduleQueueService
 {
-    Task<ScheduleQueueItem> EnqueueAsync(Guid scheduleId, Guid platformThreadId, Guid draftId, int? targetPosition = null, CancellationToken ct = default);
+    Task<ScheduleQueueItem> EnqueueAsync(Guid scheduleId, Guid platformThreadId, Guid draftId, int? targetPosition = null, int? priorityScore = null, CancellationToken ct = default);
     Task<IReadOnlyList<ScheduleQueueItem>> ReorderQueueAsync(Guid scheduleId, IReadOnlyList<Guid> itemIdsInOrder, CancellationToken ct = default);
     Task<bool> RemoveFromQueueAsync(Guid scheduleId, Guid queueItemId, CancellationToken ct = default);
     Task<int> RemoveWorkflowItemsFromQueueAsync(Guid scheduleId, Guid workflowId, CancellationToken ct = default);

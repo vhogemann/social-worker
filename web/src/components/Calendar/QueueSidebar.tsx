@@ -230,6 +230,27 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
                       {iconDef && <FontAwesomeIcon icon={iconDef} className="text-[8px]" />}
                       {platformKey}
                     </span>
+                    {item.priorityScore != null && (
+                      <span
+                        title={
+                          item.effectivePriorityScore != null
+                            ? `Base: ${item.priorityScore}/10 | Effective: ${item.effectivePriorityScore.toFixed(1)}/10`
+                            : `Priority: ${item.priorityScore}/10`
+                        }
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border ${
+                          item.priorityScore >= 9
+                            ? "bg-red-950/40 text-red-400 border-red-800/40"
+                            : item.priorityScore >= 7
+                            ? "bg-amber-950/40 text-amber-400 border-amber-800/40"
+                            : "bg-zinc-800 text-zinc-400 border-zinc-700"
+                        }`}
+                      >
+                        {item.priorityScore >= 9 ? "P1" : item.priorityScore >= 7 ? "P2" : "P3"} {item.priorityScore}/10
+                        {item.effectivePriorityScore != null && Math.abs(item.effectivePriorityScore - item.priorityScore) > 0.05 && (
+                          <span className="opacity-75">({item.effectivePriorityScore.toFixed(1)})</span>
+                        )}
+                      </span>
+                    )}
                   </div>
 
                   <Badge

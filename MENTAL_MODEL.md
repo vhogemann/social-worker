@@ -37,7 +37,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Sources/Instagram/ (Instagram Business Discovery Graph API client, credential provider, OAuth, feed reader converter, setup guide in docs/INSTAGRAM_SETUP.md), api/SocialWorker.Api/Features/Media/
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
 - Feed automation: api/SocialWorker.Api/Features/Feeds/ (FeedOrchestrationService retry feedback loop, FeedThreadGenerationService)
-- Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService, ScheduleSlotEvaluatorService worker, ScheduledPublishingTaskHandler auto-repair before publishing, Review Outbox)
+- Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService with Level 2 Time-Decay and Cascading Preemption, SchedulePriorityCalculator, ScheduleSlotEvaluatorService worker, ScheduledPublishingTaskHandler auto-repair before publishing, Review Outbox)
 - Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/ (IWorkflowSourceHandler, FeedWorkflowSourceHandler, DigestWorkflowSourceHandler, extensible sources)
 - Reply Agents: api/SocialWorker.Api/Features/ReplyAgents/ (Independent `ReplyAgent` entity in user library, many-to-one workflow assignment via `AutomationWorkflow.ReplyAgentId`, direct post assignment to organic/external/third-party posts via `ReplyAgentPost` and `IExternalPostResolver`, `Post.IsExternal`, `WorkflowCommentThread`, `WorkflowCommentAudit`, `IReplyPlatformAdapter` for Bluesky and Meta Threads with automatic Graph API shortcode-to-mediaId resolution via `GetUserThreadsAsync`, `CommentEnrichmentService` with automated video/audio transcription via `ITranscriptExtractionService` and vision inspection, `CommentRankingService` 1-10 scoring/terminal closure, `ReplyGenerationService` leveraging draft `ChatToolExecutor` and `IChatTool`s including `TranscribeVideoTool`, `web_search`, `fetch_source`, `search_sources`, multi-turn tool loops with final-turn forced synthesis, `CommentThreadSummarizer` rolling summary cache, stop criteria enforcement)
 - Background tasks & durable queue: api/SocialWorker.Api/Features/BackgroundTasks/ (PostgreSQL atomic queue with Allow-List worker filtering, PostgresBackgroundTaskQueue, workflow-reply-check-post, reply-thread-summary, scheduled-publishing)
@@ -53,7 +53,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 - App shell & routing: web/src/App.tsx, web/src/components/Navigation/AppHeader.tsx (Workflows, Reply Agents, Outbox, Calendar, Drafts, Templates, Settings)
 - Reply Agents Cockpit: web/src/components/ReplyAgents/ (ReplyAgentsPage top-level screen with Monitored Posts, Agents Library, Approval Inbox, Activity Stream, MonitorPostModal; ReplyAgentDetailPage deep management)
-- Content Calendar & Views: web/src/components/Calendar/ (CalendarPage, MonthView, WeekView, DayView, QueueSidebar, ScheduleManagerModal, SlotRuleFormModal, DraftPickerModal)
+- Content Calendar & Views: web/src/components/Calendar/ (CalendarPage, MonthView, WeekView, DayView, QueueSidebar with Priority Badges, ScheduleManagerModal, SlotRuleFormModal, DraftPickerModal)
 - Review Outbox Triage: web/src/components/Outbox/ReviewOutboxPage.tsx
 - Settings Library: web/src/components/Settings/ (AccountTab, ConnectionsTab, BrandVoicesTab, FeedsTab, UsersTab, ProvidersTab)
 - Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/ (polymorphic sources: RSS/YouTube feeds, Workflow Highlights/Digests, WorkflowReplyAgentTab with agent selector and live audit triage)
@@ -69,8 +69,8 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (719 tests): api/SocialWorker.Api.Tests/
-- Web tests (Vitest, 482 tests in 92 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- API unit/integration tests (766 tests): api/SocialWorker.Api.Tests/
+- Web tests (Vitest, 492 tests in 93 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - Image Engine tests (Vitest, 14 tests in 3 test files): image-engine/tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh

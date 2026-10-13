@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Scheduling.Services;
 
 namespace SocialWorker.Api.Features.Scheduling.Models;
 
@@ -70,13 +71,15 @@ public sealed record ScheduleQueueItemDto(
     Guid PlatformThreadId,
     string Platform,
     int Position,
+    int? PriorityScore,
+    double? EffectivePriorityScore,
     ScheduleQueueItemStatus Status,
     DateTime? AssignedSlotUtc,
     string? LastError,
     DateTime CreatedAt
 )
 {
-    public ScheduleQueueItemDto(ScheduleQueueItem q)
+    public ScheduleQueueItemDto(ScheduleQueueItem q, DateTime? nowUtc = null)
         : this(
             q.Id,
             q.ScheduleId,
@@ -85,6 +88,10 @@ public sealed record ScheduleQueueItemDto(
             q.PlatformThreadId,
             q.PlatformThread?.Platform ?? "Unknown",
             q.Position,
+            q.PriorityScore ?? q.Draft?.RelevanceScore,
+            (q.PriorityScore.HasValue || (q.Draft != null && q.Draft.RelevanceScore.HasValue))
+                ? SchedulePriorityCalculator.CalculateEffectiveScore(q.PriorityScore ?? q.Draft?.RelevanceScore, q.CreatedAt, nowUtc ?? DateTime.UtcNow)
+                : null,
             q.Status,
             q.AssignedSlotUtc,
             q.LastError,
@@ -136,7 +143,8 @@ public sealed record CreateSlotRuleRequest(
 public sealed record EnqueueItemRequest(
     Guid DraftId,
     Guid? PlatformThreadId = null,
-    int? TargetPosition = null
+    int? TargetPosition = null,
+    int? PriorityScore = null
 );
 
 public sealed record ReorderQueueRequest(List<Guid> ItemIdsInOrder);

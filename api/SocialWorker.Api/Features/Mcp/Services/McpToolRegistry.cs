@@ -291,7 +291,8 @@ public sealed class McpToolRegistry
                 "properties": {
                     "scheduleId": { "type": "string", "description": "The UUID of the schedule." },
                     "draftId": { "type": "string", "description": "The UUID of the draft to enqueue." },
-                    "targetPosition": { "type": "integer", "description": "Optional specific 1-based queue position. Defaults to appending to end of queue." }
+                    "targetPosition": { "type": "integer", "description": "Optional specific 1-based queue position. Defaults to appending to end of queue." },
+                    "priorityScore": { "type": "integer", "description": "Optional priority/relevance score (1-10) for dynamic queue ranking and preemption." }
                 },
                 "required": ["scheduleId", "draftId"]
             }
@@ -1256,8 +1257,11 @@ public sealed class McpToolRegistry
         }
 
         int? targetPosition = args.TryGetProperty("targetPosition", out var posProp) ? posProp.GetInt32() : null;
+        int? priorityScore = args.TryGetProperty("priorityScore", out var prioProp)
+            ? prioProp.GetInt32()
+            : (args.TryGetProperty("priority_score", out var prioScoreProp) ? prioScoreProp.GetInt32() : null);
 
-        var item = await _queueService.EnqueueAsync(scheduleId, platformThreadId, draftId, targetPosition, ct);
+        var item = await _queueService.EnqueueAsync(scheduleId, platformThreadId, draftId, targetPosition, priorityScore, ct);
 
         if (_evaluatorService != null)
         {

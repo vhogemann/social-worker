@@ -436,6 +436,7 @@ public class AppDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50);
             e.Property(x => x.LastError).HasColumnType("text");
+            e.Property(x => x.PriorityScore);
             e.HasOne(x => x.Schedule)
                 .WithMany(s => s.QueueItems)
                 .HasForeignKey(x => x.ScheduleId)
@@ -449,6 +450,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.PlatformThreadId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.ScheduleId, x.Position });
+            e.HasIndex(x => new { x.ScheduleId, x.PriorityScore });
             e.HasIndex(x => new { x.Status, x.AssignedSlotUtc });
             e.HasIndex(x => x.DraftId);
             e.HasIndex(x => x.PlatformThreadId);

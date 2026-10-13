@@ -12,6 +12,7 @@ public class ScheduleQueueItem
     public Guid PlatformThreadId { get; set; }
     public PlatformThread PlatformThread { get; set; } = null!;
     public int Position { get; set; }
+    public int? PriorityScore { get; set; }
     public ScheduleQueueItemStatus Status { get; set; } = ScheduleQueueItemStatus.Queued;
     public DateTime? AssignedSlotUtc { get; set; }
     public Guid? ScheduledTaskId { get; set; }
@@ -23,7 +24,8 @@ public class ScheduleQueueItem
         Guid scheduleId,
         Guid draftId,
         Guid platformThreadId,
-        int position)
+        int position,
+        int? priorityScore = null)
     {
         if (scheduleId == Guid.Empty)
             throw new ArgumentException("Schedule ID is required.", nameof(scheduleId));
@@ -41,6 +43,7 @@ public class ScheduleQueueItem
             DraftId = draftId,
             PlatformThreadId = platformThreadId,
             Position = position,
+            PriorityScore = priorityScore.HasValue ? Math.Clamp(priorityScore.Value, 1, 10) : null,
             Status = ScheduleQueueItemStatus.Queued,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

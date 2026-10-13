@@ -2,7 +2,7 @@ import { apiFetch } from "./client";
 
 export type SlotRecurrenceType = "Daily" | "Weekly" | "Monthly" | "Yearly" | "Custom";
 
-export type ScheduleQueueItemStatus = "Queued" | "Dispatched" | "Succeeded" | "Failed" | "Paused";
+export type ScheduleQueueItemStatus = "Queued" | "Dispatched" | "Succeeded" | "Failed" | "Paused" | "Expired";
 
 export type CalendarEventType = "OpenSlot" | "ScheduledPost" | "PublishedPost";
 
@@ -39,6 +39,8 @@ export interface ScheduleQueueItemDto {
   platformThreadId: string;
   platform: string;
   position: number;
+  priorityScore?: number | null;
+  effectivePriorityScore?: number | null;
   status: ScheduleQueueItemStatus;
   assignedSlotUtc?: string | null;
   lastError?: string | null;
@@ -97,6 +99,7 @@ export interface EnqueueItemRequest {
   draftId: string;
   platformThreadId?: string;
   targetPosition?: number;
+  priorityScore?: number;
 }
 
 export interface ReorderQueueRequest {

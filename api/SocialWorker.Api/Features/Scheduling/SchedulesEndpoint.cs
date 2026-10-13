@@ -265,7 +265,7 @@ public static class SchedulesEndpoint
 
             try
             {
-                var item = await queueService.EnqueueAsync(id, resolvedThreadId, request.DraftId, request.TargetPosition, ct);
+                var item = await queueService.EnqueueAsync(id, resolvedThreadId, request.DraftId, request.TargetPosition, request.PriorityScore, ct);
                 await evaluator.EvaluateScheduleAsync(id, ct: ct);
                 return Results.Created($"/api/schedules/{id}/queue/{item.Id}", new ScheduleQueueItemDto(item));
             }
