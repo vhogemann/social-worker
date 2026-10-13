@@ -1,257 +1,179 @@
-# social-worker 🛠️
+# social-worker
 
-A local-first, Docker-only multi-modal assistant for composing and publishing social media **threads**. 
+A local-first, Docker-only assistant for drafting, refining, and publishing social media threads.
 
-Designed to support creators with LLM assistance, `social-worker` lets you draft threads, attach sources and media, adapt variants to multiple platforms, and publish. Version 1 ships with end-to-end Bluesky publishing support, with stubs ready for Twitter, LinkedIn, Facebook, and Instagram.
+`social-worker` combines an AI-powered conversational composer with multi-platform publishing, automated feed ingestion (RSS, YouTube, Instagram), media transcription (Whisper), content scheduling, and autonomous reply agents.
 
-## Badges
-
-### Repository
-
-[![API CI Workflow](https://img.shields.io/github/actions/workflow/status/vhogemann/social-worker/api-ci.yml?branch=main&label=API%20CI&logo=githubactions)](https://github.com/vhogemann/social-worker/actions/workflows/api-ci.yml)
-[![Web CI Workflow](https://img.shields.io/github/actions/workflow/status/vhogemann/social-worker/web-ci.yml?branch=main&label=Web%20CI&logo=githubactions)](https://github.com/vhogemann/social-worker/actions/workflows/web-ci.yml)
-[![Release Workflow](https://img.shields.io/github/actions/workflow/status/vhogemann/social-worker/release.yml?label=release&logo=githubactions)](https://github.com/vhogemann/social-worker/actions/workflows/release.yml)
-[![GitHub Stars](https://img.shields.io/github/stars/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/forks)
-[![GitHub Watchers](https://img.shields.io/github/watchers/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/watchers)
-[![GitHub Issues](https://img.shields.io/github/issues/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/issues)
-[![GitHub Closed Issues](https://img.shields.io/github/issues-closed/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/issues?q=is%3Aissue%20is%3Aclosed)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/pulls)
-[![GitHub Closed Pull Requests](https://img.shields.io/github/issues-pr-closed/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/pulls?q=is%3Apr%20is%3Aclosed)
-[![GitHub Discussions](https://img.shields.io/github/discussions/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/discussions)
-[![GitHub License](https://img.shields.io/github/license/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/blob/main/LICENSE)
-[![GitHub Last Commit](https://img.shields.io/github/last-commit/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/commits/main)
-[![GitHub Commit Activity (Total)](https://img.shields.io/github/commit-activity/t/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/graphs/commit-activity)
-[![GitHub Commit Activity (Monthly)](https://img.shields.io/github/commit-activity/m/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/graphs/commit-activity)
-[![GitHub Repo Size](https://img.shields.io/github/repo-size/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker)
-[![GitHub Code Size](https://img.shields.io/github/languages/code-size/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker)
-[![GitHub Language Count](https://img.shields.io/github/languages/count/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker)
-[![GitHub Top Language](https://img.shields.io/github/languages/top/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker)
-[![GitHub Contributors](https://img.shields.io/github/contributors/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/graphs/contributors)
-[![GitHub Repo Created](https://img.shields.io/github/created-at/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker)
-[![GitHub Release](https://img.shields.io/github/v/release/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/releases)
-[![GitHub Release Date](https://img.shields.io/github/release-date/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/releases)
-[![GitHub Downloads (All Releases)](https://img.shields.io/github/downloads/vhogemann/social-worker/total?logo=github)](https://github.com/vhogemann/social-worker/releases)
-[![GitHub Downloads (Latest)](https://img.shields.io/github/downloads/vhogemann/social-worker/latest/total?logo=github)](https://github.com/vhogemann/social-worker/releases/latest)
-[![GitHub Milestones](https://img.shields.io/github/milestones/all/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/milestones)
-[![GitHub Open Milestones](https://img.shields.io/github/milestones/open/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/milestones?state=open)
-[![GitHub Closed Milestones](https://img.shields.io/github/milestones/closed/vhogemann/social-worker?logo=github)](https://github.com/vhogemann/social-worker/milestones?state=closed)
-
-### Maintainer
-
-[![GitHub Followers](https://img.shields.io/github/followers/vhogemann?logo=github)](https://github.com/vhogemann?tab=followers)
-[![GitHub User Stars](https://img.shields.io/github/stars/vhogemann?style=social)](https://github.com/vhogemann?tab=stars)
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/vhogemann?logo=github)](https://github.com/sponsors/vhogemann)
+Supported publishing platforms:
+- **Bluesky**: Multi-post threads, rich embeds, facets.
+- **LinkedIn**: Member profiles and company pages.
+- **Meta Threads**: Multi-post threads, carousel media, token lifecycle management.
+- **Twitter / X**: OAuth 2.0 PKCE, chained reply threads, weighted character validation.
 
 ---
 
-## Technical Stack
+## Architecture & Tech Stack
 
-- **Frontend**: Vite + React + TypeScript + Tailwind. State management via Zustand, server state synchronization via TanStack React Query, and SSE streaming chat via native `EventSource`.
-- **Backend**: .NET 10 ASP.NET Core Minimal APIs + Entity Framework Core + Postgres 16.
-- **AI Integrations**: Built using `Microsoft.Extensions.AI` and the `OpenAI` .NET SDK, supporting OpenAI, OpenRouter, and Ollama.
-- **Dependency Updates**: GitHub Dependabot keeps GitHub Actions, NuGet, and npm dependencies current.
-
----
-
-## Features
-
-- **Multi-Modal Assistant Chat**: Interactive composer panel driven by LLM agents. Features dynamic tool registrations based on model capabilities (vision/tool calls).
-- **Auto-Summarization**: Automatically generates title summaries for newly created drafts based on initial composer prompts.
-- **Real-Time Thread Preview**: Instantly preview how segments appear as social media cards. Supports clipboard segment copying and inline alt-text configuration.
-- **Format Validation**: Active validation loops prevent incompatible post stages (e.g., warning if a post segment combines both image assets and YouTube embeds, violating Bluesky formatting constraints).
-- **Resource Deduplication (SHA-256)**: Files and images are fingerprinted on upload. If duplicate files are detected, database entities reuse the existing payload to prevent disk bloat.
-- **Clean Deletion Protection**: Safety confirmations before deletions, with clean active draft switching or new fallbacks. Shared uploads are protected on disk during asset/draft deletions.
-- **Admin Settings**: Manage LLM providers, test connections, set user account details, and toggle preferences.
+- **Frontend** (`web/`): React 19, TypeScript, Vite, Tailwind CSS, Zustand, TanStack React Query.
+- **Backend API** (`api/`): .NET 10 ASP.NET Core Minimal APIs, Entity Framework Core, PostgreSQL 16.
+- **AI Integrations**: Built with `Microsoft.Extensions.AI` and OpenAI-compatible SDKs (OpenRouter, OpenAI, Ollama).
+- **Transcriber** (`transcriber/`): Python 3.11, FastAPI, Whisper, `yt-dlp` for extracting and transcribing audio/video.
+- **Image Engine** (`image-engine/`): Node.js 22, Fastify, Sharp, `@napi-rs/canvas` for template rendering.
+- **Search & Discovery**: Integrated SearXNG search engine instance.
+- **Protocol & Integrations**: Full Model Context Protocol (MCP) server support (JSON-RPC 2.0 & SSE).
 
 ---
 
-## Getting Started
+## Local Configuration & Setup
 
 ### Prerequisites
 
-Ensure you have the following installed on your host machine:
-1. **Docker** (with Compose v2+)
+- **Docker** with **Docker Compose v2+** installed.
+- (Optional) NVIDIA GPU drivers & NVIDIA Container Toolkit if running local Whisper or Ollama with GPU acceleration.
 
-### 1. Launch Services
+### 1. Configure Environment Variables
 
-Start the development stack:
+Copy the template `.env.example` file to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and configure the following parameters:
+
+#### Core Requirements
+
+1. **LLM Provider**
+   Configure your preferred OpenAI-compatible model provider:
+   ```env
+   LLM__BaseUrl=https://openrouter.ai/api/v1
+   LLM__ApiKey=your_api_key_here
+   LLM__Model=anthropic/claude-3.5-sonnet
+   ```
+   *For local Ollama*: set `LLM__BaseUrl=http://ollama:11434/v1`, `LLM__ApiKey=dummy`, `LLM__Model=llama3.1`.
+
+2. **Security & Authentication**
+   ```env
+   Auth__JwtSecret=replace_with_a_secret_at_least_32_characters_long
+   Auth__AdminPassword=your_admin_password
+   Auth__DbEncryptionKey=generated_base64_encryption_key
+   ```
+   Generate a 256-bit AES key for `Auth__DbEncryptionKey` (used for encrypting platform tokens at rest):
+   ```bash
+   openssl rand -base64 32
+   ```
+
+#### Optional Integrations
+
+- **Search**: Set `Search__Provider=SearXng` (default, uses bundled container) or `Search__Provider=Brave` with `Search__BraveApiKey`.
+- **Social Platform OAuth**: Add client IDs and secrets for LinkedIn, Meta Threads, Twitter/X, and Instagram if you plan to connect these accounts locally. See [docs/INSTAGRAM_SETUP.md](docs/INSTAGRAM_SETUP.md) for Instagram Business Discovery setup.
+
+---
+
+## Running the Application
+
+### Option A: Standard Production / Local Stack
+
+Build and start all services:
 
 ```bash
 docker compose up --build
 ```
 
-If you have an NVIDIA GPU and want Whisper hardware acceleration in the transcriber:
+With GPU acceleration for Whisper transcription:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 ```
 
-- **Web App**: `http://localhost:8100`
-- **API**: `http://localhost:8101`
-- **Transcriber (Whisper)**: `http://localhost:8102`
+### Option B: Fast Hot-Reloading Development Stack
 
-The transcriber service runs a local Whisper model inside Docker and stores transcript artifacts in `./transcripts/`.
-
-### 1.1 Run E2E Stack Separately (No Port Collisions)
-
-E2E now has a dedicated stack file that runs on separate host ports:
+For active development with Vite HMR, `dotnet watch`, and live-reloading services:
 
 ```bash
-docker compose -f docker-compose.e2e.yml up -d --build
+./scripts/run-dev.sh
 ```
 
-To run e2e with transcriber GPU acceleration:
+### Option C: Run Prebuilt Images
 
-```bash
-docker compose -f docker-compose.e2e.yml -f docker-compose.e2e.gpu.yml up -d --build
-```
-
-- **E2E Web App**: `http://localhost:8200`
-- **E2E API**: `http://localhost:8201`
-
-One-command e2e runner:
-
-```bash
-./scripts/run-e2e.sh
-```
-
-Examples:
-
-```bash
-# Single test file
-./scripts/run-e2e.sh tests/chat.spec.ts
-
-# Keep stack up for debugging after run
-./scripts/run-e2e.sh --keep-up tests/chat.spec.ts
-
-# Build images first
-./scripts/run-e2e.sh --build
-```
-
-Safer update flow for running containers:
-
-```bash
-./scripts/redeploy.sh
-```
-
-This performs `docker compose down --remove-orphans` followed by `docker compose up -d --build`.
-
-### 2. Run Only (Prebuilt Images, No Local Build)
-
-If you just want to run the app and not develop it locally, use the prebuilt images:
-
-```bash
-docker compose -f docker-compose.app.yml up -d
-```
-
-Or use the helper launcher with env preflight checks:
+To launch without building locally from source:
 
 ```bash
 ./scripts/run-app.sh
 ```
 
-To force-refresh to the latest published images:
+### Accessing Endpoints
+
+Once running, the stack provides:
+
+| Service | URL | Notes |
+| :--- | :--- | :--- |
+| **Web App** | [http://localhost:8100](http://localhost:8100) | UI composer, drafts, calendar, outbox, settings |
+| **Backend API** | [http://localhost:8101](http://localhost:8101) | REST endpoints, Swagger/OpenAPI |
+| **Whisper Transcriber** | [http://localhost:8102](http://localhost:8102) | FastAPI audio/video transcription service |
+| **Image Engine** | [http://localhost:8103](http://localhost:8103) | Fastify template rendering service |
+| **MCP Server** | `http://localhost:8101/api/mcp` | Model Context Protocol endpoint (Stateless & SSE) |
+
+To safely stop and restart containers after changes:
 
 ```bash
-docker compose -f docker-compose.app.yml pull
-docker compose -f docker-compose.app.yml up -d
-```
-
-Helper equivalent:
-
-```bash
-./scripts/run-app.sh --pull
-```
-
-Safer update flow for the app-image stack:
-
-```bash
-./scripts/redeploy.sh --app --pull
-```
-
-- **Web App**: `http://localhost:8100`
-- **API**: `http://localhost:8101`
-
----
-
-## Workspace Layout
-
-```
-social-worker/
-├── docker-compose.yml              # Base Docker Compose stack definition
-├── docker-compose.app.yml          # Runtime-only stack using published GHCR images
-├── docker-compose.gpu.yml          # GPU resource reservation overrides
-├── transcriber/                    # Python FastAPI transcript service (yt-dlp + Whisper)
-├── transcripts/                    # Local transcript artifacts (gitignored except .gitkeep)
-├── scripts/
-│   └── run-app.sh                  # One-command runtime launcher with preflight checks
-│   └── redeploy.sh                 # Safer down/up redeploy helper for dev and app stacks
-│   └── sql.sh                      # Run SQL against Postgres in docker compose
-│   └── synthetic-agent-model-test.sh # DB-driven direct model synthetic test (bypasses app stack)
-├── .env.example                    # Template environment file
-├── AGENTS.md                       # Agent guidelines and specifications
-├── PLAN.md                         # Detailed project roadmap and index
-├── planning/                      # Implementation plans and design assets
-├── api/                            # Backend C# .NET Minimal API
-└── web/                            # Frontend Vite React Single Page App
+./scripts/redeploy.sh
 ```
 
 ---
 
-## Development Guidelines
+## Testing & Quality Assurance
 
-All builds, migration generations, and unit tests must be executed inside Docker to ensure host runtime parity:
+All builds and tests run inside Docker containers:
 
-- **API Build**: `docker compose --profile tooling run --rm dotnet build`
-- **API Test**: `docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj`
-- **Frontend Build and Typecheck**: `docker compose run --rm web sh -c "npm run build && npm run typecheck"`
-- **Frontend Tests**: `docker compose --profile tooling run --rm web-test`
-- **EF Core Migrations**: `docker compose --profile tooling run --rm dotnet ef migrations add <MigrationName>`
-
-### Database Queries
-
-Use the SQL helper script to run ad-hoc Postgres queries without rewriting docker/psql flags:
-
-```bash
-./scripts/sql.sh -c "select now();"
-./scripts/sql.sh -A -F $'\t' -c "select \"Id\", \"Title\" from \"Drafts\" limit 5;"
-./scripts/sql.sh -f /tmp/query.sql
-cat /tmp/query.sql | ./scripts/sql.sh -A -t
-```
-
-### Direct Model Synthetic Test (DB-Driven)
-
-Run a synthetic thread-generation test directly against the active OpenAI-compatible model endpoint using real source rows from Postgres (without routing through the API tool stack):
-
-```bash
-./scripts/synthetic-agent-model-test.sh \
-	--base-url http://192.168.0.216:11434/v1 \
-	--model gemma4-e4b-32k
-```
-
-You can override the source fixture:
-
-```bash
-./scripts/synthetic-agent-model-test.sh --source-id <source-guid>
-```
-
-Defaults:
-
-- Service: `db`
-- Database: `socialworker`
-- User: `postgres`
-
-Override defaults when needed:
-
-```bash
-SW_DB_SERVICE=db SW_DB_NAME=socialworker SW_DB_USER=postgres ./scripts/sql.sh -c "select 1;"
-./scripts/sql.sh --service db --db socialworker --user postgres -c "select 1;"
-```
-
-## Documentation
-
-- **Roadmap and plans**: [PLAN.md](PLAN.md)
+- **API Build**:
+  ```bash
+  docker compose --profile tooling run --rm dotnet build
+  ```
+- **API Tests**:
+  ```bash
+  docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
+  ```
+- **Web Tests**:
+  ```bash
+  docker compose --profile tooling run --rm web-test
+  ```
+- **Web Typecheck & Build**:
+  ```bash
+  docker compose --profile tooling run --rm web-test "npm run build && npm run typecheck"
+  ```
+- **Image Engine Tests**:
+  ```bash
+  docker compose --profile tooling run --rm image-engine-test
+  ```
+- **End-to-End Tests**:
+  ```bash
+  ./scripts/run-e2e.sh
+  ```
 
 ---
 
+## Database Utilities
+
+Query the database directly inside Docker using the SQL helper script:
+
+```bash
+./scripts/sql.sh -c "SELECT now();"
+./scripts/sql.sh -c "SELECT \"Id\", \"Title\", \"Stage\", \"Status\" FROM \"Drafts\" LIMIT 5;"
+```
+
+To add EF Core migrations:
+
+```bash
+docker compose --profile tooling run --rm dotnet ef migrations add <MigrationName>
+```
+
+---
+
+## Documentation & Reference
+
+- [MENTAL_MODEL.md](MENTAL_MODEL.md): Technical architecture map, file ownership, and conventions.
+- [AGENTS.md](AGENTS.md): Developer policies, workflow constraints, and coding standards.
+- [PLAN.md](PLAN.md): Active roadmap, feature tracking, and technical design documents.
+- [docs/mcp_server.md](docs/mcp_server.md): Model Context Protocol (MCP) server reference and tool catalogue.
+- [docs/INSTAGRAM_SETUP.md](docs/INSTAGRAM_SETUP.md): Guide for Meta Business Discovery and Instagram source configuration.
