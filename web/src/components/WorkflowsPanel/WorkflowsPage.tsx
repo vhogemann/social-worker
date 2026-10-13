@@ -86,7 +86,8 @@ export const WorkflowsPage: React.FC = () => {
         accountId: d.accountId,
         accountHandle: d.accountHandle
       })),
-      scheduleId: data.scheduleId
+      scheduleId: data.scheduleId,
+      minRelevanceScore: data.minRelevanceScore
     };
 
     try {

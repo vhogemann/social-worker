@@ -58,13 +58,29 @@ public class TwitterDraftValidatorTests
     }
 
     [Fact]
-    public void Validate_MediaAttachment_ReturnsFailed()
+    public void Validate_MediaAttachment_UpToFour_ReturnsValid()
     {
         var content = "Look at this chart:\n\n![Chart](media://61803512-ef24-4f81-a5d6-ec2d790757f5)";
         var result = _validator.Validate(content, Array.Empty<MediaAsset>());
 
+        Assert.Equal(ValidateDraftOverallStatus.Valid, result.OverallStatus);
+        Assert.Empty(result.Posts[0].Issues);
+        Assert.Equal(1, result.Posts[0].ImageCount);
+    }
+
+    [Fact]
+    public void Validate_MediaAttachment_ExceedsFour_ReturnsFailed()
+    {
+        var content = "Too many images:\n\n" +
+                      "![Img1](media://61803512-ef24-4f81-a5d6-ec2d790757f1)\n" +
+                      "![Img2](media://61803512-ef24-4f81-a5d6-ec2d790757f2)\n" +
+                      "![Img3](media://61803512-ef24-4f81-a5d6-ec2d790757f3)\n" +
+                      "![Img4](media://61803512-ef24-4f81-a5d6-ec2d790757f4)\n" +
+                      "![Img5](media://61803512-ef24-4f81-a5d6-ec2d790757f5)";
+        var result = _validator.Validate(content, Array.Empty<MediaAsset>());
+
         Assert.Equal(ValidateDraftOverallStatus.Failed, result.OverallStatus);
-        Assert.Contains(result.Posts[0].Issues, i => i.Severity == ValidateDraftSeverity.Error && i.Message.Contains("Media attachments are not currently supported for Twitter in v1"));
+        Assert.Contains(result.Posts[0].Issues, i => i.Severity == ValidateDraftSeverity.Error && i.Message.Contains("maximum of 4 images per tweet"));
     }
 
     [Fact]

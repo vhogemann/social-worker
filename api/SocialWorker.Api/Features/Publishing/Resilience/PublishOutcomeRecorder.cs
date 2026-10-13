@@ -29,6 +29,11 @@ public class PublishOutcomeRecorder
 
         var existingIndices = existingPosts.Select(p => p.SegmentIndex).ToHashSet();
 
+        var userId = thread.Draft?.UserId ?? await _db.Drafts
+            .Where(d => d.Id == thread.DraftId)
+            .Select(d => d.UserId)
+            .FirstOrDefaultAsync(ct);
+
         foreach (var p in result.Posts)
         {
             if (!existingIndices.Contains(p.SegmentIndex))
@@ -36,6 +41,7 @@ public class PublishOutcomeRecorder
                 var post = new Post
                 {
                     Id = Guid.NewGuid(),
+                    UserId = userId,
                     DraftId = thread.DraftId,
                     PlatformThreadId = thread.Id,
                     SegmentIndex = p.SegmentIndex,

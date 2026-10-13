@@ -17,10 +17,11 @@ public class AutomationWorkflow
     public ICollection<Draft> Drafts { get; set; } = new List<Draft>();
     public Guid? ReplyAgentId { get; set; }
     public ReplyAgent? ReplyAgent { get; set; }
+    public int MinRelevanceScore { get; set; } = 7;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public static AutomationWorkflow Create(Guid userId, string title, string? instructionPrompt = null, Guid? scheduleId = null)
+    public static AutomationWorkflow Create(Guid userId, string title, string? instructionPrompt = null, Guid? scheduleId = null, int minRelevanceScore = 7)
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Workflow title is required.", nameof(title));
@@ -34,6 +35,7 @@ public class AutomationWorkflow
                 ? "Summarize this article as a thread."
                 : instructionPrompt.Trim(),
             ScheduleId = scheduleId,
+            MinRelevanceScore = Math.Clamp(minRelevanceScore, 0, 10),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

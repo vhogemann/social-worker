@@ -66,11 +66,11 @@ public sealed class TwitterDraftValidator : IDraftValidator
                     $"Post exceeds the {MaxCharacters} weighted-character limit for Twitter by {weightedLength - MaxCharacters} units."));
             }
 
-            if (imageCount > 0)
+            if (imageCount > 4)
             {
                 issues.Add(new ValidateDraftIssue(
                     ValidateDraftSeverity.Error,
-                    "Media attachments are not currently supported for Twitter in v1. Please remove images/media before publishing."));
+                    $"Twitter allows a maximum of 4 images per tweet (found {imageCount})."));
             }
 
             if (hasYouTube)

@@ -163,6 +163,17 @@ export const Breadcrumbs: React.FC = () => {
       return [{ label: "Privacy Policy" }];
     }
 
+    // 10. Reply Agents
+    if (path === "/reply-agents") {
+      return [{ label: "Reply Agents" }];
+    }
+    if (path.startsWith("/reply-agents/")) {
+      return [
+        { label: "Reply Agents", to: "/reply-agents" },
+        { label: "Agent Details" },
+      ];
+    }
+
     // 10. Settings & Sub-tabs
     if (path.startsWith("/settings")) {
       const tab = path.replace("/settings/", "").replace("/settings", "");

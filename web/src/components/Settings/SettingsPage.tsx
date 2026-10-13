@@ -17,10 +17,8 @@ import { BrandVoicesTab } from "./BrandVoicesTab";
 import { FeedsTab } from "./FeedsTab";
 import { UsersTab } from "./UsersTab";
 import { ProvidersTab } from "./ProvidersTab";
-import { ReplyAgentsTab } from "./ReplyAgentsTab";
-import { faRobot } from "@fortawesome/free-solid-svg-icons";
 
-type SettingsTab = "account" | "connections" | "brand-voices" | "reply-agents" | "feeds" | "users" | "providers";
+type SettingsTab = "account" | "connections" | "brand-voices" | "feeds" | "users" | "providers";
 
 interface TabConfig {
   id: SettingsTab;
@@ -52,13 +50,6 @@ const TABS: TabConfig[] = [
     icon: faBullhorn,
     title: "Brand Voice Prompts",
     description: "Configure reusable style guidelines and tone prompts for drafting content.",
-  },
-  {
-    id: "reply-agents",
-    label: "Reply Agents",
-    icon: faRobot,
-    title: "Autonomous Reply Agents",
-    description: "Create and configure reusable autonomous agents to monitor and reply to comments.",
   },
   {
     id: "feeds",
@@ -204,7 +195,6 @@ export function SettingsPage() {
             {activeTabId === "account" && <AccountTab />}
             {activeTabId === "connections" && <ConnectionsTab />}
             {activeTabId === "brand-voices" && <BrandVoicesTab />}
-            {activeTabId === "reply-agents" && <ReplyAgentsTab />}
             {activeTabId === "feeds" && <FeedsTab />}
             {activeTabId === "users" && isAdmin && <UsersTab />}
             {activeTabId === "providers" && isAdmin && <ProvidersTab />}

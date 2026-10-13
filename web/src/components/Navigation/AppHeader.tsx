@@ -10,6 +10,7 @@ export interface NavItem {
 
 export const defaultNavItems: NavItem[] = [
   { label: "Workflows", to: "/", match: ["/", "/workflows"] },
+  { label: "Reply Agents", to: "/reply-agents", match: ["/reply-agents"] },
   { label: "Outbox", to: "/outbox", match: ["/outbox"] },
   { label: "Calendar", to: "/calendar", match: ["/calendar"] },
   { label: "Drafts", to: "/drafts", match: ["/drafts", "/draft", "/composer"] },

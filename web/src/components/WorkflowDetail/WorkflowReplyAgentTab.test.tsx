@@ -25,6 +25,7 @@ describe("WorkflowReplyAgentTab", () => {
     checkIntervalMinutes: 15,
     lastPolledAt: null,
     assignedWorkflowsCount: 1,
+    assignedPostsCount: 0,
     workflows: [{ id: "wf-1", title: "Tech Feed" }],
     createdAt: "2026-10-11T10:00:00Z",
     updatedAt: "2026-10-11T10:00:00Z"

@@ -31,6 +31,7 @@ export interface WorkflowFormData {
     accountHandle?: string;
   }[];
   scheduleId?: string | null;
+  minRelevanceScore?: number;
 }
 
 export interface WorkflowFormModalProps {
@@ -63,6 +64,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
   const [destinations, setDestinations] = useState<WorkflowDestinationItem[]>([]);
   const [schedules, setSchedules] = useState<ScheduleSummaryDto[]>([]);
   const [workflowScheduleId, setWorkflowScheduleId] = useState<string | null>(null);
+  const [minRelevanceScore, setMinRelevanceScore] = useState<number>(7);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
       setTitle(editingWorkflow.title);
       setInstructionPrompt(editingWorkflow.instructionPrompt || "");
       setWorkflowScheduleId(editingWorkflow.scheduleId || null);
+      setMinRelevanceScore(editingWorkflow.minRelevanceScore ?? 7);
 
       const hasHighlights = editingWorkflow.sources.some((s) => s.kind === "WorkflowHighlights");
       if (hasHighlights) {
@@ -127,6 +130,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
       setSelectedSourceWorkflowIds([]);
       setLookbackDays(7);
       setWorkflowScheduleId(null);
+      setMinRelevanceScore(7);
       if (connectedAccounts.length > 0) {
         setDestinations(
           connectedAccounts.map((a) => ({
@@ -231,7 +235,8 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
         instructionPrompt: instructionPrompt.trim() || undefined,
         sources: sourcesPayload,
         destinations,
-        scheduleId: workflowScheduleId
+        scheduleId: workflowScheduleId,
+        minRelevanceScore
       });
       onClose();
     } finally {
@@ -266,6 +271,63 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
             placeholder="Instructions for drafting the thread..."
             className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none transition focus:border-accent"
           />
+        </div>
+
+        {/* Content Relevance & Impact Threshold */}
+        <div className="bg-panel/60 border border-border rounded-xl p-4 flex flex-col gap-3">
+          <div className="flex justify-between items-center">
+            <div>
+              <label htmlFor="workflow-relevance-threshold" className="block text-xs font-bold text-foreground">
+                Relevance & Impact Threshold
+              </label>
+              <p className="text-[11px] text-muted">
+                Minimum score required for ingested feed items to become drafts. Items below this score are discarded.
+              </p>
+            </div>
+            <span
+              className={`font-mono text-xs px-2.5 py-1 rounded-md border font-semibold ${
+                minRelevanceScore === 0
+                  ? "bg-zinc-500/10 text-muted border-border"
+                  : minRelevanceScore >= 8
+                  ? "bg-red-500/10 text-red-400 border-red-500/30"
+                  : minRelevanceScore >= 6
+                  ? "bg-accent/10 text-accent border-accent/30"
+                  : "bg-blue-500/10 text-blue-400 border-blue-500/30"
+              }`}
+              data-testid="relevance-score-badge"
+            >
+              {minRelevanceScore === 0 ? "Off (0/10)" : `${minRelevanceScore}/10`}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <input
+              id="workflow-relevance-threshold"
+              type="range"
+              min={0}
+              max={10}
+              step={1}
+              value={minRelevanceScore}
+              onChange={(e) => setMinRelevanceScore(parseInt(e.target.value, 10))}
+              data-testid="relevance-score-slider"
+              className="w-full accent-accent cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] font-mono text-muted">
+              <span>0 (Off)</span>
+              <span>3 (Low)</span>
+              <span>5 (Moderate)</span>
+              <span className="text-accent font-semibold">7 (High Impact)</span>
+              <span>10 (Breaking Only)</span>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-muted italic bg-bg/60 p-2 rounded border border-border/50">
+            {minRelevanceScore === 0 && "Filter disabled: All ingested feed items will be processed into drafts."}
+            {minRelevanceScore > 0 && minRelevanceScore <= 4 && "Permissive: Ingests almost everything, including routine administrative updates and minor news."}
+            {minRelevanceScore >= 5 && minRelevanceScore <= 6 && "Moderate: Filters out trivial announcements but allows routine daily political commentary."}
+            {minRelevanceScore === 7 && "High Impact (Recommended): Filters routine filler, preserving publishing slots for major exposés, viral debates, and economic consequences."}
+            {minRelevanceScore >= 8 && "Strict: Discards everything except top-tier breaking crises and high-impact investigative scoops."}
+          </p>
         </div>
 
         <WorkflowSourcesSelector

@@ -185,4 +185,67 @@ public sealed class CommentEnrichmentServiceTests : SqliteTestBase
         Assert.Contains("Error: connection timeout", enriched.Images[0].VisualDescription);
         Assert.Contains("Attached Images:", enriched.FormattedContextForLlm);
     }
+
+    private sealed class MockTranscriberService : ITranscriptExtractionService
+    {
+        public Task<bool> HealthAsync(CancellationToken ct) => Task.FromResult(true);
+
+        public Task<TranscriptExtractionResult> ExtractAsync(string videoUrl, string outputPath, CancellationToken ct) =>
+            Task.FromResult(new TranscriptExtractionResult(true, outputPath, 60.0, "pt", null));
+
+        public Task<TranscriptDocument?> ReadTranscriptAsync(string transcriptPath, CancellationToken ct) =>
+            Task.FromResult<TranscriptDocument?>(new TranscriptDocument("https://www.youtube.com/watch?v=video123", "pt", 60.0, "Neste vídeo o especialista demonstra que o PIB cresceu 3.2%"));
+    }
+
+    private sealed class MockYouTubeService : IYouTubeSourceService
+    {
+        public bool IsYouTubeUrl(string reference) => reference.Contains("youtube.com") || reference.Contains("youtu.be");
+        public string? TryExtractYouTubeVideoId(string reference) => "video123";
+        public void QueueTranscriptExtraction(Guid sourceId, Guid draftId) { }
+        public Task<SourceStatusDto> RetrySourceTranscriptAsync(Guid userId, Guid sourceId, CancellationToken ct) =>
+            Task.FromResult(new SourceStatusDto(sourceId, "Complete", "Summary", "video123"));
+    }
+
+    [Fact]
+    public async Task EnrichCommentAsync_WithVideoUrl_TranscribesAndInjectsIntoContext()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+
+        var httpHandler = new MockHttpMessageHandler();
+        var httpClient = new HttpClient(httpHandler);
+        var scraper = new WebScraperService(httpClient);
+        var providerService = new LlmProviderService();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var probe = new ModelCapabilityProbe(httpClient, cache, NullLogger<ModelCapabilityProbe>.Instance);
+        var adapter = new MockLlmAdapter(_ => new OpenAiModels.ChatCompletionResponse());
+        var transcriber = new MockTranscriberService();
+        var youTubeService = new MockYouTubeService();
+
+        var service = new CommentEnrichmentService(
+            scraper, db, providerService, adapter, probe, NullLogger<CommentEnrichmentService>.Instance, transcriber, youTubeService);
+
+        var comment = new PlatformCommentItem(
+            Platform: "Bluesky",
+            RemoteCommentId: "c_vid",
+            RemoteParentId: null,
+            RemoteRootId: "root1",
+            RemoteAuthorHandle: "reporter.bsky.social",
+            RemoteAuthorId: "did:reporter",
+            Text: "Veja a análise neste vídeo https://www.youtube.com/watch?v=video123",
+            CreatedAt: DateTime.UtcNow,
+            Depth: 1,
+            ExtractedUrls: new[] { "https://www.youtube.com/watch?v=video123" },
+            ExtractedImages: Array.Empty<PlatformCommentImageAttachment>()
+        );
+
+        var enriched = await service.EnrichCommentAsync(comment, user);
+
+        Assert.Single(enriched.Links);
+        Assert.Equal("Video Transcript", enriched.Links[0].Title);
+        Assert.True(enriched.Links[0].Success);
+        Assert.Contains("PIB cresceu 3.2%", enriched.Links[0].Snippet);
+        Assert.Contains("Referenced Links:", enriched.FormattedContextForLlm);
+        Assert.Contains("Transcript: Neste vídeo o especialista", enriched.FormattedContextForLlm);
+    }
 }

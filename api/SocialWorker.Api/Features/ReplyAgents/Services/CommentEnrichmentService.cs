@@ -25,6 +25,8 @@ public sealed class CommentEnrichmentService : ICommentEnrichmentService
     private readonly ILlmProviderAdapter _adapter;
     private readonly ModelCapabilityProbe _capabilityProbe;
     private readonly ILogger<CommentEnrichmentService> _logger;
+    private readonly ITranscriptExtractionService? _transcriber;
+    private readonly IYouTubeSourceService? _youTubeSourceService;
 
     public CommentEnrichmentService(
         WebScraperService webScraper,
@@ -32,7 +34,9 @@ public sealed class CommentEnrichmentService : ICommentEnrichmentService
         LlmProviderService providerService,
         ILlmProviderAdapter adapter,
         ModelCapabilityProbe capabilityProbe,
-        ILogger<CommentEnrichmentService> logger)
+        ILogger<CommentEnrichmentService> logger,
+        ITranscriptExtractionService? transcriber = null,
+        IYouTubeSourceService? youTubeSourceService = null)
     {
         _webScraper = webScraper;
         _db = db;
@@ -40,6 +44,8 @@ public sealed class CommentEnrichmentService : ICommentEnrichmentService
         _adapter = adapter;
         _capabilityProbe = capabilityProbe;
         _logger = logger;
+        _transcriber = transcriber;
+        _youTubeSourceService = youTubeSourceService;
     }
 
     public async Task<EnrichedCommentContext> EnrichCommentAsync(
@@ -47,7 +53,20 @@ public sealed class CommentEnrichmentService : ICommentEnrichmentService
         AppUser user,
         CancellationToken ct = default)
     {
-        var parsedLinks = await EnrichLinksAsync(comment.ExtractedUrls, ct);
+        var urls = (comment.ExtractedUrls ?? Array.Empty<string>()).ToList();
+        if (urls.Count == 0 && !string.IsNullOrWhiteSpace(comment.Text))
+        {
+            var matches = System.Text.RegularExpressions.Regex.Matches(comment.Text, @"https?://[^\s""'<>]+");
+            foreach (System.Text.RegularExpressions.Match m in matches)
+            {
+                if (Uri.TryCreate(m.Value, UriKind.Absolute, out _))
+                {
+                    urls.Add(m.Value);
+                }
+            }
+        }
+
+        var parsedLinks = await EnrichLinksAsync(urls, ct);
         var parsedImages = await EnrichImagesAsync(comment.ExtractedImages, user, ct);
 
         var formattedContext = BuildFormattedContext(comment, parsedLinks, parsedImages);
@@ -69,6 +88,30 @@ public sealed class CommentEnrichmentService : ICommentEnrichmentService
         var results = new List<ParsedLinkContext>();
         foreach (var url in urls.Take(3))
         {
+            if (_transcriber != null && _youTubeSourceService != null && _youTubeSourceService.IsYouTubeUrl(url))
+            {
+                try
+                {
+                    var safeId = Guid.NewGuid().ToString("N");
+                    var filename = $"comment_{safeId}.json";
+                    var extract = await _transcriber.ExtractAsync(url, filename, ct);
+                    if (extract.Success && !string.IsNullOrWhiteSpace(extract.TranscriptPath))
+                    {
+                        var doc = await _transcriber.ReadTranscriptAsync(extract.TranscriptPath, ct);
+                        if (doc != null && !string.IsNullOrWhiteSpace(doc.Transcript))
+                        {
+                            var snippet = doc.Transcript.Length > 1500 ? doc.Transcript[..1500] + "..." : doc.Transcript;
+                            results.Add(new ParsedLinkContext(url, "Video Transcript", snippet, true));
+                            continue;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to transcribe video URL in comment: {Url}", url);
+                }
+            }
+
             try
             {
                 var scrape = await _webScraper.ScrapeUrlAsync(url);
@@ -194,9 +237,17 @@ public sealed class CommentEnrichmentService : ICommentEnrichmentService
             for (var i = 0; i < links.Count; i++)
             {
                 var link = links[i];
-                var title = !string.IsNullOrWhiteSpace(link.Title) ? $"Title: \"{link.Title}\"" : "";
-                var snippet = !string.IsNullOrWhiteSpace(link.Snippet) ? $"Snippet: {link.Snippet}" : "";
-                sb.AppendLine($"- [Link {i + 1}]: {link.Url} {title} {snippet}".Trim());
+                if (string.Equals(link.Title, "Video Transcript", StringComparison.OrdinalIgnoreCase))
+                {
+                    sb.AppendLine($"- [Video {i + 1}]: {link.Url}");
+                    sb.AppendLine($"  Transcript: {link.Snippet}");
+                }
+                else
+                {
+                    var title = !string.IsNullOrWhiteSpace(link.Title) ? $"Title: \"{link.Title}\"" : "";
+                    var snippet = !string.IsNullOrWhiteSpace(link.Snippet) ? $"Snippet: {link.Snippet}" : "";
+                    sb.AppendLine($"- [Link {i + 1}]: {link.Url} {title} {snippet}".Trim());
+                }
             }
         }
 

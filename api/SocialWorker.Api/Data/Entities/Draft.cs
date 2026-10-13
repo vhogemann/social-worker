@@ -28,6 +28,8 @@ public class Draft
     public string? ChatHistory { get; set; }
     public string? ChatSummary { get; set; }
     public int LastSummarizedMessageCount { get; set; }
+    public string? DiscardReason { get; set; }
+    public int? RelevanceScore { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

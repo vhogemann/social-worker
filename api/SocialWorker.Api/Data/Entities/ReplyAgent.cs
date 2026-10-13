@@ -25,6 +25,7 @@ public class ReplyAgent
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<AutomationWorkflow> Workflows { get; set; } = new List<AutomationWorkflow>();
+    public ICollection<ReplyAgentPost> AssignedPosts { get; set; } = new List<ReplyAgentPost>();
     public ICollection<WorkflowCommentThread> CommentThreads { get; set; } = new List<WorkflowCommentThread>();
     public ICollection<WorkflowCommentAudit> CommentAudits { get; set; } = new List<WorkflowCommentAudit>();
 

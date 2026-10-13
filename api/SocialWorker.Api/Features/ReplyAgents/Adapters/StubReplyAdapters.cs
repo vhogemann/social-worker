@@ -8,29 +8,6 @@ using SocialWorker.Api.Features.ReplyAgents.Models;
 
 namespace SocialWorker.Api.Features.ReplyAgents.Adapters;
 
-public sealed class TwitterReplyAdapter : IReplyPlatformAdapter
-{
-    public string Platform => "Twitter";
-
-    public Task<IReadOnlyList<PlatformCommentItem>> FetchCommentsAsync(
-        Post post,
-        Account account,
-        DateTime since,
-        CancellationToken ct = default)
-    {
-        return Task.FromResult<IReadOnlyList<PlatformCommentItem>>(Array.Empty<PlatformCommentItem>());
-    }
-
-    public Task<PublishReplyResult> PublishReplyAsync(
-        Post post,
-        Account account,
-        PlatformCommentItem targetComment,
-        string replyText,
-        CancellationToken ct = default)
-    {
-        return Task.FromResult(PublishReplyResult.Failed("Twitter comment replies are not yet implemented."));
-    }
-}
 
 public sealed class LinkedInReplyAdapter : IReplyPlatformAdapter
 {

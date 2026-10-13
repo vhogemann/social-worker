@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.BackgroundTasks.Abstractions;
 using SocialWorker.Api.Features.Chat;
 using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing.Bluesky;
@@ -19,7 +20,7 @@ using SocialWorker.Api.Infrastructure.Platforms;
 
 namespace SocialWorker.Api.Features.Drafts;
 
-public sealed record PostDto(Guid Id, Guid PlatformThreadId, int SegmentIndex, string Platform, string? RemoteId, string? Url, string? RemoteCid = null, string? PublishedText = null);
+public sealed record PostDto(Guid Id, Guid? PlatformThreadId, int SegmentIndex, string Platform, string? RemoteId, string? Url, string? RemoteCid = null, string? PublishedText = null);
 
 public sealed record PlatformThreadDto(Guid Id, Guid DraftId, string Platform, string Stage, string? Content, List<PostDto> Posts, Guid? AccountId = null, string? AccountHandle = null, string? LastPublishError = null);
 
@@ -54,7 +55,8 @@ public sealed record DraftQueryFilter(
     PlatformThreadStage? Stage = null,
     bool? IsPublished = null,
     DateTime? Since = null,
-    int? Limit = null
+    int? Limit = null,
+    bool? IncludeDiscarded = null
 );
 
 public sealed record DraftDto(
@@ -76,7 +78,9 @@ public sealed record DraftDto(
     string? TargetAccountHandle = null,
     Guid? AutomationWorkflowId = null,
     string? AutomationWorkflowTitle = null,
-    List<DraftDto>? Variants = null
+    List<DraftDto>? Variants = null,
+    string? DiscardReason = null,
+    int? RelevanceScore = null
 );
 
 public sealed class DraftsService
@@ -86,19 +90,22 @@ public sealed class DraftsService
     private readonly SourcesService _sourcesService;
     private readonly DraftSegmentService _draftSegmentService;
     private readonly DraftChatSummaryService _draftChatSummaryService;
+    private readonly IBackgroundTaskQueue? _taskQueue;
 
     public DraftsService(
         AppDbContext db,
         FileStorageProvider storage,
         SourcesService sourcesService,
         DraftSegmentService draftSegmentService,
-        DraftChatSummaryService draftChatSummaryService)
+        DraftChatSummaryService draftChatSummaryService,
+        IBackgroundTaskQueue? taskQueue = null)
     {
         _db = db;
         _storage = storage;
         _sourcesService = sourcesService;
         _draftSegmentService = draftSegmentService;
         _draftChatSummaryService = draftChatSummaryService;
+        _taskQueue = taskQueue;
     }
 
     private static DraftDto ToDto(
@@ -162,7 +169,9 @@ public sealed class DraftsService
             draft.TargetAccount?.Handle,
             draft.AutomationWorkflowId,
             draft.AutomationWorkflow?.Title,
-            variants ?? new List<DraftDto>()
+            variants ?? new List<DraftDto>(),
+            draft.DiscardReason,
+            draft.RelevanceScore
         );
     }
 
@@ -175,6 +184,15 @@ public sealed class DraftsService
             .Include(d => d.Variants).ThenInclude(v => v.Threads)
             .Where(d => d.UserId == userId && d.Status != DraftStatus.Deleted);
 
+        if (filter?.Status.HasValue == true)
+        {
+            query = query.Where(d => d.Status == filter.Status.Value);
+        }
+        else if (filter?.IncludeDiscarded != true)
+        {
+            query = query.Where(d => d.Status != DraftStatus.Discarded);
+        }
+
         if (filter != null)
         {
             if (filter.WorkflowId.HasValue)
@@ -185,11 +203,6 @@ public sealed class DraftsService
             if (filter.WorkflowIds != null && filter.WorkflowIds.Count > 0)
             {
                 query = query.Where(d => d.AutomationWorkflowId.HasValue && filter.WorkflowIds.Contains(d.AutomationWorkflowId.Value));
-            }
-
-            if (filter.Status.HasValue)
-            {
-                query = query.Where(d => d.Status == filter.Status.Value);
             }
 
             if (filter.Since.HasValue)
@@ -238,14 +251,14 @@ public sealed class DraftsService
 
         var threadIds = threads.Select(t => t.Id).ToList();
         var posts = await _db.Posts
-            .Where(p => threadIds.Contains(p.PlatformThreadId))
+            .Where(p => p.PlatformThreadId.HasValue && threadIds.Contains(p.PlatformThreadId.Value))
             .ToListAsync(ct);
 
         var allDtos = drafts.Select(d =>
         {
             var draftThreads = threads.Where(t => t.DraftId == d.Id).ToList();
             var draftThreadIds = draftThreads.Select(t => t.Id).ToList();
-            var draftPosts = posts.Where(p => draftThreadIds.Contains(p.PlatformThreadId)).ToList();
+            var draftPosts = posts.Where(p => p.PlatformThreadId.HasValue && draftThreadIds.Contains(p.PlatformThreadId.Value)).ToList();
             var draftMedia = media.Where(m => m.DraftId == d.Id).ToList();
             var draftBlueskyMetadata = blueskyMetadata.FirstOrDefault(m => m.DraftId == d.Id);
             return ToDto(d, draftThreads, draftPosts, draftMedia, draftBlueskyMetadata);
@@ -322,7 +335,7 @@ public sealed class DraftsService
 
         var threads = await _db.PlatformThreads.Include(t => t.Account).Where(t => t.DraftId == id).ToListAsync(ct);
         var threadIds = threads.Select(t => t.Id).ToList();
-        var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
+        var posts = await _db.Posts.Where(p => p.PlatformThreadId.HasValue && threadIds.Contains(p.PlatformThreadId.Value)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
         var blueskyMetadata = await _db.DraftBlueskyMetadata.FirstOrDefaultAsync(m => m.DraftId == id, ct);
 
@@ -338,14 +351,14 @@ public sealed class DraftsService
             var variantIds = childVariants.Select(v => v.Id).ToList();
             var variantThreads = await _db.PlatformThreads.Include(t => t.Account).Where(t => variantIds.Contains(t.DraftId)).ToListAsync(ct);
             var variantThreadIds = variantThreads.Select(t => t.Id).ToList();
-            var variantPosts = await _db.Posts.Where(p => variantThreadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
+            var variantPosts = await _db.Posts.Where(p => p.PlatformThreadId.HasValue && variantThreadIds.Contains(p.PlatformThreadId.Value)).ToListAsync(ct);
             var variantMedia = await _db.MediaAssets.Where(m => m.DraftId.HasValue && variantIds.Contains(m.DraftId.Value)).ToListAsync(ct);
 
             variants = childVariants.Select(v =>
             {
                 var vThreads = variantThreads.Where(t => t.DraftId == v.Id).ToList();
                 var vThreadIds = vThreads.Select(t => t.Id).ToList();
-                var vPosts = variantPosts.Where(p => vThreadIds.Contains(p.PlatformThreadId)).ToList();
+                var vPosts = variantPosts.Where(p => p.PlatformThreadId.HasValue && vThreadIds.Contains(p.PlatformThreadId.Value)).ToList();
                 var vMedia = variantMedia.Where(m => m.DraftId == v.Id).ToList();
                 return ToDto(v, vThreads, vPosts, vMedia);
             }).ToList();
@@ -431,7 +444,7 @@ public sealed class DraftsService
 
         var threads = await _db.PlatformThreads.Include(t => t.Account).Where(t => t.DraftId == id).ToListAsync(ct);
         var threadIds = threads.Select(t => t.Id).ToList();
-        var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
+        var posts = await _db.Posts.Where(p => p.PlatformThreadId.HasValue && threadIds.Contains(p.PlatformThreadId.Value)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == id).ToListAsync(ct);
         var blueskyMetadata = await _db.DraftBlueskyMetadata.FirstOrDefaultAsync(m => m.DraftId == id, ct);
 
@@ -518,7 +531,7 @@ public sealed class DraftsService
 
         var threads = await _db.PlatformThreads.Include(t => t.Account).Where(t => t.DraftId == draftId).ToListAsync(ct);
         var threadIds = threads.Select(t => t.Id).ToList();
-        var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
+        var posts = await _db.Posts.Where(p => p.PlatformThreadId.HasValue && threadIds.Contains(p.PlatformThreadId.Value)).ToListAsync(ct);
         var media = await _db.MediaAssets.Where(m => m.DraftId == draftId).ToListAsync(ct);
 
         return ToDto(draft, threads, posts, media, metadata);
@@ -592,7 +605,7 @@ public sealed class DraftsService
             .ToListAsync(ct);
 
         var threadIds = threads.Select(t => t.Id).ToList();
-        var posts = await _db.Posts.Where(p => threadIds.Contains(p.PlatformThreadId)).ToListAsync(ct);
+        var posts = await _db.Posts.Where(p => p.PlatformThreadId.HasValue && threadIds.Contains(p.PlatformThreadId.Value)).ToListAsync(ct);
 
         return threads.Select(t => new PlatformThreadDto(t.Id, t.DraftId, t.Platform, t.Stage.ToString(), t.Content,
             posts.Where(p => p.PlatformThreadId == t.Id)
@@ -684,4 +697,104 @@ public sealed class DraftsService
         return _draftSegmentService.ReconcileSegmentsAsync(draft, markdown, ct);
     }
 
+    public async Task<bool> DeleteDraftAsync(Guid userId, Guid draftId, CancellationToken ct = default)
+    {
+        var draft = await _db.Drafts
+            .FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId, ct);
+
+        if (draft == null) return false;
+
+        var queueItems = await _db.ScheduleQueueItems
+            .Where(q => q.DraftId == draftId)
+            .ToListAsync(ct);
+
+        if (_taskQueue != null)
+        {
+            foreach (var q in queueItems)
+            {
+                if (q.ScheduledTaskId.HasValue)
+                {
+                    await _taskQueue.CancelTaskAsync(q.ScheduledTaskId.Value, ct);
+                }
+            }
+        }
+
+        _db.ScheduleQueueItems.RemoveRange(queueItems);
+        _db.Drafts.Remove(draft);
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<bool> DiscardDraftAsync(Guid userId, Guid draftId, string? reason = null, CancellationToken ct = default)
+    {
+        var draft = await _db.Drafts
+            .FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+
+        if (draft == null) return false;
+
+        var queueItems = await _db.ScheduleQueueItems
+            .Where(q => q.DraftId == draftId)
+            .ToListAsync(ct);
+
+        if (_taskQueue != null)
+        {
+            foreach (var q in queueItems)
+            {
+                if (q.ScheduledTaskId.HasValue)
+                {
+                    await _taskQueue.CancelTaskAsync(q.ScheduledTaskId.Value, ct);
+                }
+            }
+        }
+
+        _db.ScheduleQueueItems.RemoveRange(queueItems);
+
+        draft.Status = DraftStatus.Discarded;
+        draft.DiscardReason = string.IsNullOrWhiteSpace(reason) ? "Manually discarded." : reason.Trim();
+        draft.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<int> PurgeWorkflowDraftsAsync(Guid userId, Guid workflowId, bool unpublishedOnly = true, CancellationToken ct = default)
+    {
+        var query = _db.Drafts
+            .Where(d => d.UserId == userId && d.AutomationWorkflowId == workflowId);
+
+        if (unpublishedOnly)
+        {
+            var publishedDraftIds = await _db.Posts
+                .Where(p => p.RemoteId != null)
+                .Select(p => p.DraftId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            query = query.Where(d => !publishedDraftIds.Contains(d.Id));
+        }
+
+        var drafts = await query.ToListAsync(ct);
+        if (drafts.Count == 0) return 0;
+
+        var draftIds = drafts.Select(d => d.Id).ToList();
+        var queueItems = await _db.ScheduleQueueItems
+            .Where(q => draftIds.Contains(q.DraftId))
+            .ToListAsync(ct);
+
+        if (_taskQueue != null)
+        {
+            foreach (var q in queueItems)
+            {
+                if (q.ScheduledTaskId.HasValue)
+                {
+                    await _taskQueue.CancelTaskAsync(q.ScheduledTaskId.Value, ct);
+                }
+            }
+        }
+
+        _db.ScheduleQueueItems.RemoveRange(queueItems);
+        _db.Drafts.RemoveRange(drafts);
+        await _db.SaveChangesAsync(ct);
+        return drafts.Count;
+    }
 }

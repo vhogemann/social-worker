@@ -19,7 +19,8 @@ public enum DraftStatus
     Formatting,
     Archived,
     Deleted,
-    Failed
+    Failed,
+    Discarded
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

@@ -29,6 +29,7 @@ public static class DraftsEndpoint
             bool? isPublished,
             DateTime? since,
             int? limit,
+            bool? includeDiscarded,
             CancellationToken ct) =>
         {
             var userId = principal.GetUserId();
@@ -40,7 +41,8 @@ public static class DraftsEndpoint
                 Stage: stage,
                 IsPublished: isPublished,
                 Since: since,
-                Limit: limit
+                Limit: limit,
+                IncludeDiscarded: includeDiscarded
             );
 
             var drafts = await draftsService.GetDraftsForUserAsync(userId.Value, filter, ct);
@@ -90,6 +92,17 @@ public static class DraftsEndpoint
             {
                 return Results.NotFound(new ApiErrorResponse("Draft not found."));
             }
+        });
+
+        group.MapDelete("/{id:guid}", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var deleted = await draftsService.DeleteDraftAsync(userId.Value, id, ct);
+            if (!deleted) return Results.NotFound(new ApiErrorResponse("Draft not found."));
+
+            return Results.NoContent();
         });
 
         group.MapPatch("/{id:guid}", async (ClaimsPrincipal principal, DraftsService draftsService, Guid id, UpdateDraftRequest req, CancellationToken ct) =>

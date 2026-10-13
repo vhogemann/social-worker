@@ -56,16 +56,16 @@ export const TwitterThreadPreview: React.FC<TwitterThreadPreviewProps> = ({ cont
         const { cleanText, images } = parseSegment(segment);
         const weightedCount = calculateTwitterWeight(cleanText);
         const isOverLimit = weightedCount > 280;
-        const hasMedia = images.length > 0;
+        const tooManyImages = images.length > 4;
 
         return (
           <div key={index} className="relative">
-            {(isOverLimit || hasMedia) && (
+            {(isOverLimit || tooManyImages) && (
               <div className="mb-2 p-2.5 rounded-lg bg-red-950/20 border border-red-900/40 text-red-400 text-xs flex items-center justify-between">
                 <span>
                   {isOverLimit && `Exceeds 280 weighted-character limit (${weightedCount}/280)`}
-                  {isOverLimit && hasMedia && " • "}
-                  {hasMedia && "Media attachments are not supported for Twitter in v1"}
+                  {isOverLimit && tooManyImages && " • "}
+                  {tooManyImages && "Twitter allows a maximum of 4 images per tweet"}
                 </span>
                 <span className="font-mono text-[10px] uppercase tracking-wider bg-red-900/40 px-1.5 py-0.5 rounded">
                   X Limit

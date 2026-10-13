@@ -17,6 +17,8 @@ public class FeedOrchestrationService
     private readonly FeedThreadGenerationService _threadGenerationService;
     private readonly DraftValidationService _validationService;
     private readonly FeedAutoPublishService _autoPublishService;
+    private readonly SocialWorker.Api.Features.Drafts.Services.IDraftAutoRepairService? _repairService;
+    private readonly ISourceRelevanceEvaluator? _relevanceEvaluator;
     private readonly ILogger<FeedOrchestrationService> _logger;
 
     public FeedOrchestrationService(
@@ -25,7 +27,9 @@ public class FeedOrchestrationService
         FeedThreadGenerationService threadGenerationService,
         DraftValidationService validationService,
         FeedAutoPublishService autoPublishService,
-        ILogger<FeedOrchestrationService> logger)
+        ILogger<FeedOrchestrationService> logger,
+        SocialWorker.Api.Features.Drafts.Services.IDraftAutoRepairService? repairService = null,
+        ISourceRelevanceEvaluator? relevanceEvaluator = null)
     {
         _db = db;
         _sourceIngestionService = sourceIngestionService;
@@ -33,6 +37,8 @@ public class FeedOrchestrationService
         _validationService = validationService;
         _autoPublishService = autoPublishService;
         _logger = logger;
+        _repairService = repairService;
+        _relevanceEvaluator = relevanceEvaluator;
     }
 
     public virtual Task ProcessFeedItemAsync(
@@ -87,9 +93,26 @@ public class FeedOrchestrationService
         Guid userId,
         CancellationToken ct)
     {
-        var prompt = !string.IsNullOrWhiteSpace(workflow.InstructionPrompt)
+        if (_relevanceEvaluator != null && workflow.MinRelevanceScore > 0)
+        {
+            var evalResult = await _relevanceEvaluator.EvaluateAsync(canonicalDraft, workflow, ct);
+            canonicalDraft.RelevanceScore = evalResult.Score;
+            canonicalDraft.DiscardReason = evalResult.Reasoning;
+
+            if (evalResult.Score < workflow.MinRelevanceScore || !evalResult.ShouldPublish)
+            {
+                canonicalDraft.Status = DraftStatus.Discarded;
+                canonicalDraft.Content = $"[Descartado - Relevância {evalResult.Score}/10 ({evalResult.Category})]: {evalResult.Reasoning}";
+                await _db.SaveChangesAsync(ct);
+                _logger.LogInformation("Draft {DraftId} was discarded (Score {Score}/{MinScore}): {Reason}", canonicalDraft.Id, evalResult.Score, workflow.MinRelevanceScore, evalResult.Reasoning);
+                return;
+            }
+        }
+
+        var basePrompt = !string.IsNullOrWhiteSpace(workflow.InstructionPrompt)
             ? workflow.InstructionPrompt
             : "Summarize this article as a thread.";
+        var prompt = basePrompt;
 
         var generationAttempts = 0;
         const int maxAttempts = 3;
@@ -120,6 +143,8 @@ public class FeedOrchestrationService
 
             _logger.LogWarning("Canonical draft {DraftId} validation rejected on attempt {Attempt}: {Feedback}",
                 canonicalDraft.Id, generationAttempts, validationResult.Feedback);
+
+            prompt = $"{basePrompt}\n\n[ATTENTION: Previous generation attempt failed validation: '{validationResult.Feedback}'. You MUST revise and shorten each segment to strictly satisfy all constraints.]";
         }
 
         if (!isValidCanonical)
@@ -142,7 +167,25 @@ public class FeedOrchestrationService
 
                 if (variant != null)
                 {
-                    await _validationService.ValidateDraftAsync(variant, destination.Platform, ct);
+                    var variantValidation = await _validationService.ValidateDraftAsync(variant, destination.Platform, ct);
+                    if (!variantValidation.IsValid && _repairService != null)
+                    {
+                        _logger.LogWarning("Variant draft {DraftId} for {Platform} failed validation: {Feedback}. Attempting agent self-repair.",
+                            variant.Id, destination.Platform, variantValidation.Feedback);
+
+                        var repairResult = await _repairService.RepairDraftAsync(
+                            variant,
+                            destination.Platform,
+                            variantValidation.Feedback ?? "Platform validation failed.",
+                            userId,
+                            ct);
+
+                        if (!repairResult.Success)
+                        {
+                            _logger.LogWarning("Agent self-repair failed for variant draft {DraftId}: {Error}",
+                                variant.Id, repairResult.ErrorMessage);
+                        }
+                    }
                 }
             }
 

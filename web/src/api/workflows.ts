@@ -33,6 +33,7 @@ export interface AutomationWorkflowDto {
   destinations: WorkflowDestinationDto[];
   scheduleId?: string | null;
   scheduleName?: string | null;
+  minRelevanceScore?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,6 +51,9 @@ export interface WorkflowDraftSummaryDto {
   status: string;
   targetPlatform?: string | null;
   threads: WorkflowDraftThreadDto[];
+  discardReason?: string | null;
+  relevanceScore?: number | null;
+  content?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -76,6 +80,7 @@ export interface CreateAutomationWorkflowRequest {
   sources?: CreateWorkflowSourceRequest[];
   destinations?: CreateWorkflowDestinationRequest[];
   scheduleId?: string | null;
+  minRelevanceScore?: number;
 }
 
 export async function fetchWorkflows(): Promise<AutomationWorkflowDto[]> {

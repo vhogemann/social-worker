@@ -285,7 +285,7 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
         var canonicalDraft = Draft.Create(user.Id, "Canonical Draft");
         var ingestionService = new FakeSourceIngestionService(db, new FeedSourceIngestionResult(IngestionStatus.Success, canonicalDraft, Guid.NewGuid(), null));
         var generationService = new FakeThreadGenerationService(db);
-        var validationService = new FakeValidationService(db) { FailUntilAttempt = 1 };
+        var validationService = new FakeValidationService(db) { FailUntilAttempt = 1, RejectionFeedback = "Exceeded 500 characters" };
         var publishService = new FakeAutoPublishService(db);
 
         var orchestrator = new FeedOrchestrationService(
@@ -301,6 +301,7 @@ public sealed class FeedOrchestrationServiceTests : SqliteTestBase
         Assert.Equal(2, generationService.GenerationAttempts);
         Assert.Equal(2, validationService.ValidationAttempts);
         Assert.NotEqual(DraftStatus.Failed, canonicalDraft.Status);
+        Assert.Contains("Exceeded 500 characters", generationService.LastPromptPassed);
     }
 
     [Fact]

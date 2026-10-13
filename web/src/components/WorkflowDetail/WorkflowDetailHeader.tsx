@@ -4,6 +4,7 @@ import {
   faBolt,
   faClock,
   faEdit,
+  faFilter,
   faRss,
   faShareNodes,
   faTrashCan
@@ -38,6 +39,18 @@ export const WorkflowDetailHeader: React.FC<WorkflowDetailHeaderProps> = ({
             <FontAwesomeIcon icon={faRss} className="text-accent text-[10px]" />
             <span>
               {workflow.sources.length} feed source{workflow.sources.length === 1 ? "" : "s"}
+            </span>
+          </span>
+          <span className="text-border">·</span>
+          <span
+            className="inline-flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded-md bg-panel border border-border"
+            data-testid="workflow-header-filter-badge"
+          >
+            <FontAwesomeIcon icon={faFilter} className="text-accent text-[10px]" />
+            <span>
+              {(workflow.minRelevanceScore ?? 0) > 0
+                ? `Filter: >= ${workflow.minRelevanceScore}/10`
+                : "Filter: Off"}
             </span>
           </span>
           <span className="text-border">·</span>

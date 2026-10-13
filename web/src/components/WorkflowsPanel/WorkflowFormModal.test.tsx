@@ -104,7 +104,8 @@ describe("WorkflowFormModal", () => {
             accountHandle: "alice.bsky.social"
           }
         ],
-        scheduleId: null
+        scheduleId: null,
+        minRelevanceScore: 7
       });
       expect(handleClose).toHaveBeenCalled();
     });
@@ -159,7 +160,8 @@ describe("WorkflowFormModal", () => {
             accountHandle: "alice.bsky.social"
           }
         ],
-        scheduleId: null
+        scheduleId: null,
+        minRelevanceScore: 7
       });
     });
   });
@@ -213,8 +215,59 @@ describe("WorkflowFormModal", () => {
             accountHandle: "alice.bsky.social"
           }
         ],
-        scheduleId: null
+        scheduleId: null,
+        minRelevanceScore: 7
       });
+    });
+  });
+
+  it("initializes and allows adjusting the relevance threshold slider", async () => {
+    const handleSave = vi.fn().mockResolvedValue(undefined);
+    const handleClose = vi.fn();
+
+    const workflowWithCustomScore: AutomationWorkflowDto = {
+      id: "wf-custom",
+      title: "Guerrilha News",
+      instructionPrompt: "Virality focus",
+      sources: [{ feedSubscriptionId: "feed-1", title: "AI Daily" }],
+      destinations: [{ id: "d-1", platform: "Bluesky", autoPublish: false }],
+      minRelevanceScore: 9,
+      createdAt: "2026-09-01T00:00:00Z",
+      updatedAt: "2026-09-01T00:00:00Z"
+    };
+
+    render(
+      <WorkflowFormModal
+        isOpen={true}
+        editingWorkflow={workflowWithCustomScore}
+        availableFeeds={mockFeeds}
+        availableWorkflows={mockWorkflows}
+        connectedAccounts={mockAccounts}
+        onClose={handleClose}
+        onSave={handleSave}
+      />
+    );
+
+    // Verify initial score badge shows 9/10
+    expect(screen.getByTestId("relevance-score-badge")).toHaveTextContent("9/10");
+
+    // Change slider to 0 (Disabled)
+    const slider = screen.getByTestId("relevance-score-slider");
+    fireEvent.change(slider, { target: { value: "0" } });
+
+    expect(screen.getByTestId("relevance-score-badge")).toHaveTextContent("Off (0/10)");
+    expect(screen.getByText(/Filter disabled: All ingested feed items will be processed/i)).toBeInTheDocument();
+
+    const submitBtn = screen.getByRole("button", { name: /save changes/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(handleSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Guerrilha News",
+          minRelevanceScore: 0
+        })
+      );
     });
   });
 });

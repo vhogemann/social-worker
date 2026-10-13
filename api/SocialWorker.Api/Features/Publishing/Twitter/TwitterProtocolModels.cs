@@ -27,9 +27,24 @@ public sealed record TwitterUserResponse(
 public sealed record TwitterReplyOptions(
     [property: JsonPropertyName("in_reply_to_tweet_id")] string InReplyToTweetId);
 
+public sealed record TwitterMediaOptions(
+    [property: JsonPropertyName("media_ids")] IReadOnlyList<string> MediaIds);
+
 public sealed record TwitterCreateTweetRequest(
     [property: JsonPropertyName("text")] string Text,
-    [property: JsonPropertyName("reply"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TwitterReplyOptions? Reply = null);
+    [property: JsonPropertyName("reply"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TwitterReplyOptions? Reply = null,
+    [property: JsonPropertyName("media"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TwitterMediaOptions? Media = null);
+
+public sealed record TwitterMediaInitRequest(
+    [property: JsonPropertyName("total_bytes")] long TotalBytes,
+    [property: JsonPropertyName("media_type")] string MediaType,
+    [property: JsonPropertyName("media_category")] string MediaCategory);
+
+public sealed record TwitterMediaData(
+    [property: JsonPropertyName("id")] string Id);
+
+public sealed record TwitterMediaInitResponse(
+    [property: JsonPropertyName("data")] TwitterMediaData? Data);
 
 public sealed record TwitterTweetData(
     [property: JsonPropertyName("id")] string Id,
@@ -43,3 +58,19 @@ public sealed record TwitterErrorResponse(
     [property: JsonPropertyName("detail")] string? Detail,
     [property: JsonPropertyName("type")] string? Type,
     [property: JsonPropertyName("status")] int? Status);
+
+public sealed record TwitterSearchTweetItem(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("text")] string Text,
+    [property: JsonPropertyName("author_id")] string? AuthorId,
+    [property: JsonPropertyName("created_at")] DateTime? CreatedAt,
+    [property: JsonPropertyName("in_reply_to_user_id")] string? InReplyToUserId,
+    [property: JsonPropertyName("conversation_id")] string? ConversationId);
+
+public sealed record TwitterSearchIncludes(
+    [property: JsonPropertyName("users")] IReadOnlyList<TwitterUserData>? Users);
+
+public sealed record TwitterSearchTweetsResponse(
+    [property: JsonPropertyName("data")] IReadOnlyList<TwitterSearchTweetItem>? Data,
+    [property: JsonPropertyName("includes")] TwitterSearchIncludes? Includes);
+

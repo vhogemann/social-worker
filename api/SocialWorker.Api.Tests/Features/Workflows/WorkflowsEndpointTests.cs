@@ -167,5 +167,40 @@ public sealed class WorkflowsEndpointTests : SqliteTestBase
         Assert.Single(result.Destinations);
         Assert.Equal(expectedMode, result.Destinations[0].PublishingMode);
     }
+
+    [Fact]
+    public async Task UpdateWorkflow_WithSourcesAndDestinations_ReplacesCorrectly()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+
+        var feed1 = FeedSubscription.Create(user.Id, "Feed 1", "https://example.com/feed1.xml");
+        var feed2 = FeedSubscription.Create(user.Id, "Feed 2", "https://example.com/feed2.xml");
+        db.FeedSubscriptions.AddRange(feed1, feed2);
+        await db.SaveChangesAsync();
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Initial Title", "Initial Prompt");
+        workflow.WorkflowSources.Add(AutomationWorkflowSource.Create(workflow.Id, feed1.Id));
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        workflow.Title = "Updated Title";
+        var existingSources = await db.AutomationWorkflowSources.Where(s => s.AutomationWorkflowId == workflow.Id).ToListAsync();
+        db.AutomationWorkflowSources.RemoveRange(existingSources);
+        db.AutomationWorkflowSources.Add(AutomationWorkflowSource.Create(workflow.Id, feed2.Id));
+        db.AutomationWorkflowDestinations.Add(AutomationWorkflowDestination.Create(workflow.Id, "MetaThreads", WorkflowPublishingMode.Scheduled));
+        await db.SaveChangesAsync();
+
+        var reloaded = await db.AutomationWorkflows
+            .Include(w => w.WorkflowSources)
+            .Include(w => w.Destinations)
+            .FirstAsync(w => w.Id == workflow.Id);
+
+        Assert.Equal("Updated Title", reloaded.Title);
+        Assert.Single(reloaded.WorkflowSources);
+        Assert.Equal(feed2.Id, reloaded.WorkflowSources.First().FeedSubscriptionId);
+        Assert.Single(reloaded.Destinations);
+        Assert.Equal("MetaThreads", reloaded.Destinations.First().Platform);
+    }
 }
 

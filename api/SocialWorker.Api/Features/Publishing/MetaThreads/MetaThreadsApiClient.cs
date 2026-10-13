@@ -266,6 +266,23 @@ public class MetaThreadsApiClient
             ?? new MetaThreadsRepliesResponse();
     }
 
+    public virtual async Task<MetaThreadsUserThreadsResponse> GetUserThreadsAsync(
+        string accessToken,
+        int limit = 50,
+        CancellationToken ct = default)
+    {
+        var url = $"{_options.BaseUrl.TrimEnd('/')}/me/threads?fields=id,media_type,text,permalink,shortcode&limit={limit}&access_token={Uri.EscapeDataString(accessToken)}";
+        var res = await _httpClient.GetAsync(url, ct);
+        if (!res.IsSuccessStatusCode)
+        {
+            await ThrowApiExceptionAsync(res, ct);
+        }
+
+        var json = await res.Content.ReadAsStringAsync(ct);
+        return JsonSerializer.Deserialize<MetaThreadsUserThreadsResponse>(json) 
+            ?? new MetaThreadsUserThreadsResponse();
+    }
+
     private async Task<MetaThreadsContainerResponse> PostContainerAsync(
         string userId,
         Dictionary<string, string> parameters,

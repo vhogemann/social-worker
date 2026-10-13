@@ -114,12 +114,34 @@ export interface DraftDto {
   automationWorkflowId?: string | null;
   automationWorkflowTitle?: string | null;
   variants?: DraftDto[];
+  discardReason?: string | null;
+  relevanceScore?: number | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export async function fetchDrafts(): Promise<DraftDto[]> {
-  const res = await apiFetch("/api/drafts");
+export interface FetchDraftsParams {
+  status?: string;
+  workflowId?: string;
+  stage?: string;
+  isPublished?: boolean;
+  since?: string;
+  limit?: number;
+  includeDiscarded?: boolean;
+}
+
+export async function fetchDrafts(params?: FetchDraftsParams): Promise<DraftDto[]> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set("status", params.status);
+  if (params?.workflowId) query.set("workflowId", params.workflowId);
+  if (params?.stage) query.set("stage", params.stage);
+  if (params?.isPublished !== undefined) query.set("isPublished", String(params.isPublished));
+  if (params?.since) query.set("since", params.since);
+  if (params?.limit !== undefined) query.set("limit", String(params.limit));
+  if (params?.includeDiscarded !== undefined) query.set("includeDiscarded", String(params.includeDiscarded));
+
+  const url = query.toString() ? `/api/drafts?${query.toString()}` : "/api/drafts";
+  const res = await apiFetch(url);
   if (!res.ok) throw new Error(`fetchDrafts failed: ${res.status}`);
   return res.json();
 }

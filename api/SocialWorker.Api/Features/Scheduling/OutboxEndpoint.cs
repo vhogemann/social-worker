@@ -35,7 +35,8 @@ public static class OutboxEndpoint
                 .Where(d => d.UserId == userId.Value &&
                             d.AutomationWorkflowId != null &&
                             d.Status != DraftStatus.Archived &&
-                            d.Status != DraftStatus.Deleted)
+                            d.Status != DraftStatus.Deleted &&
+                            d.Status != DraftStatus.Discarded)
                 .Include(d => d.AutomationWorkflow)
                 .Include(d => d.Threads)
                     .ThenInclude(t => t.Account)
@@ -161,6 +162,7 @@ public static class OutboxEndpoint
                     {
                         var post = new Post
                         {
+                            UserId = draft.UserId,
                             DraftId = draft.Id,
                             PlatformThreadId = thread.Id,
                             SegmentIndex = publishedPost.SegmentIndex,

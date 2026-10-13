@@ -56,7 +56,12 @@ public sealed class CalendarProjectionService : ICalendarProjectionService
 
         // 2. Fetch assigned queue items in range
         var queueItemsQuery = _db.ScheduleQueueItems
-            .Where(q => q.Schedule.UserId == userId && q.AssignedSlotUtc.HasValue && q.AssignedSlotUtc >= fromUtc && q.AssignedSlotUtc < toUtc)
+            .Where(q => q.Schedule.UserId == userId 
+                && q.AssignedSlotUtc.HasValue 
+                && q.AssignedSlotUtc >= fromUtc 
+                && q.AssignedSlotUtc < toUtc
+                && q.Status != ScheduleQueueItemStatus.Succeeded
+                && q.Status != ScheduleQueueItemStatus.Failed)
             .Include(q => q.Schedule)
             .Include(q => q.Draft)
             .Include(q => q.PlatformThread)
@@ -68,9 +73,9 @@ public sealed class CalendarProjectionService : ICalendarProjectionService
         }
 
         var assignedQueueItems = await queueItemsQuery.ToListAsync(ct);
-        var assignedMap = assignedQueueItems
+        var assignedLookup = assignedQueueItems
             .Where(q => q.AssignedSlotUtc.HasValue)
-            .ToDictionary(q => (q.ScheduleId, q.AssignedSlotUtc!.Value));
+            .ToLookup(q => (q.ScheduleId, q.AssignedSlotUtc!.Value));
 
         // 3. Project slot occurrences and mark filled vs open
         foreach (var schedule in schedules)
@@ -80,22 +85,26 @@ public sealed class CalendarProjectionService : ICalendarProjectionService
 
             foreach (var slot in subSlots)
             {
-                if (assignedMap.TryGetValue((schedule.Id, slot.SubSlotUtc), out var item))
+                var matchingItems = assignedLookup[(schedule.Id, slot.SubSlotUtc)].ToList();
+                if (matchingItems.Count > 0)
                 {
-                    events.Add(new CalendarEventDto(
-                        Id: item.Id.ToString(),
-                        Type: CalendarEventType.ScheduledPost,
-                        TimestampUtc: slot.SubSlotUtc,
-                        ScheduleId: schedule.Id,
-                        ScheduleName: schedule.Name,
-                        DraftId: item.DraftId,
-                        Title: item.Draft?.Title ?? "Scheduled Post",
-                        PlatformThreadId: item.PlatformThreadId,
-                        Platform: item.PlatformThread?.Platform,
-                        RemoteUrl: null,
-                        SubSlotIndex: slot.SubSlotIndex,
-                        TotalCapacity: slot.TotalCapacity
-                    ));
+                    foreach (var item in matchingItems)
+                    {
+                        events.Add(new CalendarEventDto(
+                            Id: item.Id.ToString(),
+                            Type: CalendarEventType.ScheduledPost,
+                            TimestampUtc: slot.SubSlotUtc,
+                            ScheduleId: schedule.Id,
+                            ScheduleName: schedule.Name,
+                            DraftId: item.DraftId,
+                            Title: item.Draft?.Title ?? "Scheduled Post",
+                            PlatformThreadId: item.PlatformThreadId,
+                            Platform: item.PlatformThread?.Platform,
+                            RemoteUrl: null,
+                            SubSlotIndex: slot.SubSlotIndex,
+                            TotalCapacity: slot.TotalCapacity
+                        ));
+                    }
                 }
                 else
                 {

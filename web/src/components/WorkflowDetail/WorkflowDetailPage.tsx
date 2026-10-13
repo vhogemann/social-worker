@@ -75,6 +75,7 @@ export const WorkflowDetailPage: React.FC = () => {
       feedSubscriptionIds: data.feedSubscriptionIds,
       sources: data.sources,
       scheduleId: data.scheduleId,
+      minRelevanceScore: data.minRelevanceScore,
       destinations: data.destinations.map((d) => ({
         platform: d.platform,
         autoPublish: d.autoPublish,

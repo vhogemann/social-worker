@@ -10,6 +10,7 @@ const mockWorkflow: AutomationWorkflowDto = {
   instructionPrompt: "Summarize top tech stories.",
   createdAt: "2026-08-01T12:00:00Z",
   updatedAt: "2026-08-01T12:00:00Z",
+  minRelevanceScore: 7,
   sources: [
     {
       feedSubscriptionId: "feed-1",
@@ -49,6 +50,7 @@ describe("WorkflowCard", () => {
     expect(screen.getByText("Hacker News")).toBeInTheDocument();
     expect(screen.getByText("@bot.bsky.social")).toBeInTheDocument();
     expect(screen.getByText("Auto-Publish")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-card-filter-badge")).toHaveTextContent("Filter: >= 7/10");
 
     fireEvent.click(screen.getByRole("button", { name: /trigger now/i }));
     expect(handleTrigger).toHaveBeenCalledWith("wf-1");

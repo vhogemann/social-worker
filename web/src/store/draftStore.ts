@@ -15,6 +15,7 @@ import {
   deleteMediaAsset,
   fetchPlatformCapabilities,
   type DraftDto,
+  type FetchDraftsParams,
   type PlatformThreadDto,
   type SourceDto,
   type MediaAssetDto,
@@ -56,7 +57,7 @@ interface DraftStore {
   platformCapabilities: PlatformCapabilityDto[];
   sources: SourceDto[];
   loading: boolean;
-  loadDrafts: () => Promise<void>;
+  loadDrafts: (params?: FetchDraftsParams) => Promise<void>;
   loadPlatformCapabilities: () => Promise<void>;
   supportsReplyTargetForPlatform: (platform: string | null | undefined) => boolean;
   createDraft: (
@@ -98,8 +99,8 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   sources: [],
   loading: false,
 
-  loadDrafts: async () => {
-    const drafts = await fetchDrafts();
+  loadDrafts: async (params?: FetchDraftsParams) => {
+    const drafts = await fetchDrafts(params);
     set({ drafts });
   },
 

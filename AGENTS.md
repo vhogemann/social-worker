@@ -81,6 +81,7 @@ social-worker/
 - **Release tags**: use SemVer only in the form `vMAJOR.MINOR.PATCH` (for example `v0.1.4`). Do not create date-based or suffixed release tags.
 - **TDD / Test Coverage**: Nothing is done until it is covered by tests. All new features, services, endpoints, and tools must have accompanying unit tests under `api/SocialWorker.Api.Tests/`.
 - **Test-driven fixes are mandatory**: Any bug fix must begin by reproducing the issue with an automated test (unit test preferred, e2e test when the behavior is cross-system/UI). Create or update a test so it fails before the fix, implement the fix, then rerun the same test(s) to confirm they pass.
+- **MCP-First Operations**: Always use registered `socialworker` MCP tools (`list_posts`, `list_drafts`, `list_comment_audits`, `trigger_reply_check`, etc.) instead of raw shell, Python, or database scripts when inspecting application state, querying engagement, managing drafts, or triaging comments. See [.agents/rules/mcp-first.md](.agents/rules/mcp-first.md).
 
 ### Refactoring criteria for agents
 

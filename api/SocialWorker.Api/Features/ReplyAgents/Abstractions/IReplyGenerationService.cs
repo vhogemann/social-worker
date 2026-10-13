@@ -14,5 +14,6 @@ public interface IReplyGenerationService
         string platform,
         string? threadSummary,
         AppUser user,
+        Guid? draftId = null,
         CancellationToken ct = default);
 }

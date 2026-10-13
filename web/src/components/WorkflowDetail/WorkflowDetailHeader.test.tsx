@@ -149,4 +149,23 @@ describe("WorkflowDetailHeader", () => {
     fireEvent.click(screen.getByTitle("Delete workflow"));
     expect(onDelete).toHaveBeenCalledTimes(1);
   });
+
+  it("renders filter threshold badge based on minRelevanceScore", () => {
+    const workflowWithFilter: AutomationWorkflowDto = {
+      ...baseWorkflow,
+      minRelevanceScore: 7
+    };
+
+    render(
+      <WorkflowDetailHeader
+        workflow={workflowWithFilter}
+        onTrigger={vi.fn()}
+        onOpenHistory={vi.fn()}
+        onOpenEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("workflow-header-filter-badge")).toHaveTextContent("Filter: >= 7/10");
+  });
 });

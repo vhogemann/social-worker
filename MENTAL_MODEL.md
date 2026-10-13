@@ -32,29 +32,30 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ### Backend domains
 
 - Chat: api/SocialWorker.Api/Features/Chat/
-- Draft lifecycle: api/SocialWorker.Api/Features/Drafts/
-- Publishing: api/SocialWorker.Api/Features/Publishing/ (Bluesky, LinkedIn, MetaThreads, Twitter, Resilience/PublishResumePlanner)
+- Draft lifecycle: api/SocialWorker.Api/Features/Drafts/ (DraftsService, DraftSegmentService, DraftAutoRepairService agent self-correction feedback loop on validation rejections)
+- Publishing: api/SocialWorker.Api/Features/Publishing/ (Bluesky, LinkedIn, MetaThreads, Twitter, Resilience/PublishOutcomeRecorder, PublishValidationService)
 - Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Sources/Instagram/ (Instagram Business Discovery Graph API client, credential provider, OAuth, feed reader converter, setup guide in docs/INSTAGRAM_SETUP.md), api/SocialWorker.Api/Features/Media/
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
-- Feed automation: api/SocialWorker.Api/Features/Feeds/
-- Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService, ScheduleSlotEvaluatorService worker, Review Outbox)
+- Feed automation: api/SocialWorker.Api/Features/Feeds/ (FeedOrchestrationService retry feedback loop, FeedThreadGenerationService)
+- Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService, ScheduleSlotEvaluatorService worker, ScheduledPublishingTaskHandler auto-repair before publishing, Review Outbox)
 - Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/ (IWorkflowSourceHandler, FeedWorkflowSourceHandler, DigestWorkflowSourceHandler, extensible sources)
-- Reply Agents: api/SocialWorker.Api/Features/ReplyAgents/ (Independent `ReplyAgent` entity in user library, many-to-one workflow assignment via `AutomationWorkflow.ReplyAgentId`, `WorkflowCommentThread`, `WorkflowCommentAudit`, `IReplyPlatformAdapter` for Bluesky and Meta Threads, `CommentEnrichmentService` link/image context, `CommentRankingService` 1-10 scoring/terminal closure, `ReplyGenerationService`, `CommentThreadSummarizer` rolling summary cache, stop criteria enforcement)
-- Background tasks & durable queue: api/SocialWorker.Api/Features/BackgroundTasks/ (PostgreSQL atomic queue with Allow-List worker filtering, PostgresBackgroundTaskQueue, workflow-reply-check-post, reply-thread-summary)
+- Reply Agents: api/SocialWorker.Api/Features/ReplyAgents/ (Independent `ReplyAgent` entity in user library, many-to-one workflow assignment via `AutomationWorkflow.ReplyAgentId`, direct post assignment to organic/external/third-party posts via `ReplyAgentPost` and `IExternalPostResolver`, `Post.IsExternal`, `WorkflowCommentThread`, `WorkflowCommentAudit`, `IReplyPlatformAdapter` for Bluesky and Meta Threads with automatic Graph API shortcode-to-mediaId resolution via `GetUserThreadsAsync`, `CommentEnrichmentService` with automated video/audio transcription via `ITranscriptExtractionService` and vision inspection, `CommentRankingService` 1-10 scoring/terminal closure, `ReplyGenerationService` leveraging draft `ChatToolExecutor` and `IChatTool`s including `TranscribeVideoTool`, `web_search`, `fetch_source`, `search_sources`, multi-turn tool loops with final-turn forced synthesis, `CommentThreadSummarizer` rolling summary cache, stop criteria enforcement)
+- Background tasks & durable queue: api/SocialWorker.Api/Features/BackgroundTasks/ (PostgreSQL atomic queue with Allow-List worker filtering, PostgresBackgroundTaskQueue, workflow-reply-check-post, reply-thread-summary, scheduled-publishing)
 - Background task worker pool: api/SocialWorker.Api/Features/BackgroundTasks/Services/BackgroundTaskHostedService.cs (configurable worker workloads, dedicated transcription worker, general workers)
 - Configuration & Overrides: api/SocialWorker.Api/Program.cs (mounted host override `./config/appsettings.json` -> `/app/config/appsettings.json:ro`)
 - Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/ (TokenRefreshHostedService)
 - API Key Subsystem: api/SocialWorker.Api/Infrastructure/Auth/ (ApiKeyService, ApiKeyAuthenticationHandler, SHA-256 hash storage)
-- Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, McpToolRegistry, McpResourceRegistry)
+- Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, 42 tools in McpToolRegistry including `assign_reply_agent_post`, `unassign_reply_agent_post`, `list_reply_agent_posts`, McpResourceRegistry; MCP-First operations policy in .agents/rules/mcp-first.md; complete documentation in docs/mcp_server.md)
 - Markdown AST & Thread Document: api/SocialWorker.Api/Infrastructure/Markdown/ (Markdig CommonMark AST parser for segments, media, links, and facets)
 
 
 ### Frontend entry and state
 
-- App shell & routing: web/src/App.tsx, web/src/components/Navigation/AppHeader.tsx
+- App shell & routing: web/src/App.tsx, web/src/components/Navigation/AppHeader.tsx (Workflows, Reply Agents, Outbox, Calendar, Drafts, Templates, Settings)
+- Reply Agents Cockpit: web/src/components/ReplyAgents/ (ReplyAgentsPage top-level screen with Monitored Posts, Agents Library, Approval Inbox, Activity Stream, MonitorPostModal; ReplyAgentDetailPage deep management)
 - Content Calendar & Views: web/src/components/Calendar/ (CalendarPage, MonthView, WeekView, DayView, QueueSidebar, ScheduleManagerModal, SlotRuleFormModal, DraftPickerModal)
 - Review Outbox Triage: web/src/components/Outbox/ReviewOutboxPage.tsx
-- Settings Library: web/src/components/Settings/ (AccountTab, ConnectionsTab, BrandVoicesTab, ReplyAgentsTab, FeedsTab, UsersTab, ProvidersTab)
+- Settings Library: web/src/components/Settings/ (AccountTab, ConnectionsTab, BrandVoicesTab, FeedsTab, UsersTab, ProvidersTab)
 - Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/ (polymorphic sources: RSS/YouTube feeds, Workflow Highlights/Digests, WorkflowReplyAgentTab with agent selector and live audit triage)
 - Drafts Library Page: web/src/components/Drafts/DraftsPage.tsx
 - Full-width 2-pane Composer: web/src/components/Composer/ComposerPage.tsx
@@ -68,8 +69,8 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (698 tests): api/SocialWorker.Api.Tests/
-- Web tests (Vitest, 481 tests in 92 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- API unit/integration tests (719 tests): api/SocialWorker.Api.Tests/
+- Web tests (Vitest, 482 tests in 92 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - Image Engine tests (Vitest, 14 tests in 3 test files): image-engine/tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
@@ -88,7 +89,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ## Model Context Protocol (MCP) & API Keys
 
 - Endpoint: `/api/mcp` (Stateless JSON-RPC 2.0) and `/api/mcp/sse?api_key=...` (Server-Sent Events continuous stream).
-- Tools (35): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`, `list_schedules`, `get_schedule`, `create_schedule`, `add_slot_rule`, `enqueue_draft`, `get_schedule_queue`, `get_calendar_events`, `list_accounts`, `discover_feed`, `add_feed`, `update_feed`, `create_workflow`, `delete_workflow`, `list_reply_agents`, `create_reply_agent`, `update_reply_agent`, `assign_reply_agent`, `get_reply_agent`, `configure_reply_agent`, `trigger_reply_check`, `list_comment_audits`, `reply_to_comment`.
+- Tools (39): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `delete_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`, `list_schedules`, `get_schedule`, `create_schedule`, `add_slot_rule`, `enqueue_draft`, `get_schedule_queue`, `clear_schedule_queue`, `get_calendar_events`, `list_accounts`, `discover_feed`, `add_feed`, `update_feed`, `create_workflow`, `update_workflow`, `delete_workflow`, `list_reply_agents`, `create_reply_agent`, `update_reply_agent`, `assign_reply_agent`, `get_reply_agent`, `configure_reply_agent`, `trigger_reply_check`, `list_comment_audits`, `reply_to_comment`, `list_posts`.
 - Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`, `socialworker://workflows/{id}/reply-agent`.
 - Auth: `ApiKeyAuthenticationHandler` validates SHA-256 hashed keys (`sw_live_...`) routed through ASP.NET Core `PolicyScheme` ("Composite"). Dev key `sw_live_dev_admin_key_000000000000` seeded in development.
 

@@ -13,6 +13,8 @@ import { PrivacyPolicyPage } from "./components/Privacy/PrivacyPolicyPage";
 import { ReviewOutboxPage } from "./components/Outbox/ReviewOutboxPage";
 import { CalendarPage } from "./components/Calendar/CalendarPage";
 import { SettingsPage } from "./components/Settings/SettingsPage";
+import { ReplyAgentsPage } from "./components/ReplyAgents/ReplyAgentsPage";
+import { ReplyAgentDetailPage } from "./components/ReplyAgents/ReplyAgentDetailPage";
 import { LinkedInCallbackPage } from "./components/Settings/LinkedInCallbackPage";
 import { MetaThreadsCallbackPage } from "./components/Settings/MetaThreadsCallbackPage";
 import { TwitterCallbackPage } from "./components/Settings/TwitterCallbackPage";
@@ -26,6 +28,9 @@ export default function App() {
         <AppHeader />
         <Routes>
           <Route path="/" element={<WorkflowsPage />} />
+          <Route path="/reply-agents" element={<ReplyAgentsPage />} />
+          <Route path="/reply-agents/:id" element={<ReplyAgentDetailPage />} />
+          <Route path="/settings/reply-agents" element={<Navigate to="/reply-agents" replace />} />
           <Route path="/outbox" element={<ReviewOutboxPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/workflows" element={<Navigate to="/" replace />} />

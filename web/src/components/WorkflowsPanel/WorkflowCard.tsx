@@ -28,10 +28,16 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
       className="bg-panel border border-border rounded-xl p-5 flex flex-col justify-between transition hover:border-zinc-600 hover:shadow-md cursor-pointer group shadow-sm"
     >
       <div className="flex flex-col gap-3">
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start gap-2">
           <h3 className="text-sm font-bold text-foreground line-clamp-1 group-hover:text-accent transition">
             {workflow.title}
           </h3>
+          <span
+            className="text-[10px] font-mono px-2 py-0.5 rounded border shrink-0 font-medium text-muted bg-bg border-border"
+            data-testid="workflow-card-filter-badge"
+          >
+            {(workflow.minRelevanceScore ?? 0) > 0 ? `Filter: >= ${workflow.minRelevanceScore}/10` : "Filter: Off"}
+          </span>
         </div>
 
         <p className="text-xs text-muted font-sans line-clamp-2 bg-bg/50 p-2.5 rounded-lg border border-border/50">

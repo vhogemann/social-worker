@@ -41,6 +41,7 @@ Status: `Active`
 2. E2E signal quality and release confidence (flake triage + stable smoke gates).
 3. Tighten operational runbook quality (startup, verification, troubleshooting).
 4. MCP Server capabilities enhancement & agent guidance: [planning/MCP_CAPABILITIES_ENHANCEMENT.md](planning/MCP_CAPABILITIES_ENHANCEMENT.md)
+5. Workflow Pausing & Archiving Lifecycle: [planning/WORKFLOW_PAUSE_AND_ARCHIVE.md](planning/WORKFLOW_PAUSE_AND_ARCHIVE.md)
 
 Definition of done for this phase:
 

@@ -132,7 +132,7 @@ Second segment`} />);
     expect(screen.getByText(/Exceeds 280 weighted-character limit/i)).toBeInTheDocument();
   });
 
-  it("renders media warning on Twitter preview when images are attached", () => {
+  it("renders media warning on Twitter preview when more than 4 images are attached", () => {
     useDraftStore.setState((s) => ({
       ...s,
       drafts: s.drafts.map((d) =>
@@ -140,10 +140,31 @@ Second segment`} />);
       ),
     }));
 
-    const postWithImage = "Check this chart:\n\n![Chart](media://61803512-ef24-4f81-a5d6-ec2d790757f5)";
-    render(<ThreadPreview content={postWithImage} />);
+    const postWithTooManyImages =
+      "Check this chart:\n\n" +
+      "![Chart1](media://61803512-ef24-4f81-a5d6-ec2d790757f1)\n" +
+      "![Chart2](media://61803512-ef24-4f81-a5d6-ec2d790757f2)\n" +
+      "![Chart3](media://61803512-ef24-4f81-a5d6-ec2d790757f3)\n" +
+      "![Chart4](media://61803512-ef24-4f81-a5d6-ec2d790757f4)\n" +
+      "![Chart5](media://61803512-ef24-4f81-a5d6-ec2d790757f5)";
+    render(<ThreadPreview content={postWithTooManyImages} />);
 
     expect(screen.getByTestId("twitter-preview")).toBeInTheDocument();
-    expect(screen.getByText(/Media attachments are not supported for Twitter in v1/i)).toBeInTheDocument();
+    expect(screen.getByText(/maximum of 4 images per tweet/i)).toBeInTheDocument();
+  });
+
+  it("does not render media warning on Twitter preview when up to 4 images are attached", () => {
+    useDraftStore.setState((s) => ({
+      ...s,
+      drafts: s.drafts.map((d) =>
+        d.id === "draft-1" ? { ...d, targetPlatform: "Twitter" } : d
+      ),
+    }));
+
+    const postWithSingleImage = "Check this chart:\n\n![Chart](media://61803512-ef24-4f81-a5d6-ec2d790757f5)";
+    render(<ThreadPreview content={postWithSingleImage} />);
+
+    expect(screen.getByTestId("twitter-preview")).toBeInTheDocument();
+    expect(screen.queryByText(/maximum of 4 images per tweet/i)).not.toBeInTheDocument();
   });
 });

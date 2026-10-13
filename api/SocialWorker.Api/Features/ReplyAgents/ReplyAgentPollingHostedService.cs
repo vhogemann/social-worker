@@ -51,25 +51,56 @@ public sealed class ReplyAgentPollingHostedService : BackgroundService
 
                 foreach (var agent in agents)
                 {
-                    var workflowIds = agent.Workflows.Select(w => w.Id).ToList();
-                    if (workflowIds.Count == 0) continue;
+                    if (agent.LastPolledAt.HasValue &&
+                        DateTime.UtcNow - agent.LastPolledAt.Value < TimeSpan.FromMinutes(agent.CheckIntervalMinutes))
+                    {
+                        continue;
+                    }
 
-                    var cutoff = DateTime.UtcNow.Subtract(TimeSpan.FromDays(agent.MaxPostAgeDays));
-                    var posts = await db.Posts
-                        .Include(p => p.Draft)
-                        .Where(p => p.Draft.AutomationWorkflowId.HasValue
-                            && workflowIds.Contains(p.Draft.AutomationWorkflowId.Value)
-                            && p.RemoteId != null
-                            && p.PostedAt >= cutoff)
+                    var postIdsToPoll = new HashSet<Guid>();
+                    var workflowIds = agent.Workflows.Select(w => w.Id).ToList();
+                    if (workflowIds.Count > 0)
+                    {
+                        var cutoff = DateTime.UtcNow.Subtract(TimeSpan.FromDays(agent.MaxPostAgeDays));
+                        var workflowPosts = await db.Posts
+                            .Include(p => p.Draft)
+                            .Where(p => p.Draft != null
+                                && p.Draft.AutomationWorkflowId.HasValue
+                                && workflowIds.Contains(p.Draft.AutomationWorkflowId.Value)
+                                && p.RemoteId != null
+                                && p.PostedAt >= cutoff)
+                            .Select(p => p.Id)
+                            .ToListAsync(stoppingToken);
+
+                        foreach (var id in workflowPosts)
+                        {
+                            postIdsToPoll.Add(id);
+                        }
+                    }
+
+                    var directlyAssignedPostIds = await db.ReplyAgentPosts
+                        .Where(rap => rap.ReplyAgentId == agent.Id && rap.IsActive && rap.Post.RemoteId != null)
+                        .Select(rap => rap.PostId)
                         .ToListAsync(stoppingToken);
 
-                    foreach (var post in posts)
+                    foreach (var id in directlyAssignedPostIds)
                     {
-                        var dedupKey = $"reply-check-{agent.Id}-{post.Id}-{DateTime.UtcNow:yyyyMMddHHmm}";
-                        var payload = new WorkflowReplyCheckPostPayload(agent.Id, post.Id);
-                        var options = EnqueueTaskOptions.WithDeduplication(dedupKey);
+                        postIdsToPoll.Add(id);
+                    }
 
-                        await taskQueue.EnqueueAsync("workflow-reply-check-post", payload, options, stoppingToken);
+                    if (postIdsToPoll.Count > 0)
+                    {
+                        foreach (var postId in postIdsToPoll)
+                        {
+                            var dedupKey = $"reply-check-{agent.Id}-{postId}-{DateTime.UtcNow:yyyyMMddHHmm}";
+                            var payload = new WorkflowReplyCheckPostPayload(agent.Id, postId);
+                            var options = EnqueueTaskOptions.WithDeduplication(dedupKey);
+
+                            await taskQueue.EnqueueAsync("workflow-reply-check-post", payload, options, stoppingToken);
+                        }
+
+                        agent.LastPolledAt = DateTime.UtcNow;
+                        await db.SaveChangesAsync(stoppingToken);
                     }
                 }
             }

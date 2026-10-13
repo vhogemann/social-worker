@@ -24,6 +24,8 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<ICommentRankingService, CommentRankingService>();
         builder.Services.AddScoped<IReplyGenerationService, ReplyGenerationService>();
         builder.Services.AddScoped<ICommentThreadSummarizer, CommentThreadSummarizer>();
+        builder.Services.AddScoped<IExternalPostResolver, ExternalPostResolver>();
+        builder.Services.AddScoped<ReplyAgentPostService>();
         builder.Services.AddScoped<ReplyAgentCoordinatorService>();
 
         builder.Services.AddScoped<IBackgroundTaskHandler, WorkflowReplyCheckPostTaskHandler>();

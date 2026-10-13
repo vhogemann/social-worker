@@ -111,6 +111,7 @@ public class FeedAutoPublishService
                         {
                             var post = new Post
                             {
+                                UserId = canonicalDraft.UserId,
                                 DraftId = variant?.Id ?? canonicalDraft.Id,
                                 PlatformThreadId = thread.Id,
                                 SegmentIndex = publishedPost.SegmentIndex,

@@ -49,7 +49,7 @@ internal static class TestServiceFactory
         queue ??= new TestBackgroundTaskQueue();
         var draftSegmentService = new DraftSegmentService(db);
         var draftChatSummaryService = new DraftChatSummaryService(queue);
-        return new DraftsService(db, storage, sourcesService, draftSegmentService, draftChatSummaryService);
+        return new DraftsService(db, storage, sourcesService, draftSegmentService, draftChatSummaryService, queue);
     }
 
     private sealed class FixedHttpMessageHandler : HttpMessageHandler

@@ -104,7 +104,7 @@ public sealed class ReplyAgentCoordinatorService
 
         var user = agent.User;
 
-        foreach (var comment in comments.OrderBy(c => c.CreatedAt))
+        foreach (var comment in comments.DistinctBy(c => c.RemoteCommentId).OrderBy(c => c.CreatedAt))
         {
             await ProcessSingleCommentAsync(agent, post, account, user, adapter, comment, since, ct);
         }
@@ -208,6 +208,7 @@ public sealed class ReplyAgentCoordinatorService
             post.Platform,
             thread.Summary,
             user,
+            post.DraftId,
             ct);
 
         if (!replyGen.Success || string.IsNullOrWhiteSpace(replyGen.ReplyText))
@@ -285,8 +286,16 @@ public sealed class ReplyAgentCoordinatorService
             remoteParentId: comment.RemoteParentId,
             remoteRootId: comment.RemoteRootId);
 
-        _db.WorkflowCommentAudits.Add(audit);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            _db.WorkflowCommentAudits.Add(audit);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Comment audit already recorded for comment {RemoteCommentId} and agent {AgentId}", comment.RemoteCommentId, agent.Id);
+            _db.Entry(audit).State = EntityState.Detached;
+        }
     }
 
     private async Task RecordAuditWithEnrichmentAsync(
@@ -328,7 +337,15 @@ public sealed class ReplyAgentCoordinatorService
             null,
             error);
 
-        _db.WorkflowCommentAudits.Add(audit);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            _db.WorkflowCommentAudits.Add(audit);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Comment audit already recorded with enrichment for comment {RemoteCommentId} and agent {AgentId}", comment.RemoteCommentId, agent.Id);
+            _db.Entry(audit).State = EntityState.Detached;
+        }
     }
 }

@@ -145,6 +145,7 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
             {
                 var post = new Post
                 {
+                    UserId = context.UserId,
                     DraftId = context.DraftId.Value,
                     PlatformThreadId = thread.Id,
                     SegmentIndex = publishedPost.SegmentIndex,

@@ -10,6 +10,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using System.IO;
+using SocialWorker.Api.Features.Media;
 using SocialWorker.Api.Features.Publishing.Resilience;
 using SocialWorker.Api.Infrastructure.Markdown;
 using SocialWorker.Api.Infrastructure.Security;
@@ -22,6 +24,7 @@ public class TwitterPublisher : IPublisher
     private readonly TwitterOAuthService _oauth;
     private readonly TwitterOptions _options;
     private readonly AppDbContext _db;
+    private readonly FileStorageProvider? _storage;
     private readonly string _encryptionKey;
     private readonly ILogger<TwitterPublisher> _logger;
 
@@ -33,13 +36,15 @@ public class TwitterPublisher : IPublisher
         AppDbContext db,
         TwitterApiClient apiClient,
         TwitterOAuthService oauth,
-        ILogger<TwitterPublisher> logger)
+        ILogger<TwitterPublisher> logger,
+        FileStorageProvider? storage = null)
     {
         _options = options.Value;
         _db = db;
         _apiClient = apiClient;
         _oauth = oauth;
         _logger = logger;
+        _storage = storage;
         _encryptionKey = config["Auth:DbEncryptionKey"] ?? "";
     }
 
@@ -166,10 +171,35 @@ public class TwitterPublisher : IPublisher
 
             try
             {
+                List<string>? mediaIds = null;
+                if (segment.MediaEmbeds.Count > 0 && _storage != null)
+                {
+                    mediaIds = new List<string>();
+                    foreach (var mediaRef in segment.MediaEmbeds)
+                    {
+                        var asset = await _db.MediaAssets.AsNoTracking().FirstOrDefaultAsync(a => a.Id == mediaRef.MediaId, ct);
+                        if (asset == null)
+                        {
+                            continue;
+                        }
+
+                        var fullPath = _storage.GetFullPath(asset.FilePath);
+                        if (!File.Exists(fullPath))
+                        {
+                            continue;
+                        }
+
+                        var bytes = await File.ReadAllBytesAsync(fullPath, ct);
+                        var mediaId = await _apiClient.UploadMediaAsync(accessToken, bytes, asset.MimeType, ct);
+                        mediaIds.Add(mediaId);
+                    }
+                }
+
                 var tweet = await _apiClient.CreateTweetAsync(
                     accessToken: accessToken,
                     text: segment.PlainText,
                     inReplyToTweetId: replyToId,
+                    mediaIds: mediaIds,
                     ct: ct);
 
                 var postUrl = $"https://x.com/{handleClean}/status/{tweet.Id}";

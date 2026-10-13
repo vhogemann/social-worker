@@ -200,4 +200,44 @@ public sealed class ScheduleQueueServiceTests : SqliteTestBase
         Assert.NotNull(resumed);
         Assert.Equal(ScheduleQueueItemStatus.Queued, resumed.Status);
     }
+
+    [Fact]
+    public async Task RemoveWorkflowItemsFromQueueAsync_RemovesOnlyMatchingWorkflowItemsAndReindexesRemaining()
+    {
+        var schedule = Schedule.Create(_user.Id, "Threads Queue");
+        _db.Schedules.Add(schedule);
+
+        var wf1 = new AutomationWorkflow { Id = Guid.NewGuid(), UserId = _user.Id, Title = "Target WF", InstructionPrompt = "P" };
+        var wf2 = new AutomationWorkflow { Id = Guid.NewGuid(), UserId = _user.Id, Title = "Other WF", InstructionPrompt = "P" };
+        _db.AutomationWorkflows.AddRange(wf1, wf2);
+
+        var targetWorkflowId = wf1.Id;
+        var otherWorkflowId = wf2.Id;
+
+        var draft1 = new Draft { Id = Guid.NewGuid(), UserId = _user.Id, Title = "Target 1", AutomationWorkflowId = targetWorkflowId };
+        var draft2 = new Draft { Id = Guid.NewGuid(), UserId = _user.Id, Title = "Other 1", AutomationWorkflowId = otherWorkflowId };
+        var draft3 = new Draft { Id = Guid.NewGuid(), UserId = _user.Id, Title = "Target 2", AutomationWorkflowId = targetWorkflowId };
+        _db.Drafts.AddRange(draft1, draft2, draft3);
+
+        var thread1 = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft1.Id, Platform = "MetaThreads", Stage = PlatformThreadStage.Draft };
+        var thread2 = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft2.Id, Platform = "MetaThreads", Stage = PlatformThreadStage.Draft };
+        var thread3 = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft3.Id, Platform = "MetaThreads", Stage = PlatformThreadStage.Draft };
+        _db.PlatformThreads.AddRange(thread1, thread2, thread3);
+
+        await _db.SaveChangesAsync();
+
+        var item1 = await _service.EnqueueAsync(schedule.Id, thread1.Id, draft1.Id);
+        var item2 = await _service.EnqueueAsync(schedule.Id, thread2.Id, draft2.Id);
+        var item3 = await _service.EnqueueAsync(schedule.Id, thread3.Id, draft3.Id);
+
+        var removedCount = await _service.RemoveWorkflowItemsFromQueueAsync(schedule.Id, targetWorkflowId);
+
+        Assert.Equal(2, removedCount);
+
+        var queue = await _service.GetQueueAsync(schedule.Id);
+        Assert.Single(queue);
+        Assert.Equal(item2.Id, queue[0].Id);
+        Assert.Equal(0, queue[0].Position);
+        Assert.Equal(otherWorkflowId, queue[0].Draft.AutomationWorkflowId);
+    }
 }

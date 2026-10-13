@@ -98,17 +98,26 @@ export const DraftCard: React.FC<DraftCardProps> = ({
                   ? "success"
                   : draft.status === "Archived"
                   ? "neutral"
-                  : draft.status === "Scheduled"
+                  : draft.status === "Scheduled" || draft.status === "Discarded"
                   ? "warning"
                   : "accent"
               }
+              className={draft.status === "Discarded" ? "border-amber-500/40 text-amber-300 bg-amber-500/10" : undefined}
             >
-              {draft.status}
+              {draft.status === "Discarded" && draft.relevanceScore != null
+                ? `Discarded (${draft.relevanceScore}/10)`
+                : draft.status}
             </Badge>
           </div>
         </div>
 
-        {draft.content && (
+        {draft.status === "Discarded" && draft.discardReason && (
+          <p className="text-xs text-muted/90 line-clamp-2 italic bg-bg/60 p-2 rounded border border-border/60">
+            "{draft.discardReason}"
+          </p>
+        )}
+
+        {draft.content && draft.status !== "Discarded" && (
           <p className="text-xs text-muted line-clamp-3 leading-relaxed">
             {draft.content}
           </p>

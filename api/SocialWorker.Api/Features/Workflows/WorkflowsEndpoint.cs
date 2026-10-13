@@ -57,7 +57,7 @@ public static class WorkflowsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            var workflow = AutomationWorkflow.Create(userId.Value, req.Title, req.InstructionPrompt, req.ScheduleId);
+            var workflow = AutomationWorkflow.Create(userId.Value, req.Title, req.InstructionPrompt, req.ScheduleId, req.MinRelevanceScore ?? 7);
             db.AutomationWorkflows.Add(workflow);
 
             if (req.Sources != null && req.Sources.Count > 0)
@@ -172,6 +172,10 @@ public static class WorkflowsEndpoint
             workflow.Title = string.IsNullOrWhiteSpace(req.Title) ? "Untitled Workflow" : req.Title.Trim();
             workflow.InstructionPrompt = req.InstructionPrompt ?? "";
             workflow.ScheduleId = req.ScheduleId;
+            if (req.MinRelevanceScore.HasValue)
+            {
+                workflow.MinRelevanceScore = Math.Clamp(req.MinRelevanceScore.Value, 0, 10);
+            }
             workflow.UpdatedAt = DateTime.UtcNow;
 
             var existingSources = await db.AutomationWorkflowSources
@@ -467,6 +471,7 @@ public sealed record AutomationWorkflowDto(
     List<WorkflowDestinationDto> Destinations,
     Guid? ScheduleId,
     string? ScheduleName,
+    int MinRelevanceScore,
     DateTime CreatedAt,
     DateTime UpdatedAt)
 {
@@ -479,6 +484,7 @@ public sealed record AutomationWorkflowDto(
             w.Destinations.Select(d => new WorkflowDestinationDto(d)).ToList(),
             w.ScheduleId,
             w.Schedule?.Name,
+            w.MinRelevanceScore,
             w.CreatedAt,
             w.UpdatedAt)
     {
@@ -504,7 +510,8 @@ public sealed record CreateAutomationWorkflowRequest(
     List<Guid>? FeedSubscriptionIds = null,
     List<CreateWorkflowSourceRequest>? Sources = null,
     List<CreateWorkflowDestinationRequest>? Destinations = null,
-    Guid? ScheduleId = null);
+    Guid? ScheduleId = null,
+    int? MinRelevanceScore = null);
 
 public sealed record WorkflowDraftThreadDto(
     string Platform,
@@ -525,7 +532,10 @@ public sealed record WorkflowDraftSummaryDto(
     string? TargetPlatform,
     List<WorkflowDraftThreadDto> Threads,
     DateTime CreatedAt,
-    DateTime UpdatedAt)
+    DateTime UpdatedAt,
+    string? DiscardReason = null,
+    int? RelevanceScore = null,
+    string? Content = null)
 {
     public WorkflowDraftSummaryDto(Draft d)
         : this(
@@ -535,7 +545,10 @@ public sealed record WorkflowDraftSummaryDto(
             d.TargetPlatform?.ToString(),
             BuildThreads(d),
             d.CreatedAt,
-            d.UpdatedAt)
+            d.UpdatedAt,
+            d.DiscardReason,
+            d.RelevanceScore,
+            d.Content)
     {
     }
 

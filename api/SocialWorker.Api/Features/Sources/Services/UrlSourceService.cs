@@ -49,6 +49,36 @@ public sealed class UrlSourceService : IUrlSourceService
 
         _urlValidator.EnsureAbsoluteHttpUrl(normalizedReference, nameof(reference));
 
+        var initialYoutubeId = _youTubeSourceService.TryExtractYouTubeVideoId(normalizedReference);
+        var existing = await _db.Sources.FirstOrDefaultAsync(s =>
+            s.Reference == normalizedReference ||
+            (initialYoutubeId != null && s.YoutubeVideoId == initialYoutubeId), ct);
+
+        if (existing != null)
+        {
+            var hasLink = await _db.DraftSources.AnyAsync(ds => ds.DraftId == draftId && ds.SourceId == existing.Id, ct);
+            if (!hasLink)
+            {
+                _db.DraftSources.Add(new DraftSource
+                {
+                    DraftId = draftId,
+                    SourceId = existing.Id,
+                    LinkedAt = DateTime.UtcNow
+                });
+            }
+
+            draft.Status = DraftStatus.Editing;
+            draft.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+
+            if (existing.Kind == SourceKind.YouTube && existing.ProcessingStatus == SourceProcessingStatus.Failed)
+            {
+                _youTubeSourceService.QueueTranscriptExtraction(existing.Id, draft.Id);
+            }
+
+            return new AddUrlSourceResult(existing.Id, existing.Reference, existing.Title, existing.Kind.ToString());
+        }
+
         var sourceKind = SourceKind.Url;
         var sourceTitle = title;
         var sourceContent = content;
@@ -65,6 +95,31 @@ public sealed class UrlSourceService : IUrlSourceService
             sourceTitle ??= scrape.Title;
             sourceContent = scrape.Content;
             sourceKind = scrape.IsYouTube ? SourceKind.YouTube : SourceKind.Url;
+
+            var postScrapeYoutubeId = _youTubeSourceService.TryExtractYouTubeVideoId(normalizedReference);
+            var existingAfterScrape = await _db.Sources.FirstOrDefaultAsync(s =>
+                s.Reference == normalizedReference ||
+                (postScrapeYoutubeId != null && s.YoutubeVideoId == postScrapeYoutubeId), ct);
+
+            if (existingAfterScrape != null)
+            {
+                var hasLink = await _db.DraftSources.AnyAsync(ds => ds.DraftId == draftId && ds.SourceId == existingAfterScrape.Id, ct);
+                if (!hasLink)
+                {
+                    _db.DraftSources.Add(new DraftSource
+                    {
+                        DraftId = draftId,
+                        SourceId = existingAfterScrape.Id,
+                        LinkedAt = DateTime.UtcNow
+                    });
+                }
+
+                draft.Status = DraftStatus.Editing;
+                draft.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+
+                return new AddUrlSourceResult(existingAfterScrape.Id, existingAfterScrape.Reference, existingAfterScrape.Title, existingAfterScrape.Kind.ToString());
+            }
         }
 
         string? summary = null;

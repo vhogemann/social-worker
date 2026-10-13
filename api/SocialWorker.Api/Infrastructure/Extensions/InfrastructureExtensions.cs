@@ -7,6 +7,7 @@ using FluentValidation;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Features.Accounts;
 using SocialWorker.Api.Features.Drafts;
+using SocialWorker.Api.Features.Drafts.Services;
 using SocialWorker.Api.Features.PlatformVariants;
 using SocialWorker.Api.Features.Prompts;
 using SocialWorker.Api.Features.Auth;
@@ -34,6 +35,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<DraftsService>();
         builder.Services.AddScoped<DraftChatSummaryService>();
         builder.Services.AddScoped<PlatformVariantService>();
+        builder.Services.AddScoped<IDraftAutoRepairService, DraftAutoRepairService>();
 
         builder.Services.AddScoped<Features.Providers.Services.ProvidersService>();
         builder.Services.AddScoped<ApiKeyService>();

@@ -21,6 +21,7 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
     private readonly IPublisherResolver _publisherResolver;
     private readonly SocialWorker.Api.Features.Publishing.Validation.PublishValidationService _validationService;
     private readonly SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder _outcomeRecorder;
+    private readonly SocialWorker.Api.Features.Drafts.Services.IDraftAutoRepairService? _repairService;
     private readonly ILogger<ScheduledPublishingTaskHandler> _logger;
 
     public override string TaskType => TaskTypeName;
@@ -32,13 +33,15 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
         IPublisherResolver publisherResolver,
         SocialWorker.Api.Features.Publishing.Validation.PublishValidationService validationService,
         SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder outcomeRecorder,
-        ILogger<ScheduledPublishingTaskHandler> logger)
+        ILogger<ScheduledPublishingTaskHandler> logger,
+        SocialWorker.Api.Features.Drafts.Services.IDraftAutoRepairService? repairService = null)
     {
         _db = db;
         _publisherResolver = publisherResolver;
         _validationService = validationService;
         _outcomeRecorder = outcomeRecorder;
         _logger = logger;
+        _repairService = repairService;
     }
 
     public override async Task<TaskResult> ExecuteAsync(
@@ -98,6 +101,28 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
         }
 
         var validationError = await _validationService.ValidateForPublishAsync(thread, ct);
+        if (validationError != null && _repairService != null)
+        {
+            _logger.LogWarning("Thread {ThreadId} failed validation for platform {Platform}: {Error}. Attempting agent self-repair.",
+                thread.Id, thread.Platform, validationError);
+
+            var repairResult = await _repairService.RepairPlatformThreadAsync(
+                thread,
+                validationError,
+                thread.Draft?.UserId ?? account.UserId,
+                ct);
+
+            if (repairResult.Success)
+            {
+                _logger.LogInformation("Thread {ThreadId} successfully repaired by agent. Re-validating before publish.", thread.Id);
+                validationError = await _validationService.ValidateForPublishAsync(thread, ct);
+            }
+            else
+            {
+                _logger.LogWarning("Agent self-repair failed for thread {ThreadId}: {RepairError}", thread.Id, repairResult.ErrorMessage);
+            }
+        }
+
         if (validationError != null)
         {
             queueItem.Status = ScheduleQueueItemStatus.Failed;

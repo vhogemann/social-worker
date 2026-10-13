@@ -92,6 +92,7 @@ public sealed class ReplyAgentCoordinatorServiceTests : SqliteTestBase
             string platform,
             string? threadSummary,
             AppUser user,
+            Guid? draftId = null,
             CancellationToken ct = default)
         {
             return Task.FromResult(ResultToReturn);

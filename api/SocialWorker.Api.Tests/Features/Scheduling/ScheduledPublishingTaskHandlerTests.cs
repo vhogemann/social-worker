@@ -27,6 +27,8 @@ public sealed class ScheduledPublishingTaskHandlerTests : SqliteTestBase
     private readonly AppUser _user;
     private readonly StubPublisher _publisher;
     private readonly StubPublisherResolver _resolver;
+    private readonly PublishValidationService _validationService;
+    private readonly SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder _outcomeRecorder;
     private readonly ScheduledPublishingTaskHandler _handler;
 
     public ScheduledPublishingTaskHandlerTests()
@@ -38,7 +40,7 @@ public sealed class ScheduledPublishingTaskHandlerTests : SqliteTestBase
         var canonicalValidator = new CanonicalDraftValidator();
         var blueskyValidator = new BlueskyDraftValidator(
             new BlueskyContentValidator(),
-            Array.Empty<IValidateDraftRule<BlueskySegmentValidation>>());
+            new[] { new BlueskyMaxCharactersRule() });
         var linkedInValidator = new LinkedInDraftValidator();
         var policy = new PlatformContentPolicy();
         var validatorResolver = new DraftValidatorResolver(
@@ -46,13 +48,13 @@ public sealed class ScheduledPublishingTaskHandlerTests : SqliteTestBase
             blueskyValidator,
             linkedInValidator,
             policy);
-        var validationService = new PublishValidationService(validatorResolver, _db);
-        var outcomeRecorder = new SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder(_db);
+        _validationService = new PublishValidationService(validatorResolver, _db);
+        _outcomeRecorder = new SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder(_db);
         _handler = new ScheduledPublishingTaskHandler(
             _db,
             _resolver,
-            validationService,
-            outcomeRecorder,
+            _validationService,
+            _outcomeRecorder,
             NullLogger<ScheduledPublishingTaskHandler>.Instance);
     }
 
@@ -219,6 +221,97 @@ public sealed class ScheduledPublishingTaskHandlerTests : SqliteTestBase
 
         Assert.Equal(TaskOutcome.Success, result.Outcome);
         Assert.False(_publisher.WasCalled);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenValidationFails_InvokesAgentRepairAndPublishesIfRepairSucceeds()
+    {
+        var (_, draft, thread, _, item) = await CreateTestDataAsync();
+        thread.Content = new string('x', 301);
+        await _db.SaveChangesAsync();
+
+        var fakeRepairService = new StubDraftAutoRepairService
+        {
+            RepairHandler = t =>
+            {
+                t.Content = "Repaired and valid short post";
+                return Task.FromResult(SocialWorker.Api.Features.Drafts.Services.DraftRepairResult.Succeeded(t.Content));
+            }
+        };
+
+        var handlerWithRepair = new ScheduledPublishingTaskHandler(
+            _db,
+            _resolver,
+            _validationService,
+            _outcomeRecorder,
+            NullLogger<ScheduledPublishingTaskHandler>.Instance,
+            fakeRepairService);
+
+        var payload = new ScheduledPublishingPayload(item.Id, item.ScheduleId, draft.Id, thread.Id);
+        var context = new TestTaskExecutionContext();
+
+        var result = await handlerWithRepair.ExecuteAsync(payload, context, CancellationToken.None);
+
+        Assert.Equal(TaskOutcome.Success, result.Outcome);
+        Assert.True(_publisher.WasCalled);
+        Assert.True(fakeRepairService.WasCalled);
+        Assert.Equal("Repaired and valid short post", thread.Content);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenValidationFailsAndRepairFails_MarksQueueItemFailed()
+    {
+        var (_, draft, thread, _, item) = await CreateTestDataAsync();
+        thread.Content = new string('x', 301);
+        await _db.SaveChangesAsync();
+
+        var fakeRepairService = new StubDraftAutoRepairService
+        {
+            RepairHandler = t => Task.FromResult(SocialWorker.Api.Features.Drafts.Services.DraftRepairResult.Failed("Could not shorten"))
+        };
+
+        var handlerWithRepair = new ScheduledPublishingTaskHandler(
+            _db,
+            _resolver,
+            _validationService,
+            _outcomeRecorder,
+            NullLogger<ScheduledPublishingTaskHandler>.Instance,
+            fakeRepairService);
+
+        var payload = new ScheduledPublishingPayload(item.Id, item.ScheduleId, draft.Id, thread.Id);
+        var context = new TestTaskExecutionContext();
+
+        var result = await handlerWithRepair.ExecuteAsync(payload, context, CancellationToken.None);
+
+        Assert.Equal(TaskOutcome.Fatal, result.Outcome);
+        Assert.False(_publisher.WasCalled);
+        Assert.True(fakeRepairService.WasCalled);
+
+        var updatedItem = await _db.ScheduleQueueItems.FindAsync(item.Id);
+        Assert.NotNull(updatedItem);
+        Assert.Equal(ScheduleQueueItemStatus.Failed, updatedItem.Status);
+    }
+
+    private sealed class StubDraftAutoRepairService : SocialWorker.Api.Features.Drafts.Services.IDraftAutoRepairService
+    {
+        public bool WasCalled { get; private set; }
+        public Func<PlatformThread, Task<SocialWorker.Api.Features.Drafts.Services.DraftRepairResult>>? RepairHandler { get; set; }
+
+        public Task<SocialWorker.Api.Features.Drafts.Services.DraftRepairResult> RepairDraftAsync(Draft draft, string platform, string validationError, Guid userId, CancellationToken ct)
+        {
+            WasCalled = true;
+            return Task.FromResult(SocialWorker.Api.Features.Drafts.Services.DraftRepairResult.Succeeded(draft.Content ?? ""));
+        }
+
+        public Task<SocialWorker.Api.Features.Drafts.Services.DraftRepairResult> RepairPlatformThreadAsync(PlatformThread thread, string validationError, Guid userId, CancellationToken ct)
+        {
+            WasCalled = true;
+            if (RepairHandler != null)
+            {
+                return RepairHandler(thread);
+            }
+            return Task.FromResult(SocialWorker.Api.Features.Drafts.Services.DraftRepairResult.Succeeded(thread.Content ?? ""));
+        }
     }
 
     private sealed class StubPublisherResolver : IPublisherResolver

@@ -138,6 +138,54 @@ public sealed class ScheduleQueueService : IScheduleQueueService
         return true;
     }
 
+    public async Task<int> RemoveWorkflowItemsFromQueueAsync(Guid scheduleId, Guid workflowId, CancellationToken ct = default)
+    {
+        var items = await _db.ScheduleQueueItems
+            .Include(q => q.Draft)
+            .Where(q => q.ScheduleId == scheduleId && q.Draft.AutomationWorkflowId == workflowId)
+            .ToListAsync(ct);
+
+        if (items.Count == 0)
+            return 0;
+
+        var threadIds = items.Select(i => i.PlatformThreadId).Distinct().ToList();
+        var threads = await _db.PlatformThreads
+            .Where(t => threadIds.Contains(t.Id))
+            .ToListAsync(ct);
+        var threadMap = threads.ToDictionary(t => t.Id);
+
+        foreach (var item in items)
+        {
+            if (item.ScheduledTaskId.HasValue)
+            {
+                await _taskQueue.CancelTaskAsync(item.ScheduledTaskId.Value, ct);
+            }
+
+            if (threadMap.TryGetValue(item.PlatformThreadId, out var thread) && thread.Stage == PlatformThreadStage.Scheduled)
+            {
+                thread.Stage = PlatformThreadStage.Draft;
+                thread.UpdatedAt = DateTime.UtcNow;
+            }
+
+            _db.ScheduleQueueItems.Remove(item);
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        var remaining = await _db.ScheduleQueueItems
+            .Where(q => q.ScheduleId == scheduleId)
+            .OrderBy(q => q.Position)
+            .ToListAsync(ct);
+
+        for (int i = 0; i < remaining.Count; i++)
+        {
+            remaining[i].Position = i;
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return items.Count;
+    }
+
     public async Task<ScheduleQueueItem?> PauseQueueItemAsync(
         Guid scheduleId,
         Guid queueItemId,

@@ -93,3 +93,15 @@ public sealed record MetaThreadsRepliesResponse(
     [property: JsonPropertyName("data")] List<MetaThreadsReplyItem>? Data = null
 );
 
+public sealed record MetaThreadsUserThreadItem(
+    [property: JsonPropertyName("id"), JsonConverter(typeof(MetaThreadsStringOrNumberConverter))] string Id,
+    [property: JsonPropertyName("media_type")] string? MediaType,
+    [property: JsonPropertyName("text")] string? Text,
+    [property: JsonPropertyName("permalink")] string? Permalink,
+    [property: JsonPropertyName("shortcode")] string? Shortcode
+);
+
+public sealed record MetaThreadsUserThreadsResponse(
+    [property: JsonPropertyName("data")] List<MetaThreadsUserThreadItem>? Data = null
+);
+

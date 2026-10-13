@@ -31,6 +31,7 @@ public class AppDbContext : DbContext
     public DbSet<ScheduleQueueItem> ScheduleQueueItems => Set<ScheduleQueueItem>();
     public DbSet<OAuthState> OAuthStates => Set<OAuthState>();
     public DbSet<ReplyAgent> ReplyAgents => Set<ReplyAgent>();
+    public DbSet<ReplyAgentPost> ReplyAgentPosts => Set<ReplyAgentPost>();
     public DbSet<WorkflowCommentThread> WorkflowCommentThreads => Set<WorkflowCommentThread>();
     public DbSet<WorkflowCommentAudit> WorkflowCommentAudits => Set<WorkflowCommentAudit>();
 
@@ -70,6 +71,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.Title).HasMaxLength(200);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50);
             e.Property(x => x.Content).HasColumnType("text");
+            e.Property(x => x.DiscardReason).HasColumnType("text");
             e.Property(x => x.TargetPlatform).HasConversion<string>().HasMaxLength(50);
             e.HasOne(x => x.User)
                 .WithMany()
@@ -200,15 +202,27 @@ public class AppDbContext : DbContext
             e.Property(x => x.RemoteCid).HasMaxLength(255);
             e.Property(x => x.PublishedText).HasColumnType("text");
             e.Property(x => x.Url).HasMaxLength(1000);
+            e.Property(x => x.AuthorHandle).HasMaxLength(255);
+            e.Property(x => x.IsExternal).HasDefaultValue(false);
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.UserId);
             e.HasOne(x => x.Draft)
                 .WithMany()
                 .HasForeignKey(x => x.DraftId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.PlatformThread)
                 .WithMany()
                 .HasForeignKey(x => x.PlatformThreadId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
-            e.HasIndex(x => new { x.PlatformThreadId, x.SegmentIndex }).IsUnique();
+            e.HasIndex(x => new { x.PlatformThreadId, x.SegmentIndex })
+                .IsUnique()
+                .HasFilter("\"PlatformThreadId\" IS NOT NULL");
         });
 
         modelBuilder.Entity<BrandVoicePrompt>(e =>
@@ -259,6 +273,7 @@ public class AppDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Title).HasMaxLength(200);
             e.Property(x => x.InstructionPrompt).HasColumnType("text");
+            e.Property(x => x.MinRelevanceScore).HasDefaultValue(7);
             e.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
@@ -518,6 +533,20 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(x => new { x.ReplyAgentId, x.RemoteCommentId }).IsUnique();
             e.HasIndex(x => new { x.ReplyAgentId, x.CreatedAt });
+        });
+
+        modelBuilder.Entity<ReplyAgentPost>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasOne(x => x.ReplyAgent)
+                .WithMany(a => a.AssignedPosts)
+                .HasForeignKey(x => x.ReplyAgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Post)
+                .WithMany()
+                .HasForeignKey(x => x.PostId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.ReplyAgentId, x.PostId }).IsUnique();
         });
     }
 }

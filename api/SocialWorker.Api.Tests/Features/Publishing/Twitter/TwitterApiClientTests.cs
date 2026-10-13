@@ -118,4 +118,74 @@ public sealed class TwitterApiClientTests
         Assert.Contains("Twitter API returned 400", ex.Message);
         Assert.Contains("in_reply_to_tweet_id must refer to an existing Tweet", ex.Message);
     }
+
+    [Fact]
+    public async Task CreateTweetAsync_WithMediaIds_IncludesMediaInPayload()
+    {
+        string? capturedBody = null;
+
+        var handler = new DelegatingHandlerStub(req =>
+        {
+            capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            var resp = new TwitterCreateTweetResponse(new TwitterTweetData("tweet_1003", "Tweet with pic"));
+            return new HttpResponseMessage(HttpStatusCode.Created)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(resp), Encoding.UTF8, "application/json")
+            };
+        });
+
+        var options = new TwitterOptions { BaseUrl = "https://api.twitter.com/2/" };
+        var client = new TwitterApiClient(new HttpClient(handler), Options.Create(options), NullLogger<TwitterApiClient>.Instance);
+
+        var result = await client.CreateTweetAsync("my_access_token", "Tweet with pic", mediaIds: new[] { "media_123", "media_456" });
+
+        Assert.NotNull(capturedBody);
+        var doc = JsonDocument.Parse(capturedBody);
+        Assert.True(doc.RootElement.TryGetProperty("media", out var mediaElem));
+        Assert.True(mediaElem.TryGetProperty("media_ids", out var idsElem));
+        Assert.Equal(2, idsElem.GetArrayLength());
+        Assert.Equal("media_123", idsElem[0].GetString());
+        Assert.Equal("media_456", idsElem[1].GetString());
+        Assert.Equal("tweet_1003", result.Id);
+    }
+
+    [Fact]
+    public async Task UploadMediaAsync_PerformsInitAppendFinalize_ReturnsMediaId()
+    {
+        int callCount = 0;
+        var handler = new DelegatingHandlerStub(req =>
+        {
+            callCount++;
+            if (req.RequestUri!.ToString().EndsWith("/initialize"))
+            {
+                var resp = new TwitterMediaInitResponse(new TwitterMediaData("media_9999"));
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(resp), Encoding.UTF8, "application/json")
+                };
+            }
+            if (req.RequestUri!.ToString().Contains("/media_9999/append"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+            if (req.RequestUri!.ToString().Contains("/media_9999/finalize"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"data\":{\"id\":\"media_9999\"}}", Encoding.UTF8, "application/json")
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var options = new TwitterOptions { MediaUploadBaseUrl = "https://api.twitter.com/2/media/upload/" };
+        var client = new TwitterApiClient(new HttpClient(handler), Options.Create(options), NullLogger<TwitterApiClient>.Instance);
+
+        var dummyBytes = new byte[] { 1, 2, 3, 4, 5 };
+        var mediaId = await client.UploadMediaAsync("my_access_token", dummyBytes, "image/png");
+
+        Assert.Equal("media_9999", mediaId);
+        Assert.Equal(3, callCount);
+    }
 }

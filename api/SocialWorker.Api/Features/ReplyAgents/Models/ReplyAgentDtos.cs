@@ -33,12 +33,13 @@ public sealed record ReplyAgentDto(
     int CheckIntervalMinutes,
     DateTime? LastPolledAt,
     int AssignedWorkflowsCount,
+    int AssignedPostsCount,
     IReadOnlyList<ReplyAgentWorkflowSummaryDto> Workflows,
     DateTime CreatedAt,
     DateTime UpdatedAt
 )
 {
-    public ReplyAgentDto(ReplyAgent a, IReadOnlyList<ReplyAgentWorkflowSummaryDto>? workflows = null) : this(
+    public ReplyAgentDto(ReplyAgent a, IReadOnlyList<ReplyAgentWorkflowSummaryDto>? workflows = null, int? assignedPostsCount = null) : this(
         a.Id,
         a.UserId,
         a.Name,
@@ -55,6 +56,7 @@ public sealed record ReplyAgentDto(
         a.CheckIntervalMinutes,
         a.LastPolledAt,
         workflows?.Count ?? a.Workflows?.Count ?? 0,
+        assignedPostsCount ?? a.AssignedPosts?.Count ?? 0,
         workflows ?? (a.Workflows != null ? a.Workflows.Select(w => new ReplyAgentWorkflowSummaryDto(w.Id, w.Title)).ToList() : Array.Empty<ReplyAgentWorkflowSummaryDto>()),
         a.CreatedAt,
         a.UpdatedAt
@@ -62,6 +64,39 @@ public sealed record ReplyAgentDto(
 }
 
 public sealed record ReplyAgentWorkflowSummaryDto(Guid Id, string Title);
+
+public sealed record AssignReplyAgentPostRequest(
+    Guid? PostId = null,
+    string? PostUrl = null,
+    string? Platform = null,
+    string? RemoteId = null
+);
+
+public sealed record ReplyAgentAssignedPostDto(
+    Guid PostId,
+    Guid ReplyAgentId,
+    string AgentName,
+    string Platform,
+    string? RemoteId,
+    string? Url,
+    string? AuthorHandle,
+    string? PublishedText,
+    bool IsExternal,
+    bool IsActive,
+    DateTime AssignedAt,
+    DateTime? LastPolledAt,
+    int CommentsAuditedCount = 0,
+    int RepliesSentCount = 0
+);
+
+public sealed record AssignReplyAgentPostResult(
+    bool Success,
+    ReplyAgentAssignedPostDto? AssignedPost,
+    string? Error = null)
+{
+    public static AssignReplyAgentPostResult Ok(ReplyAgentAssignedPostDto post) => new(true, post, null);
+    public static AssignReplyAgentPostResult Fail(string error) => new(false, null, error);
+}
 
 public sealed record CreateReplyAgentRequest(
     string Name,

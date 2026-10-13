@@ -13,7 +13,7 @@ import { Button } from "../common/Button";
 import { Input } from "../common/Input";
 import { EmptyState } from "../common/EmptyState";
 
-type FilterTab = "all" | "standalone" | "workflow" | "archived";
+type FilterTab = "all" | "standalone" | "workflow" | "archived" | "discarded";
 
 export const DraftsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -30,8 +30,12 @@ export const DraftsPage: React.FC = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   useEffect(() => {
-    loadDrafts();
-  }, [loadDrafts]);
+    if (activeTab === "discarded") {
+      loadDrafts({ includeDiscarded: true, status: "Discarded" });
+    } else {
+      loadDrafts();
+    }
+  }, [loadDrafts, activeTab]);
 
   const handleSelectDraft = (id: string, workflowId?: string | null) => {
     if (workflowId) {
@@ -63,10 +67,12 @@ export const DraftsPage: React.FC = () => {
       if (d.status === "Deleted") return false;
 
       // Tab filter
-      if (activeTab === "archived") {
+      if (activeTab === "discarded") {
+        if (d.status !== "Discarded") return false;
+      } else if (activeTab === "archived") {
         if (d.status !== "Archived") return false;
       } else {
-        if (d.status === "Archived") return false;
+        if (d.status === "Archived" || d.status === "Discarded") return false;
         if (activeTab === "standalone" && d.automationWorkflowId) return false;
         if (activeTab === "workflow" && !d.automationWorkflowId) return false;
       }
@@ -144,6 +150,16 @@ export const DraftsPage: React.FC = () => {
             }`}
           >
             Archived
+          </button>
+          <button
+            onClick={() => setActiveTab("discarded")}
+            className={`px-3 py-1.5 rounded-md transition ${
+              activeTab === "discarded"
+                ? "bg-border text-foreground font-semibold"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            Discarded
           </button>
         </div>
 

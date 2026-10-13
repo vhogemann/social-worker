@@ -317,6 +317,30 @@ public static class SchedulesEndpoint
             return Results.NoContent();
         });
 
+        // 12b. Remove queue items for workflow
+        group.MapDelete("/{id:guid}/queue", async (
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            IScheduleQueueService queueService,
+            Guid id,
+            Guid? workflowId,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var exists = await db.Schedules.AnyAsync(s => s.Id == id && s.UserId == userId.Value, ct);
+            if (!exists) return Results.NotFound();
+
+            if (!workflowId.HasValue)
+            {
+                return Results.BadRequest(new ApiErrorResponse("workflowId query parameter is required."));
+            }
+
+            var removedCount = await queueService.RemoveWorkflowItemsFromQueueAsync(id, workflowId.Value, ct);
+            return Results.Ok(new { removedCount });
+        });
+
         // 13. Pause / unpause queue item
         group.MapPost("/{id:guid}/queue/{itemId:guid}/pause", async (
             ClaimsPrincipal principal,

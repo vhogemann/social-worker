@@ -1,12 +1,15 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBolt, faFileLines, faPlus, faRotateRight } from "@fortawesome/free-solid-svg-icons";
 import { type WorkflowDraftSummaryDto } from "../../api/workflows";
 import { Button } from "../common/Button";
+import { Input } from "../common/Input";
 import { EmptyState } from "../common/EmptyState";
 import { Badge } from "../common/Badge";
 import { getPlatformLabel } from "../../config/platformBadges";
+
+type FilterTab = "all" | "discarded" | "archived";
 
 export interface WorkflowDraftsListProps {
   workflowId?: string;
@@ -30,7 +33,51 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
   onRetryDraft,
 }) => {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [search, setSearch] = useState("");
+
   const failedDraftsCount = drafts.filter((d) => d.status === "Failed").length;
+  const activeCount = useMemo(
+    () => drafts.filter((d) => d.status !== "Archived" && d.status !== "Discarded").length,
+    [drafts]
+  );
+  const discardedCount = useMemo(
+    () => drafts.filter((d) => d.status === "Discarded").length,
+    [drafts]
+  );
+  const archivedCount = useMemo(
+    () => drafts.filter((d) => d.status === "Archived").length,
+    [drafts]
+  );
+
+  const filteredDrafts = useMemo(() => {
+    return drafts.filter((d) => {
+      if (d.status === "Deleted") return false;
+
+      // Tab filter
+      if (activeTab === "discarded") {
+        if (d.status !== "Discarded") return false;
+      } else if (activeTab === "archived") {
+        if (d.status !== "Archived") return false;
+      } else {
+        if (d.status === "Archived" || d.status === "Discarded") return false;
+      }
+
+      // Search filter
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const matchesTitle = d.title.toLowerCase().includes(q);
+        const matchesContent = d.content?.toLowerCase().includes(q) ?? false;
+        const matchesDiscardReason = d.discardReason?.toLowerCase().includes(q) ?? false;
+        const matchesPlatform = d.threads?.some((t) =>
+          t.platform.toLowerCase().includes(q) || (t.accountHandle?.toLowerCase().includes(q) ?? false)
+        ) ?? false;
+        return matchesTitle || matchesContent || matchesDiscardReason || matchesPlatform;
+      }
+
+      return true;
+    });
+  }, [drafts, activeTab, search]);
 
   const handleOpenDraft = (draftId: string) => {
     if (workflowId) {
@@ -63,9 +110,9 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
 
   return (
     <div className="flex flex-col gap-4" data-testid="workflow-drafts-list">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-sm font-bold text-foreground">
-          Generated Drafts <span className="text-muted font-normal">({drafts.length})</span>
+          Generated Drafts <span className="text-muted font-normal">({filteredDrafts.length})</span>
         </h2>
         <div className="flex items-center gap-2">
           {failedDraftsCount > 0 && onRetryFailed && (
@@ -92,6 +139,57 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
         </div>
       </div>
 
+      {/* Filter and Search Bar (matching Drafts Library) */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-2 border-b border-border">
+        <div className="flex items-center gap-1 bg-panel border border-border rounded-lg p-1 w-full sm:w-auto text-xs font-medium">
+          <button
+            type="button"
+            onClick={() => setActiveTab("all")}
+            className={`px-3 py-1.5 rounded-md transition ${
+              activeTab === "all"
+                ? "bg-border text-foreground font-semibold"
+                : "text-muted hover:text-foreground"
+            }`}
+            data-testid="filter-tab-all"
+          >
+            All Active <span className="opacity-60 text-[11px] font-mono ml-0.5">({activeCount})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("discarded")}
+            className={`px-3 py-1.5 rounded-md transition ${
+              activeTab === "discarded"
+                ? "bg-border text-foreground font-semibold"
+                : "text-muted hover:text-foreground"
+            }`}
+            data-testid="filter-tab-discarded"
+          >
+            Discarded <span className="opacity-60 text-[11px] font-mono ml-0.5">({discardedCount})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("archived")}
+            className={`px-3 py-1.5 rounded-md transition ${
+              activeTab === "archived"
+                ? "bg-border text-foreground font-semibold"
+                : "text-muted hover:text-foreground"
+            }`}
+            data-testid="filter-tab-archived"
+          >
+            Archived <span className="opacity-60 text-[11px] font-mono ml-0.5">({archivedCount})</span>
+          </button>
+        </div>
+
+        <div className="w-full sm:w-72">
+          <Input
+            placeholder="Search drafts..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            data-testid="workflow-drafts-search-input"
+          />
+        </div>
+      </div>
+
       {drafts.length === 0 ? (
         <EmptyState
           icon={faFileLines}
@@ -109,10 +207,52 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
             </Button>
           }
         />
+      ) : filteredDrafts.length === 0 ? (
+        <EmptyState
+          icon={faFileLines}
+          title={
+            search.trim()
+              ? "No matching drafts"
+              : activeTab === "discarded"
+              ? "No discarded drafts"
+              : activeTab === "archived"
+              ? "No archived drafts"
+              : "No active drafts"
+          }
+          description={
+            search.trim()
+              ? `No drafts matched "${search}". Try adjusting your search query.`
+              : activeTab === "discarded"
+              ? "No drafts have been discarded by the relevance filter for this workflow."
+              : activeTab === "archived"
+              ? "No drafts in this workflow have been archived."
+              : "There are currently no active drafts for this workflow."
+          }
+          action={
+            search.trim() ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setSearch("")}
+              >
+                Clear Search
+              </Button>
+            ) : activeTab !== "all" ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setActiveTab("all")}
+              >
+                View All Active
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {drafts.map((draft) => {
+          {filteredDrafts.map((draft) => {
             const isFailed = draft.status === "Failed";
+            const isDiscarded = draft.status === "Discarded";
             const isRetryingThis = retryingDraftId === draft.id;
 
             return (
@@ -122,6 +262,8 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
                 className={`bg-panel border rounded-xl p-5 flex flex-col justify-between transition hover:shadow-md cursor-pointer group ${
                   isFailed
                     ? "border-red-500/30 hover:border-red-500/60 bg-red-950/10"
+                    : isDiscarded
+                    ? "border-amber-500/30 hover:border-amber-500/50 bg-amber-950/10"
                     : "border-border hover:border-zinc-600"
                 }`}
                 data-testid="workflow-draft-card"
@@ -149,6 +291,12 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
                     )}
                   </div>
 
+                  {isDiscarded && draft.discardReason && (
+                    <p className="text-xs text-muted/90 line-clamp-2 italic bg-bg/60 p-2 rounded border border-border/60">
+                      "{draft.discardReason}"
+                    </p>
+                  )}
+
                   {/* Platform Thread Badges & Status */}
                   <div className="flex flex-wrap items-center gap-1.5">
                     {isFailed && (
@@ -156,8 +304,13 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
                         Failed
                       </Badge>
                     )}
+                    {isDiscarded && (
+                      <Badge variant="warning" data-testid="workflow-draft-discarded-badge" className="border-amber-500/40 text-amber-300 bg-amber-500/10">
+                        Discarded {draft.relevanceScore != null ? `(${draft.relevanceScore}/10)` : ""}
+                      </Badge>
+                    )}
                     {draft.threads.length === 0 ? (
-                      !isFailed && <Badge variant="neutral">{draft.status}</Badge>
+                      !isFailed && !isDiscarded && <Badge variant="neutral">{draft.status}</Badge>
                     ) : (
                       draft.threads.map((thread, idx) => (
                         <button
@@ -191,4 +344,3 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
     </div>
   );
 };
-

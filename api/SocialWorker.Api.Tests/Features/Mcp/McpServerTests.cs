@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
@@ -20,6 +21,7 @@ using SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
 using SocialWorker.Api.Features.Publishing.Validation;
 using SocialWorker.Api.Features.ReplyAgents.Abstractions;
 using SocialWorker.Api.Features.ReplyAgents.Models;
+using SocialWorker.Api.Features.ReplyAgents.Services;
 using SocialWorker.Api.Features.Scheduling.Services;
 using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Tests.Infrastructure;
@@ -61,6 +63,8 @@ public sealed class McpServerTests : SqliteTestBase
         var calendarService = new CalendarProjectionService(db);
         var feedDiscoveryService = new FeedDiscoveryService(new HttpClient());
         var defaultAdapterResolver = customAdapterResolver ?? new MockReplyAdapterResolver(new MockReplyPlatformAdapter());
+        var postResolver = new ExternalPostResolver(db, replyResolver, NullLogger<ExternalPostResolver>.Instance);
+        var postService = new ReplyAgentPostService(db, postResolver, taskQueue);
 
         var toolRegistry = new McpToolRegistry(
             db,
@@ -76,7 +80,8 @@ public sealed class McpServerTests : SqliteTestBase
             calendarService,
             feedDiscoveryService: feedDiscoveryService,
             taskQueue: taskQueue,
-            replyAdapterResolver: defaultAdapterResolver);
+            replyAdapterResolver: defaultAdapterResolver,
+            postService: postService);
 
         var resourceRegistry = new McpResourceRegistry(db, draftsService);
         var server = new McpServer(toolRegistry, resourceRegistry);
@@ -242,6 +247,26 @@ public sealed class McpServerTests : SqliteTestBase
         var calendarResult = Assert.IsType<McpToolCallResult>(calendarResp.Result);
         Assert.False(calendarResult.IsError);
         Assert.Contains("Tech Beat", calendarResult.Content[0].Text!);
+
+        // 7. delete_slot_rule (specific)
+        var slotDoc = JsonDocument.Parse(slotResult.Content[0].Text!);
+        var slotRuleId = slotDoc.RootElement.GetProperty("id").GetString()!;
+        var deleteSlotParams = JsonDocument.Parse($$"""
+        {
+            "name": "delete_slot_rule",
+            "arguments": {
+                "scheduleId": "{{scheduleId}}",
+                "slotRuleId": "{{slotRuleId}}"
+            }
+        }
+        """).RootElement;
+        var deleteSlotReq = new McpRequest("2.0", 35, "tools/call", deleteSlotParams);
+        var deleteSlotResp = await server.HandleRequestAsync(deleteSlotReq, user.Id, CancellationToken.None);
+        Assert.NotNull(deleteSlotResp);
+        var deleteSlotResult = Assert.IsType<McpToolCallResult>(deleteSlotResp.Result);
+        Assert.False(deleteSlotResult.IsError);
+        Assert.Contains(slotRuleId, deleteSlotResult.Content[0].Text!);
+        Assert.Empty(db.ScheduleSlotRules.Where(r => r.ScheduleId == Guid.Parse(scheduleId)));
     }
 
     [Fact]
@@ -883,6 +908,181 @@ public sealed class McpServerTests : SqliteTestBase
 
         var readJson = JsonSerializer.Serialize(readResp.Result);
         Assert.Contains("Custom Persona", readJson);
+    }
+
+    [Fact]
+    public async Task ListPosts_ReturnsPostsWithCommentCountsAndFilters()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var draft = new Draft
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Drafts.Add(draft);
+
+        var thread1 = new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "MetaThreads",
+            Stage = PlatformThreadStage.Sent
+        };
+        var thread2 = new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "Bluesky",
+            Stage = PlatformThreadStage.Sent
+        };
+        db.PlatformThreads.AddRange(thread1, thread2);
+
+        var postThreads = new Post
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            PlatformThreadId = thread1.Id,
+            Platform = "MetaThreads",
+            RemoteId = "threads_post_1",
+            Url = "https://threads.net/@test/post/1",
+            PostedAt = DateTime.UtcNow.AddHours(-2)
+        };
+        var postBluesky = new Post
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            PlatformThreadId = thread2.Id,
+            Platform = "Bluesky",
+            RemoteId = "bsky_post_1",
+            Url = "https://bsky.app/profile/test/post/1",
+            PostedAt = DateTime.UtcNow.AddHours(-1)
+        };
+        db.Posts.AddRange(postThreads, postBluesky);
+
+        var agent = ReplyAgent.Create(user.Id, "Test Agent", personaPrompt: "Test");
+        db.ReplyAgents.Add(agent);
+
+        var audit = WorkflowCommentAudit.Create(
+            agent.Id,
+            postThreads.Id,
+            "MetaThreads",
+            "c1",
+            "commenter",
+            "user1",
+            "Awesome post!",
+            DateTime.UtcNow.AddMinutes(-30),
+            8,
+            "Compliment",
+            "Reply",
+            "Great sentiment");
+        db.WorkflowCommentAudits.Add(audit);
+        await db.SaveChangesAsync();
+
+        var allParams = JsonDocument.Parse("{}").RootElement;
+        var allReq = new McpRequest("2.0", 1, "tools/call", JsonDocument.Parse("""{"name": "list_posts", "arguments": {}}""").RootElement);
+        var allResp = await server.HandleRequestAsync(allReq, user.Id, CancellationToken.None);
+        Assert.NotNull(allResp);
+        var allResult = Assert.IsType<McpToolCallResult>(allResp.Result);
+        Assert.False(allResult.IsError);
+
+        var allText = allResult.Content[0].Text!;
+        Assert.Contains("threads_post_1", allText);
+        Assert.Contains("bsky_post_1", allText);
+        Assert.Contains("\"commentsCount\": 1", allText);
+
+        var filterReq = new McpRequest("2.0", 2, "tools/call", JsonDocument.Parse("""{"name": "list_posts", "arguments": {"platform": "MetaThreads", "hasReplies": true}}""").RootElement);
+        var filterResp = await server.HandleRequestAsync(filterReq, user.Id, CancellationToken.None);
+        Assert.NotNull(filterResp);
+        var filterResult = Assert.IsType<McpToolCallResult>(filterResp.Result);
+        Assert.False(filterResult.IsError);
+
+        var filterText = filterResult.Content[0].Text!;
+        Assert.Contains("threads_post_1", filterText);
+        Assert.DoesNotContain("bsky_post_1", filterText);
+    }
+
+    [Fact]
+    public async Task HandleRequestAsync_AssignAndListAndUnassignReplyAgentPost_Success()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var agent = ReplyAgent.Create(user.Id, "Organic Post Monitor", "You are friendly");
+        db.ReplyAgents.Add(agent);
+        await db.SaveChangesAsync();
+
+        var assignArgs = JsonDocument.Parse($$"""
+        {
+            "name": "assign_reply_agent_post",
+            "arguments": {
+                "agentId": "{{agent.Id}}",
+                "remoteId": "at://did:plc:test/app.bsky.feed.post/organic_123",
+                "platform": "Bluesky"
+            }
+        }
+        """).RootElement;
+
+        var assignReq = new McpRequest("2.0", 1, "tools/call", assignArgs);
+        var assignResp = await server.HandleRequestAsync(assignReq, user.Id, CancellationToken.None);
+        Assert.NotNull(assignResp);
+        var assignResult = Assert.IsType<McpToolCallResult>(assignResp.Result);
+        Assert.False(assignResult.IsError);
+        Assert.Contains("Organic Post Monitor", assignResult.Content[0].Text);
+        Assert.Contains("organic_123", assignResult.Content[0].Text);
+
+        var listArgs = JsonDocument.Parse($$"""
+        {
+            "name": "list_reply_agent_posts",
+            "arguments": {
+                "agentId": "{{agent.Id}}"
+            }
+        }
+        """).RootElement;
+        var listReq = new McpRequest("2.0", 2, "tools/call", listArgs);
+        var listResp = await server.HandleRequestAsync(listReq, user.Id, CancellationToken.None);
+        Assert.NotNull(listResp);
+        var listResult = Assert.IsType<McpToolCallResult>(listResp.Result);
+        Assert.False(listResult.IsError);
+        Assert.Contains("organic_123", listResult.Content[0].Text);
+
+        var listPostsArgs = JsonDocument.Parse("""
+        {
+            "name": "list_posts",
+            "arguments": {}
+        }
+        """).RootElement;
+        var listPostsReq = new McpRequest("2.0", 3, "tools/call", listPostsArgs);
+        var listPostsResp = await server.HandleRequestAsync(listPostsReq, user.Id, CancellationToken.None);
+        Assert.NotNull(listPostsResp);
+        var listPostsResult = Assert.IsType<McpToolCallResult>(listPostsResp.Result);
+        Assert.False(listPostsResult.IsError);
+        Assert.Contains("organic_123", listPostsResult.Content[0].Text);
+
+        var assignedPost = await db.Posts.FirstAsync(p => p.RemoteId == "at://did:plc:test/app.bsky.feed.post/organic_123");
+
+        var unassignArgs = JsonDocument.Parse($$"""
+        {
+            "name": "unassign_reply_agent_post",
+            "arguments": {
+                "agentId": "{{agent.Id}}",
+                "postId": "{{assignedPost.Id}}"
+            }
+        }
+        """).RootElement;
+        var unassignReq = new McpRequest("2.0", 4, "tools/call", unassignArgs);
+        var unassignResp = await server.HandleRequestAsync(unassignReq, user.Id, CancellationToken.None);
+        Assert.NotNull(unassignResp);
+        var unassignResult = Assert.IsType<McpToolCallResult>(unassignResp.Result);
+        Assert.False(unassignResult.IsError);
+        Assert.Contains("\"success\": true", unassignResult.Content[0].Text);
+
+        var activeListResp = await server.HandleRequestAsync(listReq, user.Id, CancellationToken.None);
+        Assert.NotNull(activeListResp);
+        var activeListResult = Assert.IsType<McpToolCallResult>(activeListResp.Result);
+        Assert.False(activeListResult.IsError);
+        Assert.Equal("[]", activeListResult.Content[0].Text.Trim());
     }
 
     private sealed class MockReplyAdapterResolver : IReplyPlatformAdapterResolver

@@ -50,6 +50,58 @@ public sealed class SourcesServiceTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task AddUrlSourceAsync_WhenSourceAlreadyExists_ReturnsExistingSourceAndLinksDraftIdempotently()
+    {
+        using var db = new AppDbContext(Options);
+        var userId = Guid.NewGuid();
+        db.Users.Add(new AppUser { Id = userId, Username = "test", Email = "test@example.com", PasswordHash = "hash" });
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = userId, Title = "Draft title" };
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var html = "<html><head><title>Example Page</title></head><body><main><p>Content once.</p></main></body></html>";
+        var callCount = 0;
+        var scraper = new WebScraperService(new HttpClient(new StaticHttpMessageHandler(_ =>
+        {
+            callCount++;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(html, Encoding.UTF8, "text/html")
+            };
+        })));
+
+        var service = TestServiceFactory.CreateSourcesService(db, scraper: scraper);
+        var result1 = await service.AddUrlSourceAsync(
+            userId,
+            draft.Id,
+            "https://example.com/post",
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(1, callCount);
+        Assert.NotNull(result1);
+
+        // Call again with the same URL for the same draft
+        var result2 = await service.AddUrlSourceAsync(
+            userId,
+            draft.Id,
+            "https://example.com/post",
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(result1.SourceId, result2.SourceId);
+        Assert.Equal(1, callCount); // Did not re-scrape
+
+        var sourceCount = await db.Sources.CountAsync();
+        Assert.Equal(1, sourceCount);
+
+        var draftSourceCount = await db.DraftSources.CountAsync(ds => ds.DraftId == draft.Id && ds.SourceId == result1.SourceId);
+        Assert.Equal(1, draftSourceCount);
+    }
+
+    [Fact]
     public async Task AddUrlSourceAsync_Throws_For_Invalid_Url()
     {
         using var db = new AppDbContext(Options);
