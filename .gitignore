@@ -44,6 +44,7 @@ e2e/output/
 # reports & local agent secrets
 AGENT_COMPLIANCE_REPORT.json
 .agents/mcp_config.json
+CAMPANHA_2026.md
 
 # custom runtime configuration
 config/appsettings.json
