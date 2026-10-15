@@ -43,32 +43,76 @@ public class InstagramOAuthService
 
     public async Task<InstagramTokenResponse> ExchangeCodeAsync(string code, CancellationToken ct = default)
     {
-        var baseUrl = _options.BaseUrl.TrimEnd('/') + "/";
-        var url = $"{baseUrl}oauth/access_token?client_id={Uri.EscapeDataString(_options.AppId)}&client_secret={Uri.EscapeDataString(_options.AppSecret)}&redirect_uri={Uri.EscapeDataString(_options.RedirectUri)}&code={Uri.EscapeDataString(code)}";
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        var response = await _http.SendAsync(request, ct);
-        var body = await response.Content.ReadAsStringAsync(ct);
-
-        if (!response.IsSuccessStatusCode)
+        if (_options.OAuthBaseUrl.Contains("instagram.com", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogError("Instagram code exchange failed ({StatusCode}): {Body}", response.StatusCode, body);
-            throw new InvalidOperationException($"Instagram code exchange failed: {ExtractErrorMessage(body)}");
-        }
+            var form = new Dictionary<string, string>
+            {
+                ["client_id"] = _options.AppId,
+                ["client_secret"] = _options.AppSecret,
+                ["grant_type"] = "authorization_code",
+                ["redirect_uri"] = _options.RedirectUri,
+                ["code"] = code
+            };
 
-        var result = JsonSerializer.Deserialize<InstagramTokenResponse>(body);
-        if (result == null || string.IsNullOrWhiteSpace(result.AccessToken))
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.instagram.com/oauth/access_token")
+            {
+                Content = new FormUrlEncodedContent(form)
+            };
+            var response = await _http.SendAsync(request, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Instagram code exchange failed ({StatusCode}): {Body}", response.StatusCode, body);
+                throw new InvalidOperationException($"Instagram code exchange failed: {ExtractErrorMessage(body)}");
+            }
+
+            var result = JsonSerializer.Deserialize<InstagramTokenResponse>(body);
+            if (result == null || string.IsNullOrWhiteSpace(result.AccessToken))
+            {
+                throw new InvalidOperationException("Instagram token response was empty or missing access token.");
+            }
+
+            return result;
+        }
+        else
         {
-            throw new InvalidOperationException("Instagram token response was empty or missing access token.");
-        }
+            var baseUrl = _options.BaseUrl.TrimEnd('/') + "/";
+            var url = $"{baseUrl}oauth/access_token?client_id={Uri.EscapeDataString(_options.AppId)}&client_secret={Uri.EscapeDataString(_options.AppSecret)}&redirect_uri={Uri.EscapeDataString(_options.RedirectUri)}&code={Uri.EscapeDataString(code)}";
 
-        return result;
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            var response = await _http.SendAsync(request, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Instagram code exchange failed ({StatusCode}): {Body}", response.StatusCode, body);
+                throw new InvalidOperationException($"Instagram code exchange failed: {ExtractErrorMessage(body)}");
+            }
+
+            var result = JsonSerializer.Deserialize<InstagramTokenResponse>(body);
+            if (result == null || string.IsNullOrWhiteSpace(result.AccessToken))
+            {
+                throw new InvalidOperationException("Instagram token response was empty or missing access token.");
+            }
+
+            return result;
+        }
     }
 
     public async Task<InstagramTokenResponse> ExchangeForLongLivedTokenAsync(string shortToken, CancellationToken ct = default)
     {
-        var baseUrl = _options.BaseUrl.TrimEnd('/') + "/";
-        var url = $"{baseUrl}oauth/access_token?grant_type=fb_exchange_token&client_id={Uri.EscapeDataString(_options.AppId)}&client_secret={Uri.EscapeDataString(_options.AppSecret)}&fb_exchange_token={Uri.EscapeDataString(shortToken)}";
+        string url;
+        if (_options.OAuthBaseUrl.Contains("instagram.com", StringComparison.OrdinalIgnoreCase))
+        {
+            var igBase = _options.InstagramGraphBaseUrl.TrimEnd('/') + "/";
+            url = $"{igBase}access_token?grant_type=ig_exchange_token&client_secret={Uri.EscapeDataString(_options.AppSecret)}&access_token={Uri.EscapeDataString(shortToken)}";
+        }
+        else
+        {
+            var baseUrl = _options.BaseUrl.TrimEnd('/') + "/";
+            url = $"{baseUrl}oauth/access_token?grant_type=fb_exchange_token&client_id={Uri.EscapeDataString(_options.AppId)}&client_secret={Uri.EscapeDataString(_options.AppSecret)}&fb_exchange_token={Uri.EscapeDataString(shortToken)}";
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         var response = await _http.SendAsync(request, ct);
@@ -86,6 +130,28 @@ public class InstagramOAuthService
 
     public async Task<(string IgUserId, string Username, string? PageToken)> DiscoverInstagramAccountAsync(string userToken, CancellationToken ct = default)
     {
+        if (_options.OAuthBaseUrl.Contains("instagram.com", StringComparison.OrdinalIgnoreCase))
+        {
+            var igBase = _options.InstagramGraphBaseUrl.TrimEnd('/') + "/";
+            var meUrl = $"{igBase}v21.0/me?fields=id,username&access_token={Uri.EscapeDataString(userToken)}";
+            using var meRequest = new HttpRequestMessage(HttpMethod.Get, meUrl);
+            var meResponse = await _http.SendAsync(meRequest, ct);
+
+            if (meResponse.IsSuccessStatusCode)
+            {
+                var meBody = await meResponse.Content.ReadAsStringAsync(ct);
+                var meResult = JsonSerializer.Deserialize<MetaMeInstagramResponse>(meBody);
+                if (!string.IsNullOrWhiteSpace(meResult?.InstagramBusinessAccount?.Id))
+                {
+                    return (meResult.InstagramBusinessAccount.Id, meResult.InstagramBusinessAccount.Username ?? meResult.Username ?? meResult.InstagramBusinessAccount.Id, userToken);
+                }
+                if (!string.IsNullOrWhiteSpace(meResult?.Id))
+                {
+                    return (meResult.Id, meResult.Username ?? meResult.Id, userToken);
+                }
+            }
+        }
+
         var baseUrl = _options.BaseUrl.TrimEnd('/') + "/";
 
         var accountsUrl = $"{baseUrl}me/accounts?fields=id,name,access_token,instagram_business_account{{id,username,name,profile_picture_url}}&access_token={Uri.EscapeDataString(userToken)}";
@@ -104,17 +170,21 @@ public class InstagramOAuthService
             }
         }
 
-        var meUrl = $"{baseUrl}me?fields=id,name,instagram_business_account{{id,username,name,profile_picture_url}}&access_token={Uri.EscapeDataString(userToken)}";
-        using var meRequest = new HttpRequestMessage(HttpMethod.Get, meUrl);
-        var meResponse = await _http.SendAsync(meRequest, ct);
+        var fbMeUrl = $"{baseUrl}me?fields=id,name,username,instagram_business_account{{id,username,name,profile_picture_url}}&access_token={Uri.EscapeDataString(userToken)}";
+        using var fbMeRequest = new HttpRequestMessage(HttpMethod.Get, fbMeUrl);
+        var fbMeResponse = await _http.SendAsync(fbMeRequest, ct);
 
-        if (meResponse.IsSuccessStatusCode)
+        if (fbMeResponse.IsSuccessStatusCode)
         {
-            var meBody = await meResponse.Content.ReadAsStringAsync(ct);
+            var meBody = await fbMeResponse.Content.ReadAsStringAsync(ct);
             var meResult = JsonSerializer.Deserialize<MetaMeInstagramResponse>(meBody);
             if (meResult?.InstagramBusinessAccount != null)
             {
                 return (meResult.InstagramBusinessAccount.Id, meResult.InstagramBusinessAccount.Username ?? meResult.InstagramBusinessAccount.Id, userToken);
+            }
+            if (!string.IsNullOrWhiteSpace(meResult?.Id))
+            {
+                return (meResult.Id, meResult.Username ?? meResult.Id, userToken);
             }
         }
 

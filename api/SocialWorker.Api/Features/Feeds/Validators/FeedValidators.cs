@@ -11,8 +11,9 @@ public sealed class DiscoverFeedRequestValidator : AbstractValidator<DiscoverFee
             .NotEmpty().WithMessage("A valid feed URL is required.")
             .Must(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
                          (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
-            .WithMessage("A valid absolute HTTP or HTTPS URL is required.");
+                          string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(uri.Scheme, "instagram", StringComparison.OrdinalIgnoreCase)))
+            .WithMessage("A valid absolute HTTP, HTTPS, or Instagram URL is required.");
     }
 }
 
@@ -28,7 +29,8 @@ public sealed class CreateFeedSubscriptionRequestValidator : AbstractValidator<C
             .NotEmpty().WithMessage("FeedUrl is required.")
             .Must(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
                          (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
-            .WithMessage("A valid absolute HTTP or HTTPS URL is required for FeedUrl.");
+                          string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(uri.Scheme, "instagram", StringComparison.OrdinalIgnoreCase)))
+            .WithMessage("A valid absolute HTTP, HTTPS, or Instagram URL is required for FeedUrl.");
     }
 }

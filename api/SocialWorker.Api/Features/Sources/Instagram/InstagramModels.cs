@@ -102,6 +102,7 @@ public sealed record MetaInstagramBusinessAccount(
 
 public sealed record MetaMeInstagramResponse(
     [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("username")] string? Username,
     [property: JsonPropertyName("instagram_business_account")] MetaInstagramBusinessAccount? InstagramBusinessAccount,
     [property: JsonPropertyName("error")] InstagramApiError? Error
 );

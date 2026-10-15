@@ -61,6 +61,34 @@ public sealed class FluentValidationTests
         Assert.Equal(3, result.Errors.Count);
     }
 
+    [Theory]
+    [InlineData("https://example.com/feed.xml")]
+    [InlineData("http://example.com/rss")]
+    [InlineData("instagram://flaviobolsonaro")]
+    public async Task CreateFeedSubscriptionRequestValidator_ValidUrls_PassValidation(string feedUrl)
+    {
+        var validator = new CreateFeedSubscriptionRequestValidator();
+        var request = new CreateFeedSubscriptionRequest("My Feed", feedUrl, null, null, null);
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Theory]
+    [InlineData("https://www.instagram.com/flaviobolsonaro")]
+    [InlineData("http://example.com/rss")]
+    [InlineData("instagram://flaviobolsonaro")]
+    public async Task DiscoverFeedRequestValidator_ValidUrls_PassValidation(string url)
+    {
+        var validator = new DiscoverFeedRequestValidator();
+        var request = new DiscoverFeedRequest(url);
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.True(result.IsValid);
+    }
+
     [Fact]
     public async Task ImportMediaFromUrlRequestValidator_ValidUrl_PassesValidation()
     {

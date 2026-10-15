@@ -61,6 +61,8 @@ services:
       Instagram__RedirectUri: ${INSTAGRAM__REDIRECTURI:-https://social.plopsaurus.xyz/oauth/callback/instagram}
       Instagram__AccessToken: ${INSTAGRAM__ACCESSTOKEN:-}
       Instagram__CallerUserId: ${INSTAGRAM__CALLERUSERID:-}
+      Instagram__RssHubBaseUrl: ${INSTAGRAM__RSSHUBBASEURL:-http://rsshub:1200}
+      Instagram__PreferRssHub: ${INSTAGRAM__PREFERRSSHUB:-true}
       DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-}
     depends_on:
       db:
@@ -68,6 +70,8 @@ services:
       transcriber:
         condition: service_started
       image-engine:
+        condition: service_started
+      rsshub:
         condition: service_started
     volumes:
       - ./uploads:/app/uploads
@@ -104,6 +108,17 @@ services:
     environment:
       - SEARXNG_BASE_URL=http://searxng:8080/
     restart: unless-stopped
+
+  rsshub:
+    image: diygod/rsshub:latest
+    restart: unless-stopped
+    ports:
+      - "1200:1200"
+    environment:
+      NODE_ENV: production
+      CACHE_TYPE: memory
+      LISTEN_INADDR_ANY: 1
+      CACHE_EXPIRE: 900
 
   transcriber:
     build:

@@ -19,7 +19,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 | **Transcriber** | `transcriber/` | Python 3.11, FastAPI, OpenAI Whisper, yt-dlp | [transcriber/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/transcriber/MENTAL_MODEL.md) |
 | **Image Engine** | `image-engine/` | Node.js 22, Fastify, Sharp, Canvas, Zod | [image-engine/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/image-engine/MENTAL_MODEL.md) |
 | **E2E Testing** | `e2e/` | Playwright, TypeScript, Docker stack (8200/8201) | [e2e/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/e2e/MENTAL_MODEL.md) |
-| **Infra Services** | root / `searxng/` | PostgreSQL 16, SearXNG, Traefik Gateway | [docker-compose.yml](file:///home/vhogemann/Projects/social-worker/docker-compose.yml) |
+| **Infra Services** | root / `searxng/` | PostgreSQL 16, SearXNG, RSSHub, Traefik Gateway | [docker-compose.yml](file:///home/vhogemann/Projects/social-worker/docker-compose.yml) |
 
 ## Where to look first
 
@@ -34,7 +34,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Chat: api/SocialWorker.Api/Features/Chat/
 - Draft lifecycle: api/SocialWorker.Api/Features/Drafts/ (DraftsService, DraftSegmentService, DraftAutoRepairService agent self-correction feedback loop on validation rejections)
 - Publishing: api/SocialWorker.Api/Features/Publishing/ (Bluesky, LinkedIn, MetaThreads, Twitter, Resilience/PublishOutcomeRecorder, PublishValidationService)
-- Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Sources/Instagram/ (Instagram Business Discovery Graph API client, credential provider, OAuth, feed reader converter, setup guide in docs/INSTAGRAM_SETUP.md), api/SocialWorker.Api/Features/Media/
+- Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Sources/Instagram/ (Instagram profile feed bridge via RSSHub sidecar container with fallback to Business Discovery Graph API, FeedMediaExtractor for video/image parsing, credential provider, OAuth, setup guide in docs/INSTAGRAM_SETUP.md), api/SocialWorker.Api/Features/Media/
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
 - Feed automation: api/SocialWorker.Api/Features/Feeds/ (FeedOrchestrationService retry feedback loop, FeedThreadGenerationService)
 - Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService with Level 2 Time-Decay and Cascading Preemption, SchedulePriorityCalculator, ScheduleSlotEvaluatorService worker, ScheduledPublishingTaskHandler auto-repair before publishing, Review Outbox)

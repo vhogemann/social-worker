@@ -43,13 +43,32 @@ public class InstagramBusinessDiscoveryClient : IInstagramDiscoveryClient
         var cleanTarget = targetUsername.Trim().Trim('@', '/');
         var cleanLimit = Math.Clamp(limit, 1, 50);
 
-        var baseUrl = _options.BaseUrl.TrimEnd('/') + "/";
+        var isInstagramToken = accessToken.StartsWith("IG", StringComparison.OrdinalIgnoreCase) ||
+                               _options.OAuthBaseUrl.Contains("instagram.com", StringComparison.OrdinalIgnoreCase);
+
+        var baseHost = isInstagramToken
+            ? _options.InstagramGraphBaseUrl.TrimEnd('/') + "/v21.0/"
+            : _options.BaseUrl.TrimEnd('/') + "/";
+
         var fields = $"business_discovery.username({cleanTarget}){{id,username,name,profile_picture_url,biography,media.limit({cleanLimit}){{id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count}}}}";
-        var requestUrl = $"{baseUrl}{callerIgUserId}?fields={Uri.EscapeDataString(fields)}&access_token={Uri.EscapeDataString(accessToken)}";
+        var requestUrl = $"{baseHost}{callerIgUserId}?fields={Uri.EscapeDataString(fields)}&access_token={Uri.EscapeDataString(accessToken)}";
 
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
         var response = await _http.SendAsync(request, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode && isInstagramToken)
+        {
+            var fallbackHost = _options.InstagramGraphBaseUrl.TrimEnd('/') + "/";
+            var fallbackUrl = $"{fallbackHost}{callerIgUserId}?fields={Uri.EscapeDataString(fields)}&access_token={Uri.EscapeDataString(accessToken)}";
+            using var fallbackReq = new HttpRequestMessage(HttpMethod.Get, fallbackUrl);
+            var fallbackResp = await _http.SendAsync(fallbackReq, ct);
+            if (fallbackResp.IsSuccessStatusCode)
+            {
+                response = fallbackResp;
+                body = await fallbackResp.Content.ReadAsStringAsync(ct);
+            }
+        }
 
         if (!response.IsSuccessStatusCode)
         {
@@ -90,9 +109,37 @@ public class InstagramBusinessDiscoveryClient : IInstagramDiscoveryClient
 
         var baseUrl = _options.BaseUrl.TrimEnd('/') + "/";
 
+        if (_options.OAuthBaseUrl.Contains("instagram.com", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var igBase = _options.InstagramGraphBaseUrl.TrimEnd('/') + "/";
+                var meUrl = $"{igBase}v21.0/me?fields=id,username&access_token={Uri.EscapeDataString(accessToken)}";
+                using var meRequest = new HttpRequestMessage(HttpMethod.Get, meUrl);
+                var meResponse = await _http.SendAsync(meRequest, ct);
+                if (meResponse.IsSuccessStatusCode)
+                {
+                    var meBody = await meResponse.Content.ReadAsStringAsync(ct);
+                    var meResult = JsonSerializer.Deserialize<MetaMeInstagramResponse>(meBody);
+                    if (!string.IsNullOrWhiteSpace(meResult?.InstagramBusinessAccount?.Id))
+                    {
+                        return meResult.InstagramBusinessAccount.Id;
+                    }
+                    if (!string.IsNullOrWhiteSpace(meResult?.Id))
+                    {
+                        return meResult.Id;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to resolve IG account via Instagram Graph /me endpoint.");
+            }
+        }
+
         try
         {
-            var meUrl = $"{baseUrl}me?fields=instagram_business_account{{id,username,name}}&access_token={Uri.EscapeDataString(accessToken)}";
+            var meUrl = $"{baseUrl}me?fields=id,name,username,instagram_business_account{{id,username,name}}&access_token={Uri.EscapeDataString(accessToken)}";
             using var meRequest = new HttpRequestMessage(HttpMethod.Get, meUrl);
             var meResponse = await _http.SendAsync(meRequest, ct);
             if (meResponse.IsSuccessStatusCode)
@@ -102,6 +149,10 @@ public class InstagramBusinessDiscoveryClient : IInstagramDiscoveryClient
                 if (meResult?.InstagramBusinessAccount?.Id != null)
                 {
                     return meResult.InstagramBusinessAccount.Id;
+                }
+                if (!string.IsNullOrWhiteSpace(meResult?.Id))
+                {
+                    return meResult.Id;
                 }
             }
         }

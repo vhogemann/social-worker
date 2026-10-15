@@ -227,7 +227,8 @@ public sealed class McpToolRegistry
             {
                 "type": "object",
                 "properties": {
-                    "subscriptionId": { "type": "string", "description": "Optional UUID of a specific feed subscription." }
+                    "subscriptionId": { "type": "string", "description": "Optional UUID of a specific feed subscription." },
+                    "forceAll": { "type": "boolean", "description": "Optional flag to force polling all items regardless of lastPolledAt." }
                 }
             }
             """)),
@@ -971,9 +972,10 @@ public sealed class McpToolRegistry
 
     private async Task<McpToolCallResult> HandleTriggerFeedPollAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
+        var forceAll = args.TryGetProperty("forceAll", out var f) && f.GetBoolean();
         if (args.TryGetProperty("subscriptionId", out var idProp) && Guid.TryParse(idProp.GetString(), out var subId))
         {
-            await _feedPollingService.PollSubscriptionAsync(subId, ct);
+            await _feedPollingService.PollSubscriptionAsync(subId, ct, forceAll);
             return TextResult($"Polled feed subscription {subId}.");
         }
 
