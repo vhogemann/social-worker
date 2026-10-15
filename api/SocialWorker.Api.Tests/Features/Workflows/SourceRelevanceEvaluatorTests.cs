@@ -79,6 +79,47 @@ public sealed class SourceRelevanceEvaluatorTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task EvaluateAsync_WhenMinRelevanceScoreIsZeroAndProviderEvaluates_ReturnsShouldPublishTrueWithEvaluatedScore()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var provider = new LlmProvider
+        {
+            Id = Guid.NewGuid(),
+            Name = "OpenRouter",
+            ProviderType = "OpenRouter",
+            BaseUrl = "https://example.com",
+            ApiKey = "key",
+            Model = "gpt-4",
+            IsDefault = true,
+            IsActive = true
+        };
+        db.LlmProviders.Add(provider);
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Curated Media Workflow", "Curate");
+        workflow.MinRelevanceScore = 0;
+        db.AutomationWorkflows.Add(workflow);
+
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = user.Id, Title = "Fun Science Experiment", Status = DraftStatus.Editing };
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        workflow.MinRelevanceScore = 0;
+
+        var evaluator = new SourceRelevanceEvaluator(
+            db,
+            new LlmProviderService(),
+            new FakeLlmAdapter("{\"score\": 4, \"reasoning\": \"Low general news value but interesting\", \"shouldPublish\": false, \"category\": \"Science\"}"),
+            NullLogger<SourceRelevanceEvaluator>.Instance);
+
+        var result = await evaluator.EvaluateAsync(draft, workflow);
+
+        Assert.True(result.ShouldPublish, $"Reason: '{result.Reasoning}', Score: {result.Score}, Category: '{result.Category}'");
+        Assert.Equal(4, result.Score);
+        Assert.Equal("Science", result.Category);
+    }
+
+    [Fact]
     public async Task EvaluateAsync_ReturnsPass_WhenScoreMeetsOrExceedsThreshold()
     {
         using var db = CreateDbContext();

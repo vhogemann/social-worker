@@ -45,5 +45,6 @@ static partial class ServiceCollectionExtensions
 
         builder.Services.AddHostedService<BackgroundTaskHostedService>();
         builder.Services.AddHostedService<BackgroundTaskRetentionService>();
+        builder.Services.AddHostedService<SocialWorker.Api.Features.Scheduling.Services.ScheduleEvaluationHostedService>();
     }
 }

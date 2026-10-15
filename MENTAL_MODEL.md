@@ -36,11 +36,11 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Publishing: api/SocialWorker.Api/Features/Publishing/ (Bluesky, LinkedIn, MetaThreads, Twitter, Resilience/PublishOutcomeRecorder, PublishValidationService)
 - Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Sources/Instagram/ (Instagram profile feed bridge via RSSHub sidecar container with fallback to Business Discovery Graph API, FeedMediaExtractor for video/image parsing, credential provider, OAuth, setup guide in docs/INSTAGRAM_SETUP.md), api/SocialWorker.Api/Features/Media/
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
-- Feed automation: api/SocialWorker.Api/Features/Feeds/ (FeedOrchestrationService retry feedback loop, FeedThreadGenerationService)
-- Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService with Level 2 Time-Decay and Cascading Preemption, SchedulePriorityCalculator, ScheduleSlotEvaluatorService worker, ScheduledPublishingTaskHandler auto-repair before publishing, Review Outbox)
+- Feed automation & RSSHub discovery: api/SocialWorker.Api/Features/Feeds/ (RssHubRouteResolver, RssHubFeedDiscoveryService supporting multi-platform URLs for Instagram, X, Telegram, Reddit, TikTok, Bluesky with RSSHub route resolution and fallbacks, FeedOrchestrationService retry feedback loop, FeedThreadGenerationService, FeedPollingService)
+- Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService with Level 2 Time-Decay and Cascading Preemption, SchedulePriorityCalculator, ScheduleSlotEvaluatorService worker, ScheduleEvaluationHostedService recurring evaluator, ScheduledPublishingTaskHandler auto-repair before publishing, active queue deduplication & partial unique index, Review Outbox)
 - Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/ (IWorkflowSourceHandler, FeedWorkflowSourceHandler, DigestWorkflowSourceHandler, extensible sources)
 - Reply Agents: api/SocialWorker.Api/Features/ReplyAgents/ (Independent `ReplyAgent` entity in user library, many-to-one workflow assignment via `AutomationWorkflow.ReplyAgentId`, direct post assignment to organic/external/third-party posts via `ReplyAgentPost` and `IExternalPostResolver`, `Post.IsExternal`, `WorkflowCommentThread`, `WorkflowCommentAudit`, `IReplyPlatformAdapter` for Bluesky and Meta Threads with automatic Graph API shortcode-to-mediaId resolution via `GetUserThreadsAsync`, `CommentEnrichmentService` with automated video/audio transcription via `ITranscriptExtractionService` and vision inspection, `CommentRankingService` 1-10 scoring/terminal closure, `ReplyGenerationService` leveraging draft `ChatToolExecutor` and `IChatTool`s including `TranscribeVideoTool`, `web_search`, `fetch_source`, `search_sources`, multi-turn tool loops with final-turn forced synthesis, `CommentThreadSummarizer` rolling summary cache, stop criteria enforcement)
-- Background tasks & durable queue: api/SocialWorker.Api/Features/BackgroundTasks/ (PostgreSQL atomic queue with Allow-List worker filtering, PostgresBackgroundTaskQueue, workflow-reply-check-post, reply-thread-summary, scheduled-publishing)
+- Background tasks & durable queue: api/SocialWorker.Api/Features/BackgroundTasks/ (PostgreSQL atomic queue with Allow-List worker filtering, PostgresBackgroundTaskQueue, workflow-reply-check-post, reply-thread-summary, scheduled-publishing, ScheduleEvaluationHostedService, BackgroundTaskRetentionService)
 - Background task worker pool: api/SocialWorker.Api/Features/BackgroundTasks/Services/BackgroundTaskHostedService.cs (configurable worker workloads, dedicated transcription worker, general workers)
 - Configuration & Overrides: api/SocialWorker.Api/Program.cs (mounted host override `./config/appsettings.json` -> `/app/config/appsettings.json:ro`)
 - Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/ (TokenRefreshHostedService)
@@ -69,7 +69,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (766 tests): api/SocialWorker.Api.Tests/
+- API unit/integration tests (825 tests): api/SocialWorker.Api.Tests/
 - Web tests (Vitest, 492 tests in 93 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - Image Engine tests (Vitest, 14 tests in 3 test files): image-engine/tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs

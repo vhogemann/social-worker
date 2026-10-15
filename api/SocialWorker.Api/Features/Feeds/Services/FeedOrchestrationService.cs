@@ -93,13 +93,13 @@ public class FeedOrchestrationService
         Guid userId,
         CancellationToken ct)
     {
-        if (_relevanceEvaluator != null && workflow.MinRelevanceScore > 0)
+        if (_relevanceEvaluator != null)
         {
             var evalResult = await _relevanceEvaluator.EvaluateAsync(canonicalDraft, workflow, ct);
             canonicalDraft.RelevanceScore = evalResult.Score;
             canonicalDraft.DiscardReason = evalResult.Reasoning;
 
-            if (evalResult.Score < workflow.MinRelevanceScore || !evalResult.ShouldPublish)
+            if (workflow.MinRelevanceScore > 0 && (evalResult.Score < workflow.MinRelevanceScore || !evalResult.ShouldPublish))
             {
                 canonicalDraft.Status = DraftStatus.Discarded;
                 canonicalDraft.Content = $"[Descartado - Relevância {evalResult.Score}/10 ({evalResult.Category})]: {evalResult.Reasoning}";

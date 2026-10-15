@@ -265,5 +265,63 @@ public sealed class ScheduleQueueServiceTests : SqliteTestBase
 
         Assert.Equal(8, item.PriorityScore);
     }
+
+    [Fact]
+    public async Task EnqueueAsync_WhenThreadAlreadyActiveInQueue_ReturnsExistingItemWithoutDuplicating()
+    {
+        var (schedule, draft, thread) = await CreateSeedEntitiesAsync();
+
+        var item1 = await _service.EnqueueAsync(schedule.Id, thread.Id, draft.Id, priorityScore: 7);
+        var item2 = await _service.EnqueueAsync(schedule.Id, thread.Id, draft.Id, priorityScore: 7);
+
+        Assert.Equal(item1.Id, item2.Id);
+        var count = await _db.ScheduleQueueItems.CountAsync(q => q.ScheduleId == schedule.Id && q.PlatformThreadId == thread.Id);
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_WhenThreadAlreadyActiveWithDifferentPriority_UpdatesPriorityAndReturnsExistingItem()
+    {
+        var (schedule, draft, thread) = await CreateSeedEntitiesAsync();
+
+        var item1 = await _service.EnqueueAsync(schedule.Id, thread.Id, draft.Id, priorityScore: 6);
+        var item2 = await _service.EnqueueAsync(schedule.Id, thread.Id, draft.Id, priorityScore: 9);
+
+        Assert.Equal(item1.Id, item2.Id);
+        Assert.Equal(9, item2.PriorityScore);
+        var inDb = await _db.ScheduleQueueItems.FindAsync(item1.Id);
+        Assert.NotNull(inDb);
+        Assert.Equal(9, inDb.PriorityScore);
+    }
+
+    [Fact]
+    public async Task GetQueueAsync_ExcludesSucceededAndExpiredItems()
+    {
+        var (schedule, draft1, thread1) = await CreateSeedEntitiesAsync();
+        var item1 = await _service.EnqueueAsync(schedule.Id, thread1.Id, draft1.Id);
+
+        var draft2 = new Draft { Id = Guid.NewGuid(), UserId = _user.Id, Title = "Draft 2", Content = "Content 2" };
+        var thread2 = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft2.Id, Platform = "Bluesky", Stage = PlatformThreadStage.Scheduled };
+        _db.Drafts.Add(draft2);
+        _db.PlatformThreads.Add(thread2);
+        var item2 = ScheduleQueueItem.Create(schedule.Id, draft2.Id, thread2.Id, 1, 7);
+        item2.Status = ScheduleQueueItemStatus.Succeeded;
+
+        var draft3 = new Draft { Id = Guid.NewGuid(), UserId = _user.Id, Title = "Draft 3", Content = "Content 3" };
+        var thread3 = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft3.Id, Platform = "Bluesky", Stage = PlatformThreadStage.Scheduled };
+        _db.Drafts.Add(draft3);
+        _db.PlatformThreads.Add(thread3);
+        var item3 = ScheduleQueueItem.Create(schedule.Id, draft3.Id, thread3.Id, 2, 7);
+        item3.Status = ScheduleQueueItemStatus.Expired;
+
+        _db.ScheduleQueueItems.AddRange(item2, item3);
+        await _db.SaveChangesAsync();
+
+        var queue = await _service.GetQueueAsync(schedule.Id);
+
+        Assert.Single(queue);
+        Assert.Equal(item1.Id, queue[0].Id);
+        Assert.Equal(ScheduleQueueItemStatus.Queued, queue[0].Status);
+    }
 }
 

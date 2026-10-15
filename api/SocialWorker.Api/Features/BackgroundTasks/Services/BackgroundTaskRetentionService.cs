@@ -79,6 +79,18 @@ public sealed class BackgroundTaskRetentionService : BackgroundService
             _logger.LogInformation("Pruned {Count} expired OAuth state records from database", expiredOAuthStates.Count);
         }
 
-        return staleTasks.Count + expiredOAuthStates.Count;
+        var queueCutoff = now.AddDays(-7);
+        var oldFinishedQueueItems = await db.ScheduleQueueItems
+            .Where(q => (q.Status == ScheduleQueueItemStatus.Succeeded || q.Status == ScheduleQueueItemStatus.Expired) && q.UpdatedAt < queueCutoff)
+            .ToListAsync(ct);
+
+        if (oldFinishedQueueItems.Count > 0)
+        {
+            db.ScheduleQueueItems.RemoveRange(oldFinishedQueueItems);
+            await db.SaveChangesAsync(ct);
+            _logger.LogInformation("Pruned {Count} finished schedule queue items older than 7 days from database", oldFinishedQueueItems.Count);
+        }
+
+        return staleTasks.Count + expiredOAuthStates.Count + oldFinishedQueueItems.Count;
     }
 }

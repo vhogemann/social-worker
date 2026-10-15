@@ -25,7 +25,7 @@ public sealed record ScheduleSummaryDto(
             s.Timezone,
             s.IsActive,
             s.SlotRules?.Count ?? 0,
-            s.QueueItems?.Count ?? 0,
+            s.QueueItems?.Count(q => q.Status == ScheduleQueueItemStatus.Queued || q.Status == ScheduleQueueItemStatus.Dispatched || q.Status == ScheduleQueueItemStatus.Paused) ?? 0,
             s.CreatedAt,
             s.UpdatedAt)
     {
@@ -88,10 +88,8 @@ public sealed record ScheduleQueueItemDto(
             q.PlatformThreadId,
             q.PlatformThread?.Platform ?? "Unknown",
             q.Position,
-            q.PriorityScore ?? q.Draft?.RelevanceScore,
-            (q.PriorityScore.HasValue || (q.Draft != null && q.Draft.RelevanceScore.HasValue))
-                ? SchedulePriorityCalculator.CalculateEffectiveScore(q.PriorityScore ?? q.Draft?.RelevanceScore, q.CreatedAt, nowUtc ?? DateTime.UtcNow)
-                : null,
+            q.PriorityScore ?? q.Draft?.RelevanceScore ?? 7,
+            SchedulePriorityCalculator.CalculateEffectiveScore(q.PriorityScore ?? q.Draft?.RelevanceScore, q.CreatedAt, nowUtc ?? DateTime.UtcNow),
             q.Status,
             q.AssignedSlotUtc,
             q.LastError,
@@ -118,7 +116,11 @@ public sealed record ScheduleDetailDto(
             s.Timezone,
             s.IsActive,
             s.SlotRules?.Select(r => new ScheduleSlotRuleDto(r)).ToList() ?? new(),
-            s.QueueItems?.OrderBy(q => q.Position).Select(q => new ScheduleQueueItemDto(q)).ToList() ?? new(),
+            s.QueueItems?
+                .Where(q => q.Status == ScheduleQueueItemStatus.Queued || q.Status == ScheduleQueueItemStatus.Dispatched || q.Status == ScheduleQueueItemStatus.Paused)
+                .OrderBy(q => q.Position)
+                .Select(q => new ScheduleQueueItemDto(q))
+                .ToList() ?? new(),
             s.CreatedAt,
             s.UpdatedAt)
     {

@@ -29,7 +29,7 @@ api/
 │   │   └── Migrations/                # Version-controlled EF Core SQL migrations
 │   ├── Features/                      # Vertical slice feature folders
 │   └── Infrastructure/                # Cross-cutting concerns (Auth, Llm, Markdown, Platforms, Security)
-└── SocialWorker.Api.Tests/            # Comprehensive unit and integration test suite (666 tests)
+└── SocialWorker.Api.Tests/            # Comprehensive unit and integration test suite (825 tests)
 ```
 
 ### Entry & Startup Sequence
@@ -58,7 +58,7 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - `InstagramBusinessDiscoveryClient`: Queries Meta Graph API for public business/creator profiles, reels, and media.
   - `InstagramOAuthService`: Handles user access token retrieval and caller Instagram Business Account ID discovery.
   - `SourceTranscriptionService`: Submits media to the Python `transcriber` service and stores Whisper transcript results.
-- **`Feeds/`**: RSS/Atom, YouTube channel, and Instagram feed subscription, polling, entry deduplication, and workflow trigger dispatch.
+- **`Feeds/`**: RSS/Atom, YouTube channel, and multi-platform social feeds (Instagram, X, Telegram, Reddit, TikTok, Bluesky) resolved deterministically to RSSHub routes or Graph API fallback via `RssHubRouteResolver` and `RssHubFeedDiscoveryService`. Manages subscription, polling, entry deduplication, media extraction, and workflow trigger dispatch.
 - **`Workflows/`**: Automated source-to-draft generation pipeline. Implements `IWorkflowSourceHandler` (e.g. `FeedWorkflowSourceHandler`, `DigestWorkflowSourceHandler`) to process feed items into formatted thread drafts using prompt templates.
 - **`ReplyAgents/`**: Autonomous reply agent library (`ReplyAgent`, `WorkflowCommentThread`, `WorkflowCommentAudit`).
   - Many-to-one workflow assignment: Workflows point to `ReplyAgentId` (nullable FK).
@@ -71,12 +71,14 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - Background tasks: `"workflow-reply-check-post"` and `"reply-thread-summary"` queued by `ReplyAgentPollingHostedService`.
   - Minimal API endpoints at `/api/reply-agents` (CRUD) and `/api/workflows/{workflowId}/reply-agent` (assignment & workflow audits).
 - **`Scheduling/`**: Content calendar engine.
-  - `ScheduleSlotEvaluatorService`: Recurring background evaluator matching queued drafts with available schedule slot windows calculated via `SlotWindowCalculator` and `Cronos`.
-  - `ScheduleQueueService`: FIFO / priority draft queue management.
+  - `ScheduleEvaluationHostedService`: Recurring background hosted service (running every 15 min) that invokes `ScheduleSlotEvaluatorService` to re-score decay and continuously fill upcoming slots.
+  - `ScheduleSlotEvaluatorService`: Core engine matching queued drafts with available schedule slot windows calculated via `SlotWindowCalculator` and `Cronos`, handling level-2 time decay and cascading preemption.
+  - `ScheduleQueueService`: Priority-decayed draft queue management with idempotent enqueueing and active item unique constraint.
   - Review Outbox: Human-in-the-loop triage before post dispatch.
 - **`BackgroundTasks/`**: Robust asynchronous work orchestration.
   - `PostgresBackgroundTaskQueue`: Uses PostgreSQL 16 `FOR UPDATE SKIP LOCKED` for concurrency-safe, durable queueing across container restarts.
   - `BackgroundTaskHostedService`: Worker pool executing transcriptions, web scraping, feed syncs, AI summarization, reply checks, and thread compaction with lease heartbeat tracking and failure retries.
+  - `BackgroundTaskRetentionService`: Prunes task logs, dead runs, and succeeded/expired schedule queue items older than 7 days.
 - **`Mcp/`**: Model Context Protocol integration.
   - Stateless JSON-RPC 2.0 at `POST /api/mcp` and streaming Server-Sent Events at `GET /api/mcp/sse`.
   - Exposes 35 tools covering drafts, sources, workflows, feeds, schedules, calendar events, accounts, and reply agents (`list_reply_agents`, `create_reply_agent`, `update_reply_agent`, `assign_reply_agent`, `get_reply_agent`, `configure_reply_agent`, `trigger_reply_check`, `list_comment_audits`, `reply_to_comment`).

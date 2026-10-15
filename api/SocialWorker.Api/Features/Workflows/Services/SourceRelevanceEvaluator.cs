@@ -63,11 +63,6 @@ public sealed class SourceRelevanceEvaluator : ISourceRelevanceEvaluator
         AutomationWorkflow workflow,
         CancellationToken ct = default)
     {
-        if (workflow.MinRelevanceScore <= 0)
-        {
-            return SourceRelevanceResult.Pass("Relevance scoring disabled for this workflow.");
-        }
-
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == workflow.UserId, ct);
         if (user == null)
         {
@@ -175,11 +170,13 @@ Evaluate relevance and output JSON:
             var score = root.TryGetProperty("score", out var scoreProp) && scoreProp.TryGetInt32(out var s) ? Math.Clamp(s, 1, 10) : 7;
             var reasoning = root.TryGetProperty("reasoning", out var rProp) ? rProp.GetString() ?? "" : "";
             var category = root.TryGetProperty("category", out var cProp) ? cProp.GetString() : "General";
-            var shouldPublish = root.TryGetProperty("shouldPublish", out var spProp) && spProp.ValueKind is JsonValueKind.True or JsonValueKind.False
-                ? spProp.GetBoolean()
-                : score >= workflow.MinRelevanceScore;
+            var shouldPublish = workflow.MinRelevanceScore <= 0
+                ? true
+                : (root.TryGetProperty("shouldPublish", out var spProp) && spProp.ValueKind is JsonValueKind.True or JsonValueKind.False
+                    ? spProp.GetBoolean()
+                    : score >= workflow.MinRelevanceScore);
 
-            if (score < workflow.MinRelevanceScore || !shouldPublish)
+            if (workflow.MinRelevanceScore > 0 && (score < workflow.MinRelevanceScore || !shouldPublish))
             {
                 return SourceRelevanceResult.Discard(score, string.IsNullOrWhiteSpace(reasoning) ? "Below relevance threshold." : reasoning, category ?? "LowImpact");
             }

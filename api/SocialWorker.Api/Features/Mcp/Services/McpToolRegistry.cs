@@ -336,16 +336,16 @@ public sealed class McpToolRegistry
                 }
             }
             """)),
-            new("discover_feed", "Discover the RSS/Atom feed URL, channel title, and website URL from any website, YouTube channel/playlist, or Instagram profile (e.g. 'https://www.instagram.com/flaviobolsonaro').", CreateSchema("""
+            new("discover_feed", "Discover the RSS/Atom feed URL, channel title, and website URL from any website, YouTube channel/playlist, or social profile (Instagram, Twitter/X, Telegram, Reddit, TikTok, Bluesky).", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
-                    "url": { "type": "string", "description": "The URL of the website, YouTube channel/playlist, or Instagram profile." }
+                    "url": { "type": "string", "description": "The URL of the website, YouTube channel/playlist, or social profile." }
                 },
                 "required": ["url"]
             }
             """)),
-            new("add_feed", "Subscribe to a new RSS, YouTube, or Instagram feed (e.g. 'instagram://flaviobolsonaro').", CreateSchema("""
+            new("add_feed", "Subscribe to a new RSS, YouTube, or social platform feed (e.g. 'instagram://user', 'x://user', 'telegram://channel').", CreateSchema("""
             {
                 "type": "object",
                 "properties": {

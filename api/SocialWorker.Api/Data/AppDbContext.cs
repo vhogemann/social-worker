@@ -273,7 +273,7 @@ public class AppDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Title).HasMaxLength(200);
             e.Property(x => x.InstructionPrompt).HasColumnType("text");
-            e.Property(x => x.MinRelevanceScore).HasDefaultValue(7);
+            e.Property(x => x.MinRelevanceScore);
             e.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
@@ -454,6 +454,9 @@ public class AppDbContext : DbContext
             e.HasIndex(x => new { x.Status, x.AssignedSlotUtc });
             e.HasIndex(x => x.DraftId);
             e.HasIndex(x => x.PlatformThreadId);
+            e.HasIndex(x => new { x.ScheduleId, x.PlatformThreadId })
+                .HasFilter("\"Status\" IN ('Queued', 'Dispatched')")
+                .IsUnique();
         });
 
         modelBuilder.Entity<OAuthState>(e =>

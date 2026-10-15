@@ -43,6 +43,22 @@ public sealed class ScheduleQueueService : IScheduleQueueService
 
         var resolvedPriority = priorityScore ?? draft.RelevanceScore;
 
+        var existingActive = await _db.ScheduleQueueItems
+            .FirstOrDefaultAsync(q => q.ScheduleId == scheduleId
+                                   && q.PlatformThreadId == platformThreadId
+                                   && (q.Status == ScheduleQueueItemStatus.Queued || q.Status == ScheduleQueueItemStatus.Dispatched || q.Status == ScheduleQueueItemStatus.Paused), ct);
+
+        if (existingActive != null)
+        {
+            if (resolvedPriority.HasValue && existingActive.PriorityScore != resolvedPriority.Value)
+            {
+                existingActive.PriorityScore = resolvedPriority.Value;
+                existingActive.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+            }
+            return existingActive;
+        }
+
         var existingItems = await _db.ScheduleQueueItems
             .Where(q => q.ScheduleId == scheduleId)
             .OrderBy(q => q.Position)
@@ -225,7 +241,7 @@ public sealed class ScheduleQueueService : IScheduleQueueService
     public async Task<IReadOnlyList<ScheduleQueueItem>> GetQueueAsync(Guid scheduleId, CancellationToken ct = default)
     {
         return await _db.ScheduleQueueItems
-            .Where(q => q.ScheduleId == scheduleId)
+            .Where(q => q.ScheduleId == scheduleId && (q.Status == ScheduleQueueItemStatus.Queued || q.Status == ScheduleQueueItemStatus.Dispatched || q.Status == ScheduleQueueItemStatus.Paused))
             .Include(q => q.Draft)
             .Include(q => q.PlatformThread)
             .OrderBy(q => q.Position)
