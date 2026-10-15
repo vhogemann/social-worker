@@ -1,7 +1,31 @@
 using System;
+using System.Collections.Generic;
 using FluentValidation;
 
 namespace SocialWorker.Api.Features.Feeds.Validators;
+
+public static class FeedValidationConstants
+{
+    public static readonly HashSet<string> AllowedSchemes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        Uri.UriSchemeHttp,
+        Uri.UriSchemeHttps,
+        "instagram",
+        "x",
+        "twitter",
+        "telegram",
+        "reddit",
+        "tiktok",
+        "bluesky"
+    };
+
+    public static bool IsValidFeedUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
+        return AllowedSchemes.Contains(uri.Scheme);
+    }
+}
 
 public sealed class DiscoverFeedRequestValidator : AbstractValidator<DiscoverFeedRequest>
 {
@@ -9,11 +33,8 @@ public sealed class DiscoverFeedRequestValidator : AbstractValidator<DiscoverFee
     {
         RuleFor(x => x.Url)
             .NotEmpty().WithMessage("A valid feed URL is required.")
-            .Must(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-                         (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(uri.Scheme, "instagram", StringComparison.OrdinalIgnoreCase)))
-            .WithMessage("A valid absolute HTTP, HTTPS, or Instagram URL is required.");
+            .Must(FeedValidationConstants.IsValidFeedUrl)
+            .WithMessage("A valid absolute HTTP, HTTPS, or supported platform URL (instagram://, x://, telegram://, reddit://, tiktok://, bluesky://) is required.");
     }
 }
 
@@ -27,10 +48,7 @@ public sealed class CreateFeedSubscriptionRequestValidator : AbstractValidator<C
 
         RuleFor(x => x.FeedUrl)
             .NotEmpty().WithMessage("FeedUrl is required.")
-            .Must(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-                         (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(uri.Scheme, "instagram", StringComparison.OrdinalIgnoreCase)))
-            .WithMessage("A valid absolute HTTP, HTTPS, or Instagram URL is required for FeedUrl.");
+            .Must(FeedValidationConstants.IsValidFeedUrl)
+            .WithMessage("A valid absolute HTTP, HTTPS, or supported platform URL (instagram://, x://, telegram://, reddit://, tiktok://, bluesky://) is required for FeedUrl.");
     }
 }

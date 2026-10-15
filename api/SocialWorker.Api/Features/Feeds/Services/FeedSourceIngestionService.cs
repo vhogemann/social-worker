@@ -143,12 +143,10 @@ public class FeedSourceIngestionService
             return new FeedSourceIngestionResult(IngestionStatus.PendingTranscription, draft, sourceId, null);
         }
 
-        var isInstagramVideo = isInstagram && (
-            string.Equals(mediaType, "VIDEO", StringComparison.OrdinalIgnoreCase) ||
-            (!string.IsNullOrWhiteSpace(mediaUrl) && (mediaUrl.Contains(".mp4", StringComparison.OrdinalIgnoreCase)))
-        );
+        var isVideoMedia = string.Equals(mediaType, "VIDEO", StringComparison.OrdinalIgnoreCase) ||
+            (!string.IsNullOrWhiteSpace(mediaUrl) && mediaUrl.Contains(".mp4", StringComparison.OrdinalIgnoreCase));
 
-        if (source != null && isInstagramVideo && !string.IsNullOrWhiteSpace(mediaUrl) && _transcriptionService != null)
+        if (source != null && isVideoMedia && !string.IsNullOrWhiteSpace(mediaUrl) && _transcriptionService != null)
         {
             _transcriptionService.QueueTranscriptExtraction(sourceId, draft.Id, mediaUrl);
             return new FeedSourceIngestionResult(IngestionStatus.PendingTranscription, draft, sourceId, null);

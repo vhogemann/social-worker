@@ -22,69 +22,100 @@ public interface IFeedReaderService
 public sealed class DefaultFeedReaderService : IFeedReaderService
 {
     private const string BrowserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    private const string RedditUserAgent = "social-worker/1.0 (feed-reader; contact: admin@social-worker.local)";
+    private readonly Services.IRssHubRouteResolver _routeResolver;
+    private readonly Services.RssHubOptions _options;
     private readonly SocialWorker.Api.Features.Sources.Instagram.IInstagramDiscoveryClient? _instagramClient;
     private readonly SocialWorker.Api.Features.Sources.Instagram.IInstagramCredentialProvider? _instagramCredentialProvider;
     private readonly Microsoft.Extensions.Options.IOptions<SocialWorker.Api.Features.Sources.Instagram.InstagramOptions>? _instagramOptions;
     private readonly ILogger<DefaultFeedReaderService>? _logger;
 
+    public DefaultFeedReaderService()
+        : this(null, null, null, null, null, null)
+    {
+    }
+
     public DefaultFeedReaderService(
+        Services.IRssHubRouteResolver? routeResolver,
         SocialWorker.Api.Features.Sources.Instagram.IInstagramDiscoveryClient? instagramClient = null,
         SocialWorker.Api.Features.Sources.Instagram.IInstagramCredentialProvider? instagramCredentialProvider = null,
         Microsoft.Extensions.Options.IOptions<SocialWorker.Api.Features.Sources.Instagram.InstagramOptions>? instagramOptions = null,
-        ILogger<DefaultFeedReaderService>? logger = null)
+        ILogger<DefaultFeedReaderService>? logger = null,
+        Microsoft.Extensions.Options.IOptions<Services.RssHubOptions>? options = null)
     {
+        _routeResolver = routeResolver ?? new Services.RssHubRouteResolver(options, instagramOptions);
+        _options = options?.Value ?? new Services.RssHubOptions();
         _instagramClient = instagramClient;
         _instagramCredentialProvider = instagramCredentialProvider;
         _instagramOptions = instagramOptions;
         _logger = logger;
     }
 
+    public DefaultFeedReaderService(
+        SocialWorker.Api.Features.Sources.Instagram.IInstagramDiscoveryClient? instagramClient,
+        SocialWorker.Api.Features.Sources.Instagram.IInstagramCredentialProvider? instagramCredentialProvider,
+        Microsoft.Extensions.Options.IOptions<SocialWorker.Api.Features.Sources.Instagram.InstagramOptions>? instagramOptions = null,
+        ILogger<DefaultFeedReaderService>? logger = null)
+        : this(new Services.RssHubRouteResolver(instagramOptions: instagramOptions), instagramClient, instagramCredentialProvider, instagramOptions, logger)
+    {
+    }
+
     public async Task<Feed> ReadFeedAsync(string feedUrl, CancellationToken ct = default)
     {
-        if (SocialWorker.Api.Features.Sources.Instagram.InstagramUrlHelper.IsInstagramUrl(feedUrl))
+        var preferRssHub = _options.PreferRssHub;
+        if (_instagramOptions?.Value != null && !_instagramOptions.Value.PreferRssHub)
         {
-            var username = SocialWorker.Api.Features.Sources.Instagram.InstagramUrlHelper.ExtractUsername(feedUrl);
-            if (string.IsNullOrWhiteSpace(username))
+            preferRssHub = false;
+        }
+
+        if (_routeResolver.TryResolve(feedUrl, out var match))
+        {
+            if (string.Equals(match.Platform, "Reddit", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(match.Platform, "RedditUser", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException($"Invalid Instagram feed URL: {feedUrl}");
+                var webUrl = !string.IsNullOrWhiteSpace(match.WebUrl) ? match.WebUrl : feedUrl;
+                var redditRssUrl = $"{webUrl.TrimEnd('/')}/.rss";
+                return await FeedReader.ReadAsync(redditRssUrl, ct, autoRedirect: true, userAgent: RedditUserAgent);
             }
 
-            var opts = _instagramOptions?.Value;
-            var preferRssHub = opts?.PreferRssHub ?? true;
-            var rssHubBaseUrl = opts?.RssHubBaseUrl ?? "http://rsshub:1200";
-
-            if (preferRssHub && !string.IsNullOrWhiteSpace(rssHubBaseUrl))
+            if (preferRssHub)
             {
-                var rssUrl = $"{rssHubBaseUrl.TrimEnd('/')}/instagram/user/{username}";
+                var rssUrl = $"{_routeResolver.GetBaseUrl()}{match.RoutePath}";
                 try
                 {
                     return await FeedReader.ReadAsync(rssUrl, ct, autoRedirect: true, userAgent: BrowserUserAgent);
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogWarning(ex, "Failed to fetch Instagram feed for @{Username} from RSSHub ({RssUrl}). Attempting fallback.", username, rssUrl);
-                    if (_instagramClient == null || _instagramCredentialProvider == null)
-                    {
-                        throw;
-                    }
+                    _logger?.LogWarning(ex, "Failed to fetch {Platform} feed from RSSHub ({RssUrl}). Attempting fallback if available.", match.Platform, rssUrl);
                 }
             }
 
-            if (_instagramClient == null || _instagramCredentialProvider == null)
+            if (string.Equals(match.Platform, "Instagram", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException("Instagram discovery client or credential provider is not configured.");
-            }
+                if (_instagramClient == null || _instagramCredentialProvider == null)
+                {
+                    throw new InvalidOperationException("Instagram discovery client or credential provider is not configured.");
+                }
 
-            var creds = await _instagramCredentialProvider.GetCredentialsAsync(null, ct);
-            if (creds == null)
-            {
-                throw new InvalidOperationException("Instagram polling requires a connected Instagram Professional account or configured credentials. Please connect your account in Settings or set INSTAGRAM__ACCESSTOKEN.");
-            }
+                var creds = await _instagramCredentialProvider.GetCredentialsAsync(null, ct);
+                if (creds == null)
+                {
+                    throw new InvalidOperationException("Instagram polling requires a connected Instagram Professional account or configured credentials. Please connect your account in Settings or set INSTAGRAM__ACCESSTOKEN.");
+                }
 
-            return await _instagramClient.GetProfileFeedAsync(username, creds.CallerIgUserId, creds.AccessToken, 10, ct);
+                var username = match.CanonicalFeedUrl.Replace("instagram://", "", StringComparison.OrdinalIgnoreCase);
+                return await _instagramClient.GetProfileFeedAsync(username, creds.CallerIgUserId, creds.AccessToken, 10, ct);
+            }
         }
 
-        return await FeedReader.ReadAsync(feedUrl, ct, autoRedirect: true, userAgent: BrowserUserAgent);
+        if (feedUrl.StartsWith("instagram://", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Invalid Instagram feed URL: {feedUrl}");
+        }
+
+        var effectiveUserAgent = feedUrl.Contains("reddit.com", StringComparison.OrdinalIgnoreCase) ? RedditUserAgent : BrowserUserAgent;
+        return await FeedReader.ReadAsync(feedUrl, ct, autoRedirect: true, userAgent: effectiveUserAgent);
     }
 }
 
@@ -175,13 +206,17 @@ public sealed class FeedPollingService
                 mediaType = rssItem.Enclosure.MediaType?.StartsWith("video", StringComparison.OrdinalIgnoreCase) == true ? "VIDEO" : rssItem.Enclosure.MediaType;
             }
 
-            if (string.IsNullOrWhiteSpace(mediaUrl) && !string.IsNullOrWhiteSpace(item.Description))
+            if (string.IsNullOrWhiteSpace(mediaUrl))
             {
-                var (extractedUrl, extractedType) = FeedMediaExtractor.ExtractMedia(item.Description);
-                if (!string.IsNullOrWhiteSpace(extractedUrl))
+                var contentToExtract = !string.IsNullOrWhiteSpace(item.Content) ? item.Content : item.Description;
+                if (!string.IsNullOrWhiteSpace(contentToExtract))
                 {
-                    mediaUrl = extractedUrl;
-                    mediaType = extractedType;
+                    var (extractedUrl, extractedType) = FeedMediaExtractor.ExtractMedia(contentToExtract);
+                    if (!string.IsNullOrWhiteSpace(extractedUrl))
+                    {
+                        mediaUrl = extractedUrl;
+                        mediaType = extractedType;
+                    }
                 }
             }
 

@@ -1,6 +1,7 @@
 using System;
 using System.Net.Http;
 using System.Threading.Tasks;
+using SocialWorker.Api.Features.Feeds.Services;
 using SocialWorker.Api.Features.Sources.Instagram;
 
 namespace SocialWorker.Api.Features.Feeds;
@@ -16,21 +17,21 @@ public sealed class FeedDiscoveryService
 {
     private readonly YouTubeFeedDiscoveryService _youTubeDiscoveryService;
     private readonly RssFeedDiscoveryService _rssDiscoveryService;
-    private readonly InstagramFeedDiscoveryService _instagramDiscoveryService;
+    private readonly RssHubFeedDiscoveryService _rssHubDiscoveryService;
 
     public FeedDiscoveryService(HttpClient client)
-        : this(new YouTubeFeedDiscoveryService(client), new RssFeedDiscoveryService(client), new InstagramFeedDiscoveryService())
+        : this(new YouTubeFeedDiscoveryService(client), new RssFeedDiscoveryService(client), new RssHubFeedDiscoveryService())
     {
     }
 
     public FeedDiscoveryService(
         YouTubeFeedDiscoveryService youTubeDiscoveryService,
         RssFeedDiscoveryService rssDiscoveryService,
-        InstagramFeedDiscoveryService? instagramDiscoveryService = null)
+        RssHubFeedDiscoveryService? rssHubDiscoveryService = null)
     {
         _youTubeDiscoveryService = youTubeDiscoveryService;
         _rssDiscoveryService = rssDiscoveryService;
-        _instagramDiscoveryService = instagramDiscoveryService ?? new InstagramFeedDiscoveryService();
+        _rssHubDiscoveryService = rssHubDiscoveryService ?? new RssHubFeedDiscoveryService();
     }
 
     public async Task<FeedDiscoveryResult> DiscoverAsync(string url)
@@ -41,9 +42,14 @@ public sealed class FeedDiscoveryService
             return new FeedDiscoveryResult(string.Empty, null, null, false, "URL is empty.");
         }
 
-        if (normalizedUrl.StartsWith("instagram://", StringComparison.OrdinalIgnoreCase))
+        if (normalizedUrl.Contains("://", StringComparison.Ordinal) &&
+            !normalizedUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !normalizedUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            return await _instagramDiscoveryService.DiscoverAsync(normalizedUrl, new Uri(normalizedUrl));
+            if (_rssHubDiscoveryService.CanHandle(new Uri("https://dummy.local"), normalizedUrl))
+            {
+                return await _rssHubDiscoveryService.DiscoverAsync(normalizedUrl, new Uri("https://dummy.local"));
+            }
         }
 
         if (!normalizedUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
@@ -57,9 +63,9 @@ public sealed class FeedDiscoveryService
             return new FeedDiscoveryResult(normalizedUrl, null, null, false, "Invalid URL format.");
         }
 
-        if (_instagramDiscoveryService.CanHandle(uri, normalizedUrl))
+        if (_rssHubDiscoveryService.CanHandle(uri, normalizedUrl))
         {
-            return await _instagramDiscoveryService.DiscoverAsync(normalizedUrl, uri);
+            return await _rssHubDiscoveryService.DiscoverAsync(normalizedUrl, uri);
         }
 
         if (_youTubeDiscoveryService.CanHandle(uri))

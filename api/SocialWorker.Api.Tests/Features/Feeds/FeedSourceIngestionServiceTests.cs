@@ -220,4 +220,53 @@ public sealed class FeedSourceIngestionServiceTests : SqliteTestBase
         Assert.Equal(permalink, savedSource!.Reference);
         Assert.Equal("Reel caption text", savedSource.Content);
     }
+
+    [Fact]
+    public async Task IngestSourceAsync_WhenTikTokVideo_ReturnsPendingTranscriptionAndEnqueuesTask()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        var sub = new FeedSubscription
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Title = "TikTok User",
+            FeedUrl = "tiktok://nilered"
+        };
+        db.AutomationWorkflows.Add(workflow);
+        db.FeedSubscriptions.Add(sub);
+        await db.SaveChangesAsync();
+
+        var queue = new TestBackgroundTaskQueue();
+        var transcriptionService = new SourceTranscriptionService(queue);
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
+        var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance, transcriptionService);
+
+        var videoUrl = "https://v45.tiktokcdn-eu.com/video/nilered_flame.mp4";
+        var permalink = "https://www.tiktok.com/@nilered/video/7020062522069781766";
+        var result = await service.IngestSourceAsync(
+            sub,
+            workflow,
+            "NileRed Video",
+            permalink,
+            "Video caption text",
+            CancellationToken.None,
+            mediaUrl: videoUrl,
+            mediaType: "VIDEO");
+
+        Assert.Equal(IngestionStatus.PendingTranscription, result.Status);
+        Assert.NotNull(result.Draft);
+        Assert.NotNull(result.SourceId);
+
+        var queuedTask = Assert.Single(queue.EnqueuedTasks);
+        Assert.Equal("source-transcription", queuedTask.TaskType);
+        var payload = System.Text.Json.JsonSerializer.Deserialize<SocialWorker.Api.Features.Sources.Handlers.SourceTranscriptionPayload>(
+            queuedTask.PayloadJson,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Assert.NotNull(payload);
+        Assert.Equal(result.SourceId.Value, payload!.SourceId);
+        Assert.Equal(result.Draft!.Id, payload.DraftId);
+        Assert.Equal(videoUrl, payload.MediaUrl);
+    }
 }
