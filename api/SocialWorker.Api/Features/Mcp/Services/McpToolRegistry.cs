@@ -5,14 +5,20 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using System.IO;
+using Microsoft.Extensions.DependencyInjection;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.BackgroundTasks.Abstractions;
 using SocialWorker.Api.Features.BackgroundTasks.Models;
 using SocialWorker.Api.Features.Chat.Tools;
+using SocialWorker.Api.Features.CodeImages;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Feeds;
+using SocialWorker.Api.Features.ImageEngine;
 using SocialWorker.Api.Features.Mcp.Models;
+using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Features.PlatformVariants;
 using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Publishing.Validation;
@@ -25,6 +31,7 @@ using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Features.Workflows;
 using SocialWorker.Api.Features.Workflows.Abstractions;
 using SocialWorker.Api.Infrastructure.Platforms;
+using SocialWorker.Api.Infrastructure.Search;
 
 namespace SocialWorker.Api.Features.Mcp.Services;
 
@@ -47,6 +54,14 @@ public sealed class McpToolRegistry
     private readonly ReplyAgentCoordinatorService? _replyCoordinator;
     private readonly IReplyPlatformAdapterResolver? _replyAdapterResolver;
     private readonly ReplyAgentPostService? _postService;
+    private readonly IServiceProvider? _serviceProvider;
+    private readonly MediaService? _mediaService;
+    private readonly System.Net.Http.IHttpClientFactory? _httpClientFactory;
+    private readonly CodeImageService? _codeImageService;
+    private readonly ISearchEngine? _searchEngine;
+    private readonly ITranscriptExtractionService? _transcriberService;
+    private readonly PlatformVariantService? _platformVariantService;
+    private readonly IImageEngineClient? _imageEngineClient;
 
     public McpToolRegistry(
         AppDbContext db,
@@ -65,7 +80,15 @@ public sealed class McpToolRegistry
         IBackgroundTaskQueue? taskQueue = null,
         ReplyAgentCoordinatorService? replyCoordinator = null,
         IReplyPlatformAdapterResolver? replyAdapterResolver = null,
-        ReplyAgentPostService? postService = null)
+        ReplyAgentPostService? postService = null,
+        IServiceProvider? serviceProvider = null,
+        MediaService? mediaService = null,
+        System.Net.Http.IHttpClientFactory? httpClientFactory = null,
+        CodeImageService? codeImageService = null,
+        ISearchEngine? searchEngine = null,
+        ITranscriptExtractionService? transcriberService = null,
+        PlatformVariantService? platformVariantService = null,
+        IImageEngineClient? imageEngineClient = null)
     {
         _db = db;
         _draftsService = draftsService;
@@ -84,7 +107,23 @@ public sealed class McpToolRegistry
         _replyCoordinator = replyCoordinator;
         _replyAdapterResolver = replyAdapterResolver;
         _postService = postService;
+        _serviceProvider = serviceProvider;
+        _mediaService = mediaService;
+        _httpClientFactory = httpClientFactory;
+        _codeImageService = codeImageService;
+        _searchEngine = searchEngine;
+        _transcriberService = transcriberService;
+        _platformVariantService = platformVariantService;
+        _imageEngineClient = imageEngineClient;
     }
+
+    private MediaService? ResolveMediaService() => _mediaService ?? _serviceProvider?.GetService<MediaService>();
+    private IImageEngineClient? ResolveImageEngine() => _imageEngineClient ?? _serviceProvider?.GetService<IImageEngineClient>();
+    private System.Net.Http.HttpClient ResolveHttpClient() => _httpClientFactory?.CreateClient() ?? _serviceProvider?.GetService<System.Net.Http.IHttpClientFactory>()?.CreateClient() ?? new System.Net.Http.HttpClient();
+    private CodeImageService? ResolveCodeImageService() => _codeImageService ?? _serviceProvider?.GetService<CodeImageService>();
+    private ISearchEngine? ResolveSearchEngine() => _searchEngine ?? _serviceProvider?.GetService<ISearchEngine>();
+    private ITranscriptExtractionService? ResolveTranscriber() => _transcriberService ?? _serviceProvider?.GetService<ITranscriptExtractionService>();
+    private PlatformVariantService? ResolveVariantService() => _platformVariantService ?? _serviceProvider?.GetService<PlatformVariantService>();
 
     public List<McpToolDefinition> ListTools()
     {
@@ -118,7 +157,8 @@ public sealed class McpToolRegistry
                 "properties": {
                     "title": { "type": "string", "description": "Title of the draft." },
                     "content": { "type": "string", "description": "Initial markdown content for the thread segments." },
-                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky')." }
+                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn')." },
+                    "accountId": { "type": "string", "description": "Optional connected account ID to associate with the draft." }
                 },
                 "required": ["title"]
             }
@@ -139,7 +179,7 @@ public sealed class McpToolRegistry
                 "type": "object",
                 "properties": {
                     "draftId": { "type": "string", "description": "The UUID of the draft to validate." },
-                    "platform": { "type": "string", "description": "Target platform (defaults to 'Bluesky')." }
+                    "platform": { "type": "string", "description": "Target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn'). Defaults to the draft's designated platform." }
                 },
                 "required": ["draftId"]
             }
@@ -163,14 +203,18 @@ public sealed class McpToolRegistry
                 "required": ["draftId"]
             }
             """)),
-            new("publish_thread", "Publish a draft to a live social media platform (e.g. Bluesky) with server-enforced validation.", CreateSchema("""
+            new("publish_thread", "Publish a draft to a live social media platform (e.g. Bluesky, Twitter/X, Threads, LinkedIn) with server-enforced validation.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
                     "draftId": { "type": "string", "description": "The UUID of the draft to publish." },
-                    "platform": { "type": "string", "description": "The target platform (e.g. 'Bluesky')." }
+                    "platform": { "type": "string", "description": "The target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn')." },
+                    "platforms": { "type": "array", "items": { "type": "string" }, "description": "Optional list of platforms to publish to simultaneously (e.g. ['Bluesky', 'Twitter'])." },
+                    "accountId": { "type": "string", "description": "Optional account ID to publish with. Required if the user has multiple accounts for this platform." },
+                    "dryRun": { "type": "boolean", "description": "If true, simulates validation, account resolution, and post preview without posting to live platform." },
+                    "confirm": { "type": "boolean", "description": "Confirmation flag required for irreversible live publishing actions. Defaults to true." }
                 },
-                "required": ["draftId", "platform"]
+                "required": ["draftId"]
             }
             """)),
             new("list_sources", "List all sources (URLs, articles, video transcripts) attached to a draft.", CreateSchema("""
@@ -292,8 +336,11 @@ public sealed class McpToolRegistry
                 "properties": {
                     "scheduleId": { "type": "string", "description": "The UUID of the schedule." },
                     "draftId": { "type": "string", "description": "The UUID of the draft to enqueue." },
+                    "platformThreadId": { "type": "string", "description": "Optional UUID of the specific platform thread variant to enqueue." },
+                    "accountId": { "type": "string", "description": "Optional account ID to associate with the platform thread if not already set." },
                     "targetPosition": { "type": "integer", "description": "Optional specific 1-based queue position. Defaults to appending to end of queue." },
-                    "priorityScore": { "type": "integer", "description": "Optional priority/relevance score (1-10) for dynamic queue ranking and preemption." }
+                    "priorityScore": { "type": "integer", "description": "Optional priority/relevance score (1-10) for dynamic queue ranking and preemption." },
+                    "publishAt": { "type": "string", "description": "Optional specific future UTC timestamp (ISO 8601) to schedule publishing at without slot rules." }
                 },
                 "required": ["scheduleId", "draftId"]
             }
@@ -432,7 +479,8 @@ public sealed class McpToolRegistry
                         "description": "Updated target publishing destinations for generated threads."
                     },
                     "scheduleId": { "type": "string", "description": "Optional schedule UUID for workflow-level scheduling." },
-                    "minRelevanceScore": { "type": "integer", "description": "Minimum impact/relevance score (1-10) for feed items to become drafts (default: 7, 0 to disable)." }
+                    "minRelevanceScore": { "type": "integer", "description": "Minimum impact/relevance score (1-10) for feed items to become drafts (default: 7, 0 to disable)." },
+                    "status": { "type": "string", "enum": ["Active", "Paused", "Archived"], "description": "Workflow lifecycle state." }
                 },
                 "required": ["workflowId"]
             }
@@ -567,11 +615,11 @@ public sealed class McpToolRegistry
                 }
             }
             """)),
-            new("list_posts", "List published social media posts across platforms (Bluesky, MetaThreads) with comment counts, remote IDs, and workflow attribution to inspect performance and engagement.", CreateSchema("""
+            new("list_posts", "List published social media posts across platforms (Bluesky, Twitter/X, MetaThreads, LinkedIn) with reply agent audited comment counts, remote IDs, and workflow attribution to inspect performance and engagement.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
-                    "platform": { "type": "string", "description": "Filter by platform (e.g. 'MetaThreads', 'Bluesky')." },
+                    "platform": { "type": "string", "description": "Filter by platform (e.g. 'Bluesky', 'Twitter', 'MetaThreads', 'LinkedIn')." },
                     "workflowId": { "type": "string", "description": "Filter by automation workflow UUID." },
                     "since": { "type": "string", "description": "ISO-8601 timestamp to filter posts published after this date." },
                     "hasReplies": { "type": "boolean", "description": "Filter to only posts that have received comments or replies." },
@@ -609,6 +657,229 @@ public sealed class McpToolRegistry
                     "agentId": { "type": "string", "description": "Optional UUID of the reply agent to filter posts." },
                     "activeOnly": { "type": "boolean", "description": "Filter to only active assignments (default: true)." }
                 }
+            }
+            """)),
+            new("import_media_from_url", "Download an image from an external URL, process and optimize it, and attach it to a social media draft. Returns markdown media tag e.g. ![alt](media://{id}).", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to attach media to." },
+                    "url": { "type": "string", "description": "The absolute HTTP/HTTPS URL of the image to download." },
+                    "altText": { "type": "string", "description": "Optional accessibility alt text for the image." }
+                },
+                "required": ["draftId", "url"]
+            }
+            """)),
+            new("upload_media", "Upload a base64-encoded image or media file and attach it to a draft. Returns markdown media tag e.g. ![alt](media://{id}).", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to attach media to." },
+                    "fileName": { "type": "string", "description": "File name with extension (e.g. 'chart.png', 'photo.jpg')." },
+                    "base64Data": { "type": "string", "description": "Base64-encoded image content (raw or data URL)." },
+                    "mimeType": { "type": "string", "description": "MIME type (e.g. 'image/png', 'image/jpeg', 'image/webp')." },
+                    "altText": { "type": "string", "description": "Optional accessibility alt text for the media." }
+                },
+                "required": ["draftId", "fileName", "base64Data"]
+            }
+            """)),
+            new("list_templates", "Lists available visual image templates in the library along with their exact slot names, slot types, and canvas dimensions.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "search": { "type": "string", "description": "Optional keyword to filter templates by name or description (e.g. 'quote', 'metric', 'code')." }
+                }
+            }
+            """)),
+            new("render_template", "Renders an image template with custom slot parameters (text, quotes, metrics, background image) and attaches the generated graphic to a draft.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to attach the rendered template to." },
+                    "templateId": { "type": "string", "description": "The exact GUID or exact Name of the template to render." },
+                    "slots": { "type": "object", "description": "Key-value mapping of slot names to text values or media://{guid} references.", "additionalProperties": { "type": "string" } },
+                    "altText": { "type": "string", "description": "Optional accessibility alt text for preview and publishing." }
+                },
+                "required": ["draftId", "templateId", "slots"]
+            }
+            """)),
+            new("render_code_blocks", "Renders code fences in a draft into Carbon-style syntax-highlighted images and replaces the code blocks with compact media markdown references.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft containing code fences." },
+                    "theme": { "type": "string", "enum": ["Dark", "Light"], "description": "Visual color theme for code snippets. Defaults to Dark." },
+                    "blockIndex": { "type": "integer", "description": "Optional 0-based index of a specific code block to render. If omitted, renders all blocks." }
+                },
+                "required": ["draftId"]
+            }
+            """)),
+            new("search_images", "Search the web for images based on a query and return candidate URLs for visual inspection and importing.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "description": "The search term or keyword to find images for." }
+                },
+                "required": ["query"]
+            }
+            """)),
+            new("update_media", "Update accessibility alt text for an existing media asset.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "mediaId": { "type": "string", "description": "The UUID of the media asset." },
+                    "altText": { "type": "string", "description": "Updated accessibility alt text." }
+                },
+                "required": ["mediaId", "altText"]
+            }
+            """)),
+            new("delete_media", "Delete an attached media asset by ID.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "mediaId": { "type": "string", "description": "The UUID of the media asset to delete." }
+                },
+                "required": ["mediaId"]
+            }
+            """)),
+            new("schedule_post", "Schedule a draft thread to be published at a specific future UTC timestamp without requiring manual slot rules.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to schedule." },
+                    "publishAt": { "type": "string", "description": "ISO 8601 UTC date-time string when the post should be published (must be in future)." },
+                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn')." },
+                    "accountId": { "type": "string", "description": "Optional account ID to publish with." },
+                    "scheduleId": { "type": "string", "description": "Optional schedule ID. If omitted, uses active user schedule or creates default." }
+                },
+                "required": ["draftId", "publishAt"]
+            }
+            """)),
+            new("remove_queue_item", "Remove a scheduled post item from a publishing queue.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "scheduleId": { "type": "string", "description": "The UUID of the schedule." },
+                    "queueItemId": { "type": "string", "description": "The UUID of the queue item to remove." }
+                },
+                "required": ["scheduleId", "queueItemId"]
+            }
+            """)),
+            new("reorder_queue", "Reorder pending queue items within a schedule by supplying the full list of item IDs in desired order.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "scheduleId": { "type": "string", "description": "The UUID of the schedule." },
+                    "itemIdsInOrder": { "type": "array", "items": { "type": "string" }, "description": "Ordered list of queue item UUIDs." }
+                },
+                "required": ["scheduleId", "itemIdsInOrder"]
+            }
+            """)),
+            new("pause_queue_item", "Pause or resume a specific item in the schedule queue.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "scheduleId": { "type": "string", "description": "The UUID of the schedule." },
+                    "queueItemId": { "type": "string", "description": "The UUID of the queue item." },
+                    "isPaused": { "type": "boolean", "description": "True to pause, false to resume." }
+                },
+                "required": ["scheduleId", "queueItemId", "isPaused"]
+            }
+            """)),
+            new("retry_queue_item", "Retry a failed or expired scheduled queue item.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "scheduleId": { "type": "string", "description": "The UUID of the schedule." },
+                    "queueItemId": { "type": "string", "description": "The UUID of the queue item to retry." }
+                },
+                "required": ["queueItemId"]
+            }
+            """)),
+            new("update_schedule", "Update an existing publishing schedule's name, timezone, or active state.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "scheduleId": { "type": "string", "description": "The UUID of the schedule to update." },
+                    "name": { "type": "string", "description": "Updated name for the schedule." },
+                    "timezone": { "type": "string", "description": "Updated IANA timezone (e.g. 'UTC', 'America/New_York')." },
+                    "isActive": { "type": "boolean", "description": "Whether the schedule is active." }
+                },
+                "required": ["scheduleId"]
+            }
+            """)),
+            new("delete_schedule", "Delete a publishing schedule and its associated slot rules and queue items.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "scheduleId": { "type": "string", "description": "The UUID of the schedule to delete." }
+                },
+                "required": ["scheduleId"]
+            }
+            """)),
+            new("delete_feed", "Delete a feed subscription by ID.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "feedId": { "type": "string", "description": "The UUID of the feed subscription to delete." }
+                },
+                "required": ["feedId"]
+            }
+            """)),
+            new("delete_reply_agent", "Delete a reply agent by ID.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "agentId": { "type": "string", "description": "The UUID of the reply agent to delete." }
+                },
+                "required": ["agentId"]
+            }
+            """)),
+            new("get_workflow", "Get complete details and status of an automation workflow by ID.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "workflowId": { "type": "string", "description": "The UUID of the workflow." }
+                },
+                "required": ["workflowId"]
+            }
+            """)),
+            new("generate_variants", "Generate platform-specific adaptations of a canonical draft for target social platforms (Bluesky, Twitter, Threads, LinkedIn).", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to adapt." },
+                    "platforms": { "type": "array", "items": { "type": "string" }, "description": "Target platforms (e.g. ['Bluesky', 'Twitter', 'MetaThreads', 'LinkedIn'])." }
+                },
+                "required": ["draftId"]
+            }
+            """)),
+            new("set_bluesky_reply_target", "Configure a draft as a reply to a specific Bluesky post URL, fetching root and parent thread references.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to attach reply target to." },
+                    "replyParentUrl": { "type": "string", "description": "The full Bluesky post URL to reply to (e.g. 'https://bsky.app/profile/.../post/...')." }
+                },
+                "required": ["draftId", "replyParentUrl"]
+            }
+            """)),
+            new("transcribe_video", "Extract audio and transcribe speech from a video URL (e.g. YouTube) using the transcription service.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string", "description": "URL of the video to transcribe." }
+                },
+                "required": ["url"]
+            }
+            """)),
+            new("web_search", "Search the web for sources, references, or latest information given a query.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "description": "The search query string." }
+                },
+                "required": ["query"]
             }
             """))
         };
@@ -669,6 +940,28 @@ public sealed class McpToolRegistry
                 "assign_reply_agent_post" => await HandleAssignReplyAgentPostAsync(userId, args, ct),
                 "unassign_reply_agent_post" => await HandleUnassignReplyAgentPostAsync(userId, args, ct),
                 "list_reply_agent_posts" => await HandleListReplyAgentPostsAsync(userId, args, ct),
+                "import_media_from_url" => await HandleImportMediaFromUrlAsync(userId, args, ct),
+                "upload_media" => await HandleUploadMediaAsync(userId, args, ct),
+                "list_templates" => await HandleListTemplatesAsync(userId, args, ct),
+                "render_template" => await HandleRenderTemplateAsync(userId, args, ct),
+                "render_code_blocks" => await HandleRenderCodeBlocksAsync(userId, args, ct),
+                "search_images" => await HandleSearchImagesAsync(args, ct),
+                "update_media" => await HandleUpdateMediaAsync(userId, args, ct),
+                "delete_media" => await HandleDeleteMediaAsync(userId, args, ct),
+                "schedule_post" => await HandleSchedulePostAsync(userId, args, ct),
+                "remove_queue_item" => await HandleRemoveQueueItemAsync(userId, args, ct),
+                "reorder_queue" => await HandleReorderQueueAsync(userId, args, ct),
+                "pause_queue_item" => await HandlePauseQueueItemAsync(userId, args, ct),
+                "retry_queue_item" => await HandleRetryQueueItemAsync(userId, args, ct),
+                "update_schedule" => await HandleUpdateScheduleAsync(userId, args, ct),
+                "delete_schedule" => await HandleDeleteScheduleAsync(userId, args, ct),
+                "delete_feed" => await HandleDeleteFeedAsync(userId, args, ct),
+                "delete_reply_agent" => await HandleDeleteReplyAgentAsync(userId, args, ct),
+                "get_workflow" => await HandleGetWorkflowAsync(userId, args, ct),
+                "generate_variants" => await HandleGenerateVariantsAsync(userId, args, ct),
+                "set_bluesky_reply_target" => await HandleSetBlueskyReplyTargetAsync(userId, args, ct),
+                "transcribe_video" => await HandleTranscribeVideoAsync(args, ct),
+                "web_search" => await HandleWebSearchAsync(args, ct),
                 _ => TextError($"Unknown tool '{toolName}'.")
             };
         }
@@ -759,7 +1052,45 @@ public sealed class McpToolRegistry
         }
 
         var draft = await _draftsService.GetDraftByIdAsync(userId, draftId, ct);
-        return TextResult(JsonSerializer.Serialize(draft, JsonOptions));
+        var mediaWithTags = draft.MediaAssets?.Select(m => new
+        {
+            m.Id,
+            m.FileName,
+            m.MimeType,
+            m.AltText,
+            m.SizeBytes,
+            m.Width,
+            m.Height,
+            m.CreatedAt,
+            markdownTag = $"![{m.AltText ?? m.FileName}](media://{m.Id})"
+        }).ToList();
+
+        var result = new
+        {
+            draft.Id,
+            draft.Title,
+            draft.Status,
+            draft.Content,
+            draft.TargetPlatform,
+            draft.CanonicalDraftId,
+            draft.Threads,
+            MediaAssets = mediaWithTags,
+            draft.BlueskyReplyTarget,
+            draft.ChatHistory,
+            draft.ChatSummary,
+            draft.LastSummarizedMessageCount,
+            draft.CreatedAt,
+            draft.UpdatedAt,
+            draft.TargetAccountId,
+            draft.TargetAccountHandle,
+            draft.AutomationWorkflowId,
+            draft.AutomationWorkflowTitle,
+            draft.Variants,
+            draft.DiscardReason,
+            draft.RelevanceScore
+        };
+
+        return TextResult(JsonSerializer.Serialize(result, JsonOptions));
     }
 
 
@@ -768,9 +1099,21 @@ public sealed class McpToolRegistry
         var title = args.GetProperty("title").GetString() ?? "New Draft";
         var content = args.TryGetProperty("content", out var c) ? c.GetString() : null;
         var platform = args.TryGetProperty("platform", out var p) ? p.GetString() : null;
+        Guid? accountId = null;
+        if (args.TryGetProperty("accountId", out var accProp) && Guid.TryParse(accProp.GetString(), out var parsedAccId))
+        {
+            accountId = parsedAccId;
+        }
 
-        var result = await _draftsService.CreateDraftAsync(userId, title, content, platform, null, ct);
-        return TextResult($"Draft created successfully with ID: {result.Id}");
+        var result = await _draftsService.CreateDraftAsync(userId, title, content, platform, accountId, ct);
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            id = result.Id,
+            title = result.Title,
+            platform = result.TargetPlatform,
+            message = $"Draft created successfully with ID: {result.Id}"
+        }, JsonOptions));
     }
 
     private async Task<McpToolCallResult> HandleUpdateDraftAsync(Guid userId, JsonElement args, CancellationToken ct)
@@ -827,10 +1170,20 @@ public sealed class McpToolRegistry
             return TextError("draftId must be a valid UUID.");
         }
 
-        var platform = args.TryGetProperty("platform", out var p) ? p.GetString() : "Bluesky";
+        string? platform = args.TryGetProperty("platform", out var p) ? p.GetString() : null;
+        if (string.IsNullOrWhiteSpace(platform))
+        {
+            var draft = await _db.Drafts.Include(d => d.Threads).FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId, ct);
+            if (draft != null)
+            {
+                platform = draft.Threads.FirstOrDefault()?.Platform ?? draft.TargetPlatform?.ToString();
+            }
+            platform ??= "Bluesky";
+        }
+
         var validatorTool = new ValidateDraftTool(_db, _validatorResolver);
         var validation = await validatorTool.ExecuteAsync(new ValidateDraftArgs(null, platform), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
-        return TextResult(validation.ToDisplayText());
+        return TextResult($"Platform: {platform}\n\n{validation.ToDisplayText()}");
     }
 
     private async Task<McpToolCallResult> HandlePublishThreadAsync(Guid userId, JsonElement args, CancellationToken ct)
@@ -840,16 +1193,130 @@ public sealed class McpToolRegistry
             return TextError("draftId must be a valid UUID.");
         }
 
-        var platform = args.GetProperty("platform").GetString() ?? "Bluesky";
-        var publishTool = new PublishPlatformTool(_db, _publisherResolver, _blueskyValidator, _replyTargetResolver);
-        var result = await publishTool.ExecuteAsync(new PublishPlatformArgs(platform), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+        bool isDryRun = args.TryGetProperty("dryRun", out var drProp) && drProp.ValueKind == JsonValueKind.True;
+        bool confirm = !args.TryGetProperty("confirm", out var cfProp) || cfProp.ValueKind != JsonValueKind.False;
 
-        if (!result.Success)
+        if (!confirm && !isDryRun)
         {
-            return TextError(result.Error ?? result.Message);
+            return TextError("Publishing is an irreversible public action. Please specify confirm: true or use dryRun: true to preview.");
         }
 
-        return TextResult(result.Message);
+        var platforms = new List<string>();
+        if (args.TryGetProperty("platforms", out var platsProp) && platsProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var el in platsProp.EnumerateArray())
+            {
+                if (!string.IsNullOrWhiteSpace(el.GetString()))
+                    platforms.Add(el.GetString()!);
+            }
+        }
+        else if (args.TryGetProperty("platform", out var pProp) && !string.IsNullOrWhiteSpace(pProp.GetString()))
+        {
+            platforms.Add(pProp.GetString()!);
+        }
+
+        if (platforms.Count == 0)
+        {
+            var draft = await _db.Drafts.Include(d => d.Threads).FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId, ct);
+            if (draft != null)
+            {
+                var candidate = draft.Threads.FirstOrDefault()?.Platform ?? draft.TargetPlatform?.ToString();
+                if (!string.IsNullOrWhiteSpace(candidate))
+                    platforms.Add(candidate);
+            }
+            if (platforms.Count == 0)
+                platforms.Add("Bluesky");
+        }
+
+        Guid? accountId = null;
+        if (args.TryGetProperty("accountId", out var accProp) && Guid.TryParse(accProp.GetString(), out var parsedAccId))
+        {
+            accountId = parsedAccId;
+        }
+
+        var publishTool = new PublishPlatformTool(_db, _publisherResolver, _blueskyValidator, _replyTargetResolver, _validatorResolver);
+        var validatorTool = new ValidateDraftTool(_db, _validatorResolver);
+
+        if (isDryRun)
+        {
+            var previews = new List<object>();
+            foreach (var plat in platforms)
+            {
+                var matchingAccounts = await _db.Accounts
+                    .Where(a => a.UserId == userId && a.Platform.ToLower() == plat.ToLower())
+                    .ToListAsync(ct);
+
+                var resolvedAccount = accountId.HasValue
+                    ? matchingAccounts.FirstOrDefault(a => a.Id == accountId.Value)
+                    : (matchingAccounts.Count == 1 ? matchingAccounts[0] : null);
+
+                var validation = await validatorTool.ExecuteAsync(
+                    new ValidateDraftArgs(null, plat),
+                    SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+                previews.Add(new
+                {
+                    platform = plat,
+                    accountHandle = resolvedAccount?.Handle,
+                    accountId = resolvedAccount?.Id,
+                    multipleAccounts = matchingAccounts.Count > 1,
+                    availableAccounts = matchingAccounts.Select(a => new { a.Id, a.Handle }).ToList(),
+                    isValid = !validation.HasBlockingErrors,
+                    overallStatus = validation.OverallStatus.ToString(),
+                    posts = validation.Posts.Select(p => new
+                    {
+                        postNumber = p.PostNumber,
+                        characterCount = p.CharacterCount,
+                        imageCount = p.ImageCount,
+                        issues = p.Issues.Select(i => new { severity = i.Severity.ToString(), message = i.Message })
+                    })
+                });
+            }
+
+            return TextResult(JsonSerializer.Serialize(new
+            {
+                dryRun = true,
+                draftId,
+                platforms,
+                previews,
+                message = "Dry-run preview and validation completed. No posts were published."
+            }, JsonOptions));
+        }
+
+        var results = new List<object>();
+        foreach (var plat in platforms)
+        {
+            var result = await publishTool.ExecuteAsync(
+                new PublishPlatformArgs(plat, accountId),
+                SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+            if (!result.Success)
+            {
+                return TextError(result.Error ?? result.Message);
+            }
+
+            results.Add(new
+            {
+                platform = plat,
+                success = result.Success,
+                message = result.Message,
+                posts = result.Posts
+            });
+        }
+
+        if (results.Count == 1)
+        {
+            var single = (dynamic)results[0];
+            return TextResult(single.message);
+        }
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            draftId,
+            publishedPlatforms = results,
+            message = $"Successfully published draft to {results.Count} platforms."
+        }, JsonOptions));
     }
 
     private async Task<McpToolCallResult> HandleListSourcesAsync(Guid userId, JsonElement args, CancellationToken ct)
@@ -914,8 +1381,21 @@ public sealed class McpToolRegistry
             .OrderByDescending(w => w.CreatedAt)
             .ToListAsync(ct);
 
-        var dtos = workflows.Select(w => new AutomationWorkflowDto(w)).ToList();
-        return TextResult(JsonSerializer.Serialize(dtos, JsonOptions));
+        var list = workflows.Select(w => new
+        {
+            w.Id,
+            w.Title,
+            w.InstructionPrompt,
+            status = "Active",
+            sources = w.WorkflowSources.Select(s => new WorkflowSourceDto(s)).ToList(),
+            destinations = w.Destinations.Select(d => new WorkflowDestinationDto(d)).ToList(),
+            w.ScheduleId,
+            ScheduleName = w.Schedule?.Name,
+            w.MinRelevanceScore,
+            w.CreatedAt,
+            w.UpdatedAt
+        }).ToList();
+        return TextResult(JsonSerializer.Serialize(list, JsonOptions));
     }
 
     private async Task<McpToolCallResult> HandleTriggerWorkflowAsync(Guid userId, JsonElement args, CancellationToken ct)
@@ -1229,6 +1709,12 @@ public sealed class McpToolRegistry
             return TextError("Schedule queue service is unavailable.");
         }
 
+        Guid? accountId = null;
+        if (args.TryGetProperty("accountId", out var accProp) && Guid.TryParse(accProp.GetString(), out var parsedAccId))
+        {
+            accountId = parsedAccId;
+        }
+
         Guid platformThreadId;
         if (args.TryGetProperty("platformThreadId", out var ptProp) && Guid.TryParse(ptProp.GetString(), out var parsedPtId))
         {
@@ -1239,6 +1725,11 @@ public sealed class McpToolRegistry
             var existingThread = draft.Threads.FirstOrDefault();
             if (existingThread != null)
             {
+                if (accountId.HasValue && !existingThread.AccountId.HasValue)
+                {
+                    existingThread.AccountId = accountId.Value;
+                    await _db.SaveChangesAsync(ct);
+                }
                 platformThreadId = existingThread.Id;
             }
             else
@@ -1247,6 +1738,7 @@ public sealed class McpToolRegistry
                 {
                     Id = Guid.NewGuid(),
                     DraftId = draftId,
+                    AccountId = accountId,
                     Platform = draft.TargetPlatform?.ToString() ?? "Bluesky",
                     Stage = PlatformThreadStage.Draft,
                     CreatedAt = DateTime.UtcNow,
@@ -1265,7 +1757,27 @@ public sealed class McpToolRegistry
 
         var item = await _queueService.EnqueueAsync(scheduleId, platformThreadId, draftId, targetPosition, priorityScore, ct);
 
-        if (_evaluatorService != null)
+        if (args.TryGetProperty("publishAt", out var paProp) && DateTime.TryParse(paProp.GetString(), out var publishAt))
+        {
+            var publishAtUtc = publishAt.ToUniversalTime();
+            if (_taskQueue != null && publishAtUtc > DateTime.UtcNow)
+            {
+                var delay = publishAtUtc - DateTime.UtcNow;
+                var payload = new ScheduledPublishingPayload(item.Id, scheduleId, draftId, platformThreadId);
+                var taskId = await _taskQueue.EnqueueAsync(
+                    "scheduled-publishing",
+                    payload,
+                    new EnqueueTaskOptions { Delay = delay, DeduplicationKey = $"publish:{item.Id}" },
+                    ct);
+
+                item.Status = ScheduleQueueItemStatus.Dispatched;
+                item.AssignedSlotUtc = publishAtUtc;
+                item.ScheduledTaskId = taskId;
+                item.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+            }
+        }
+        else if (_evaluatorService != null)
         {
             await _evaluatorService.EvaluateScheduleAsync(scheduleId, ct: ct);
         }
@@ -2444,7 +2956,11 @@ public sealed class McpToolRegistry
                     publishedText = post.PublishedText,
                     postedAt = post.PostedAt,
                     commentsCount = count,
-                    accountHandle = post.PlatformThread?.Account?.Handle,
+                    auditedCommentsCount = count,
+                    likesCount = 0,
+                    repostsCount = 0,
+                    repliesCount = count,
+                    accountHandle = post.PlatformThread?.Account?.Handle ?? post.AuthorHandle,
                     workflowId = post.Draft?.AutomationWorkflowId,
                     workflowTitle = post.Draft?.AutomationWorkflow?.Title,
                     draftId = post.DraftId,
@@ -2552,6 +3068,872 @@ public sealed class McpToolRegistry
         }
 
         return TextResult(JsonSerializer.Serialize(posts, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleImportMediaFromUrlAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
+            return TextError("draftId must be a valid UUID.");
+
+        if (!args.TryGetProperty("url", out var uProp) || string.IsNullOrWhiteSpace(uProp.GetString()))
+            return TextError("url is required.");
+
+        var url = uProp.GetString()!;
+        var altText = args.TryGetProperty("altText", out var aProp) ? aProp.GetString() : null;
+
+        var mediaService = ResolveMediaService();
+        if (mediaService == null)
+            return TextError("MediaService is not configured.");
+
+        try
+        {
+            using var httpClient = ResolveHttpClient();
+            var uploadResult = await mediaService.ImportMediaFromUrlAsync(userId, draftId, url, httpClient, ct, altText);
+            return TextResult(JsonSerializer.Serialize(new
+            {
+                success = true,
+                mediaId = uploadResult.Id,
+                markdownTag = uploadResult.MarkdownTag,
+                message = $"Media imported successfully from URL and attached to draft: {uploadResult.MarkdownTag}"
+            }, JsonOptions));
+        }
+        catch (Exception ex)
+        {
+            return TextError($"Failed to import media from URL: {ex.Message}");
+        }
+    }
+
+    private async Task<McpToolCallResult> HandleUploadMediaAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
+            return TextError("draftId must be a valid UUID.");
+
+        if (!args.TryGetProperty("fileName", out var fProp) || string.IsNullOrWhiteSpace(fProp.GetString()))
+            return TextError("fileName is required.");
+
+        if (!args.TryGetProperty("base64Data", out var bProp) || string.IsNullOrWhiteSpace(bProp.GetString()))
+            return TextError("base64Data is required.");
+
+        var fileName = fProp.GetString()!;
+        var base64Data = bProp.GetString()!;
+        var mimeType = args.TryGetProperty("mimeType", out var mProp) && !string.IsNullOrWhiteSpace(mProp.GetString())
+            ? mProp.GetString()!
+            : "image/png";
+        var altText = args.TryGetProperty("altText", out var aProp) ? aProp.GetString() : null;
+
+        var mediaService = ResolveMediaService();
+        if (mediaService == null)
+            return TextError("MediaService is not configured.");
+
+        try
+        {
+            if (base64Data.Contains(','))
+            {
+                base64Data = base64Data.Substring(base64Data.IndexOf(',') + 1);
+            }
+
+            var bytes = Convert.FromBase64String(base64Data);
+            if (bytes.Length > 15 * 1024 * 1024)
+            {
+                return TextError("Media payload exceeds maximum size limit of 15MB.");
+            }
+
+            using var stream = new MemoryStream(bytes);
+            var cmd = new UploadMediaCommand(userId, draftId, fileName, mimeType, stream, altText);
+            var uploadResult = await mediaService.UploadMediaAsync(cmd, ct);
+
+            return TextResult(JsonSerializer.Serialize(new
+            {
+                success = true,
+                mediaId = uploadResult.Id,
+                markdownTag = uploadResult.MarkdownTag,
+                message = $"Media uploaded successfully and attached to draft: {uploadResult.MarkdownTag}"
+            }, JsonOptions));
+        }
+        catch (Exception ex)
+        {
+            return TextError($"Failed to upload media: {ex.Message}");
+        }
+    }
+
+    private async Task<McpToolCallResult> HandleListTemplatesAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        var search = args.TryGetProperty("search", out var sProp) ? sProp.GetString() : null;
+        var query = _db.Templates.AsNoTracking().Where(t => t.UserId == userId);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLower();
+            query = query.Where(t => t.Name.ToLower().Contains(s) || (t.Description != null && t.Description.ToLower().Contains(s)));
+        }
+
+        var templates = await query.OrderBy(t => t.Name).ToListAsync(ct);
+        var items = new List<object>();
+        foreach (var t in templates)
+        {
+            var slots = new List<object>();
+            try
+            {
+                using var doc = JsonDocument.Parse(t.Schema);
+                if (doc.RootElement.TryGetProperty("slots", out var slotsEl) && slotsEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var slotEl in slotsEl.EnumerateArray())
+                    {
+                        var name = slotEl.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                        var type = slotEl.TryGetProperty("type", out var typ) ? typ.GetString() ?? "text" : "text";
+                        var req = slotEl.TryGetProperty("required", out var r) && r.GetBoolean();
+                        var desc = slotEl.TryGetProperty("description", out var d) ? d.GetString() : null;
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            slots.Add(new { name, type, required = req, description = desc });
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            items.Add(new
+            {
+                id = t.Id,
+                name = t.Name,
+                description = t.Description,
+                width = t.Width,
+                height = t.Height,
+                slots
+            });
+        }
+
+        return TextResult(JsonSerializer.Serialize(items, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleRenderTemplateAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
+            return TextError("draftId must be a valid UUID.");
+
+        if (!args.TryGetProperty("templateId", out var tProp) || string.IsNullOrWhiteSpace(tProp.GetString()))
+            return TextError("templateId is required (template GUID or name).");
+
+        var templateId = tProp.GetString()!;
+        var altText = args.TryGetProperty("altText", out var aProp) ? aProp.GetString() : null;
+
+        var slots = new Dictionary<string, string>();
+        if (args.TryGetProperty("slots", out var slotsEl) && slotsEl.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in slotsEl.EnumerateObject())
+            {
+                slots[prop.Name] = prop.Value.GetString() ?? prop.Value.GetRawText();
+            }
+        }
+
+        var mediaService = ResolveMediaService();
+        var imageEngine = ResolveImageEngine();
+        if (mediaService == null || imageEngine == null)
+            return TextError("Template rendering services (MediaService / ImageEngine) are not configured.");
+
+        var renderTool = new RenderTemplateTool(_db, imageEngine, mediaService);
+        var renderResult = await renderTool.ExecuteAsync(
+            new RenderTemplateArgs(templateId, slots, altText),
+            SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+        if (!renderResult.Success)
+            return TextError(renderResult.Error ?? renderResult.Message);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            mediaAssetId = renderResult.MediaAssetId,
+            markdownTag = renderResult.MarkdownTag,
+            message = renderResult.Message
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleRenderCodeBlocksAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
+            return TextError("draftId must be a valid UUID.");
+
+        var theme = args.TryGetProperty("theme", out var thProp) ? thProp.GetString() : null;
+        int? blockIndex = args.TryGetProperty("blockIndex", out var biProp) && biProp.TryGetInt32(out var bi) ? bi : null;
+
+        var codeImageService = ResolveCodeImageService();
+        if (codeImageService == null)
+            return TextError("CodeImageService is not configured.");
+
+        var renderCodeTool = new RenderCodeBlocksTool(_db, codeImageService, _draftsService);
+        var result = await renderCodeTool.ExecuteAsync(
+            new RenderCodeBlocksArgs(theme, blockIndex),
+            SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+        if (!result.Success)
+            return TextError(result.Error ?? result.Message);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            renderedBlocks = result.RenderedBlocks,
+            totalBlocks = result.TotalBlocks,
+            message = result.Message
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleSearchImagesAsync(JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("query", out var qProp) || string.IsNullOrWhiteSpace(qProp.GetString()))
+            return TextError("query is required.");
+
+        var query = qProp.GetString()!;
+        var searchEngine = ResolveSearchEngine();
+        if (searchEngine == null)
+            return TextError("Search engine is not configured.");
+
+        var results = await searchEngine.SearchImagesAsync(query, ct);
+        var formatted = results.Select(r => new
+        {
+            title = r.Title,
+            url = r.Url,
+            snippet = r.Snippet
+        }).ToList();
+
+        return TextResult(JsonSerializer.Serialize(formatted, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleUpdateMediaAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("mediaId", out var mProp) || !Guid.TryParse(mProp.GetString(), out var mediaId))
+            return TextError("mediaId must be a valid UUID.");
+
+        if (!args.TryGetProperty("altText", out var aProp))
+            return TextError("altText is required.");
+
+        var altText = aProp.GetString();
+        var mediaService = ResolveMediaService();
+        if (mediaService == null)
+            return TextError("MediaService is not configured.");
+
+        try
+        {
+            var updated = await mediaService.UpdateMediaAltTextAsync(userId, mediaId, altText, ct);
+            return TextResult(JsonSerializer.Serialize(new
+            {
+                success = true,
+                mediaId = updated.Id,
+                altText = updated.AltText,
+                message = "Media alt text updated successfully."
+            }, JsonOptions));
+        }
+        catch (Exception ex)
+        {
+            return TextError($"Failed to update media: {ex.Message}");
+        }
+    }
+
+    private async Task<McpToolCallResult> HandleDeleteMediaAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("mediaId", out var mProp) || !Guid.TryParse(mProp.GetString(), out var mediaId))
+            return TextError("mediaId must be a valid UUID.");
+
+        var mediaService = ResolveMediaService();
+        if (mediaService == null)
+            return TextError("MediaService is not configured.");
+
+        try
+        {
+            await mediaService.DeleteMediaAsync(userId, mediaId, ct);
+            return TextResult(JsonSerializer.Serialize(new
+            {
+                success = true,
+                mediaId = mediaId,
+                message = "Media deleted successfully."
+            }, JsonOptions));
+        }
+        catch (Exception ex)
+        {
+            return TextError($"Failed to delete media: {ex.Message}");
+        }
+    }
+
+    private async Task<McpToolCallResult> HandleSchedulePostAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
+            return TextError("draftId must be a valid UUID.");
+
+        if (!args.TryGetProperty("publishAt", out var pProp) || !DateTime.TryParse(pProp.GetString(), out var publishAt))
+            return TextError("publishAt must be a valid ISO 8601 UTC date-time string.");
+
+        var publishAtUtc = publishAt.ToUniversalTime();
+        if (publishAtUtc <= DateTime.UtcNow)
+            return TextError("publishAt must be in the future.");
+
+        var draft = await _db.Drafts
+            .Include(d => d.Threads)
+            .FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId, ct);
+
+        if (draft == null)
+            return TextError($"Draft '{draftId}' not found or access denied.");
+
+        string? platform = args.TryGetProperty("platform", out var platProp) ? platProp.GetString() : null;
+        Guid? accountId = null;
+        if (args.TryGetProperty("accountId", out var accProp) && Guid.TryParse(accProp.GetString(), out var accId))
+            accountId = accId;
+
+        PlatformThread? thread = null;
+        if (!string.IsNullOrWhiteSpace(platform))
+        {
+            thread = draft.Threads.FirstOrDefault(t => t.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase));
+        }
+        thread ??= draft.Threads.FirstOrDefault();
+
+        if (thread == null)
+        {
+            var targetPlatform = platform ?? draft.TargetPlatform?.ToString() ?? "Bluesky";
+            thread = new PlatformThread
+            {
+                Id = Guid.NewGuid(),
+                DraftId = draft.Id,
+                Platform = targetPlatform,
+                Content = draft.Content,
+                Stage = PlatformThreadStage.Draft,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _db.PlatformThreads.Add(thread);
+            await _db.SaveChangesAsync(ct);
+        }
+
+        if (accountId.HasValue)
+        {
+            thread.AccountId = accountId.Value;
+        }
+
+        Guid? scheduleId = null;
+        if (args.TryGetProperty("scheduleId", out var sProp) && Guid.TryParse(sProp.GetString(), out var sId))
+        {
+            scheduleId = sId;
+        }
+        else
+        {
+            var defaultSchedule = await _db.Schedules.FirstOrDefaultAsync(s => s.UserId == userId && s.IsActive, ct);
+            if (defaultSchedule != null)
+            {
+                scheduleId = defaultSchedule.Id;
+            }
+            else
+            {
+                var schedule = new Schedule
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Name = "Default Schedule",
+                    Timezone = "UTC",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _db.Schedules.Add(schedule);
+                await _db.SaveChangesAsync(ct);
+                scheduleId = schedule.Id;
+            }
+        }
+
+        if (_queueService == null || _taskQueue == null)
+            return TextError("Scheduling queue service is not available.");
+
+        var queueItem = await _queueService.EnqueueAsync(scheduleId.Value, thread.Id, draft.Id, ct: ct);
+        var delay = publishAtUtc - DateTime.UtcNow;
+        var payload = new ScheduledPublishingPayload(queueItem.Id, scheduleId.Value, draft.Id, thread.Id);
+
+        var taskId = await _taskQueue.EnqueueAsync(
+            "scheduled-publishing",
+            payload,
+            new EnqueueTaskOptions
+            {
+                Delay = delay > TimeSpan.Zero ? delay : TimeSpan.Zero,
+                DeduplicationKey = $"publish:{queueItem.Id}"
+            },
+            ct);
+
+        queueItem.Status = ScheduleQueueItemStatus.Dispatched;
+        queueItem.AssignedSlotUtc = publishAtUtc;
+        queueItem.ScheduledTaskId = taskId;
+        queueItem.UpdatedAt = DateTime.UtcNow;
+        thread.Stage = PlatformThreadStage.Scheduled;
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            queueItemId = queueItem.Id,
+            scheduleId = scheduleId.Value,
+            assignedSlotUtc = publishAtUtc,
+            message = $"Post scheduled for publication at {publishAtUtc:O} (QueueItem: {queueItem.Id})"
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleRemoveQueueItemAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("scheduleId", out var sProp) || !Guid.TryParse(sProp.GetString(), out var scheduleId))
+            return TextError("scheduleId must be a valid UUID.");
+
+        if (!args.TryGetProperty("queueItemId", out var qProp) || !Guid.TryParse(qProp.GetString(), out var queueItemId))
+            return TextError("queueItemId must be a valid UUID.");
+
+        var scheduleExists = await _db.Schedules.AnyAsync(s => s.Id == scheduleId && s.UserId == userId, ct);
+        if (!scheduleExists)
+            return TextError("Schedule not found or access denied.");
+
+        if (_queueService == null)
+            return TextError("Queue service is not available.");
+
+        var removed = await _queueService.RemoveFromQueueAsync(scheduleId, queueItemId, ct);
+        if (!removed)
+            return TextError("Queue item not found in schedule.");
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            queueItemId,
+            message = "Queue item removed successfully."
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleReorderQueueAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("scheduleId", out var sProp) || !Guid.TryParse(sProp.GetString(), out var scheduleId))
+            return TextError("scheduleId must be a valid UUID.");
+
+        if (!args.TryGetProperty("itemIdsInOrder", out var idsProp) && !args.TryGetProperty("itemIds", out idsProp))
+            return TextError("itemIdsInOrder must be an array of UUIDs.");
+
+        if (idsProp.ValueKind != JsonValueKind.Array)
+            return TextError("itemIdsInOrder must be an array of UUIDs.");
+
+        var scheduleExists = await _db.Schedules.AnyAsync(s => s.Id == scheduleId && s.UserId == userId, ct);
+        if (!scheduleExists)
+            return TextError("Schedule not found or access denied.");
+
+        var itemIds = new List<Guid>();
+        foreach (var el in idsProp.EnumerateArray())
+        {
+            if (Guid.TryParse(el.GetString(), out var id))
+                itemIds.Add(id);
+        }
+
+        if (_queueService == null)
+            return TextError("Queue service is not available.");
+
+        var reordered = await _queueService.ReorderQueueAsync(scheduleId, itemIds, ct);
+        if (_evaluatorService != null)
+            await _evaluatorService.EvaluateScheduleAsync(scheduleId, ct: ct);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            count = reordered.Count,
+            items = reordered.Select(i => new { id = i.Id, position = i.Position, status = i.Status.ToString() })
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandlePauseQueueItemAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("scheduleId", out var sProp) || !Guid.TryParse(sProp.GetString(), out var scheduleId))
+            return TextError("scheduleId must be a valid UUID.");
+
+        if (!args.TryGetProperty("queueItemId", out var qProp) || !Guid.TryParse(qProp.GetString(), out var queueItemId))
+            return TextError("queueItemId must be a valid UUID.");
+
+        var isPaused = !args.TryGetProperty("isPaused", out var pProp) || pProp.GetBoolean();
+        var scheduleExists = await _db.Schedules.AnyAsync(s => s.Id == scheduleId && s.UserId == userId, ct);
+        if (!scheduleExists)
+            return TextError("Schedule not found or access denied.");
+
+        if (_queueService == null)
+            return TextError("Queue service is not available.");
+
+        var item = await _queueService.PauseQueueItemAsync(scheduleId, queueItemId, isPaused, ct);
+        if (item == null)
+            return TextError("Queue item not found.");
+
+        if (!isPaused && _evaluatorService != null)
+            await _evaluatorService.EvaluateScheduleAsync(scheduleId, ct: ct);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            queueItemId = item.Id,
+            status = item.Status.ToString(),
+            message = isPaused ? "Queue item paused." : "Queue item resumed."
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleRetryQueueItemAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("queueItemId", out var qProp) || !Guid.TryParse(qProp.GetString(), out var queueItemId))
+            return TextError("queueItemId must be a valid UUID.");
+
+        Guid? scheduleId = null;
+        if (args.TryGetProperty("scheduleId", out var sProp) && Guid.TryParse(sProp.GetString(), out var parsedSid))
+        {
+            scheduleId = parsedSid;
+        }
+
+        ScheduleQueueItem? item;
+        if (scheduleId.HasValue)
+        {
+            var scheduleExists = await _db.Schedules.AnyAsync(s => s.Id == scheduleId.Value && s.UserId == userId, ct);
+            if (!scheduleExists)
+                return TextError("Schedule not found or access denied.");
+
+            item = await _db.ScheduleQueueItems.FirstOrDefaultAsync(q => q.Id == queueItemId && q.ScheduleId == scheduleId.Value, ct);
+        }
+        else
+        {
+            item = await _db.ScheduleQueueItems
+                .Include(q => q.Schedule)
+                .FirstOrDefaultAsync(q => q.Id == queueItemId && q.Schedule.UserId == userId, ct);
+            if (item != null)
+                scheduleId = item.ScheduleId;
+        }
+
+        if (item == null)
+            return TextError("Queue item not found.");
+
+        item.Status = ScheduleQueueItemStatus.Queued;
+        item.LastError = null;
+        item.AssignedSlotUtc = null;
+        item.ScheduledTaskId = null;
+        item.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        if (_evaluatorService != null && scheduleId.HasValue)
+            await _evaluatorService.EvaluateScheduleAsync(scheduleId.Value, ct: ct);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            queueItemId = item.Id,
+            status = item.Status.ToString(),
+            message = "Queue item reset to Queued and re-evaluated."
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleUpdateScheduleAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("scheduleId", out var sProp) || !Guid.TryParse(sProp.GetString(), out var scheduleId))
+            return TextError("scheduleId must be a valid UUID.");
+
+        var schedule = await _db.Schedules.FirstOrDefaultAsync(s => s.Id == scheduleId && s.UserId == userId, ct);
+        if (schedule == null)
+            return TextError("Schedule not found or access denied.");
+
+        if (args.TryGetProperty("name", out var nProp) && !string.IsNullOrWhiteSpace(nProp.GetString()))
+            schedule.Name = nProp.GetString()!.Trim();
+
+        if (args.TryGetProperty("timezone", out var tzProp) && !string.IsNullOrWhiteSpace(tzProp.GetString()))
+            schedule.Timezone = tzProp.GetString()!.Trim();
+
+        if (args.TryGetProperty("isActive", out var aProp))
+            schedule.IsActive = aProp.GetBoolean();
+
+        schedule.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            scheduleId = schedule.Id,
+            name = schedule.Name,
+            timezone = schedule.Timezone,
+            isActive = schedule.IsActive,
+            message = "Schedule updated successfully."
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleDeleteScheduleAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("scheduleId", out var sProp) || !Guid.TryParse(sProp.GetString(), out var scheduleId))
+            return TextError("scheduleId must be a valid UUID.");
+
+        var schedule = await _db.Schedules
+            .Include(s => s.SlotRules)
+            .Include(s => s.QueueItems)
+            .FirstOrDefaultAsync(s => s.Id == scheduleId && s.UserId == userId, ct);
+
+        if (schedule == null)
+            return TextError("Schedule not found or access denied.");
+
+        _db.ScheduleSlotRules.RemoveRange(schedule.SlotRules);
+        _db.ScheduleQueueItems.RemoveRange(schedule.QueueItems);
+        _db.Schedules.Remove(schedule);
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            scheduleId,
+            message = "Schedule and associated queue items deleted successfully."
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleDeleteFeedAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("feedId", out var fProp) || !Guid.TryParse(fProp.GetString(), out var feedId))
+            return TextError("feedId must be a valid UUID.");
+
+        var feed = await _db.FeedSubscriptions.FirstOrDefaultAsync(f => f.Id == feedId && f.UserId == userId, ct);
+        if (feed == null)
+            return TextError("Feed subscription not found or access denied.");
+
+        _db.FeedSubscriptions.Remove(feed);
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            feedId,
+            message = "Feed subscription deleted successfully."
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleDeleteReplyAgentAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("agentId", out var aProp) || !Guid.TryParse(aProp.GetString(), out var agentId))
+            return TextError("agentId must be a valid UUID.");
+
+        var agent = await _db.ReplyAgents.FirstOrDefaultAsync(a => a.Id == agentId && a.UserId == userId, ct);
+        if (agent == null)
+            return TextError("Reply agent not found or access denied.");
+
+        _db.ReplyAgents.Remove(agent);
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            agentId,
+            message = "Reply agent deleted successfully."
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleGetWorkflowAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("workflowId", out var wProp) || !Guid.TryParse(wProp.GetString(), out var workflowId))
+            return TextError("workflowId must be a valid UUID.");
+
+        var workflow = await _db.AutomationWorkflows
+            .Include(w => w.Schedule)
+            .Include(w => w.WorkflowSources)
+                .ThenInclude(ws => ws.FeedSubscription)
+            .Include(w => w.Destinations)
+                .ThenInclude(d => d.Account)
+            .Include(w => w.ReplyAgent)
+            .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
+
+        if (workflow == null)
+            return TextError("Workflow not found or access denied.");
+
+        var result = new
+        {
+            id = workflow.Id,
+            title = workflow.Title,
+            instructionPrompt = workflow.InstructionPrompt,
+            status = "Active",
+            minRelevanceScore = workflow.MinRelevanceScore,
+            schedule = workflow.Schedule != null ? new { id = workflow.Schedule.Id, name = workflow.Schedule.Name, timezone = workflow.Schedule.Timezone } : null,
+            sources = workflow.WorkflowSources.Select(s => new
+            {
+                kind = s.Kind.ToString(),
+                feedSubscriptionId = s.FeedSubscriptionId,
+                feedTitle = s.FeedSubscription?.Title,
+                feedUrl = s.FeedSubscription?.FeedUrl
+            }),
+            destinations = workflow.Destinations.Select(d => new
+            {
+                platform = d.Platform,
+                autoPublish = d.AutoPublish,
+                publishingMode = d.PublishingMode.ToString(),
+                accountHandle = d.Account?.Handle,
+                accountId = d.AccountId
+            }),
+            replyAgent = workflow.ReplyAgent != null ? new { id = workflow.ReplyAgent.Id, name = workflow.ReplyAgent.Name } : null,
+            createdAt = workflow.CreatedAt,
+            updatedAt = workflow.UpdatedAt
+        };
+
+        return TextResult(JsonSerializer.Serialize(result, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleGenerateVariantsAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
+            return TextError("draftId must be a valid UUID.");
+
+        var platforms = new List<string>();
+        if (args.TryGetProperty("platforms", out var pProp) && pProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var el in pProp.EnumerateArray())
+            {
+                if (!string.IsNullOrWhiteSpace(el.GetString()))
+                    platforms.Add(el.GetString()!);
+            }
+        }
+        if (platforms.Count == 0)
+        {
+            platforms.AddRange(new[] { "Bluesky", "Twitter", "MetaThreads", "LinkedIn" });
+        }
+
+        var draft = await _db.Drafts.Include(d => d.Threads).FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId, ct);
+        if (draft == null)
+            return TextError("Draft not found or access denied.");
+
+        var createdVariants = new List<object>();
+        foreach (var platform in platforms)
+        {
+            var existing = draft.Threads.FirstOrDefault(t => t.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase));
+            if (existing == null)
+            {
+                var newThread = new PlatformThread
+                {
+                    Id = Guid.NewGuid(),
+                    DraftId = draft.Id,
+                    Platform = platform,
+                    Content = draft.Content,
+                    Stage = PlatformThreadStage.Draft,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _db.PlatformThreads.Add(newThread);
+                createdVariants.Add(new { platform, threadId = newThread.Id, stage = newThread.Stage.ToString() });
+            }
+            else
+            {
+                createdVariants.Add(new { platform, threadId = existing.Id, stage = existing.Stage.ToString() });
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            draftId,
+            variants = createdVariants,
+            message = $"Platform variants configured for draft {draftId} across {createdVariants.Count} platforms."
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleSetBlueskyReplyTargetAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
+            return TextError("draftId must be a valid UUID.");
+
+        if (!args.TryGetProperty("replyParentUrl", out var uProp) || string.IsNullOrWhiteSpace(uProp.GetString()))
+            return TextError("replyParentUrl is required (e.g. https://bsky.app/profile/.../post/...).");
+
+        var replyParentUrl = uProp.GetString()!;
+        var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId, ct);
+        if (draft == null)
+            return TextError("Draft not found or access denied.");
+
+        var resolution = await _replyTargetResolver.ResolveAsync(replyParentUrl, ct);
+        if (!resolution.Success)
+            return TextError($"Failed to resolve Bluesky post: {resolution.Error}");
+
+        var existingMeta = await _db.DraftBlueskyMetadata.FirstOrDefaultAsync(m => m.DraftId == draftId, ct);
+        if (existingMeta == null)
+        {
+            existingMeta = new DraftBlueskyMetadata { DraftId = draftId };
+            _db.DraftBlueskyMetadata.Add(existingMeta);
+        }
+
+        existingMeta.ReplyRootUri = resolution.ReplyRootUri!;
+        existingMeta.ReplyRootCid = resolution.ReplyRootCid!;
+        existingMeta.ReplyParentUri = resolution.ReplyParentUri!;
+        existingMeta.ReplyParentCid = resolution.ReplyParentCid!;
+        existingMeta.ReplyParentUrl = resolution.ReplyParentUrl ?? replyParentUrl;
+        existingMeta.ReplyParentAuthor = resolution.ReplyParentAuthor;
+        existingMeta.ReplyParentText = resolution.ReplyParentText;
+        existingMeta.ReplyParentAvatarUrl = resolution.ReplyParentAvatarUrl;
+
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            draftId,
+            replyParentAuthor = resolution.ReplyParentAuthor,
+            replyParentText = resolution.ReplyParentText,
+            replyParentUrl = resolution.ReplyParentUrl ?? replyParentUrl,
+            message = $"Bluesky reply target attached to draft {draftId} replying to {resolution.ReplyParentAuthor}."
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleTranscribeVideoAsync(JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("url", out var uProp) || string.IsNullOrWhiteSpace(uProp.GetString()))
+            return TextError("url is required (video URL to transcribe).");
+
+        var url = uProp.GetString()!;
+        var transcriber = ResolveTranscriber();
+        if (transcriber == null)
+            return TextError("Transcriber service is not configured.");
+
+        try
+        {
+            var filename = $"mcp_transcribe_{Guid.NewGuid():N}.json";
+            var result = await transcriber.ExtractAsync(url, filename, ct);
+            if (!result.Success || string.IsNullOrWhiteSpace(result.TranscriptPath))
+                return TextError($"Transcription failed: {result.Error ?? "Failed to extract transcript."}");
+
+            var doc = await transcriber.ReadTranscriptAsync(result.TranscriptPath, ct);
+            if (doc == null || string.IsNullOrWhiteSpace(doc.Transcript))
+                return TextError("Transcript file was empty or could not be parsed.");
+
+            return TextResult(JsonSerializer.Serialize(new
+            {
+                success = true,
+                videoUrl = url,
+                transcript = doc.Transcript,
+                durationSeconds = doc.Duration ?? result.Duration,
+                language = doc.Language ?? result.Language
+            }, JsonOptions));
+        }
+        catch (Exception ex)
+        {
+            return TextError($"Transcription error: {ex.Message}");
+        }
+    }
+
+    private async Task<McpToolCallResult> HandleWebSearchAsync(JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("query", out var qProp) || string.IsNullOrWhiteSpace(qProp.GetString()))
+            return TextError("query is required.");
+
+        var query = qProp.GetString()!;
+        var searchEngine = ResolveSearchEngine();
+        if (searchEngine == null)
+            return TextError("Search engine is not configured.");
+
+        try
+        {
+            var results = await searchEngine.SearchAsync(query, ct);
+            var items = results.Select((r, i) => new
+            {
+                rank = i + 1,
+                title = r.Title,
+                url = r.Url,
+                snippet = r.Snippet
+            }).ToList();
+
+            return TextResult(JsonSerializer.Serialize(new
+            {
+                query,
+                totalResults = items.Count,
+                results = items
+            }, JsonOptions));
+        }
+        catch (Exception ex)
+        {
+            return TextError($"Web search failed: {ex.Message}");
+        }
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()

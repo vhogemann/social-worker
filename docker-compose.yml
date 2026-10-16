@@ -197,6 +197,7 @@ services:
     command: ["--info"]
     volumes:
       - ./api:/src
+      - ./docs:/docs:ro
       - nuget-tooling-cache:/root/.nuget/packages
     profiles:
       - tooling

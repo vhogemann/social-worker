@@ -10,10 +10,12 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Publishing.Bluesky;
+using SocialWorker.Api.Features.Publishing.Validation;
+using SocialWorker.Api.Infrastructure.Platforms;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
 
-public record PublishPlatformArgs(string Platform);
+public record PublishPlatformArgs(string Platform, Guid? AccountId = null);
 
 public sealed record PublishPlatformToolResult(
     [property: JsonPropertyName("success")] bool Success,
@@ -38,17 +40,20 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
     private readonly IPublisherResolver _publisherResolver;
     private readonly BlueskyContentValidator _blueskyContentValidator;
     private readonly IBlueskyReplyTargetResolver _replyTargetResolver;
+    private readonly IDraftValidatorResolver? _draftValidatorResolver;
 
     public PublishPlatformTool(
         AppDbContext db,
         IPublisherResolver publisherResolver,
         BlueskyContentValidator blueskyContentValidator,
-        IBlueskyReplyTargetResolver replyTargetResolver)
+        IBlueskyReplyTargetResolver replyTargetResolver,
+        IDraftValidatorResolver? draftValidatorResolver = null)
     {
         _db = db;
         _publisherResolver = publisherResolver;
         _blueskyContentValidator = blueskyContentValidator;
         _replyTargetResolver = replyTargetResolver;
+        _draftValidatorResolver = draftValidatorResolver;
     }
 
     public override string Name => "publish";
@@ -59,7 +64,11 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
         "properties": {
             "platform": {
                 "type": "string",
-                "description": "The platform to publish to (e.g. 'Bluesky', 'Twitter')."
+                "description": "The platform to publish to (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn')."
+            },
+            "accountId": {
+                "type": "string",
+                "description": "Optional account ID to publish with. Required if the user has multiple accounts for this platform."
             }
         },
         "required": ["platform"]
@@ -99,20 +108,40 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
             }
         }
 
-
         Account? account = null;
-        if (thread.AccountId.HasValue)
+        var requestedAccountId = args.AccountId ?? thread.AccountId;
+        if (requestedAccountId.HasValue)
         {
-            account = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == thread.AccountId.Value && a.UserId == context.UserId, context.CancellationToken);
+            account = await _db.Accounts.FirstOrDefaultAsync(
+                a => a.Id == requestedAccountId.Value && a.UserId == context.UserId && a.Platform.ToLower() == platform.ToLower(),
+                context.CancellationToken);
+
+            if (account == null)
+            {
+                return new PublishPlatformToolResult(false, $"Account '{requestedAccountId.Value}' not found or does not belong to platform '{platform}'.", Error: $"Account '{requestedAccountId.Value}' not found or does not belong to platform '{platform}'.");
+            }
         }
-        if (account == null)
+        else
         {
-            account = await _db.Accounts.FirstOrDefaultAsync(a => a.UserId == context.UserId && a.Platform == platform, context.CancellationToken);
+            var matchingAccounts = await _db.Accounts
+                .Where(a => a.UserId == context.UserId && a.Platform.ToLower() == platform.ToLower())
+                .ToListAsync(context.CancellationToken);
+
+            if (matchingAccounts.Count == 0)
+            {
+                return new PublishPlatformToolResult(false, $"No connected account found for platform: {platform}", Error: $"No connected account found for platform: {platform}");
+            }
+
+            if (matchingAccounts.Count > 1)
+            {
+                var accountListStr = string.Join(", ", matchingAccounts.Select(a => $"{a.Handle ?? a.Id.ToString()} (ID: {a.Id})"));
+                return new PublishPlatformToolResult(false, $"Multiple accounts found for platform '{platform}'. Please specify 'accountId': {accountListStr}", Error: $"Multiple accounts found for platform '{platform}'. Please specify 'accountId': {accountListStr}");
+            }
+
+            account = matchingAccounts[0];
         }
-        if (account == null)
-        {
-            return new PublishPlatformToolResult(false, $"No connected account found for platform: {platform}", Error: $"No connected account found for platform: {platform}");
-        }
+
+        thread.AccountId = account.Id;
 
         var publisher = _publisherResolver.Resolve(platform);
         if (publisher == null)
@@ -121,7 +150,7 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
         }
 
         // Validate content before publishing
-        var validationError = ValidateThreadContent(thread.Content ?? "", thread.Platform, _blueskyContentValidator);
+        var validationError = await ValidateThreadContentAsync(thread.Content ?? "", thread.Platform, _blueskyContentValidator, _draftValidatorResolver, _db, thread.DraftId, context.CancellationToken);
         if (validationError != null)
         {
             return new PublishPlatformToolResult(false, validationError, Error: validationError);
@@ -151,7 +180,9 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
                     SegmentIndex = publishedPost.SegmentIndex,
                     Platform = thread.Platform,
                     RemoteId = publishedPost.RemoteId,
-                    Url = publishedPost.Url
+                    Url = publishedPost.Url,
+                    PublishedText = publishedPost.PublishedText ?? thread.Content,
+                    AuthorHandle = account.Handle
                 };
                 _db.Posts.Add(post);
             }
@@ -175,8 +206,28 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
         }
     }
 
-    private static string? ValidateThreadContent(string content, string platform, BlueskyContentValidator blueskyContentValidator)
+    private static async Task<string?> ValidateThreadContentAsync(
+        string content,
+        string platform,
+        BlueskyContentValidator blueskyContentValidator,
+        IDraftValidatorResolver? draftValidatorResolver,
+        AppDbContext db,
+        Guid draftId,
+        CancellationToken ct)
     {
+        if (draftValidatorResolver != null && SocialPlatformParser.TryParse(platform, out var socialPlatform))
+        {
+            var validator = draftValidatorResolver.Resolve(socialPlatform);
+            var mediaAssets = await db.MediaAssets.Where(m => m.DraftId == draftId).ToListAsync(ct);
+            var result = validator.Validate(content, mediaAssets);
+            if (result.OverallStatus == ValidateDraftOverallStatus.Failed)
+            {
+                var firstError = result.Posts.SelectMany(p => p.Issues).FirstOrDefault(i => i.Severity == ValidateDraftSeverity.Error);
+                return firstError?.Message ?? "Validation failed.";
+            }
+            return null;
+        }
+
         if (!string.Equals(platform, "Bluesky", StringComparison.OrdinalIgnoreCase))
             return null;
 

@@ -45,7 +45,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Configuration & Overrides: api/SocialWorker.Api/Program.cs (mounted host override `./config/appsettings.json` -> `/app/config/appsettings.json:ro`)
 - Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/ (TokenRefreshHostedService)
 - API Key Subsystem: api/SocialWorker.Api/Infrastructure/Auth/ (ApiKeyService, ApiKeyAuthenticationHandler, SHA-256 hash storage)
-- Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, 42 tools in McpToolRegistry including `assign_reply_agent_post`, `unassign_reply_agent_post`, `list_reply_agent_posts`, McpResourceRegistry; MCP-First operations policy in .agents/rules/mcp-first.md; complete documentation in docs/mcp_server.md)
+- Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, 66 tools in McpToolRegistry across 9 domains including media upload/templates/code rendering, schedule/queue management, lifecycle deletion, variants, video transcription, search, dryRun simulation, McpResourceRegistry; MCP-First operations policy in .agents/rules/mcp-first.md; complete documentation in docs/mcp_server.md)
 - Markdown AST & Thread Document: api/SocialWorker.Api/Infrastructure/Markdown/ (Markdig CommonMark AST parser for segments, media, links, and facets)
 
 
@@ -69,7 +69,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (825 tests): api/SocialWorker.Api.Tests/
+- API unit/integration tests (852 tests): api/SocialWorker.Api.Tests/
 - Web tests (Vitest, 492 tests in 93 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - Image Engine tests (Vitest, 14 tests in 3 test files): image-engine/tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
@@ -89,13 +89,13 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ## Model Context Protocol (MCP) & Authentication
 
 - Endpoint: `/api/mcp` (Stateless Streamable HTTP JSON-RPC 2.0), `/api/mcp/sse` (Server-Sent Events continuous stream), with aliases `/mcp` and `/mcp/sse`.
-- Tools (40): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `delete_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`, `list_schedules`, `get_schedule`, `create_schedule`, `add_slot_rule`, `enqueue_draft`, `get_schedule_queue`, `clear_schedule_queue`, `get_calendar_events`, `list_accounts`, `discover_feed`, `add_feed`, `update_feed`, `create_workflow`, `update_workflow`, `delete_workflow`, `list_reply_agents`, `create_reply_agent`, `update_reply_agent`, `assign_reply_agent`, `get_reply_agent`, `configure_reply_agent`, `trigger_reply_check`, `list_comment_audits`, `reply_to_comment`, `list_posts`, `assign_reply_agent_post`.
-- Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`, `socialworker://workflows/{id}/reply-agent`.
+- Tools (66): Complete catalog of 66 domain tools covering drafts, platform variants, media assets/templates, sources & video transcription, feed discovery & polling, workflows, queue/scheduling operations, accounts, reply agents, and monitored posts.
+- Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`, `socialworker://audits/{workflowId}`.
 - Standard MCP Auth (Claude Compatible):
   - RFC 9728 401 challenge emits `WWW-Authenticate: Bearer realm="mcp", resource_metadata="{baseUrl}/.well-known/oauth-protected-resource"`.
   - RFC 8414 server metadata at `/.well-known/oauth-authorization-server` and OpenID alias.
   - RFC 7591 Dynamic Client Registration at `POST /oauth/register`.
-  - OAuth 2.1 with PKCE S256 (`GET /oauth/authorize` always requiring re-authentication with username/password without trusting frontend cookies, `POST /oauth/token` with 1-hour JWT + 30-day refresh token).
+  - OAuth 2.1 with PKCE S256 (`GET /oauth/authorize` always requiring re-authentication with username/password without trusting frontend cookies, `POST /oauth/token` with 1-hour JWT + 30-day refresh token). Scopes supported: `mcp:tools`, `mcp:read`, `mcp:write`.
 - Legacy/Static Auth: `ApiKeyAuthenticationHandler` validates SHA-256 hashed keys (`sw_live_...`, `X-API-Key`, `?api_key=...`) routed through ASP.NET Core `PolicyScheme` ("Composite"). Dev key `sw_live_dev_admin_key_000000000000` seeded in development.
 
 ## Runtime and commands that matter most

@@ -103,7 +103,7 @@ public sealed class PublishPlatformToolTests : SqliteTestBase
                 Success = true,
                 Posts = new List<PublishedPost>
                 {
-                    new() { SegmentIndex = 0, RemoteId = "remote", Url = "https://bsky.app/profile/user/post/1" }
+                    new() { SegmentIndex = 0, RemoteId = "remote", Url = "https://bsky.app/profile/user/post/1", PublishedText = "Live published text from platform" }
                 }
             });
         }
@@ -164,5 +164,175 @@ public sealed class PublishPlatformToolTests : SqliteTestBase
         Assert.NotNull(createdThread);
         Assert.Equal("Autonomous thread content.", createdThread!.Content);
         Assert.Equal(PlatformThreadStage.Sent, createdThread.Stage);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PersistsPublishedTextAndSetsThreadAccountId_WhenPublished()
+    {
+        using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var draftId = Guid.NewGuid();
+        var accountId = Guid.NewGuid();
+
+        db.Users.Add(new AppUser { Id = userId, Username = "u", Email = "u@example.com", PasswordHash = "hash" });
+        db.Drafts.Add(new Draft { Id = draftId, UserId = userId, Title = "Draft", Status = DraftStatus.Editing, Content = "Autonomous thread content." });
+        db.Accounts.Add(new Account
+        {
+            Id = accountId,
+            UserId = userId,
+            Platform = "Bluesky",
+            Handle = "user.bsky.social",
+            CredentialsEncrypted = "encrypted"
+        });
+        await db.SaveChangesAsync();
+
+        var stubPublisher = new StubPublisher();
+        var resolver = new StubPublisherResolver(stubPublisher);
+        var replyResolver = new StubReplyTargetResolver(new BlueskyReplyTargetResolutionResult(true, "root", "cid", "parent", "cid", "url", "author", "text", "avatar"));
+        var validator = new BlueskyContentValidator();
+        var tool = new PublishPlatformTool(db, resolver, validator, replyResolver);
+
+        var result = await tool.ExecuteAsync(new PublishPlatformArgs("Bluesky"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+        Assert.True(result.Success);
+
+        var thread = await db.PlatformThreads.FirstOrDefaultAsync(t => t.DraftId == draftId);
+        Assert.NotNull(thread);
+        Assert.Equal(accountId, thread!.AccountId);
+
+        var post = await db.Posts.FirstOrDefaultAsync(p => p.PlatformThreadId == thread.Id);
+        Assert.NotNull(post);
+        Assert.Equal("Live published text from platform", post!.PublishedText);
+        Assert.Equal("user.bsky.social", post.AuthorHandle);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_FailsWithDisambiguationError_WhenMultipleAccountsForPlatformAndNoneSpecified()
+    {
+        using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var draftId = Guid.NewGuid();
+        var account1Id = Guid.NewGuid();
+        var account2Id = Guid.NewGuid();
+
+        db.Users.Add(new AppUser { Id = userId, Username = "u", Email = "u@example.com", PasswordHash = "hash" });
+        db.Drafts.Add(new Draft { Id = draftId, UserId = userId, Title = "Draft", Status = DraftStatus.Editing, Content = "Multi-account content." });
+        db.Accounts.Add(new Account
+        {
+            Id = account1Id,
+            UserId = userId,
+            Platform = "Bluesky",
+            Handle = "first.bsky.social",
+            CredentialsEncrypted = "encrypted1"
+        });
+        db.Accounts.Add(new Account
+        {
+            Id = account2Id,
+            UserId = userId,
+            Platform = "Bluesky",
+            Handle = "second.bsky.social",
+            CredentialsEncrypted = "encrypted2"
+        });
+        await db.SaveChangesAsync();
+
+        var stubPublisher = new StubPublisher();
+        var resolver = new StubPublisherResolver(stubPublisher);
+        var replyResolver = new StubReplyTargetResolver(new BlueskyReplyTargetResolutionResult(true, "root", "cid", "parent", "cid", "url", "author", "text", "avatar"));
+        var validator = new BlueskyContentValidator();
+        var tool = new PublishPlatformTool(db, resolver, validator, replyResolver);
+
+        var result = await tool.ExecuteAsync(new PublishPlatformArgs("bluesky"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+        Assert.False(result.Success);
+        Assert.Contains("Multiple accounts found", result.Error);
+        Assert.Contains("first.bsky.social", result.Error);
+        Assert.Contains("second.bsky.social", result.Error);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Succeeds_WhenExplicitAccountIdSpecifiedAmongMultipleAccounts()
+    {
+        using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var draftId = Guid.NewGuid();
+        var account1Id = Guid.NewGuid();
+        var account2Id = Guid.NewGuid();
+
+        db.Users.Add(new AppUser { Id = userId, Username = "u", Email = "u@example.com", PasswordHash = "hash" });
+        db.Drafts.Add(new Draft { Id = draftId, UserId = userId, Title = "Draft", Status = DraftStatus.Editing, Content = "Multi-account content." });
+        db.Accounts.Add(new Account
+        {
+            Id = account1Id,
+            UserId = userId,
+            Platform = "Bluesky",
+            Handle = "first.bsky.social",
+            CredentialsEncrypted = "encrypted1"
+        });
+        db.Accounts.Add(new Account
+        {
+            Id = account2Id,
+            UserId = userId,
+            Platform = "Bluesky",
+            Handle = "second.bsky.social",
+            CredentialsEncrypted = "encrypted2"
+        });
+        await db.SaveChangesAsync();
+
+        var stubPublisher = new StubPublisher();
+        var resolver = new StubPublisherResolver(stubPublisher);
+        var replyResolver = new StubReplyTargetResolver(new BlueskyReplyTargetResolutionResult(true, "root", "cid", "parent", "cid", "url", "author", "text", "avatar"));
+        var validator = new BlueskyContentValidator();
+        var tool = new PublishPlatformTool(db, resolver, validator, replyResolver);
+
+        var result = await tool.ExecuteAsync(new PublishPlatformArgs("bluesky", account2Id), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+        Assert.True(result.Success);
+
+        var thread = await db.PlatformThreads.FirstOrDefaultAsync(t => t.DraftId == draftId);
+        Assert.NotNull(thread);
+        Assert.Equal(account2Id, thread!.AccountId);
+
+        var post = await db.Posts.FirstOrDefaultAsync(p => p.PlatformThreadId == thread.Id);
+        Assert.NotNull(post);
+        Assert.Equal("second.bsky.social", post!.AuthorHandle);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RejectsTwitterContent_WhenExceedingCharacterLimit()
+    {
+        using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var draftId = Guid.NewGuid();
+
+        db.Users.Add(new AppUser { Id = userId, Username = "u", Email = "u@example.com", PasswordHash = "hash" });
+        db.Drafts.Add(new Draft { Id = draftId, UserId = userId, Title = "Draft", Status = DraftStatus.Editing, Content = new string('a', 300) });
+        db.Accounts.Add(new Account
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Platform = "Twitter",
+            Handle = "@testuser",
+            CredentialsEncrypted = "encrypted"
+        });
+        await db.SaveChangesAsync();
+
+        var stubPublisher = new StubPublisher();
+        var resolver = new StubPublisherResolver(stubPublisher);
+        var replyResolver = new StubReplyTargetResolver(new BlueskyReplyTargetResolutionResult(true, "root", "cid", "parent", "cid", "url", "author", "text", "avatar"));
+        var validator = new BlueskyContentValidator();
+        var draftValidatorResolver = new StubDraftValidatorResolver(new SocialWorker.Api.Features.Publishing.Twitter.Validation.TwitterDraftValidator());
+        var tool = new PublishPlatformTool(db, resolver, validator, replyResolver, draftValidatorResolver);
+
+        var result = await tool.ExecuteAsync(new PublishPlatformArgs("Twitter"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+        Assert.False(result.Success);
+        Assert.Contains("exceeds the 280 weighted-character limit", result.Error);
+    }
+
+    private sealed class StubDraftValidatorResolver : SocialWorker.Api.Features.Publishing.Validation.IDraftValidatorResolver
+    {
+        private readonly SocialWorker.Api.Features.Publishing.Validation.IDraftValidator _validator;
+        public StubDraftValidatorResolver(SocialWorker.Api.Features.Publishing.Validation.IDraftValidator validator) => _validator = validator;
+        public SocialWorker.Api.Features.Publishing.Validation.IDraftValidator Resolve(SocialPlatform? platform) => _validator;
     }
 }

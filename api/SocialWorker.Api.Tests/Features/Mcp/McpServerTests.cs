@@ -23,7 +23,7 @@ using SocialWorker.Api.Features.ReplyAgents.Abstractions;
 using SocialWorker.Api.Features.ReplyAgents.Models;
 using SocialWorker.Api.Features.ReplyAgents.Services;
 using SocialWorker.Api.Features.Scheduling.Services;
-using SocialWorker.Api.Features.Sources;
+using SocialWorker.Api.Tests.Features.ImageEngine;
 using SocialWorker.Api.Tests.Infrastructure;
 using Xunit;
 
@@ -65,6 +65,8 @@ public sealed class McpServerTests : SqliteTestBase
         var defaultAdapterResolver = customAdapterResolver ?? new MockReplyAdapterResolver(new MockReplyPlatformAdapter());
         var postResolver = new ExternalPostResolver(db, replyResolver, NullLogger<ExternalPostResolver>.Instance);
         var postService = new ReplyAgentPostService(db, postResolver, taskQueue);
+        var imageEngine = new FakeImageEngineClient();
+        var mediaService = new MediaService(db, imageEngine, storage);
 
         var toolRegistry = new McpToolRegistry(
             db,
@@ -81,7 +83,9 @@ public sealed class McpServerTests : SqliteTestBase
             feedDiscoveryService: feedDiscoveryService,
             taskQueue: taskQueue,
             replyAdapterResolver: defaultAdapterResolver,
-            postService: postService);
+            postService: postService,
+            mediaService: mediaService,
+            imageEngineClient: imageEngine);
 
         var resourceRegistry = new McpResourceRegistry(db, draftsService);
         var server = new McpServer(toolRegistry, resourceRegistry);
@@ -1083,6 +1087,580 @@ public sealed class McpServerTests : SqliteTestBase
         var activeListResult = Assert.IsType<McpToolCallResult>(activeListResp.Result);
         Assert.False(activeListResult.IsError);
         Assert.Equal("[]", activeListResult.Content[0].Text.Trim());
+    }
+
+    [Fact]
+    public async Task HandleRequest_CallTool_CreateDraft_WithAccountId_AssociatesAccountWithThread()
+    {
+        var (server, user, db) = CreateTestServer();
+        var accountId = Guid.NewGuid();
+        db.Accounts.Add(new Account
+        {
+            Id = accountId,
+            UserId = user.Id,
+            Platform = "Twitter",
+            Handle = "techuser",
+            CredentialsEncrypted = "dummy"
+        });
+        await db.SaveChangesAsync();
+
+        var callArgs = JsonDocument.Parse($$"""
+        {
+            "name": "create_draft",
+            "arguments": {
+                "title": "Account Draft",
+                "content": "Tweet content here",
+                "platform": "Twitter",
+                "accountId": "{{accountId}}"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 5, "tools/call", callArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        Assert.Contains("Draft created successfully with ID:", result.Content[0].Text);
+
+        var draft = await db.Drafts.Include(d => d.Threads).FirstAsync(d => d.Title == "Account Draft");
+        Assert.Equal(accountId, draft.TargetAccountId);
+        var thread = Assert.Single(draft.Threads);
+        Assert.Equal(accountId, thread.AccountId);
+        Assert.Equal("Twitter", thread.Platform);
+    }
+
+    [Fact]
+    public async Task HandleRequest_CallTool_ValidateDraft_WithoutExplicitPlatform_UsesDraftPlatform()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = new Draft
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Title = "LinkedIn Draft",
+            Content = "Professional update for LinkedIn network."
+        };
+        draft.Threads.Add(new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "LinkedIn",
+            Content = draft.Content,
+            Stage = PlatformThreadStage.Draft
+        });
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var callArgs = JsonDocument.Parse($$"""
+        {
+            "name": "validate_draft",
+            "arguments": {
+                "draftId": "{{draft.Id}}"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 6, "tools/call", callArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        Assert.Contains("Platform: LinkedIn", result.Content[0].Text);
+    }
+
+    [Fact]
+    public async Task HandleRequest_CallTool_ListPosts_ReturnsAuditedCommentsCountAndPublishedText()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = user.Id, Title = "D", Content = "C" };
+        var thread = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft.Id, Platform = "Bluesky", Content = "C", Stage = PlatformThreadStage.Sent };
+        var post = new Post
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            DraftId = draft.Id,
+            PlatformThreadId = thread.Id,
+            Platform = "Bluesky",
+            RemoteId = "at://did:plc:test/app.bsky.feed.post/audit_test",
+            PublishedText = "Hello from live publish!",
+            AuthorHandle = "publisher.bsky.social",
+            PostedAt = DateTime.UtcNow
+        };
+        db.Drafts.Add(draft);
+        db.PlatformThreads.Add(thread);
+        db.Posts.Add(post);
+        await db.SaveChangesAsync();
+
+        var callArgs = JsonDocument.Parse("""
+        {
+            "name": "list_posts",
+            "arguments": {}
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 7, "tools/call", callArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        var text = result.Content[0].Text;
+        Assert.Contains("Hello from live publish!", text);
+        Assert.Contains("\"auditedCommentsCount\": 0", text);
+        Assert.Contains("publisher.bsky.social", text);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsList_ReturnsAll68Tools()
+    {
+        var (server, user, _) = CreateTestServer();
+        var request = new McpRequest("2.0", 2, "tools/list", null);
+
+        var response = await server.HandleRequestAsync(request, user.Id, CancellationToken.None);
+
+        Assert.NotNull(response);
+        var json = JsonSerializer.Serialize(response.Result);
+        using var doc = JsonDocument.Parse(json);
+        var tools = doc.RootElement.GetProperty("tools").EnumerateArray().ToList();
+        Assert.Equal(66, tools.Count);
+
+        var toolNames = tools.Select(t => t.GetProperty("name").GetString()!).ToHashSet();
+        Assert.Contains("import_media_from_url", toolNames);
+        Assert.Contains("upload_media", toolNames);
+        Assert.Contains("list_templates", toolNames);
+        Assert.Contains("render_template", toolNames);
+        Assert.Contains("render_code_blocks", toolNames);
+        Assert.Contains("search_images", toolNames);
+        Assert.Contains("update_media", toolNames);
+        Assert.Contains("delete_media", toolNames);
+        Assert.Contains("schedule_post", toolNames);
+        Assert.Contains("remove_queue_item", toolNames);
+        Assert.Contains("reorder_queue", toolNames);
+        Assert.Contains("pause_queue_item", toolNames);
+        Assert.Contains("retry_queue_item", toolNames);
+        Assert.Contains("update_schedule", toolNames);
+        Assert.Contains("delete_schedule", toolNames);
+        Assert.Contains("delete_feed", toolNames);
+        Assert.Contains("delete_reply_agent", toolNames);
+        Assert.Contains("get_workflow", toolNames);
+        Assert.Contains("generate_variants", toolNames);
+        Assert.Contains("set_bluesky_reply_target", toolNames);
+        Assert.Contains("transcribe_video", toolNames);
+        Assert.Contains("web_search", toolNames);
+    }
+
+    [Fact]
+    public async Task McpTools_DoNotDriftFromDocumentation()
+    {
+        var (server, user, _) = CreateTestServer();
+        var response = await server.HandleRequestAsync(new McpRequest("2.0", 1, "tools/list", null), user.Id, CancellationToken.None);
+        Assert.NotNull(response);
+        var json = JsonSerializer.Serialize(response!.Result);
+        using var doc = JsonDocument.Parse(json);
+        var toolNames = doc.RootElement.GetProperty("tools")
+            .EnumerateArray()
+            .Select(t => t.GetProperty("name").GetString()!)
+            .OrderBy(n => n)
+            .ToList();
+
+        var candidates = new[] { "/docs/mcp_server.md", Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../docs/mcp_server.md")) };
+        var foundPath = candidates.FirstOrDefault(File.Exists);
+        if (foundPath != null)
+        {
+            var docsContent = await File.ReadAllTextAsync(foundPath);
+            foreach (var name in toolNames)
+            {
+                Assert.Contains($"`{name}`", docsContent);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UploadMedia_ValidBase64_AttachesToDraft()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Draft for media", "Testing upload media", SocialPlatform.Bluesky);
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var base64Data = Convert.ToBase64String(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82 });
+        var uploadArgs = JsonDocument.Parse($$"""
+        {
+            "name": "upload_media",
+            "arguments": {
+                "draftId": "{{draft.Id}}",
+                "fileName": "chart.png",
+                "base64Data": "{{base64Data}}",
+                "mimeType": "image/png",
+                "altText": "A test chart image"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 50, "tools/call", uploadArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        var text = result.Content[0].Text!;
+        Assert.Contains("media://", text);
+        Assert.Contains("mediaId", text);
+
+        var asset = await db.MediaAssets.FirstOrDefaultAsync(a => a.DraftId == draft.Id);
+        Assert.NotNull(asset);
+        Assert.Equal("A test chart image", asset.AltText);
+    }
+
+    [Fact]
+    public async Task ListTemplates_And_RenderTemplate_Succeeds()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Template test", "Testing templates", SocialPlatform.Bluesky);
+        var template = Template.Create(
+            user.Id,
+            "Highlight Card",
+            "Card for highlights",
+            1200,
+            630,
+            """{"name": "Highlight Card", "slots": [{"name": "headline", "type": "text"}]}""");
+        db.Drafts.Add(draft);
+        db.Templates.Add(template);
+        await db.SaveChangesAsync();
+
+        var listArgs = JsonDocument.Parse("""
+        {
+            "name": "list_templates",
+            "arguments": {}
+        }
+        """).RootElement;
+        var listReq = new McpRequest("2.0", 51, "tools/call", listArgs);
+        var listResp = await server.HandleRequestAsync(listReq, user.Id, CancellationToken.None);
+        Assert.NotNull(listResp);
+        var listResult = Assert.IsType<McpToolCallResult>(listResp.Result);
+        Assert.Contains("Highlight Card", listResult.Content[0].Text);
+
+        var renderArgs = JsonDocument.Parse($$"""
+        {
+            "name": "render_template",
+            "arguments": {
+                "draftId": "{{draft.Id}}",
+                "templateId": "{{template.Id}}",
+                "slots": {
+                    "headline": "Breaking Announcement"
+                },
+                "altText": "Announcement graphic"
+            }
+        }
+        """).RootElement;
+        var renderReq = new McpRequest("2.0", 52, "tools/call", renderArgs);
+        var renderResp = await server.HandleRequestAsync(renderReq, user.Id, CancellationToken.None);
+        Assert.NotNull(renderResp);
+        var renderResult = Assert.IsType<McpToolCallResult>(renderResp.Result);
+        Assert.False(renderResult.IsError);
+        Assert.Contains("media://", renderResult.Content[0].Text);
+    }
+
+    [Fact]
+    public async Task UpdateMedia_And_DeleteMedia_Succeeds()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Media crud", "Testing crud", SocialPlatform.Bluesky);
+        var asset = new MediaAsset
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            FileName = "test.png",
+            MimeType = "image/png",
+            FilePath = "test.png",
+            Sha256 = "dummy",
+            SizeBytes = 100,
+            Width = 10,
+            Height = 10,
+            AltText = "Original text",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Drafts.Add(draft);
+        db.MediaAssets.Add(asset);
+        await db.SaveChangesAsync();
+
+        var updateArgs = JsonDocument.Parse($$"""
+        {
+            "name": "update_media",
+            "arguments": {
+                "mediaId": "{{asset.Id}}",
+                "altText": "Updated text"
+            }
+        }
+        """).RootElement;
+        var updateReq = new McpRequest("2.0", 53, "tools/call", updateArgs);
+        var updateResp = await server.HandleRequestAsync(updateReq, user.Id, CancellationToken.None);
+        Assert.NotNull(updateResp);
+        var updateResult = Assert.IsType<McpToolCallResult>(updateResp.Result);
+        Assert.False(updateResult.IsError);
+        Assert.Contains("Updated text", updateResult.Content[0].Text);
+
+        var deleteArgs = JsonDocument.Parse($$"""
+        {
+            "name": "delete_media",
+            "arguments": {
+                "mediaId": "{{asset.Id}}"
+            }
+        }
+        """).RootElement;
+        var deleteReq = new McpRequest("2.0", 54, "tools/call", deleteArgs);
+        var deleteResp = await server.HandleRequestAsync(deleteReq, user.Id, CancellationToken.None);
+        Assert.NotNull(deleteResp);
+        var deleteResult = Assert.IsType<McpToolCallResult>(deleteResp.Result);
+        Assert.False(deleteResult.IsError);
+
+        var remaining = await db.MediaAssets.FirstOrDefaultAsync(a => a.Id == asset.Id);
+        Assert.Null(remaining);
+    }
+
+    [Fact]
+    public async Task SchedulePost_EnqueuesWithTargetTimestamp()
+    {
+        var (server, user, db) = CreateTestServer();
+        var schedule = Schedule.Create(user.Id, "Weekly News", "UTC");
+        var draft = Draft.Create(user.Id, "Scheduled draft", "Content for scheduled post", SocialPlatform.Bluesky);
+        var thread = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft.Id, Platform = "Bluesky", Content = "Target post text" };
+        draft.Threads.Add(thread);
+        db.Schedules.Add(schedule);
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var targetTime = DateTime.UtcNow.AddDays(2).ToString("o");
+        var scheduleArgs = JsonDocument.Parse($$"""
+        {
+            "name": "schedule_post",
+            "arguments": {
+                "scheduleId": "{{schedule.Id}}",
+                "draftId": "{{draft.Id}}",
+                "publishAt": "{{targetTime}}"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 55, "tools/call", scheduleArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        Assert.Contains("scheduled", result.Content[0].Text);
+
+        var item = await db.ScheduleQueueItems.FirstOrDefaultAsync(q => q.DraftId == draft.Id);
+        Assert.NotNull(item);
+    }
+
+    [Fact]
+    public async Task QueueOperations_Remove_Reorder_Pause_Retry_Succeeds()
+    {
+        var (server, user, db) = CreateTestServer();
+        var schedule = Schedule.Create(user.Id, "Ops Schedule", "UTC");
+        var draft1 = Draft.Create(user.Id, "Draft 1", "Content 1", SocialPlatform.Bluesky);
+        var thread1 = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft1.Id, Platform = "Bluesky", Content = "Text 1" };
+        draft1.Threads.Add(thread1);
+
+        var draft2 = Draft.Create(user.Id, "Draft 2", "Content 2", SocialPlatform.Bluesky);
+        var thread2 = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft2.Id, Platform = "Bluesky", Content = "Text 2" };
+        draft2.Threads.Add(thread2);
+
+        var queueItem1 = ScheduleQueueItem.Create(schedule.Id, draft1.Id, thread1.Id, 1);
+        var queueItem2 = ScheduleQueueItem.Create(schedule.Id, draft2.Id, thread2.Id, 2);
+
+        db.Schedules.Add(schedule);
+        db.Drafts.AddRange(draft1, draft2);
+        db.ScheduleQueueItems.AddRange(queueItem1, queueItem2);
+        await db.SaveChangesAsync();
+
+        var pauseArgs = JsonDocument.Parse($$"""
+        {
+            "name": "pause_queue_item",
+            "arguments": {
+                "scheduleId": "{{schedule.Id}}",
+                "queueItemId": "{{queueItem1.Id}}"
+            }
+        }
+        """).RootElement;
+        var pauseResp = await server.HandleRequestAsync(new McpRequest("2.0", 56, "tools/call", pauseArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(pauseResp);
+        var pauseResult = Assert.IsType<McpToolCallResult>(pauseResp.Result);
+        Assert.False(pauseResult.IsError);
+
+        var reorderArgs = JsonDocument.Parse($$"""
+        {
+            "name": "reorder_queue",
+            "arguments": {
+                "scheduleId": "{{schedule.Id}}",
+                "itemIds": ["{{queueItem2.Id}}", "{{queueItem1.Id}}"]
+            }
+        }
+        """).RootElement;
+        var reorderResp = await server.HandleRequestAsync(new McpRequest("2.0", 57, "tools/call", reorderArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(reorderResp);
+        var reorderResult = Assert.IsType<McpToolCallResult>(reorderResp.Result);
+        Assert.False(reorderResult.IsError);
+
+        var retryArgs = JsonDocument.Parse($$"""
+        {
+            "name": "retry_queue_item",
+            "arguments": {
+                "queueItemId": "{{queueItem1.Id}}"
+            }
+        }
+        """).RootElement;
+        var retryResp = await server.HandleRequestAsync(new McpRequest("2.0", 58, "tools/call", retryArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(retryResp);
+        var retryResult = Assert.IsType<McpToolCallResult>(retryResp.Result);
+        Assert.False(retryResult.IsError);
+
+        var removeArgs = JsonDocument.Parse($$"""
+        {
+            "name": "remove_queue_item",
+            "arguments": {
+                "scheduleId": "{{schedule.Id}}",
+                "queueItemId": "{{queueItem2.Id}}"
+            }
+        }
+        """).RootElement;
+        var removeResp = await server.HandleRequestAsync(new McpRequest("2.0", 59, "tools/call", removeArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(removeResp);
+        var removeResult = Assert.IsType<McpToolCallResult>(removeResp.Result);
+        Assert.False(removeResult.IsError);
+    }
+
+    [Fact]
+    public async Task Workflow_GetWorkflow_And_UpdateStatus_Succeeds()
+    {
+        var (server, user, db) = CreateTestServer();
+        var schedule = Schedule.Create(user.Id, "Flow Schedule", "UTC");
+        db.Schedules.Add(schedule);
+        var workflow = AutomationWorkflow.Create(
+            user.Id,
+            "Daily Digest",
+            "Tone prompt",
+            schedule.Id,
+            7);
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        var getArgs = JsonDocument.Parse($$"""
+        {
+            "name": "get_workflow",
+            "arguments": {
+                "workflowId": "{{workflow.Id}}"
+            }
+        }
+        """).RootElement;
+        var getResp = await server.HandleRequestAsync(new McpRequest("2.0", 60, "tools/call", getArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(getResp);
+        var getResult = Assert.IsType<McpToolCallResult>(getResp.Result);
+        Assert.False(getResult.IsError);
+        Assert.Contains("Daily Digest", getResult.Content[0].Text);
+
+        var updateArgs = JsonDocument.Parse($$"""
+        {
+            "name": "update_workflow",
+            "arguments": {
+                "workflowId": "{{workflow.Id}}",
+                "title": "Updated Daily Digest"
+            }
+        }
+        """).RootElement;
+        var updateResp = await server.HandleRequestAsync(new McpRequest("2.0", 61, "tools/call", updateArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(updateResp);
+        var updateResult = Assert.IsType<McpToolCallResult>(updateResp.Result);
+        Assert.False(updateResult.IsError);
+        Assert.Contains("Updated Daily Digest", updateResult.Content[0].Text);
+
+        var refreshed = await db.AutomationWorkflows.FirstOrDefaultAsync(w => w.Id == workflow.Id);
+        Assert.Equal("Updated Daily Digest", refreshed!.Title);
+    }
+
+    [Fact]
+    public async Task Lifecycle_DeleteSchedule_Feed_ReplyAgent_Succeeds()
+    {
+        var (server, user, db) = CreateTestServer();
+        var schedule = Schedule.Create(user.Id, "To Delete", "UTC");
+        var feed = FeedSubscription.Create(user.Id, "RSS Feed", "https://example.com/feed.xml");
+        var agent = ReplyAgent.Create(user.Id, "Temp Agent", "Helpful assistant");
+        db.Schedules.Add(schedule);
+        db.FeedSubscriptions.Add(feed);
+        db.ReplyAgents.Add(agent);
+        await db.SaveChangesAsync();
+
+        var delSchedArgs = JsonDocument.Parse($$"""
+        {
+            "name": "delete_schedule",
+            "arguments": { "scheduleId": "{{schedule.Id}}" }
+        }
+        """).RootElement;
+        var delSchedResp = await server.HandleRequestAsync(new McpRequest("2.0", 62, "tools/call", delSchedArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(delSchedResp);
+        Assert.False(Assert.IsType<McpToolCallResult>(delSchedResp.Result).IsError);
+
+        var delFeedArgs = JsonDocument.Parse($$"""
+        {
+            "name": "delete_feed",
+            "arguments": { "feedId": "{{feed.Id}}" }
+        }
+        """).RootElement;
+        var delFeedResp = await server.HandleRequestAsync(new McpRequest("2.0", 63, "tools/call", delFeedArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(delFeedResp);
+        Assert.False(Assert.IsType<McpToolCallResult>(delFeedResp.Result).IsError);
+
+        var delAgentArgs = JsonDocument.Parse($$"""
+        {
+            "name": "delete_reply_agent",
+            "arguments": { "agentId": "{{agent.Id}}" }
+        }
+        """).RootElement;
+        var delAgentResp = await server.HandleRequestAsync(new McpRequest("2.0", 64, "tools/call", delAgentArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(delAgentResp);
+        Assert.False(Assert.IsType<McpToolCallResult>(delAgentResp.Result).IsError);
+
+        Assert.Null(await db.Schedules.FirstOrDefaultAsync(s => s.Id == schedule.Id));
+        Assert.Null(await db.FeedSubscriptions.FirstOrDefaultAsync(f => f.Id == feed.Id));
+        Assert.Null(await db.ReplyAgents.FirstOrDefaultAsync(a => a.Id == agent.Id));
+    }
+
+    [Fact]
+    public async Task PublishThread_DryRun_ReturnsValidationWithoutPublishing()
+    {
+        var (server, user, db) = CreateTestServer();
+        var account = new Account { Id = Guid.NewGuid(), UserId = user.Id, Platform = "Bluesky", Handle = "dryrun.bsky.social" };
+        var draft = Draft.Create(user.Id, "Dry Run Draft", "Pre-validated text", SocialPlatform.Bluesky);
+        var thread = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft.Id, Platform = "Bluesky", Content = "Pre-validated text" };
+        draft.Threads.Add(thread);
+        db.Accounts.Add(account);
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var dryRunArgs = JsonDocument.Parse($$"""
+        {
+            "name": "publish_thread",
+            "arguments": {
+                "draftId": "{{draft.Id}}",
+                "platform": "Bluesky",
+                "dryRun": true
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 65, "tools/call", dryRunArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        Assert.Contains("Dry-run preview and validation completed", result.Content[0].Text);
+
+        var postCount = await db.Posts.CountAsync(p => p.DraftId == draft.Id);
+        Assert.Equal(0, postCount);
     }
 
     private sealed class MockReplyAdapterResolver : IReplyPlatformAdapterResolver

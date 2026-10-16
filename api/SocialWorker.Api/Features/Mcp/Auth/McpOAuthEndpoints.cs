@@ -23,7 +23,7 @@ public static class McpOAuthEndpoints
             var metadata = new ProtectedResourceMetadataResponse(
                 Resource: $"{baseUrl}/api/mcp",
                 AuthorizationServers: new[] { baseUrl },
-                ScopesSupported: new[] { "mcp:tools" },
+                ScopesSupported: new[] { "mcp:tools", "mcp:read", "mcp:write" },
                 BearerMethodsSupported: new[] { "header" },
                 ResourceDocumentation: $"{baseUrl}/docs/mcp");
 
@@ -36,7 +36,7 @@ public static class McpOAuthEndpoints
             var metadata = new ProtectedResourceMetadataResponse(
                 Resource: $"{baseUrl}/api/mcp",
                 AuthorizationServers: new[] { baseUrl },
-                ScopesSupported: new[] { "mcp:tools" },
+                ScopesSupported: new[] { "mcp:tools", "mcp:read", "mcp:write" },
                 BearerMethodsSupported: new[] { "header" },
                 ResourceDocumentation: $"{baseUrl}/docs/mcp");
 
@@ -56,7 +56,7 @@ public static class McpOAuthEndpoints
                 GrantTypesSupported: new[] { "authorization_code", "refresh_token" },
                 CodeChallengeMethodsSupported: new[] { "S256", "plain" },
                 TokenEndpointAuthMethodsSupported: new[] { "none", "client_secret_post", "client_secret_basic" },
-                ScopesSupported: new[] { "mcp:tools" });
+                ScopesSupported: new[] { "mcp:tools", "mcp:read", "mcp:write" });
 
             return Results.Ok(metadata);
         }).AllowAnonymous();
@@ -73,7 +73,7 @@ public static class McpOAuthEndpoints
                 GrantTypesSupported: new[] { "authorization_code", "refresh_token" },
                 CodeChallengeMethodsSupported: new[] { "S256", "plain" },
                 TokenEndpointAuthMethodsSupported: new[] { "none", "client_secret_post", "client_secret_basic" },
-                ScopesSupported: new[] { "mcp:tools" });
+                ScopesSupported: new[] { "mcp:tools", "mcp:read", "mcp:write" });
 
             return Results.Ok(metadata);
         }).AllowAnonymous();
