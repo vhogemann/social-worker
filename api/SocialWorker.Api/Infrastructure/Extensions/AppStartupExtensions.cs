@@ -221,6 +221,7 @@ static partial class WebApplicationExtensions
         SocialWorker.Api.Features.ReplyAgents.ReplyAgentsEndpoint.Map(app);
         SocialWorker.Api.Features.ReplyAgents.ReplyAgentsCrudEndpoint.Map(app);
         SocialWorker.Api.Features.Mcp.McpEndpoints.MapMcpEndpoints(app);
+        SocialWorker.Api.Features.Mcp.Auth.McpOAuthEndpoints.MapMcpOAuthEndpoints(app);
     }
 }
 

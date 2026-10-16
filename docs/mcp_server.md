@@ -11,11 +11,20 @@ O servidor MCP do `social-worker` expõe todas as capacidades operacionais da pl
 ### 1.1 Especificação e Protocolos
 - **Versão do Protocolo MCP**: `2024-11-05` (JSON-RPC 2.0).
 - **Transporte SSE Padrão (Recomendado)**:
-  - `GET /api/mcp/sse` — Estabelece stream Server-Sent Events (SSE) autenticado. Emite `event: endpoint` contendo a URL de envio de mensagens com `sessionId` (ex: `/api/mcp/message?sessionId={id}`).
+  - `GET /api/mcp/sse` (ou `/mcp/sse`) — Estabelece stream Server-Sent Events (SSE) autenticado. Emite `event: endpoint` contendo a URL de envio de mensagens com `sessionId` (ex: `/api/mcp/message?sessionId={id}`).
   - `POST /api/mcp/message?sessionId={id}` — Envia comandos JSON-RPC do cliente para a sessão ativa.
   - `POST /api/mcp/sse?sessionId={id}` — Fallback para clientes SSE legados.
-- **Transporte Stateless Direto (CLI / cURL)**:
-  - `POST /api/mcp/` — Execução direta e síncrona de requisição/resposta JSON-RPC com autenticação via bearer token.
+- **Transporte Stateless Direto (Streamable HTTP / CLI / cURL)**:
+  - `POST /api/mcp` ou `POST /mcp` — Execução direta e síncrona de requisição/resposta JSON-RPC com autenticação via bearer token.
+- **Autenticação Padrão MCP (Compatível com Claude / Anthropic)**:
+  - **Descoberta RFC 9728**: Requisições não autenticadas recebem `401 Unauthorized` com cabeçalho `WWW-Authenticate: Bearer realm="mcp", resource_metadata="{baseUrl}/.well-known/oauth-protected-resource"`.
+  - **Protected Resource Metadata**: Endpoint `GET /.well-known/oauth-protected-resource` informa o servidor de autorização e os escopos suportados (`mcp:tools`).
+  - **Authorization Server Metadata (RFC 8414)**: Endpoint `GET /.well-known/oauth-authorization-server` (e alias `/.well-known/openid-configuration`).
+  - **Dynamic Client Registration (RFC 7591)**: Endpoint `POST /oauth/register` registra clientes dinâmicos (Claude Desktop / Claude Code).
+  - **Fluxo OAuth 2.1 com PKCE (S256)**:
+    - `GET /oauth/authorize` — Interface visual com reautenticacao obrigatoria (usuario e senha, sem confiar em sessoes do navegador).
+    - `POST /oauth/token` — Troca de código de autorização e verifier PKCE por token de acesso JWT (1 hora) e refresh token persistente (30 dias).
+  - **Compatibilidade Retroativa**: Suporte contínuo a API keys estáticas (`sw_live_...`, `X-API-Key`, e `?api_key=...`).
 - **Multitenancy & Sessões**:
   - Sessões gerenciadas pelo `McpSessionManager` em memória via canais assíncronos (`System.Threading.Channels`).
   - O isolamento de dados do usuário é garantido pelo `ClaimsPrincipal.GetUserId()` da requisição HTTP.

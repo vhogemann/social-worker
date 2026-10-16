@@ -86,12 +86,17 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 7. Publish is allowed only when validation rules are satisfied (readiness + character count + AST syntax checks).
 8. Successful publish writes post records and updates thread stage to Sent.
 
-## Model Context Protocol (MCP) & API Keys
+## Model Context Protocol (MCP) & Authentication
 
-- Endpoint: `/api/mcp` (Stateless JSON-RPC 2.0) and `/api/mcp/sse?api_key=...` (Server-Sent Events continuous stream).
-- Tools (39): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `delete_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`, `list_schedules`, `get_schedule`, `create_schedule`, `add_slot_rule`, `enqueue_draft`, `get_schedule_queue`, `clear_schedule_queue`, `get_calendar_events`, `list_accounts`, `discover_feed`, `add_feed`, `update_feed`, `create_workflow`, `update_workflow`, `delete_workflow`, `list_reply_agents`, `create_reply_agent`, `update_reply_agent`, `assign_reply_agent`, `get_reply_agent`, `configure_reply_agent`, `trigger_reply_check`, `list_comment_audits`, `reply_to_comment`, `list_posts`.
+- Endpoint: `/api/mcp` (Stateless Streamable HTTP JSON-RPC 2.0), `/api/mcp/sse` (Server-Sent Events continuous stream), with aliases `/mcp` and `/mcp/sse`.
+- Tools (40): `list_drafts`, `get_draft`, `create_draft`, `update_draft`, `delete_draft`, `validate_draft`, `publish_thread`, `list_sources`, `add_source`, `fetch_source`, `list_workflows`, `trigger_workflow`, `list_feeds`, `trigger_feed_poll`, `list_schedules`, `get_schedule`, `create_schedule`, `add_slot_rule`, `enqueue_draft`, `get_schedule_queue`, `clear_schedule_queue`, `get_calendar_events`, `list_accounts`, `discover_feed`, `add_feed`, `update_feed`, `create_workflow`, `update_workflow`, `delete_workflow`, `list_reply_agents`, `create_reply_agent`, `update_reply_agent`, `assign_reply_agent`, `get_reply_agent`, `configure_reply_agent`, `trigger_reply_check`, `list_comment_audits`, `reply_to_comment`, `list_posts`, `assign_reply_agent_post`.
 - Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`, `socialworker://workflows/{id}/reply-agent`.
-- Auth: `ApiKeyAuthenticationHandler` validates SHA-256 hashed keys (`sw_live_...`) routed through ASP.NET Core `PolicyScheme` ("Composite"). Dev key `sw_live_dev_admin_key_000000000000` seeded in development.
+- Standard MCP Auth (Claude Compatible):
+  - RFC 9728 401 challenge emits `WWW-Authenticate: Bearer realm="mcp", resource_metadata="{baseUrl}/.well-known/oauth-protected-resource"`.
+  - RFC 8414 server metadata at `/.well-known/oauth-authorization-server` and OpenID alias.
+  - RFC 7591 Dynamic Client Registration at `POST /oauth/register`.
+  - OAuth 2.1 with PKCE S256 (`GET /oauth/authorize` always requiring re-authentication with username/password without trusting frontend cookies, `POST /oauth/token` with 1-hour JWT + 30-day refresh token).
+- Legacy/Static Auth: `ApiKeyAuthenticationHandler` validates SHA-256 hashed keys (`sw_live_...`, `X-API-Key`, `?api_key=...`) routed through ASP.NET Core `PolicyScheme` ("Composite"). Dev key `sw_live_dev_admin_key_000000000000` seeded in development.
 
 ## Runtime and commands that matter most
 

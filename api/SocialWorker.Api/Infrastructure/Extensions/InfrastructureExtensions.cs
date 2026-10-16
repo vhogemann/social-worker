@@ -46,7 +46,8 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<Features.Mcp.Services.McpToolRegistry>();
         builder.Services.AddScoped<Features.Mcp.Services.McpResourceRegistry>();
         builder.Services.AddScoped<Features.Mcp.Services.McpServer>();
-
+        builder.Services.AddSingleton<Features.Mcp.Auth.McpOAuthStore>();
+        builder.Services.AddScoped<Features.Mcp.Auth.McpOAuthService>();
 
         var jwtSecret = builder.Configuration["Auth:JwtSecret"]
             ?? "social_worker_super_secret_jwt_key_that_is_long_enough_for_security";
@@ -80,6 +81,21 @@ static partial class ServiceCollectionExtensions
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+            };
+            o.Events = new JwtBearerEvents
+            {
+                OnChallenge = context =>
+                {
+                    if (context.Request.Path.StartsWithSegments("/api/mcp") || context.Request.Path.StartsWithSegments("/mcp"))
+                    {
+                        var baseUrl = Features.Mcp.Auth.McpOAuthEndpoints.GetBaseUrl(context.HttpContext);
+                        context.HandleResponse();
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        context.Response.Headers.Append("WWW-Authenticate",
+                            $"Bearer realm=\"mcp\", resource_metadata=\"{baseUrl}/.well-known/oauth-protected-resource\"");
+                    }
+                    return Task.CompletedTask;
+                }
             };
         })
         .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
