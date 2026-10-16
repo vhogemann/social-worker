@@ -40,7 +40,7 @@ Status: `Active`
 1. Reliability hardening for source/search/scraper pipeline.
 2. E2E signal quality and release confidence (flake triage + stable smoke gates).
 3. Tighten operational runbook quality (startup, verification, troubleshooting).
-4. MCP Server capabilities enhancement & agent guidance: [planning/MCP_CAPABILITIES_ENHANCEMENT.md](planning/MCP_CAPABILITIES_ENHANCEMENT.md)
+4. MCP Server capabilities enhancement & agent guidance: [planning/MCP_CAPABILITIES_ENHANCEMENT.md](planning/MCP_CAPABILITIES_ENHANCEMENT.md), [planning/MCP_GAPS_ROUND_2.md](planning/MCP_GAPS_ROUND_2.md)
 5. Workflow Pausing & Archiving Lifecycle: [planning/WORKFLOW_PAUSE_AND_ARCHIVE.md](planning/WORKFLOW_PAUSE_AND_ARCHIVE.md)
 
 Definition of done for this phase:
@@ -103,6 +103,7 @@ These should remain first-class and be kept current:
 | [planning/KUBERNETES_DEPLOYMENT.md](planning/KUBERNETES_DEPLOYMENT.md) | Production Kubernetes deployment architecture (Kustomize, Helm, HPA, Ingress, GPU node scheduling) |
 | [planning/DEMO_CLOUD_PROVIDER_RESEARCH.md](planning/DEMO_CLOUD_PROVIDER_RESEARCH.md) | Cloud provider cost & compute benchmark research for initial live demo deployment |
 | [planning/INFRASTRUCTURE_GAPS_AND_HARDENING.md](planning/INFRASTRUCTURE_GAPS_AND_HARDENING.md) | Infrastructure gaps audit & production hardening plan (Health checks, Rate limiting, Data Protection, OAuth refresh, Backup) |
+| [planning/MCP_GAPS_ROUND_2.md](planning/MCP_GAPS_ROUND_2.md) | MCP server gap analysis and enhancements: media tools, account selection, publishing data fixes, and queue lifecycle |
 | [planning/FUNCTIONAL_TEST_HARNESS.md](planning/FUNCTIONAL_TEST_HARNESS.md) | Agent-controlled functional test harness for live stack & Bluesky ATProto out-of-band verification |
 | [planning/DASHBOARD_OVERVIEW.md](planning/DASHBOARD_OVERVIEW.md) | Overview dashboard architecture, KPI metrics, velocity time-series graphs, and low-tax database index design |
 | [planning/ENGAGEMENT_SYNC_QUEUE.md](planning/ENGAGEMENT_SYNC_QUEUE.md) | Unified multi-platform engagement sync queue, batching, tiered lookback windows, and background workers |
