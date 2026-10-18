@@ -106,6 +106,7 @@ export interface WorkflowCommentAuditDto {
   rankingReasoning: string | null;
   generatedReplyText: string | null;
   remoteReplyId: string | null;
+  remoteLikeId?: string | null;
   publishedPostId: string | null;
   errorMessage: string | null;
   createdAt: string;

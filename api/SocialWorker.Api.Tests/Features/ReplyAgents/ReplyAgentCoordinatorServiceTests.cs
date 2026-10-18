@@ -40,6 +40,19 @@ public sealed class ReplyAgentCoordinatorServiceTests : SqliteTestBase
             PublishCallCount++;
             return Task.FromResult(PublishResultToReturn);
         }
+
+        public LikeCommentResult LikeResultToReturn { get; set; } = LikeCommentResult.Succeeded("like-id-123");
+        public int LikeCallCount { get; private set; }
+
+        public Task<LikeCommentResult> LikeCommentAsync(
+            Post post,
+            Account account,
+            PlatformCommentItem targetComment,
+            CancellationToken ct = default)
+        {
+            LikeCallCount++;
+            return Task.FromResult(LikeResultToReturn);
+        }
     }
 
     private sealed class FakeAdapterResolver : IReplyPlatformAdapterResolver
@@ -354,13 +367,109 @@ public sealed class ReplyAgentCoordinatorServiceTests : SqliteTestBase
         await coordinator.ProcessPostCommentsAsync(agent.Id, post.Id);
 
         Assert.Equal(1, adapter.PublishCallCount);
+        Assert.Equal(1, adapter.LikeCallCount);
 
         var audit = Assert.Single(db.WorkflowCommentAudits);
         Assert.Equal("Replied", audit.RankingDecision);
         Assert.Equal("new-reply-id-123", audit.RemoteReplyId);
+        Assert.Equal("like-id-123", audit.RemoteLikeId);
         Assert.Equal("Step 2 requires running docker-compose up.", audit.GeneratedReplyText);
 
         var thread = Assert.Single(db.WorkflowCommentThreads);
         Assert.Equal(1, thread.AgentReplyCount);
+    }
+
+    [Fact]
+    public async Task ProcessPostCommentsAsync_CasualPraise_LikesWithoutReplying_AuditsAsLiked()
+    {
+        using var db = CreateDbContext();
+        var (_, agent, post, _) = SeedScenario(db, autoPublish: true);
+
+        var adapter = new FakePlatformAdapter();
+        adapter.CommentsToReturn.Add(new PlatformCommentItem(
+            "Bluesky", "c_praise", null, post.RemoteId, "fan.bsky.social", "did:fan", "Awesome project!", DateTime.UtcNow, 1, Array.Empty<string>(), Array.Empty<PlatformCommentImageAttachment>()));
+
+        var rankingService = new FakeRankingService
+        {
+            ResultToReturn = new CommentRankingResult(5, "CasualPraise", ShouldReply: false, IsTerminal: false, "Compliment worth liking", ShouldLike: true)
+        };
+        var replyGenerator = new FakeReplyGenerator();
+
+        var coordinator = new ReplyAgentCoordinatorService(
+            db, new FakeAdapterResolver(adapter), new FakeEnrichmentService(), rankingService,
+            replyGenerator, new FakeSummarizer(), new TestBackgroundTaskQueue(), NullLogger<ReplyAgentCoordinatorService>.Instance);
+
+        await coordinator.ProcessPostCommentsAsync(agent.Id, post.Id);
+
+        Assert.Equal(0, adapter.PublishCallCount);
+        Assert.Equal(1, adapter.LikeCallCount);
+
+        var audit = Assert.Single(db.WorkflowCommentAudits);
+        Assert.Equal("Liked", audit.RankingDecision);
+        Assert.Equal("like-id-123", audit.RemoteLikeId);
+        Assert.Null(audit.GeneratedReplyText);
+        Assert.Null(audit.RemoteReplyId);
+    }
+
+    [Fact]
+    public async Task ProcessPostCommentsAsync_LowScore_NoLike_AuditsAsSkippedLowScore()
+    {
+        using var db = CreateDbContext();
+        var (_, agent, post, _) = SeedScenario(db, autoPublish: true);
+
+        var adapter = new FakePlatformAdapter();
+        adapter.CommentsToReturn.Add(new PlatformCommentItem(
+            "Bluesky", "c_meh", null, post.RemoteId, "meh.bsky.social", "did:meh", "k", DateTime.UtcNow, 1, Array.Empty<string>(), Array.Empty<PlatformCommentImageAttachment>()));
+
+        var rankingService = new FakeRankingService
+        {
+            ResultToReturn = new CommentRankingResult(2, "LowEffort", ShouldReply: false, IsTerminal: false, "Low effort", ShouldLike: false)
+        };
+        var replyGenerator = new FakeReplyGenerator();
+
+        var coordinator = new ReplyAgentCoordinatorService(
+            db, new FakeAdapterResolver(adapter), new FakeEnrichmentService(), rankingService,
+            replyGenerator, new FakeSummarizer(), new TestBackgroundTaskQueue(), NullLogger<ReplyAgentCoordinatorService>.Instance);
+
+        await coordinator.ProcessPostCommentsAsync(agent.Id, post.Id);
+
+        Assert.Equal(0, adapter.PublishCallCount);
+        Assert.Equal(0, adapter.LikeCallCount);
+
+        var audit = Assert.Single(db.WorkflowCommentAudits);
+        Assert.Equal("SkippedLowScore", audit.RankingDecision);
+        Assert.Null(audit.RemoteLikeId);
+        Assert.Null(audit.GeneratedReplyText);
+    }
+
+    [Fact]
+    public async Task ProcessPostCommentsAsync_MinRankingScoreOne_RepliesEvenIfLowScore()
+    {
+        using var db = CreateDbContext();
+        var (_, agent, post, _) = SeedScenario(db, autoPublish: true, minScore: 1);
+
+        var adapter = new FakePlatformAdapter();
+        adapter.CommentsToReturn.Add(new PlatformCommentItem(
+            "Bluesky", "c_low", null, post.RemoteId, "troll.bsky.social", "did:troll", "Lula ladrao", DateTime.UtcNow, 1, Array.Empty<string>(), Array.Empty<PlatformCommentImageAttachment>()));
+
+        var rankingService = new FakeRankingService
+        {
+            ResultToReturn = new CommentRankingResult(1, "LowEffort", ShouldReply: false, IsTerminal: false, "Low effort but agent has threshold 1", ShouldLike: false)
+        };
+        var replyGenerator = new FakeReplyGenerator
+        {
+            ResultToReturn = GeneratedReplyResult.Succeeded("Argument countering the provocation")
+        };
+
+        var coordinator = new ReplyAgentCoordinatorService(
+            db, new FakeAdapterResolver(adapter), new FakeEnrichmentService(), rankingService,
+            replyGenerator, new FakeSummarizer(), new TestBackgroundTaskQueue(), NullLogger<ReplyAgentCoordinatorService>.Instance);
+
+        await coordinator.ProcessPostCommentsAsync(agent.Id, post.Id);
+
+        Assert.Equal(1, adapter.PublishCallCount);
+        var audit = Assert.Single(db.WorkflowCommentAudits);
+        Assert.Equal("Replied", audit.RankingDecision);
+        Assert.Equal("Argument countering the provocation", audit.GeneratedReplyText);
     }
 }

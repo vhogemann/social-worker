@@ -16,6 +16,20 @@ public sealed class BlueskyCreateSessionResponse
 
 public sealed record BlueskyCreateRecordRequest(string Repo, string Collection, BlueskyPostRecord Record);
 
+public sealed class BlueskyLikeRecord
+{
+    [JsonPropertyName("$type")]
+    public string Type { get; init; } = "app.bsky.feed.like";
+
+    [JsonPropertyName("subject")]
+    public BlueskyRecordRef Subject { get; init; } = null!;
+
+    [JsonPropertyName("createdAt")]
+    public string CreatedAt { get; init; } = null!;
+}
+
+public sealed record BlueskyCreateLikeRecordRequest(string Repo, string Collection, BlueskyLikeRecord Record);
+
 public sealed class BlueskyCreateRecordResponse
 {
     [JsonPropertyName("uri")]

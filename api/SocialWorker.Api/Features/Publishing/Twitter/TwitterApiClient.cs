@@ -97,6 +97,41 @@ public class TwitterApiClient
         return JsonSerializer.Deserialize<TwitterSearchTweetsResponse>(body);
     }
 
+    public virtual async Task<bool> LikeTweetAsync(
+        string accessToken,
+        string userId,
+        string tweetId,
+        CancellationToken ct = default)
+    {
+        var url = CombineUrl(_options.BaseUrl, $"users/{userId}/likes");
+        var payload = new { tweet_id = tweetId };
+        var json = JsonSerializer.Serialize(payload);
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await _http.SendAsync(request, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("Twitter like tweet failed ({StatusCode}): {Body}", response.StatusCode, body);
+            var errorMsg = ExtractErrorMessage(body);
+            throw new InvalidOperationException($"Twitter API returned {(int)response.StatusCode}: {errorMsg}");
+        }
+
+        using var doc = JsonDocument.Parse(body);
+        if (doc.RootElement.TryGetProperty("data", out var dataEl) &&
+            dataEl.TryGetProperty("liked", out var likedEl))
+        {
+            return likedEl.GetBoolean();
+        }
+
+        return true;
+    }
+
     public async Task<string> UploadMediaAsync(
         string accessToken,
         byte[] mediaBytes,

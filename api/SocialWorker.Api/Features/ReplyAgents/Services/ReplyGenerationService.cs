@@ -178,16 +178,23 @@ Write a reply to @{enrichedContext.Comment.RemoteAuthorHandle}:
                     return GeneratedReplyResult.Failed("LLM generated an empty reply.");
                 }
 
-                if (choiceMessage.ToolCalls != null && choiceMessage.ToolCalls.Count > 0 && !isFinalTurn)
+                var rawContent = choiceMessage.Content?.ToString();
+                var toolCalls = choiceMessage.ToolCalls != null && choiceMessage.ToolCalls.Count > 0
+                    ? choiceMessage.ToolCalls
+                    : (!string.IsNullOrWhiteSpace(rawContent) && TextToolCallParser.ContainsToolCallSyntax(rawContent)
+                        ? TextToolCallParser.ParseToolCalls(rawContent)
+                        : null);
+
+                if (toolCalls != null && toolCalls.Count > 0 && !isFinalTurn)
                 {
                     messages.Add(new OpenAiModels.OpenAiMessage
                     {
                         Role = "assistant",
                         Content = choiceMessage.Content,
-                        ToolCalls = choiceMessage.ToolCalls
+                        ToolCalls = toolCalls
                     });
 
-                    foreach (var toolCall in choiceMessage.ToolCalls)
+                    foreach (var toolCall in toolCalls)
                     {
                         if (_toolExecutor != null && !ExcludedToolNames.Contains(toolCall.Function?.Name ?? ""))
                         {
@@ -231,6 +238,13 @@ Write a reply to @{enrichedContext.Comment.RemoteAuthorHandle}:
                         }
                     }
 
+                    tools = null;
+                    messages.Add(new OpenAiModels.OpenAiMessage
+                    {
+                        Role = "user",
+                        Content = "Based on the gathered evidence above, now write the final public reply strictly adhering to your persona and character limit. Do not invoke or output any tools."
+                    });
+
                     continue;
                 }
 
@@ -238,6 +252,16 @@ Write a reply to @{enrichedContext.Comment.RemoteAuthorHandle}:
                 if (string.IsNullOrWhiteSpace(reply))
                 {
                     return GeneratedReplyResult.Failed("LLM generated an empty reply.");
+                }
+
+                if (TextToolCallParser.ContainsToolCallSyntax(reply))
+                {
+                    reply = TextToolCallParser.StripToolCalls(reply);
+                }
+
+                if (string.IsNullOrWhiteSpace(reply) || TextToolCallParser.ContainsToolCallSyntax(reply))
+                {
+                    return GeneratedReplyResult.Failed("LLM generated tool calls instead of reply text.");
                 }
 
                 reply = reply.Trim('"', '\'');

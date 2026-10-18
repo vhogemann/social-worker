@@ -183,4 +183,13 @@ public sealed class MetaThreadsReplyAdapter : IReplyPlatformAdapter
             return PublishReplyResult.Failed(ex.Message);
         }
     }
+
+    public Task<LikeCommentResult> LikeCommentAsync(
+        Post post,
+        Account account,
+        PlatformCommentItem targetComment,
+        CancellationToken ct = default)
+    {
+        return Task.FromResult(LikeCommentResult.NotSupported("Meta Threads API does not support liking comments or posts."));
+    }
 }

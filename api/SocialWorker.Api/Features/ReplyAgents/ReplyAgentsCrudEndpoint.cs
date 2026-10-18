@@ -209,6 +209,21 @@ public static class ReplyAgentsCrudEndpoint
             var publishResult = await adapter.PublishReplyAsync(post, account, commentItem, replyText, ct);
             if (publishResult.Success)
             {
+                if (audit.RemoteLikeId == null)
+                {
+                    try
+                    {
+                        var likeResult = await adapter.LikeCommentAsync(post, account, commentItem, ct);
+                        if (likeResult.Success)
+                        {
+                            audit.RemoteLikeId = likeResult.RemoteLikeId;
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+
                 audit.RankingDecision = "Replied";
                 audit.GeneratedReplyText = replyText;
                 audit.RemoteReplyId = publishResult.RemoteReplyId;

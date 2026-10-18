@@ -211,4 +211,52 @@ public sealed class TwitterReplyAdapterTests
         Assert.False(result.Success);
         Assert.Contains("Twitter API returned 400", result.ErrorMessage);
     }
+
+    [Fact]
+    public async Task LikeCommentAsync_ValidAccount_CallsLikesEndpointAndReturnsSuccess()
+    {
+        var (adapter, httpHandler) = CreateAdapter();
+
+        httpHandler.Handler = (req, body) =>
+        {
+            if (req.RequestUri!.AbsolutePath.Contains("users/user_123/likes"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"data":{"liked":true}}""", Encoding.UTF8, "application/json")
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+
+        var post = new Post { RemoteId = "tweet_root_1", Platform = "Twitter" };
+        var credentials = new TwitterAccountCredentials("valid_bearer_token");
+        var account = new Account
+        {
+            Platform = "Twitter",
+            Handle = "bot",
+            ExternalId = "user_123",
+            CredentialsEncrypted = CryptoHelper.EncryptString(JsonSerializer.Serialize(credentials), EncryptionKey)
+        };
+
+        var targetComment = new PlatformCommentItem(
+            Platform: "Twitter",
+            RemoteCommentId: "tweet_comment_456",
+            RemoteParentId: null,
+            RemoteRootId: "tweet_root_1",
+            RemoteAuthorHandle: "fan",
+            RemoteAuthorId: "fan_id",
+            Text: "Great thread!",
+            CreatedAt: DateTime.UtcNow,
+            Depth: 1,
+            ExtractedUrls: Array.Empty<string>(),
+            ExtractedImages: Array.Empty<PlatformCommentImageAttachment>(),
+            PlatformMetadata: null);
+
+        var result = await adapter.LikeCommentAsync(post, account, targetComment);
+
+        Assert.True(result.Success);
+        Assert.Equal("twitter-like-user_123-tweet_comment_456", result.RemoteLikeId);
+    }
 }

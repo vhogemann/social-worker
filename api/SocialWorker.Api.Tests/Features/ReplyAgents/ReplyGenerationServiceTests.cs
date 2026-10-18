@@ -414,4 +414,119 @@ public sealed class ReplyGenerationServiceTests : SqliteTestBase
         Assert.NotNull(result.ReplyText);
         Assert.Contains("moeda soberana", result.ReplyText);
     }
+
+    [Fact]
+    public async Task GenerateReplyAsync_WhenLlmOutputsTextToolCalls_ParsesExecutesToolAndReturnsFinalReply()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        db.LlmProviders.Add(LlmProvider.Create("TestProvider", "OpenRouter", "https://api.openai.com/v1", "gpt-4o", "dummy-key", isDefault: true));
+        await db.SaveChangesAsync();
+
+        var searchEngine = new FakeSearchEngine();
+        searchEngine.ResultsToReturn = new List<SearchResult>
+        {
+            new("Votação PEC 6x1", "https://senado.leg.br/noticias", "Senadores debatem PEC da jornada 6x1.")
+        };
+
+        var adapter = new FakeLlmAdapter();
+        // LLM outputs raw XML-style <tool_call> in message Content without filling ToolCalls collection
+        adapter.Enqueue(new OpenAiModels.ChatCompletionResponse
+        {
+            Choices = new List<OpenAiModels.ChatCompletionChoice>
+            {
+                new()
+                {
+                    Message = new OpenAiModels.ChatCompletionMessage
+                    {
+                        Role = "assistant",
+                        Content = "<tool_call>web_search<arg_key>query</arg_key><arg_value>PEC do 6x1 Senado votação</arg_value></tool_call>"
+                    }
+                }
+            }
+        });
+
+        // Next turn after tool execution: LLM outputs actual reply text
+        adapter.Enqueue(new OpenAiModels.ChatCompletionResponse
+        {
+            Choices = new List<OpenAiModels.ChatCompletionChoice>
+            {
+                new()
+                {
+                    Message = new OpenAiModels.ChatCompletionMessage
+                    {
+                        Role = "assistant",
+                        Content = "Companheiro, a tramitação da PEC do 6x1 segue em debate no Congresso e os registros são públicos no Senado."
+                    }
+                }
+            }
+        });
+
+        var providerService = new LlmProviderService();
+        var service = new ReplyGenerationService(
+            db, providerService, adapter, NullLogger<ReplyGenerationService>.Instance, searchEngine);
+
+        var comment = CreateComment("c7", "Flavio votou a favor da PEC do 6x1!", "MetaThreads");
+        var enrichedContext = CreateContext(comment);
+
+        var result = await service.GenerateReplyAsync(
+            enrichedContext,
+            "Post original sobre escala 6x1.",
+            "Persona do Sentinela Vira-Voto.",
+            "MetaThreads",
+            null,
+            user);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.ReplyText);
+        Assert.DoesNotContain("<tool_call>", result.ReplyText);
+        Assert.Contains("PEC do 6x1", result.ReplyText);
+        Assert.Single(searchEngine.QueriedTerms);
+        Assert.Equal("PEC do 6x1 Senado votação", searchEngine.QueriedTerms[0]);
+    }
+
+    [Fact]
+    public async Task GenerateReplyAsync_WhenLlmOutputContainsToolCallTagsOnFinalTurn_FailsWithoutLeakingToolCallSyntax()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        db.LlmProviders.Add(LlmProvider.Create("TestProvider", "OpenRouter", "https://api.openai.com/v1", "gpt-4o", "dummy-key", isDefault: true));
+        await db.SaveChangesAsync();
+
+        var adapter = new FakeLlmAdapter();
+        adapter.Enqueue(new OpenAiModels.ChatCompletionResponse
+        {
+            Choices = new List<OpenAiModels.ChatCompletionChoice>
+            {
+                new()
+                {
+                    Message = new OpenAiModels.ChatCompletionMessage
+                    {
+                        Role = "assistant",
+                        Content = "<tool_call>web_search<arg_key>query</arg_key><arg_value>alguma busca</arg_value></tool_call>"
+                    }
+                }
+            }
+        });
+
+        var providerService = new LlmProviderService();
+        // Without search engine or tools configured to execute it, or if it leaks at the end
+        var service = new ReplyGenerationService(
+            db, providerService, adapter, NullLogger<ReplyGenerationService>.Instance);
+
+        var comment = CreateComment("c8", "Pergunta qualquer.", "MetaThreads");
+        var enrichedContext = CreateContext(comment);
+
+        var result = await service.GenerateReplyAsync(
+            enrichedContext,
+            "Post original.",
+            "Persona.",
+            "MetaThreads",
+            null,
+            user);
+
+        Assert.False(result.Success);
+        Assert.Null(result.ReplyText);
+    }
 }
+

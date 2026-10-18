@@ -164,6 +164,48 @@ public sealed class TwitterReplyAdapter : IReplyPlatformAdapter
         }
     }
 
+    public async Task<LikeCommentResult> LikeCommentAsync(
+        Post post,
+        Account account,
+        PlatformCommentItem targetComment,
+        CancellationToken ct = default)
+    {
+        var accessToken = await GetAccessTokenAsync(account, ct);
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            return LikeCommentResult.Failed("Unable to retrieve valid access token.");
+        }
+
+        try
+        {
+            var userId = account.ExternalId;
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                var profile = await _oauth.FetchUserProfileAsync(accessToken, ct);
+                userId = profile.Id;
+            }
+
+            var targetTweetId = !string.IsNullOrWhiteSpace(targetComment.RemoteCommentId)
+                ? targetComment.RemoteCommentId
+                : post.RemoteId;
+
+            if (string.IsNullOrWhiteSpace(targetTweetId))
+            {
+                return LikeCommentResult.Failed("No target tweet ID found to like.");
+            }
+
+            var liked = await _apiClient.LikeTweetAsync(accessToken, userId, targetTweetId, ct);
+            return liked
+                ? LikeCommentResult.Succeeded($"twitter-like-{userId}-{targetTweetId}")
+                : LikeCommentResult.Failed("Twitter like returned false.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to like Twitter comment {CommentId}", targetComment.RemoteCommentId);
+            return LikeCommentResult.Failed(ex.Message);
+        }
+    }
+
     private async Task<string?> GetAccessTokenAsync(Account account, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(_encryptionKey))

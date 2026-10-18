@@ -31,4 +31,13 @@ public sealed class LinkedInReplyAdapter : IReplyPlatformAdapter
     {
         return Task.FromResult(PublishReplyResult.Failed("LinkedIn comment replies are not yet implemented."));
     }
+
+    public Task<LikeCommentResult> LikeCommentAsync(
+        Post post,
+        Account account,
+        PlatformCommentItem targetComment,
+        CancellationToken ct = default)
+    {
+        return Task.FromResult(LikeCommentResult.NotSupported("LinkedIn comment liking is not yet implemented."));
+    }
 }

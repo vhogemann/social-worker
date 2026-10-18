@@ -26,6 +26,7 @@ public class WorkflowCommentAudit
     public string? RankingReasoning { get; set; }
     public string? GeneratedReplyText { get; set; }
     public string? RemoteReplyId { get; set; }
+    public string? RemoteLikeId { get; set; }
     public Guid? PublishedPostId { get; set; }
     public Post? PublishedPost { get; set; }
     public string? ErrorMessage { get; set; }
@@ -51,7 +52,8 @@ public class WorkflowCommentAudit
         string? parsedImagesJson = null,
         string? remoteReplyId = null,
         Guid? publishedPostId = null,
-        string? errorMessage = null)
+        string? errorMessage = null,
+        string? remoteLikeId = null)
     {
         return new WorkflowCommentAudit
         {
@@ -74,6 +76,7 @@ public class WorkflowCommentAudit
             ParsedLinksJson = parsedLinksJson,
             ParsedImagesJson = parsedImagesJson,
             RemoteReplyId = remoteReplyId,
+            RemoteLikeId = remoteLikeId,
             PublishedPostId = publishedPostId,
             ErrorMessage = errorMessage,
             CreatedAt = DateTime.UtcNow

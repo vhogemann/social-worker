@@ -523,6 +523,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.RankingReasoning).HasColumnType("text");
             e.Property(x => x.GeneratedReplyText).HasColumnType("text");
             e.Property(x => x.RemoteReplyId).HasMaxLength(500);
+            e.Property(x => x.RemoteLikeId).HasMaxLength(500);
             e.Property(x => x.ErrorMessage).HasColumnType("text");
             e.HasOne(x => x.ReplyAgent)
                 .WithMany(a => a.CommentAudits)

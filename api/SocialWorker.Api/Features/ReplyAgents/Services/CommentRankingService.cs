@@ -62,17 +62,19 @@ Consider all available context:
 - Intent categories:
   * GenuineQuestion: User is sincerely asking for information, clarification, or help. (High reply worthiness)
   * InsightfulFeedback: Thoughtful feedback, constructive critique, or interesting debate. (High reply worthiness)
-  * CasualPraise: Simple compliment (e.g. "Nice post!"). (Moderate reply worthiness, score 5-6)
-  * TerminalClosure: Conversation-closing acknowledgement (e.g. "Thanks!", "Got it", "Makes sense"). Flag isTerminal=true, shouldReply=false.
-  * LowEffort: Meaningless gibberish, one-word reaction, emoji-only. (Low reply worthiness, score 1-4)
-  * HostileTroll: Personal attacks, bad-faith bait, hostility, harassment. (Do NOT reply, score 1)
-  * Spam: Advertisements, unsolicited self-promotion, phishing. (Do NOT reply, score 1)
+  * PoliticalDebate: Political disagreement, partisan hostility, ideological challenge, criticism or provocation about politicians/parties (e.g., accusations of corruption, attacks on candidates, economic debate). In political/campaigning contexts, this is a prime engagement and persuasion opportunity to counter-argue and pivot. (High reply worthiness, score 7-8, shouldReply: true, shouldLike: false)
+  * CasualPraise: Simple compliment (e.g. "Nice post!"). (Moderate reply worthiness, score 5-6, worth liking)
+  * TerminalClosure: Conversation-closing acknowledgement (e.g. "Thanks!", "Got it", "Makes sense"). Flag isTerminal=true, shouldReply=false, worth liking.
+  * LowEffort: Meaningless gibberish, single emoji, or completely off-topic remarks with no political or topical relevance. (Low reply worthiness, score 1-4)
+  * HostileTroll: Severe vulgarities/slurs with zero political or topical substance (e.g. pure insults like "VTNC"), doxxing, death threats, or explicit harassment. (Do NOT reply, do NOT like, score 1)
+  * Spam: Advertisements, unsolicited self-promotion, phishing. (Do NOT reply, do NOT like, score 1)
 
 Output ONLY valid JSON matching this schema:
 {
   "score": <integer from 1 to 10>,
-  "category": "<GenuineQuestion|InsightfulFeedback|CasualPraise|TerminalClosure|LowEffort|HostileTroll|Spam>",
+  "category": "<GenuineQuestion|InsightfulFeedback|PoliticalDebate|CasualPraise|TerminalClosure|LowEffort|HostileTroll|Spam>",
   "shouldReply": <boolean: true only if score >= 7 and not terminal/troll/spam>,
+  "shouldLike": <boolean: true if positive, thoughtful, appreciative, or worth acknowledging with a like>,
   "isTerminal": <boolean: true if conversation reached natural closure>,
   "reasoning": "<1-2 sentence concise explanation>"
 }

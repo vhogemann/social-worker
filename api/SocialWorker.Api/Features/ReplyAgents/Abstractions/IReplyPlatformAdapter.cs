@@ -23,4 +23,10 @@ public interface IReplyPlatformAdapter
         PlatformCommentItem targetComment,
         string replyText,
         CancellationToken ct = default);
+
+    Task<LikeCommentResult> LikeCommentAsync(
+        Post post,
+        Account account,
+        PlatformCommentItem targetComment,
+        CancellationToken ct = default);
 }

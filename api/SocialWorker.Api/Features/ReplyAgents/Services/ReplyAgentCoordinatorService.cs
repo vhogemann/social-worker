@@ -194,10 +194,48 @@ public sealed class ReplyAgentCoordinatorService
             await _db.SaveChangesAsync(ct);
         }
 
-        if (!ranking.ShouldReply || ranking.Score < agent.MinRankingScore)
+        var qualifiesToReply = (ranking.ShouldReply || (agent.MinRankingScore <= 1 && !string.Equals(ranking.Category, "Spam", StringComparison.OrdinalIgnoreCase)))
+            && ranking.Score >= agent.MinRankingScore
+            && !ranking.IsTerminal;
+        var shouldLike = ranking.ShouldLike || qualifiesToReply;
+
+        if (!qualifiesToReply)
         {
-            var decision = ranking.IsTerminal ? "SkippedTerminal" : "SkippedLowScore";
-            await RecordAuditWithEnrichmentAsync(agent, post, comment, enrichedContext, ranking.Score, ranking.Category, decision, ranking.Reasoning, null, null, null, ct);
+            string? remoteLikeId = null;
+            if (shouldLike)
+            {
+                try
+                {
+                    var likeRes = await adapter.LikeCommentAsync(post, account, comment, ct);
+                    if (likeRes.Success)
+                    {
+                        remoteLikeId = likeRes.RemoteLikeId;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to like comment {CommentId}", comment.RemoteCommentId);
+                }
+            }
+
+            var decision = remoteLikeId != null
+                ? "Liked"
+                : (ranking.IsTerminal ? "SkippedTerminal" : "SkippedLowScore");
+
+            await RecordAuditWithEnrichmentAsync(
+                agent,
+                post,
+                comment,
+                enrichedContext,
+                ranking.Score,
+                ranking.Category,
+                decision,
+                ranking.Reasoning,
+                null,
+                null,
+                null,
+                ct,
+                remoteLikeId);
             return;
         }
 
@@ -228,8 +266,22 @@ public sealed class ReplyAgentCoordinatorService
         var pubResult = await adapter.PublishReplyAsync(post, account, comment, replyText, ct);
         if (pubResult.Success)
         {
+            string? remoteLikeId = null;
+            try
+            {
+                var likeRes = await adapter.LikeCommentAsync(post, account, comment, ct);
+                if (likeRes.Success)
+                {
+                    remoteLikeId = likeRes.RemoteLikeId;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to like comment {CommentId} during reply", comment.RemoteCommentId);
+            }
+
             thread.IncrementAgentReplyCount();
-            await RecordAuditWithEnrichmentAsync(agent, post, comment, enrichedContext, ranking.Score, ranking.Category, "Replied", ranking.Reasoning, replyText, pubResult.RemoteReplyId, null, ct);
+            await RecordAuditWithEnrichmentAsync(agent, post, comment, enrichedContext, ranking.Score, ranking.Category, "Replied", ranking.Reasoning, replyText, pubResult.RemoteReplyId, null, ct, remoteLikeId);
             await _db.SaveChangesAsync(ct);
 
             await CheckAndCompactThreadAsync(thread, user, ct);
@@ -310,7 +362,8 @@ public sealed class ReplyAgentCoordinatorService
         string? replyText,
         string? remoteReplyId,
         string? error,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? remoteLikeId = null)
     {
         var linksJson = enrichedContext.Links.Count > 0 ? JsonSerializer.Serialize(enrichedContext.Links) : null;
         var imagesJson = enrichedContext.Images.Count > 0 ? JsonSerializer.Serialize(enrichedContext.Images) : null;
@@ -335,7 +388,8 @@ public sealed class ReplyAgentCoordinatorService
             imagesJson,
             remoteReplyId,
             null,
-            error);
+            error,
+            remoteLikeId);
 
         try
         {

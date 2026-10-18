@@ -549,7 +549,7 @@ export function ReplyAgentsPage() {
                         onChange={(e) =>
                           setReplyTextDrafts({ ...replyTextDrafts, [audit.id]: e.target.value })
                         }
-                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+                        className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
                       />
                       <div className="flex justify-end gap-2 mt-2">
                         <button
@@ -709,7 +709,7 @@ export function ReplyAgentsPage() {
                 <select
                   value={auditDecisionFilter}
                   onChange={(e) => setAuditDecisionFilter(e.target.value)}
-                  className="bg-input border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-accent"
+                  className="bg-bg border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-accent"
                 >
                   <option value="all">All Decisions</option>
                   <option value="Replied">Replied</option>
@@ -837,7 +837,7 @@ export function ReplyAgentsPage() {
                 value={agentName}
                 onChange={(e) => setAgentName(e.target.value)}
                 placeholder="e.g. Viral Engagement Bot"
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+                className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
               />
             </div>
 
@@ -864,7 +864,7 @@ export function ReplyAgentsPage() {
               value={agentDescription}
               onChange={(e) => setAgentDescription(e.target.value)}
               placeholder="e.g. Engages thoughtfully with positive comments on technical posts"
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+              className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
             />
           </div>
 
@@ -878,7 +878,7 @@ export function ReplyAgentsPage() {
               value={agentPersona}
               onChange={(e) => setAgentPersona(e.target.value)}
               placeholder="Define voice, tone, and specific instructions for replies..."
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+              className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
             />
           </div>
 
@@ -897,7 +897,7 @@ export function ReplyAgentsPage() {
                   max={10}
                   value={agentMinScore}
                   onChange={(e) => setAgentMinScore(parseInt(e.target.value) || 1)}
-                  className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                  className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                 />
               </div>
 
@@ -908,7 +908,7 @@ export function ReplyAgentsPage() {
                   min={1}
                   value={agentMaxRepliesBranch}
                   onChange={(e) => setAgentMaxRepliesBranch(parseInt(e.target.value) || 1)}
-                  className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                  className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                 />
               </div>
 
@@ -919,7 +919,7 @@ export function ReplyAgentsPage() {
                   min={1}
                   value={agentMaxRepliesUser}
                   onChange={(e) => setAgentMaxRepliesUser(parseInt(e.target.value) || 1)}
-                  className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                  className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                 />
               </div>
 
@@ -930,7 +930,7 @@ export function ReplyAgentsPage() {
                   min={1}
                   value={agentMaxDepth}
                   onChange={(e) => setAgentMaxDepth(parseInt(e.target.value) || 1)}
-                  className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                  className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                 />
               </div>
             </div>
@@ -943,7 +943,7 @@ export function ReplyAgentsPage() {
                   min={1}
                   value={agentMaxCommentAge}
                   onChange={(e) => setAgentMaxCommentAge(parseInt(e.target.value) || 1)}
-                  className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                  className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                 />
               </div>
 
@@ -954,7 +954,7 @@ export function ReplyAgentsPage() {
                   min={1}
                   value={agentMaxPostAge}
                   onChange={(e) => setAgentMaxPostAge(parseInt(e.target.value) || 1)}
-                  className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                  className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                 />
               </div>
 
@@ -965,7 +965,7 @@ export function ReplyAgentsPage() {
                   min={1}
                   value={agentInterval}
                   onChange={(e) => setAgentInterval(parseInt(e.target.value) || 5)}
-                  className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                  className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                 />
               </div>
             </div>

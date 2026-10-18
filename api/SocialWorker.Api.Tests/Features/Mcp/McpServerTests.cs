@@ -1679,6 +1679,9 @@ public sealed class McpServerTests : SqliteTestBase
 
         public Task<PublishReplyResult> PublishReplyAsync(Post post, Account account, PlatformCommentItem targetComment, string replyText, CancellationToken ct = default) =>
             Task.FromResult(PublishReplyResult.Succeeded("at://did:plc:test/app.bsky.feed.post/reply123", "https://bsky.app/profile/test.bsky.social/post/reply123"));
+
+        public Task<LikeCommentResult> LikeCommentAsync(Post post, Account account, PlatformCommentItem targetComment, CancellationToken ct = default) =>
+            Task.FromResult(LikeCommentResult.Succeeded("like-123"));
     }
 
     private sealed class MockPublisherResolver : IPublisherResolver

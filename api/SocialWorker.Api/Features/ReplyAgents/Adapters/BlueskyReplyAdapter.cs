@@ -289,4 +289,64 @@ public sealed class BlueskyReplyAdapter : IReplyPlatformAdapter
             return PublishReplyResult.Failed(ex.Message);
         }
     }
+
+    public async Task<LikeCommentResult> LikeCommentAsync(
+        Post post,
+        Account account,
+        PlatformCommentItem targetComment,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var appPassword = CryptoHelper.DecryptString(account.CredentialsEncrypted, _encryptionKey);
+            var sessionRes = await _apiClient.CreateSessionAsync(account.Handle, appPassword, ct);
+            if (!sessionRes.Success || sessionRes.Value is null)
+            {
+                return LikeCommentResult.Failed(sessionRes.Error ?? "Failed to create Bluesky session.");
+            }
+
+            var session = sessionRes.Value;
+            var meta = targetComment.PlatformMetadata as BlueskyCommentMetadata;
+            var commentCid = meta?.Cid ?? "";
+
+            if (string.IsNullOrWhiteSpace(commentCid))
+            {
+                var uri = $"{GetPostThreadEndpoint}?uri={Uri.EscapeDataString(targetComment.RemoteCommentId)}&depth=0";
+                var res = await _http.GetAsync(uri, ct);
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync(ct);
+                    using var doc = JsonDocument.Parse(json);
+                    if (doc.RootElement.TryGetProperty("thread", out var threadEl) && threadEl.TryGetProperty("post", out var postEl))
+                    {
+                        commentCid = postEl.TryGetProperty("cid", out var cidEl) ? cidEl.GetString() ?? "" : "";
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(commentCid))
+            {
+                return LikeCommentResult.Failed("Could not resolve CID for Bluesky comment to like.");
+            }
+
+            var record = new BlueskyLikeRecord
+            {
+                CreatedAt = DateTime.UtcNow.ToString("o"),
+                Subject = new BlueskyRecordRef(targetComment.RemoteCommentId, commentCid)
+            };
+
+            var likeResult = await _apiClient.CreateLikeRecordAsync(session.Did, record, session.AccessJwt, ct);
+            if (!likeResult.Success || likeResult.Value is null)
+            {
+                return LikeCommentResult.Failed(likeResult.Error ?? "Failed to like Bluesky comment.");
+            }
+
+            return LikeCommentResult.Succeeded(likeResult.Value.Uri);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to like Bluesky comment {CommentId}", targetComment.RemoteCommentId);
+            return LikeCommentResult.Failed(ex.Message);
+        }
+    }
 }

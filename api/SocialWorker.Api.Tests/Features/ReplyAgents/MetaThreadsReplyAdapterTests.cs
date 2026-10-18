@@ -287,4 +287,31 @@ public sealed class MetaThreadsReplyAdapterTests
         Assert.False(res.Success);
         Assert.NotNull(res.ErrorMessage);
     }
+
+    [Fact]
+    public async Task LikeCommentAsync_ReturnsNotSupported()
+    {
+        var (adapter, _) = CreateAdapter();
+        var post = new Post { RemoteId = "1001", Platform = "MetaThreads" };
+        var account = new Account { ExternalId = "999" };
+        var targetComment = new PlatformCommentItem(
+            Platform: "MetaThreads",
+            RemoteCommentId: "comment_1",
+            RemoteParentId: null,
+            RemoteRootId: "1001",
+            RemoteAuthorHandle: "threads_fan",
+            RemoteAuthorId: "threads_fan",
+            Text: "Hello!",
+            CreatedAt: DateTime.UtcNow,
+            Depth: 1,
+            ExtractedUrls: Array.Empty<string>(),
+            ExtractedImages: Array.Empty<PlatformCommentImageAttachment>()
+        );
+
+        var result = await adapter.LikeCommentAsync(post, account, targetComment);
+
+        Assert.False(result.Success);
+        Assert.False(result.IsSupported);
+        Assert.Contains("does not support liking", result.ErrorMessage);
+    }
 }

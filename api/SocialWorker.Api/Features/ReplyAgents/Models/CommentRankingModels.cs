@@ -7,11 +7,12 @@ public sealed record CommentRankingResult(
     [property: JsonPropertyName("category")] string Category,
     [property: JsonPropertyName("shouldReply")] bool ShouldReply,
     [property: JsonPropertyName("isTerminal")] bool IsTerminal,
-    [property: JsonPropertyName("reasoning")] string Reasoning
+    [property: JsonPropertyName("reasoning")] string Reasoning,
+    [property: JsonPropertyName("shouldLike")] bool ShouldLike = false
 )
 {
     public static CommentRankingResult DefaultSkip(string reason) =>
-        new(0, "Skipped", false, false, reason);
+        new(0, "Skipped", false, false, reason, false);
 }
 
 public sealed record GeneratedReplyResult(

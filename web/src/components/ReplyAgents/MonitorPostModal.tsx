@@ -105,7 +105,7 @@ export function MonitorPostModal({
           <select
             value={selectedAgentId}
             onChange={(e) => setSelectedAgentId(e.target.value)}
-            className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+            className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
           >
             {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
@@ -129,7 +129,7 @@ export function MonitorPostModal({
               value={postUrl}
               onChange={(e) => setPostUrl(e.target.value)}
               placeholder="https://bsky.app/profile/alice.bsky.social/post/3ld..."
-              className="w-full bg-input border border-border rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-foreground placeholder:text-muted focus:outline-none focus:border-accent"
+              className="w-full bg-bg border border-border rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-foreground placeholder:text-muted focus:outline-none focus:border-accent"
             />
           </div>
           <p className="mt-1 text-[11px] font-mono text-muted">
@@ -144,7 +144,7 @@ export function MonitorPostModal({
           <select
             value={platform}
             onChange={(e) => setPlatform(e.target.value)}
-            className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+            className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
           >
             <option value="auto">Auto-detect from URL</option>
             <option value="Bluesky">Bluesky</option>

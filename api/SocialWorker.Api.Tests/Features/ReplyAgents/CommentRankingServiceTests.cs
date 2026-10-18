@@ -208,4 +208,98 @@ public sealed class CommentRankingServiceTests : SqliteTestBase
         Assert.False(result.ShouldReply);
         Assert.Contains("Failed to parse JSON", result.Reasoning);
     }
+
+    [Fact]
+    public async Task RankCommentAsync_CasualPraise_ParsesShouldLike()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var provider = LlmProvider.Create("TestProvider", "OpenRouter", "https://api.openai.com/v1", "key", "gpt-4o", isDefault: true);
+        db.LlmProviders.Add(provider);
+        await db.SaveChangesAsync();
+
+        var jsonResponse = """
+        {
+          "score": 5,
+          "category": "CasualPraise",
+          "shouldReply": false,
+          "shouldLike": true,
+          "isTerminal": false,
+          "reasoning": "Simple compliment, worth liking to show appreciation."
+        }
+        """;
+
+        var adapter = new MockLlmAdapter(_ => new OpenAiModels.ChatCompletionResponse
+        {
+            Choices = new List<OpenAiModels.ChatCompletionChoice>
+            {
+                new()
+                {
+                    Message = new OpenAiModels.ChatCompletionMessage
+                    {
+                        Role = "assistant",
+                        Content = jsonResponse
+                    }
+                }
+            }
+        });
+
+        var providerService = new LlmProviderService();
+        var service = new CommentRankingService(db, providerService, adapter, NullLogger<CommentRankingService>.Instance);
+        var context = CreateTestContext("Awesome post, really liked it!");
+
+        var result = await service.RankCommentAsync(context, "Original post", null, user);
+
+        Assert.False(result.ShouldReply);
+        Assert.True(result.ShouldLike);
+        Assert.Equal("CasualPraise", result.Category);
+        Assert.Equal(5, result.Score);
+    }
+
+    [Fact]
+    public async Task RankCommentAsync_PoliticalDebate_ScoresHighAndReplies()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var provider = LlmProvider.Create("TestProvider", "OpenRouter", "https://api.openai.com/v1", "key", "gpt-4o", isDefault: true);
+        db.LlmProviders.Add(provider);
+        await db.SaveChangesAsync();
+
+        var jsonResponse = """
+        {
+          "score": 8,
+          "category": "PoliticalDebate",
+          "shouldReply": true,
+          "shouldLike": false,
+          "isTerminal": false,
+          "reasoning": "Partisan challenge and accusation regarding corruption; offers a hook for political debate."
+        }
+        """;
+
+        var adapter = new MockLlmAdapter(_ => new OpenAiModels.ChatCompletionResponse
+        {
+            Choices = new List<OpenAiModels.ChatCompletionChoice>
+            {
+                new()
+                {
+                    Message = new OpenAiModels.ChatCompletionMessage
+                    {
+                        Role = "assistant",
+                        Content = jsonResponse
+                    }
+                }
+            }
+        });
+
+        var providerService = new LlmProviderService();
+        var service = new CommentRankingService(db, providerService, adapter, NullLogger<CommentRankingService>.Instance);
+        var context = CreateTestContext("O pior é vocês que votam sabendo que são corruptos!");
+
+        var result = await service.RankCommentAsync(context, "Original post", null, user);
+
+        Assert.True(result.ShouldReply);
+        Assert.False(result.ShouldLike);
+        Assert.Equal("PoliticalDebate", result.Category);
+        Assert.Equal(8, result.Score);
+    }
 }

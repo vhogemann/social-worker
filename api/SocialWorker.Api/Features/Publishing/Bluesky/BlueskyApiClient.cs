@@ -67,6 +67,33 @@ public sealed class BlueskyApiClient
         return new BlueskyApiCallResult<BlueskyRecordRef>(true, new BlueskyRecordRef(data.Uri, data.Cid));
     }
 
+    public async Task<BlueskyApiCallResult<BlueskyRecordRef>> CreateLikeRecordAsync(
+        string did,
+        BlueskyLikeRecord record,
+        string accessJwt,
+        CancellationToken ct)
+    {
+        var req = new BlueskyCreateLikeRecordRequest(did, "app.bsky.feed.like", record);
+        using var message = new HttpRequestMessage(HttpMethod.Post, CreateRecordEndpoint);
+        message.Content = JsonContent.Create(req);
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessJwt);
+
+        var res = await _http.SendAsync(message, ct);
+        if (!res.IsSuccessStatusCode)
+        {
+            var error = await res.Content.ReadAsStringAsync(ct);
+            return new BlueskyApiCallResult<BlueskyRecordRef>(false, Error: $"Failed to like post on Bluesky: {error}");
+        }
+
+        var data = await res.Content.ReadFromJsonAsync<BlueskyCreateRecordResponse>(cancellationToken: ct);
+        if (string.IsNullOrWhiteSpace(data?.Uri) || string.IsNullOrWhiteSpace(data.Cid))
+        {
+            return new BlueskyApiCallResult<BlueskyRecordRef>(false, Error: "Invalid like response from Bluesky.");
+        }
+
+        return new BlueskyApiCallResult<BlueskyRecordRef>(true, new BlueskyRecordRef(data.Uri, data.Cid));
+    }
+
     public async Task<BlueskyApiCallResult<System.Text.Json.JsonElement>> UploadBlobAsync(
         byte[] bytes,
         string mimeType,

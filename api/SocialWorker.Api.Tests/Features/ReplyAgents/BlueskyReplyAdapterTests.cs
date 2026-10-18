@@ -239,4 +239,61 @@ public sealed class BlueskyReplyAdapterTests
         Assert.False(res.Success);
         Assert.NotNull(res.ErrorMessage);
     }
+
+    [Fact]
+    public async Task LikeCommentAsync_WithMetadataCid_CreatesLikeRecordAndSucceeds()
+    {
+        var post = new Post { RemoteId = "at://did:plc:root/app.bsky.feed.post/root1" };
+        var account = new Account
+        {
+            Handle = "bot.bsky.social",
+            CredentialsEncrypted = CryptoHelper.EncryptString("app-pass", EncryptionKey)
+        };
+
+        var targetComment = new PlatformCommentItem(
+            Platform: "Bluesky",
+            RemoteCommentId: "at://did:plc:user/app.bsky.feed.post/rep1",
+            RemoteParentId: null,
+            RemoteRootId: post.RemoteId,
+            RemoteAuthorHandle: "user.bsky.social",
+            RemoteAuthorId: "did:plc:user",
+            Text: "Hello",
+            CreatedAt: DateTime.UtcNow,
+            Depth: 1,
+            ExtractedUrls: Array.Empty<string>(),
+            ExtractedImages: Array.Empty<PlatformCommentImageAttachment>(),
+            PlatformMetadata: new BlueskyCommentMetadata("cid-rep1", "cid-root")
+        );
+
+        string? capturedBody = null;
+        var (adapter, _) = CreateAdapter(req =>
+        {
+            if (req.RequestUri!.AbsolutePath.Contains("createSession"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"accessJwt":"jwt-token","did":"did:plc:bot123"}""", System.Text.Encoding.UTF8, "application/json")
+                };
+            }
+
+            if (req.RequestUri!.AbsolutePath.Contains("createRecord"))
+            {
+                capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"uri":"at://did:plc:bot123/app.bsky.feed.like/like123","cid":"cid-like"}""", System.Text.Encoding.UTF8, "application/json")
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var res = await adapter.LikeCommentAsync(post, account, targetComment);
+
+        Assert.True(res.Success);
+        Assert.Equal("at://did:plc:bot123/app.bsky.feed.like/like123", res.RemoteLikeId);
+        Assert.NotNull(capturedBody);
+        Assert.Contains("app.bsky.feed.like", capturedBody);
+        Assert.Contains("cid-rep1", capturedBody);
+    }
 }

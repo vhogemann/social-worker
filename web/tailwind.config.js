@@ -7,6 +7,7 @@ export default {
     extend: {
       colors: {
         bg: "#0f1115",
+        input: "#0f1115",
         panel: "#161922",
         "panel-light": "#1d212d",
         card: "#161922",
@@ -16,6 +17,7 @@ export default {
         "accent-foreground": "#0f1115",
         muted: "#8b909f",
         foreground: "#f4f4f6",
+        destructive: "#ef4444",
       },
       fontFamily: {
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],

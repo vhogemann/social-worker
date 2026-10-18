@@ -152,7 +152,8 @@ public sealed record WorkflowCommentAuditDto(
     string? RemoteReplyId,
     Guid? PublishedPostId,
     string? ErrorMessage,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    string? RemoteLikeId = null
 )
 {
     public WorkflowCommentAuditDto(WorkflowCommentAudit a) : this(
@@ -177,7 +178,8 @@ public sealed record WorkflowCommentAuditDto(
         a.RemoteReplyId,
         a.PublishedPostId,
         a.ErrorMessage,
-        a.CreatedAt
+        a.CreatedAt,
+        a.RemoteLikeId
     ) { }
 }
 

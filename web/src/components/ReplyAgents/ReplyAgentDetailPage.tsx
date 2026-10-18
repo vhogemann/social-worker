@@ -426,7 +426,7 @@ export function ReplyAgentDetailPage() {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
                   />
                 </div>
 
@@ -452,7 +452,7 @@ export function ReplyAgentDetailPage() {
                   type="text"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
                 />
               </div>
 
@@ -463,7 +463,7 @@ export function ReplyAgentDetailPage() {
                   rows={4}
                   value={personaPrompt}
                   onChange={(e) => setPersonaPrompt(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-accent"
                 />
               </div>
 
@@ -482,7 +482,7 @@ export function ReplyAgentDetailPage() {
                       max={10}
                       value={minRankingScore}
                       onChange={(e) => setMinRankingScore(parseInt(e.target.value) || 1)}
-                      className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                      className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                     />
                   </div>
 
@@ -493,7 +493,7 @@ export function ReplyAgentDetailPage() {
                       min={1}
                       value={maxRepliesBranch}
                       onChange={(e) => setMaxRepliesBranch(parseInt(e.target.value) || 1)}
-                      className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                      className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                     />
                   </div>
 
@@ -504,7 +504,7 @@ export function ReplyAgentDetailPage() {
                       min={1}
                       value={maxRepliesUser}
                       onChange={(e) => setMaxRepliesUser(parseInt(e.target.value) || 1)}
-                      className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                      className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                     />
                   </div>
 
@@ -515,7 +515,7 @@ export function ReplyAgentDetailPage() {
                       min={1}
                       value={maxThreadDepth}
                       onChange={(e) => setMaxThreadDepth(parseInt(e.target.value) || 1)}
-                      className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                      className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                     />
                   </div>
                 </div>
@@ -528,7 +528,7 @@ export function ReplyAgentDetailPage() {
                       min={1}
                       value={maxCommentAgeHours}
                       onChange={(e) => setMaxCommentAgeHours(parseInt(e.target.value) || 1)}
-                      className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                      className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                     />
                   </div>
 
@@ -539,7 +539,7 @@ export function ReplyAgentDetailPage() {
                       min={1}
                       value={maxPostAgeDays}
                       onChange={(e) => setMaxPostAgeDays(parseInt(e.target.value) || 1)}
-                      className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                      className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                     />
                   </div>
 
@@ -550,7 +550,7 @@ export function ReplyAgentDetailPage() {
                       min={1}
                       value={checkIntervalMinutes}
                       onChange={(e) => setCheckIntervalMinutes(parseInt(e.target.value) || 5)}
-                      className="w-full bg-input border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                      className="w-full bg-bg border border-border rounded-lg px-2.5 py-1.5 text-foreground"
                     />
                   </div>
                 </div>
