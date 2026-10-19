@@ -13,6 +13,8 @@ vi.mock("../../api/workflows", () => ({
   updateWorkflow: vi.fn(),
   deleteWorkflow: vi.fn(),
   triggerWorkflow: vi.fn(),
+  exportWorkflows: vi.fn(),
+  importWorkflows: vi.fn(),
 }));
 
 vi.mock("../../api/feeds", () => ({
@@ -112,5 +114,56 @@ describe("WorkflowsPanel", () => {
 
     const cardTitle = screen.getByText("Daily Tech Highlights");
     fireEvent.click(cardTitle);
+  });
+
+  it("opens import modal when clicking Import", async () => {
+    render(
+      <MemoryRouter future={routerFuture}>
+        <WorkflowsPanel />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Daily Tech Highlights")).toBeInTheDocument();
+    });
+
+    const importBtn = screen.getByRole("button", { name: /import/i });
+    fireEvent.click(importBtn);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Import Workflows" })).toBeInTheDocument();
+    });
+  });
+
+  it("calls exportWorkflows when clicking Export All", async () => {
+    vi.mocked(workflowsApi.exportWorkflows).mockResolvedValue({
+      version: 1,
+      exportedAt: "2026-10-19T10:00:00Z",
+      workflows: [],
+    });
+
+    // Mock URL.createObjectURL and URL.revokeObjectURL
+    const createObjectURLMock = vi.fn(() => "blob:http://localhost/mock-blob");
+    const revokeObjectURLMock = vi.fn();
+    window.URL.createObjectURL = createObjectURLMock;
+    window.URL.revokeObjectURL = revokeObjectURLMock;
+
+    render(
+      <MemoryRouter future={routerFuture}>
+        <WorkflowsPanel />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Daily Tech Highlights")).toBeInTheDocument();
+    });
+
+    const exportAllBtn = screen.getByRole("button", { name: /export all/i });
+    fireEvent.click(exportAllBtn);
+
+    await waitFor(() => {
+      expect(workflowsApi.exportWorkflows).toHaveBeenCalledWith();
+      expect(createObjectURLMock).toHaveBeenCalled();
+    });
   });
 });

@@ -8,6 +8,8 @@ import {
   updateWorkflow,
   deleteWorkflow,
   triggerWorkflow,
+  exportWorkflows,
+  importWorkflows,
   type AutomationWorkflowDto,
 } from "./workflows";
 
@@ -163,6 +165,61 @@ describe("workflows API", () => {
         "/api/workflows/w1/trigger",
         expect.objectContaining({ method: "POST" })
       );
+    });
+  });
+
+  describe("exportWorkflows", () => {
+    it("exports all workflows when no id is provided", async () => {
+      const mockPkg = { version: 1, exportedAt: "2026-10-19T10:00:00Z", workflows: [] };
+      mockApiFetch.mockResolvedValueOnce(new Response(JSON.stringify(mockPkg), { status: 200 }));
+
+      const res = await exportWorkflows();
+      expect(res).toEqual(mockPkg);
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/workflows/export");
+    });
+
+    it("exports single workflow when id is provided", async () => {
+      const mockPkg = { version: 1, exportedAt: "2026-10-19T10:00:00Z", workflows: [] };
+      mockApiFetch.mockResolvedValueOnce(new Response(JSON.stringify(mockPkg), { status: 200 }));
+
+      const res = await exportWorkflows("w1");
+      expect(res).toEqual(mockPkg);
+      expect(mockApiFetch).toHaveBeenCalledWith("/api/workflows/w1/export");
+    });
+
+    it("throws when export returns error", async () => {
+      mockApiFetch.mockResolvedValueOnce(new Response("{}", { status: 500 }));
+      await expect(exportWorkflows()).rejects.toThrow("exportWorkflows failed: 500");
+    });
+  });
+
+  describe("importWorkflows", () => {
+    it("posts import package and returns import summary", async () => {
+      const mockPkg = { version: 1, exportedAt: "2026-10-19T10:00:00Z", workflows: [] };
+      const mockResult = {
+        importedWorkflowsCount: 1,
+        createdFeedsCount: 1,
+        reusedFeedsCount: 0,
+        importedWorkflowIds: ["w1"]
+      };
+      mockApiFetch.mockResolvedValueOnce(new Response(JSON.stringify(mockResult), { status: 200 }));
+
+      const res = await importWorkflows(mockPkg);
+      expect(res).toEqual(mockResult);
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/workflows/import",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify(mockPkg)
+        })
+      );
+    });
+
+    it("throws with error message on failure", async () => {
+      const mockPkg = { version: 1, exportedAt: "2026-10-19T10:00:00Z", workflows: [] };
+      mockApiFetch.mockResolvedValueOnce(new Response("Invalid package", { status: 400 }));
+
+      await expect(importWorkflows(mockPkg)).rejects.toThrow("Invalid package");
     });
   });
 });

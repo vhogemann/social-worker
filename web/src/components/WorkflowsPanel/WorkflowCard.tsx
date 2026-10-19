@@ -1,6 +1,6 @@
 import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBolt, faEdit, faLayerGroup, faRss, faTrashCan } from "@fortawesome/free-solid-svg-icons";
+import { faBolt, faDownload, faEdit, faLayerGroup, faRss, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import { type AutomationWorkflowDto } from "../../api/workflows";
 import { Button } from "../common/Button";
 import { getPlatformLabel } from "../../config/platformBadges";
@@ -12,6 +12,7 @@ export interface WorkflowCardProps {
   onTrigger: (id: string) => void;
   onEdit: (workflow: AutomationWorkflowDto) => void;
   onDelete: (id: string) => void;
+  onExport?: (workflow: AutomationWorkflowDto) => void;
 }
 
 export const WorkflowCard: React.FC<WorkflowCardProps> = ({
@@ -20,7 +21,8 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
   onClick,
   onTrigger,
   onEdit,
-  onDelete
+  onDelete,
+  onExport
 }) => {
   return (
     <div
@@ -131,6 +133,20 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
         </Button>
 
         <div className="flex gap-2">
+          {onExport && (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                onExport(workflow);
+              }}
+              title="Export workflow"
+              aria-label="Export workflow"
+            >
+              <FontAwesomeIcon icon={faDownload} />
+            </Button>
+          )}
           <Button
             variant="outline"
             size="xs"

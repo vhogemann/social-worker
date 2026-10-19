@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
+  faFileExport,
+  faFileImport,
   faLayerGroup,
   faPenNib,
   faPlus,
@@ -13,6 +15,7 @@ import {
   updateWorkflow,
   deleteWorkflow,
   triggerWorkflow,
+  exportWorkflows,
   type AutomationWorkflowDto
 } from "../../api/workflows";
 import { fetchFeeds, type FeedSubscriptionDto } from "../../api/feeds";
@@ -23,6 +26,7 @@ import { AlertBanner } from "../common/AlertBanner";
 import { ConfirmModal } from "../common/ConfirmModal";
 import { WorkflowCard } from "./WorkflowCard";
 import { WorkflowFormModal, type WorkflowFormData } from "./WorkflowFormModal";
+import { WorkflowImportModal } from "./WorkflowImportModal";
 
 export const WorkflowsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -35,6 +39,8 @@ export const WorkflowsPage: React.FC = () => {
 
   // Modal form & delete confirmation state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [editingWorkflow, setEditingWorkflow] = useState<AutomationWorkflowDto | null>(null);
   const [deletingWorkflowId, setDeletingWorkflowId] = useState<string | null>(null);
 
@@ -129,6 +135,46 @@ export const WorkflowsPage: React.FC = () => {
     }
   };
 
+  const triggerDownload = (filename: string, data: object) => {
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportAll = async () => {
+    setIsExporting(true);
+    setError(null);
+    try {
+      const pkg = await exportWorkflows();
+      const dateStr = new Date().toISOString().split("T")[0];
+      triggerDownload(`social-worker-workflows-${dateStr}.json`, pkg);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to export workflows.";
+      setError(msg);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportSingle = async (wf: AutomationWorkflowDto) => {
+    setError(null);
+    try {
+      const pkg = await exportWorkflows(wf.id);
+      const slug = wf.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      triggerDownload(`workflow-${slug || wf.id}.json`, pkg);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : `Failed to export workflow "${wf.title}".`;
+      setError(msg);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-bg overflow-y-auto" data-testid="workflows-dashboard">
       <div className="max-w-6xl w-full mx-auto p-6 flex flex-col gap-6">
@@ -148,6 +194,24 @@ export const WorkflowsPage: React.FC = () => {
               <FontAwesomeIcon icon={faPenNib} />
               <span>Ad-hoc Composer</span>
             </Link>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={faFileImport}
+              onClick={() => setIsImportModalOpen(true)}
+            >
+              Import
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={faFileExport}
+              loading={isExporting}
+              disabled={workflows.length === 0}
+              onClick={handleExportAll}
+            >
+              Export All
+            </Button>
             <Button
               variant="primary"
               size="sm"
@@ -188,6 +252,7 @@ export const WorkflowsPage: React.FC = () => {
                 onTrigger={handleTrigger}
                 onEdit={handleOpenEditModal}
                 onDelete={(id) => setDeletingWorkflowId(id)}
+                onExport={handleExportSingle}
               />
             ))}
           </div>
@@ -205,6 +270,15 @@ export const WorkflowsPage: React.FC = () => {
             setEditingWorkflow(null);
           }}
           onSave={handleSaveWorkflow}
+        />
+
+        {/* Workflow Import Modal */}
+        <WorkflowImportModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onSuccess={async () => {
+            await loadData();
+          }}
         />
 
         {/* Delete Confirmation Modal */}

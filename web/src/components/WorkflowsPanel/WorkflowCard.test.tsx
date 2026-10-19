@@ -34,6 +34,7 @@ describe("WorkflowCard", () => {
     const handleTrigger = vi.fn();
     const handleEdit = vi.fn();
     const handleDelete = vi.fn();
+    const handleExport = vi.fn();
 
     render(
       <WorkflowCard
@@ -42,6 +43,7 @@ describe("WorkflowCard", () => {
         onTrigger={handleTrigger}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onExport={handleExport}
       />
     );
 
@@ -57,6 +59,9 @@ describe("WorkflowCard", () => {
 
     fireEvent.click(screen.getByLabelText(/edit workflow/i));
     expect(handleEdit).toHaveBeenCalledWith(mockWorkflow);
+
+    fireEvent.click(screen.getByLabelText(/export workflow/i));
+    expect(handleExport).toHaveBeenCalledWith(mockWorkflow);
 
     fireEvent.click(screen.getByLabelText(/delete workflow/i));
     expect(handleDelete).toHaveBeenCalledWith("wf-1");

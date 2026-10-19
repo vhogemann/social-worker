@@ -169,3 +169,63 @@ export async function retryWorkflowDraft(id: string, draftId: string): Promise<v
   }
 }
 
+export interface ExportedFeedDefinition {
+  title: string;
+  feedUrl: string;
+  websiteUrl?: string | null;
+  includeFilters?: string | null;
+  excludeFilters?: string | null;
+}
+
+export interface ExportedWorkflowSource {
+  kind: WorkflowSourceKind;
+  feed?: ExportedFeedDefinition | null;
+  configurationJson?: string | null;
+}
+
+export interface ExportedWorkflowDestination {
+  platform: string;
+  autoPublish?: boolean;
+  publishingMode?: "Manual" | "Automatic" | "Scheduled";
+}
+
+export interface ExportedWorkflow {
+  title: string;
+  instructionPrompt: string;
+  minRelevanceScore: number;
+  sources: ExportedWorkflowSource[];
+  destinations: ExportedWorkflowDestination[];
+}
+
+export interface WorkflowExportPackage {
+  version: number;
+  exportedAt: string;
+  workflows: ExportedWorkflow[];
+}
+
+export interface WorkflowImportResult {
+  importedWorkflowsCount: number;
+  createdFeedsCount: number;
+  reusedFeedsCount: number;
+  importedWorkflowIds: string[];
+}
+
+export async function exportWorkflows(workflowId?: string): Promise<WorkflowExportPackage> {
+  const url = workflowId ? `/api/workflows/${workflowId}/export` : "/api/workflows/export";
+  const res = await apiFetch(url);
+  if (!res.ok) throw new Error(`exportWorkflows failed: ${res.status}`);
+  return res.json();
+}
+
+export async function importWorkflows(pkg: WorkflowExportPackage): Promise<WorkflowImportResult> {
+  const res = await apiFetch("/api/workflows/import", {
+    method: "POST",
+    body: JSON.stringify(pkg),
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || `importWorkflows failed: ${res.status}`);
+  }
+  return res.json();
+}
+

@@ -42,6 +42,8 @@ Status: `Active`
 3. Tighten operational runbook quality (startup, verification, troubleshooting).
 4. MCP Server capabilities enhancement & agent guidance: [planning/MCP_CAPABILITIES_ENHANCEMENT.md](planning/MCP_CAPABILITIES_ENHANCEMENT.md), [planning/MCP_GAPS_ROUND_2.md](planning/MCP_GAPS_ROUND_2.md), [planning/MCP_IMAGE_SOURCES.md](planning/MCP_IMAGE_SOURCES.md)
 5. Workflow Pausing & Archiving Lifecycle: [planning/WORKFLOW_PAUSE_AND_ARCHIVE.md](planning/WORKFLOW_PAUSE_AND_ARCHIVE.md)
+6. CI/CD Pipeline & Hetzner Cloud Production Deployment: [planning/CI_CD_HETZNER_DEPLOYMENT.md](planning/CI_CD_HETZNER_DEPLOYMENT.md), [docs/DEPLOYMENT_HETZNER.md](docs/DEPLOYMENT_HETZNER.md)
+7. Workflow & Source Export/Import Subsystem (Credential-Free Migration): [planning/WORKFLOW_EXPORT_IMPORT.md](planning/WORKFLOW_EXPORT_IMPORT.md)
 
 Definition of done for this phase:
 

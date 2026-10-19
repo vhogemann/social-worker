@@ -418,6 +418,48 @@ public static class WorkflowsEndpoint
 
             return Results.Ok(new ApiSuccessResponse(true, "Draft queued for retry."));
         });
+
+        group.MapGet("/export", async (
+            ClaimsPrincipal principal,
+            IWorkflowPortabilityService portabilityService,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var exportPackage = await portabilityService.ExportAsync(userId.Value, null, ct);
+            return Results.Ok(exportPackage);
+        });
+
+        group.MapGet("/{id:guid}/export", async (
+            ClaimsPrincipal principal,
+            IWorkflowPortabilityService portabilityService,
+            Guid id,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var exportPackage = await portabilityService.ExportAsync(userId.Value, id, ct);
+            if (exportPackage.Workflows.Count == 0)
+            {
+                return Results.NotFound(new ApiErrorResponse("Workflow not found."));
+            }
+            return Results.Ok(exportPackage);
+        });
+
+        group.MapPost("/import", async (
+            ClaimsPrincipal principal,
+            IWorkflowPortabilityService portabilityService,
+            WorkflowExportPackage package,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var result = await portabilityService.ImportAsync(userId.Value, package, ct);
+            return Results.Ok(result);
+        });
     }
 }
 
