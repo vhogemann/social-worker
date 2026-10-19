@@ -78,6 +78,14 @@ public sealed class RssHubOptions
             RouteTemplate = "/bsky/profile/{handle}",
             CanonicalScheme = "bluesky://{handle}",
             WebUrlTemplate = "https://bsky.app/profile/{handle}"
+        },
+        new()
+        {
+            Platform = "YouTubePlaylist",
+            UrlPattern = @"^(?:youtube://playlist/(?<id>[a-zA-Z0-9_-]+)|(?:https?://)?(?:www\.)?youtube\.com/(?:feeds/videos\.xml\?[^#]*\bplaylist_id=(?<id>[a-zA-Z0-9_-]+)|playlist\?[^#]*\blist=(?<id>[a-zA-Z0-9_-]+)))",
+            RouteTemplate = "/youtube/playlist/{id}",
+            CanonicalScheme = "https://www.youtube.com/feeds/videos.xml?playlist_id={id}",
+            WebUrlTemplate = "https://www.youtube.com/playlist?list={id}"
         }
     ];
 }

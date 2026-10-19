@@ -58,7 +58,7 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - `InstagramBusinessDiscoveryClient`: Queries Meta Graph API for public business/creator profiles, reels, and media.
   - `InstagramOAuthService`: Handles user access token retrieval and caller Instagram Business Account ID discovery.
   - `SourceTranscriptionService`: Submits media to the Python `transcriber` service and stores Whisper transcript results.
-- **`Feeds/`**: RSS/Atom, YouTube channel, and multi-platform social feeds (Instagram, X, Telegram, Reddit, TikTok, Bluesky) resolved deterministically to RSSHub routes or Graph API fallback via `RssHubRouteResolver` and `RssHubFeedDiscoveryService`. Manages subscription, polling, entry deduplication, media extraction, and workflow trigger dispatch.
+- **`Feeds/`**: RSS/Atom, YouTube channel/playlist, and multi-platform social feeds (Instagram, X, Telegram, Reddit, TikTok, Bluesky, YouTube playlists) resolved deterministically to RSSHub routes or fallback via `RssHubRouteResolver` and `RssHubFeedDiscoveryService`. Manages subscription, playlist-aware polling, draft deduplication, media extraction, and workflow trigger dispatch.
 - **`Workflows/`**: Automated source-to-draft generation pipeline. Implements `IWorkflowSourceHandler` (e.g. `FeedWorkflowSourceHandler`, `DigestWorkflowSourceHandler`) to process feed items into formatted thread drafts using prompt templates.
 - **`ReplyAgents/`**: Autonomous reply agent library (`ReplyAgent`, `WorkflowCommentThread`, `WorkflowCommentAudit`).
   - Many-to-one workflow assignment: Workflows point to `ReplyAgentId` (nullable FK).

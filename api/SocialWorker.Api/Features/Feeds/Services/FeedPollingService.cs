@@ -168,8 +168,11 @@ public sealed class FeedPollingService
         var feed = await _feedReader.ReadFeedAsync(sub.FeedUrl, ct);
         var lastPolled = sub.LastPolledAt;
 
+        var isPlaylist = sub.FeedUrl.Contains("playlist", StringComparison.OrdinalIgnoreCase) ||
+                         (sub.WebsiteUrl != null && sub.WebsiteUrl.Contains("playlist", StringComparison.OrdinalIgnoreCase));
+
         List<FeedItem> itemsToProcess;
-        if (forceAll || lastPolled == null)
+        if (forceAll || lastPolled == null || isPlaylist)
         {
             itemsToProcess = feed.Items
                 .OrderBy(item => item.PublishingDate ?? DateTime.MinValue)
@@ -184,6 +187,22 @@ public sealed class FeedPollingService
         }
 
         _logger.LogInformation("Found {Count} items to evaluate for subscription {Title}", itemsToProcess.Count, sub.Title);
+
+        var workflowIds = sub.WorkflowSources.Select(ws => ws.AutomationWorkflowId).Distinct().ToList();
+        var existingDraftSources = await _db.DraftSources
+            .Where(ds => ds.Draft.AutomationWorkflowId.HasValue &&
+                         workflowIds.Contains(ds.Draft.AutomationWorkflowId.Value) &&
+                         ds.Draft.Status != DraftStatus.Deleted)
+            .Select(ds => new { AutomationWorkflowId = ds.Draft.AutomationWorkflowId!.Value, ds.Source.Reference })
+            .ToListAsync(ct);
+
+        var existingLinksByWorkflow = existingDraftSources
+            .Where(x => !string.IsNullOrEmpty(x.Reference))
+            .GroupBy(x => x.AutomationWorkflowId)
+            .ToDictionary(
+                g => g.Key,
+                g => new HashSet<string>(g.Select(x => x.Reference), StringComparer.OrdinalIgnoreCase)
+            );
 
         var queuedCount = 0;
 
@@ -222,6 +241,12 @@ public sealed class FeedPollingService
 
             foreach (var wf in sub.WorkflowSources)
             {
+                if (existingLinksByWorkflow.TryGetValue(wf.AutomationWorkflowId, out var existingSet) &&
+                    (existingSet.Contains(effectiveLink) || existingSet.Contains(itemIdentifier)))
+                {
+                    continue;
+                }
+
                 var deduplicationKey = $"feed:{subscriptionId}:{wf.AutomationWorkflowId}:{itemIdentifier}";
                 var payload = new FeedIngestionPayload(
                     subscriptionId,

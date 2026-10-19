@@ -101,6 +101,23 @@ public sealed class RssHubRouteResolverTests
         Assert.Equal(expectedWebUrl, match.WebUrl);
     }
 
+    [Theory]
+    [InlineData("https://www.youtube.com/playlist?list=PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp", "YouTubePlaylist", "/youtube/playlist/PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp", "https://www.youtube.com/feeds/videos.xml?playlist_id=PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp", "https://www.youtube.com/playlist?list=PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp")]
+    [InlineData("https://youtube.com/playlist?list=PL12345&si=abc", "YouTubePlaylist", "/youtube/playlist/PL12345", "https://www.youtube.com/feeds/videos.xml?playlist_id=PL12345", "https://www.youtube.com/playlist?list=PL12345")]
+    [InlineData("https://www.youtube.com/feeds/videos.xml?playlist_id=PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp", "YouTubePlaylist", "/youtube/playlist/PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp", "https://www.youtube.com/feeds/videos.xml?playlist_id=PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp", "https://www.youtube.com/playlist?list=PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp")]
+    [InlineData("youtube://playlist/PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp", "YouTubePlaylist", "/youtube/playlist/PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp", "https://www.youtube.com/feeds/videos.xml?playlist_id=PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp", "https://www.youtube.com/playlist?list=PLAL-dC6xUrO79IQOrdIpFvUgoCjY0hPFp")]
+    public void TryResolve_YouTubePlaylist_ResolvesExpected(string input, string expectedPlatform, string expectedRoute, string expectedFeedUrl, string expectedWebUrl)
+    {
+        var success = _resolver.TryResolve(input, out var match);
+
+        Assert.True(success);
+        Assert.NotNull(match);
+        Assert.Equal(expectedPlatform, match.Platform);
+        Assert.Equal(expectedRoute, match.RoutePath);
+        Assert.Equal(expectedFeedUrl, match.CanonicalFeedUrl);
+        Assert.Equal(expectedWebUrl, match.WebUrl);
+    }
+
     [Fact]
     public void TryResolve_CustomRuleFromOptions_ResolvesSuccessfully()
     {

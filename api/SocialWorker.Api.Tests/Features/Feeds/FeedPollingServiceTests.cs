@@ -146,7 +146,7 @@ public sealed class FeedPollingServiceTests : SqliteTestBase
         using var db = CreateDbContext();
         var user = CreateSeedUser(db);
 
-        var feed = FeedSubscription.Create(user.Id, "YouTube Playlist", "https://youtube.com/playlist.xml");
+        var feed = FeedSubscription.Create(user.Id, "Tech News", "https://example.com/rss.xml");
         feed.LastPolledAt = DateTime.UtcNow; // Already polled recently
         db.FeedSubscriptions.Add(feed);
         var wf = AutomationWorkflow.Create(user.Id, "LinkedIn Posts", "Summarize");
@@ -159,10 +159,10 @@ public sealed class FeedPollingServiceTests : SqliteTestBase
         var xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
 <rss version=""2.0"">
   <channel>
-    <title>Playlist</title>
-    <item><title>Video 1</title><link>https://youtube.com/watch?v=1</link><pubDate>Wed, 19 Aug 2026 08:30:00 GMT</pubDate></item>
-    <item><title>Video 2</title><link>https://youtube.com/watch?v=2</link><pubDate>Sat, 22 Aug 2026 19:15:00 GMT</pubDate></item>
-    <item><title>Video 3</title><link>https://youtube.com/watch?v=3</link><pubDate>Wed, 26 Aug 2026 10:16:00 GMT</pubDate></item>
+    <title>Blog</title>
+    <item><title>Article 1</title><link>https://example.com/1</link><pubDate>Wed, 19 Aug 2026 08:30:00 GMT</pubDate></item>
+    <item><title>Article 2</title><link>https://example.com/2</link><pubDate>Sat, 22 Aug 2026 19:15:00 GMT</pubDate></item>
+    <item><title>Article 3</title><link>https://example.com/3</link><pubDate>Wed, 26 Aug 2026 10:16:00 GMT</pubDate></item>
   </channel>
 </rss>";
 
@@ -178,6 +178,54 @@ public sealed class FeedPollingServiceTests : SqliteTestBase
         // With forceAll -> all 3 items enqueued
         await pollingService.PollSubscriptionAsync(feed.Id, CancellationToken.None, forceAll: true);
         Assert.Equal(3, queue.EnqueuedTasks.Count);
+    }
+
+    [Fact]
+    public async Task PollSubscription_WhenPlaylistFeed_EnqueuesItemsEvenIfPublishingDateIsOlderThanLastPolledAt()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+
+        var feed = FeedSubscription.Create(user.Id, "YouTube Playlist", "https://www.youtube.com/playlist?list=PL123");
+        feed.LastPolledAt = DateTime.UtcNow;
+        db.FeedSubscriptions.Add(feed);
+        var wf = AutomationWorkflow.Create(user.Id, "LinkedIn Posts", "Summarize");
+        db.AutomationWorkflows.Add(wf);
+        await db.SaveChangesAsync();
+
+        db.AutomationWorkflowSources.Add(AutomationWorkflowSource.Create(wf.Id, feed.Id));
+        await db.SaveChangesAsync();
+
+        var existingSource = Source.CreateUrl("https://youtube.com/watch?v=1", "Video 1");
+        db.Sources.Add(existingSource);
+        var existingDraft = Draft.Create(user.Id, "Draft 1", "Content", null, wf.Id);
+        db.Drafts.Add(existingDraft);
+        await db.SaveChangesAsync();
+
+        db.DraftSources.Add(new DraftSource { DraftId = existingDraft.Id, SourceId = existingSource.Id });
+        await db.SaveChangesAsync();
+
+        var xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<rss version=""2.0"">
+  <channel>
+    <title>Playlist</title>
+    <item><title>Video 1</title><link>https://youtube.com/watch?v=1</link><pubDate>Wed, 19 Aug 2020 08:30:00 GMT</pubDate></item>
+    <item><title>Video 2</title><link>https://youtube.com/watch?v=2</link><pubDate>Sat, 22 Aug 2020 19:15:00 GMT</pubDate></item>
+    <item><title>Video 3</title><link>https://youtube.com/watch?v=3</link><pubDate>Wed, 26 Aug 2020 10:16:00 GMT</pubDate></item>
+  </channel>
+</rss>";
+
+        var parsedFeed = CodeHollow.FeedReader.FeedReader.ReadFromString(xml);
+        var fakeReader = new FakeFeedReaderService(parsedFeed);
+        var queue = new TestBackgroundTaskQueue();
+        var pollingService = new FeedPollingService(db, queue, NullLogger<FeedPollingService>.Instance, fakeReader);
+
+        await pollingService.PollSubscriptionAsync(feed.Id, CancellationToken.None, forceAll: false);
+
+        Assert.Equal(2, queue.EnqueuedTasks.Count);
+        Assert.DoesNotContain(queue.EnqueuedTasks, t => t.PayloadJson.Contains("https://youtube.com/watch?v=1"));
+        Assert.Contains(queue.EnqueuedTasks, t => t.PayloadJson.Contains("https://youtube.com/watch?v=2"));
+        Assert.Contains(queue.EnqueuedTasks, t => t.PayloadJson.Contains("https://youtube.com/watch?v=3"));
     }
 
     [Fact]
