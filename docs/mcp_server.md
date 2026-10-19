@@ -34,13 +34,14 @@ Além de ferramentas (`tools`), o servidor implementa o protocolo de recursos (`
 - `socialworker://feeds` (`application/json`): Lista completa de feeds cadastrados.
 - `socialworker://workflows` (`application/json`): Lista de todos os fluxos de trabalho configurados.
 - `socialworker://drafts/{draftId}` (`text/markdown`): Conteúdo segmentado, fontes e mídia anexada de um rascunho.
+- `socialworker://media/{mediaId}` (`image/*`): Imagem anexada codificada em base64 (suporte a recursos binários via MCP blob).
 - `socialworker://audits/{workflowId}` (`application/json`): Histórico recente de auditoria de comentários e respostas.
 
 ---
 
-## 2. Catálogo Completo de Ferramentas (66 Ferramentas)
+## 2. Catálogo Completo de Ferramentas (67 Ferramentas)
 
-As 66 ferramentas estão organizadas em 9 domínios funcionais:
+As 67 ferramentas estão organizadas em 9 domínios funcionais:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -184,32 +185,39 @@ Exclui um ativo de mídia anexado por ID.
 - **Parâmetros**:
   - `mediaId` (*string, obrigatório*): UUID do ativo de mídia.
 
+#### 19. `view_image`
+Recupera e exibe um ativo de imagem ou fonte visual para inspeção por modelos multimodais. Aceita `media://{guid}`, GUID direto ou URL externa, retornando dados da imagem em base64 e metadados informativos.
+- **Parâmetros**:
+  - `id` (*string, obrigatório*): Identificador da imagem (`media://{guid}`, `file://{guid}`, GUID ou URL HTTP/HTTPS).
+  - `draftId` (*string, opcional*): UUID do rascunho para associar caso uma URL externa seja importada.
+  - `maxDimension` (*integer, opcional*): Dimensão máxima para redimensionamento e economia de tokens de visão (padrão: 1024, informe 0 para resolução original).
+
 ---
 
 ### Domínio 3: Fontes, Ingestão e Pesquisa
 
-#### 19. `list_sources`
-Lista fontes associadas a um rascunho ou cadastradas na biblioteca.
+#### 20. `list_sources`
+Lista todas as fontes associadas a um rascunho (URLs, artigos, transcrições e imagens anexadas como `media://{id}`).
 - **Parâmetros**:
   - `draftId` (*string, opcional*): UUID do rascunho.
 
-#### 20. `add_source`
+#### 21. `add_source`
 Adiciona uma URL, nota ou arquivo como fonte de conteúdo.
 - **Parâmetros**:
   - `url` (*string, obrigatório*): URL da fonte a ser cadastrada.
   - `draftId` (*string, opcional*): UUID do rascunho para vincular diretamente.
 
-#### 21. `fetch_source`
-Executa scraping e extração de texto limpo de uma URL de fonte externa.
+#### 22. `fetch_source`
+Recupera o conteúdo de uma fonte por ID (retorna texto e resumo para fontes textuais, ou dados de imagem base64 para fontes de imagem).
 - **Parâmetros**:
-  - `sourceId` (*string, obrigatório*): UUID da fonte.
+  - `sourceId` (*string, obrigatório*): UUID da fonte ou referência `media://{guid}`.
 
-#### 22. `transcribe_video`
+#### 23. `transcribe_video`
 Extrai o áudio e transcreve o texto falado de um vídeo (ex: YouTube) através do serviço de transcrição.
 - **Parâmetros**:
   - `url` (*string, obrigatório*): URL do vídeo.
 
-#### 23. `web_search`
+#### 24. `web_search`
 Executa pesquisa web livre para enriquecimento de rascunhos e busca de fontes.
 - **Parâmetros**:
   - `query` (*string, obrigatório*): Consulta de busca.
@@ -218,16 +226,16 @@ Executa pesquisa web livre para enriquecimento de rascunhos e busca de fontes.
 
 ### Domínio 4: Feeds e Descoberta
 
-#### 24. `list_feeds`
+#### 25. `list_feeds`
 Lista todas as assinaturas de feed ativas.
 - **Parâmetros**: nenhum.
 
-#### 25. `discover_feed`
+#### 26. `discover_feed`
 Identifica automaticamente URLs de feeds RSS/Atom a partir de uma página web.
 - **Parâmetros**:
   - `url` (*string, obrigatório*): URL do site para descoberta.
 
-#### 26. `add_feed`
+#### 27. `add_feed`
 Cadastra um novo feed RSS/Atom para monitoramento contínuo.
 - **Parâmetros**:
   - `feedUrl` (*string, obrigatório*): URL do feed.
@@ -236,7 +244,7 @@ Cadastra um novo feed RSS/Atom para monitoramento contínuo.
   - `includeFilters` (*string, opcional*): Termos obrigatórios separados por vírgula.
   - `excludeFilters` (*string, opcional*): Termos a ignorar separados por vírgula.
 
-#### 27. `update_feed`
+#### 28. `update_feed`
 Atualiza filtros ou títulos de uma assinatura de feed.
 - **Parâmetros**:
   - `feedId` (*string, obrigatório*): UUID do feed.
@@ -244,12 +252,12 @@ Atualiza filtros ou títulos de uma assinatura de feed.
   - `includeFilters` (*string, opcional*): Novos filtros de inclusão.
   - `excludeFilters` (*string, opcional*): Novos filtros de exclusão.
 
-#### 28. `delete_feed`
+#### 29. `delete_feed`
 Remove uma assinatura de feed pelo ID.
 - **Parâmetros**:
   - `feedId` (*string, obrigatório*): UUID do feed.
 
-#### 29. `trigger_feed_poll`
+#### 30. `trigger_feed_poll`
 Dispara a busca imediata de novos artigos em um feed ou em todos os feeds.
 - **Parâmetros**:
   - `feedId` (*string, opcional*): UUID do feed específico ou nulo para todos.
@@ -258,16 +266,16 @@ Dispara a busca imediata de novos artigos em um feed ou em todos os feeds.
 
 ### Domínio 5: Workflows e Automação
 
-#### 30. `list_workflows`
+#### 31. `list_workflows`
 Lista todos os pipelines de automação com seus feeds vinculados, prompt de instrução e agendamento.
 - **Parâmetros**: nenhum.
 
-#### 31. `get_workflow`
+#### 32. `get_workflow`
 Obtém detalhes completos de configuração, destinos e status de um workflow pelo ID.
 - **Parâmetros**:
   - `workflowId` (*string, obrigatório*): UUID do workflow.
 
-#### 32. `create_workflow`
+#### 33. `create_workflow`
 Cria um pipeline de curadoria e geração automática de threads a partir de feeds.
 - **Parâmetros**:
   - `title` (*string, obrigatório*): Nome do fluxo.
@@ -277,7 +285,7 @@ Cria um pipeline de curadoria e geração automática de threads a partir de fee
   - `feedSubscriptionIds` (*array de strings, opcional*): Feeds a monitorar.
   - `destinations` (*array de objetos, opcional*): Plataformas de destino com `platform`, `publishingMode`, `scheduleId`, `accountId`.
 
-#### 33. `update_workflow`
+#### 34. `update_workflow`
 Atualiza o título, diretrizes editoriais, destinos, agendamento ou status (`Active`, `Paused`, `Archived`) de um workflow.
 - **Parâmetros**:
   - `workflowId` (*string, obrigatório*): UUID do workflow.
@@ -287,12 +295,12 @@ Atualiza o título, diretrizes editoriais, destinos, agendamento ou status (`Act
   - `scheduleId` (*string, opcional*): Novo agendamento.
   - `destinations` (*array de objetos, opcional*): Novos destinos.
 
-#### 34. `delete_workflow`
+#### 35. `delete_workflow`
 Exclui um pipeline de automação pelo ID.
 - **Parâmetros**:
   - `workflowId` (*string, obrigatório*): UUID do workflow.
 
-#### 35. `trigger_workflow`
+#### 36. `trigger_workflow`
 Executa o ciclo de avaliação de artigos e geração de rascunhos para um workflow.
 - **Parâmetros**:
   - `workflowId` (*string, obrigatório*): UUID do workflow.
@@ -301,22 +309,22 @@ Executa o ciclo de avaliação de artigos e geração de rascunhos para um workf
 
 ### Domínio 6: Agendamento e Gestão de Fila
 
-#### 36. `list_schedules`
+#### 37. `list_schedules`
 Lista todos os cronogramas de publicação configurados com timezone e regras de slots.
 - **Parâmetros**: nenhum.
 
-#### 37. `get_schedule`
+#### 38. `get_schedule`
 Retorna as regras e slots semanais de um agendamento específico.
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
 
-#### 38. `create_schedule`
+#### 39. `create_schedule`
 Cria um novo cronograma de postagem semanal.
 - **Parâmetros**:
   - `name` (*string, obrigatório*): Nome do cronograma.
   - `timezone` (*string, opcional*): Fuso horário IANA (padrão: `UTC`).
 
-#### 39. `update_schedule`
+#### 40. `update_schedule`
 Atualiza nome, fuso horário ou estado ativo de um cronograma existente.
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
@@ -324,12 +332,12 @@ Atualiza nome, fuso horário ou estado ativo de um cronograma existente.
   - `timezone` (*string, opcional*): Novo fuso horário.
   - `isActive` (*boolean, opcional*): Estado ativo.
 
-#### 40. `delete_schedule`
+#### 41. `delete_schedule`
 Exclui um cronograma e suas regras de slot associadas.
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
 
-#### 41. `add_slot_rule`
+#### 42. `add_slot_rule`
 Adiciona uma regra de janela de horário recorrente (ex: Segundas às 14:00).
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
@@ -337,13 +345,13 @@ Adiciona uma regra de janela de horário recorrente (ex: Segundas às 14:00).
   - `timeOfDay` (*string, obrigatório*): Horário no formato `HH:mm`.
   - `allowedPlatforms` (*array de strings, opcional*): Plataformas autorizadas para o slot.
 
-#### 42. `delete_slot_rule`
+#### 43. `delete_slot_rule`
 Remove uma regra de horário do cronograma.
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
   - `slotRuleId` (*string, obrigatório*): UUID da regra.
 
-#### 43. `schedule_post`
+#### 44. `schedule_post`
 Agenda diretamente um rascunho para publicação em uma data/hora UTC futura sem requerer regras de slot semanais prévias.
 - **Parâmetros**:
   - `draftId` (*string, obrigatório*): UUID do rascunho.
@@ -352,7 +360,7 @@ Agenda diretamente um rascunho para publicação em uma data/hora UTC futura sem
   - `platform` (*string, opcional*): Plataforma social alvo.
   - `accountId` (*string, opcional*): UUID da conta para publicação.
 
-#### 44. `enqueue_draft`
+#### 45. `enqueue_draft`
 Enfileira um rascunho no cronograma para publicação no próximo slot livre ou com data-alvo `publishAt`.
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
@@ -361,41 +369,41 @@ Enfileira um rascunho no cronograma para publicação no próximo slot livre ou 
   - `accountId` (*string, opcional*): UUID da conta social.
   - `publishAt` (*string, opcional*): Timestamp ISO-8601 alvo opcional.
 
-#### 45. `get_schedule_queue`
+#### 46. `get_schedule_queue`
 Lista os itens atualmente aguardando envio na fila de publicação.
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
 
-#### 46. `remove_queue_item`
+#### 47. `remove_queue_item`
 Remove um item específico da fila de publicação.
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
   - `queueItemId` (*string, obrigatório*): UUID do item na fila.
 
-#### 47. `reorder_queue`
+#### 48. `reorder_queue`
 Reordena todos os itens pendentes na fila de publicação através de uma lista ordenada de IDs.
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
   - `itemIds` (*array de strings, obrigatório*): Lista completa de UUIDs de itens na nova ordem.
 
-#### 48. `pause_queue_item`
+#### 49. `pause_queue_item`
 Pausa ou retoma o envio de um item específico na fila de publicação.
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
   - `queueItemId` (*string, obrigatório*): UUID do item na fila.
   - `isPaused` (*boolean, opcional*): `true` para pausar, `false` para retomar (padrão: `true`).
 
-#### 49. `retry_queue_item`
+#### 50. `retry_queue_item`
 Reinicia e coloca novamente em estado pendente um item que falhou ou expirou.
 - **Parâmetros**:
   - `queueItemId` (*string, obrigatório*): UUID do item com falha.
 
-#### 50. `clear_schedule_queue`
+#### 51. `clear_schedule_queue`
 Limpa todos os itens pendentes da fila de publicação.
 - **Parâmetros**:
   - `scheduleId` (*string, obrigatório*): UUID do cronograma.
 
-#### 51. `get_calendar_events`
+#### 52. `get_calendar_events`
 Projeta os slots e publicações previstas em um intervalo de datas para visualização em calendário.
 - **Parâmetros**:
   - `scheduleId` (*string, opcional*): Filtrar por cronograma.
@@ -406,7 +414,7 @@ Projeta os slots e publicações previstas em um intervalo de datas para visuali
 
 ### Domínio 7: Contas Sociais
 
-#### 52. `list_accounts`
+#### 53. `list_accounts`
 Lista contas conectadas e credenciadas para publicação com identificação de plataforma, handle e ID.
 - **Parâmetros**:
   - `platform` (*string, opcional*): Filtrar por plataforma social.
@@ -415,17 +423,17 @@ Lista contas conectadas e credenciadas para publicação com identificação de 
 
 ### Domínio 8: Reply Agents e Moderação Autônoma
 
-#### 53. `list_reply_agents`
+#### 54. `list_reply_agents`
 Lista todos os agentes autônomos de resposta da biblioteca do usuário.
 - **Parâmetros**: nenhum.
 
-#### 54. `get_reply_agent`
+#### 55. `get_reply_agent`
 Obtém a configuração, persona e métricas de um agente de resposta pelo ID do agente ou do workflow vinculado.
 - **Parâmetros**:
   - `agentId` (*string, opcional*): UUID do agente.
   - `workflowId` (*string, opcional*): UUID do workflow associado.
 
-#### 55. `create_reply_agent`
+#### 56. `create_reply_agent`
 Cria um novo agente de resposta autônomo com persona e parâmetros de moderação.
 - **Parâmetros**:
   - `name` (*string, obrigatório*): Nome do agente.
@@ -434,7 +442,7 @@ Cria um novo agente de resposta autônomo com persona e parâmetros de moderaç�
   - `minRankingScore` (*integer, opcional*): Nota mínima de relevância (padrão: 7).
   - `autoPublishReplies` (*boolean, opcional*): Publicar respostas sem aprovação manual (padrão: `true`).
 
-#### 56. `update_reply_agent`
+#### 57. `update_reply_agent`
 Atualiza a persona e configurações operacionais de um agente de resposta existente.
 - **Parâmetros**:
   - `agentId` (*string, obrigatório*): UUID do agente.
@@ -442,18 +450,18 @@ Atualiza a persona e configurações operacionais de um agente de resposta exist
   - `personaPrompt` (*string, opcional*): Novo prompt de persona.
   - `autoPublishReplies` (*boolean, opcional*): Publicação automática.
 
-#### 57. `delete_reply_agent`
+#### 58. `delete_reply_agent`
 Exclui um agente de resposta da biblioteca.
 - **Parâmetros**:
   - `agentId` (*string, obrigatório*): UUID do agente.
 
-#### 58. `assign_reply_agent`
+#### 59. `assign_reply_agent`
 Vincula ou desvincula um agente de resposta a um pipeline de workflow.
 - **Parâmetros**:
   - `workflowId` (*string, obrigatório*): UUID do workflow.
   - `replyAgentId` (*string, opcional*): UUID do agente (ou nulo para desvincular).
 
-#### 59. `configure_reply_agent`
+#### 60. `configure_reply_agent`
 Cria ou atualiza diretamente a configuração inline do agente de resposta de um workflow.
 - **Parâmetros**:
   - `workflowId` (*string, obrigatório*): UUID do workflow.
@@ -461,7 +469,7 @@ Cria ou atualiza diretamente a configuração inline do agente de resposta de um
   - `personaPrompt` (*string, opcional*): Prompt de persona.
   - `autoPublishReplies` (*boolean, opcional*): Publicar automaticamente.
 
-#### 60. `trigger_reply_check`
+#### 61. `trigger_reply_check`
 Dispara o ciclo de verificação de comentários novos nas plataformas e geração de respostas pela LLM.
 - **Parâmetros**:
   - `workflowId` (*string, opcional*): UUID do workflow.
@@ -473,7 +481,7 @@ Dispara o ciclo de verificação de comentários novos nas plataformas e geraç�
 
 ### Domínio 9: Monitoramento, Auditoria e Engajamento
 
-#### 61. `list_posts`
+#### 62. `list_posts`
 Lista posts publicados nas redes sociais (Bluesky, Twitter, Meta Threads, LinkedIn) com texto publicado real, métricas de engajamento (curtidas, reposts, respostas), comentários auditados e identificação da conta.
 - **Parâmetros**:
   - `platform` (*string, opcional*): Filtrar por rede social.
@@ -482,26 +490,26 @@ Lista posts publicados nas redes sociais (Bluesky, Twitter, Meta Threads, Linked
   - `hasReplies` (*boolean, opcional*): Filtrar apenas posts com respostas.
   - `limit` (*integer, opcional*): Quantidade máxima (padrão: 20).
 
-#### 62. `assign_reply_agent_post`
+#### 63. `assign_reply_agent_post`
 Atribui um post específico para monitoramento contínuo por um agente autônomo de resposta.
 - **Parâmetros**:
   - `agentId` (*string, obrigatório*): UUID do agente de resposta.
   - `postId` (*string, opcional*): UUID do post interno.
   - `externalPostUrl` (*string, opcional*): URL de um post externo para ingestão e monitoramento.
 
-#### 63. `unassign_reply_agent_post`
+#### 64. `unassign_reply_agent_post`
 Remove o monitoramento de um post de um agente de resposta.
 - **Parâmetros**:
   - `agentId` (*string, obrigatório*): UUID do agente.
   - `postId` (*string, obrigatório*): UUID do post a desassociar.
 
-#### 64. `list_reply_agent_posts`
+#### 65. `list_reply_agent_posts`
 Lista os posts atribuídos a um agente de resposta específico com métricas e contagens de comentários.
 - **Parâmetros**:
   - `agentId` (*string, opcional*): UUID do agente de resposta.
   - `limit` (*integer, opcional*): Quantidade máxima (padrão: 50).
 
-#### 65. `list_comment_audits`
+#### 66. `list_comment_audits`
 Lista os comentários avaliados pelo agente de resposta com nota da LLM, decisão tomada, justificativa e respostas geradas.
 - **Parâmetros**:
   - `workflowId` (*string, opcional*): Filtrar por workflow.
@@ -509,7 +517,7 @@ Lista os comentários avaliados pelo agente de resposta com nota da LLM, decisã
   - `decision` (*string, opcional*): Decisão (`Replied`, `SkippedBelowThreshold`, `SkippedStopCriteria`, `PendingApproval`, `Failed`).
   - `limit` (*integer, opcional*): Máximo de itens (padrão: 20).
 
-#### 66. `reply_to_comment`
+#### 67. `reply_to_comment`
 Aprova uma resposta pendente de auditoria ou envia uma resposta customizada diretamente a um comentário na rede social.
 - **Parâmetros**:
   - `auditId` (*string, opcional*): UUID da auditoria pendente para aprovação.

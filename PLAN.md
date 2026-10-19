@@ -40,7 +40,7 @@ Status: `Active`
 1. Reliability hardening for source/search/scraper pipeline.
 2. E2E signal quality and release confidence (flake triage + stable smoke gates).
 3. Tighten operational runbook quality (startup, verification, troubleshooting).
-4. MCP Server capabilities enhancement & agent guidance: [planning/MCP_CAPABILITIES_ENHANCEMENT.md](planning/MCP_CAPABILITIES_ENHANCEMENT.md), [planning/MCP_GAPS_ROUND_2.md](planning/MCP_GAPS_ROUND_2.md)
+4. MCP Server capabilities enhancement & agent guidance: [planning/MCP_CAPABILITIES_ENHANCEMENT.md](planning/MCP_CAPABILITIES_ENHANCEMENT.md), [planning/MCP_GAPS_ROUND_2.md](planning/MCP_GAPS_ROUND_2.md), [planning/MCP_IMAGE_SOURCES.md](planning/MCP_IMAGE_SOURCES.md)
 5. Workflow Pausing & Archiving Lifecycle: [planning/WORKFLOW_PAUSE_AND_ARCHIVE.md](planning/WORKFLOW_PAUSE_AND_ARCHIVE.md)
 
 Definition of done for this phase:

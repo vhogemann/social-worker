@@ -742,6 +742,17 @@ public sealed class McpToolRegistry
                 "required": ["mediaId"]
             }
             """)),
+            new("view_image", "Fetches and displays a specific image asset or source for visual inspection. Accepts media://{guid}, guid, or direct URL, returning base64 image data and metadata.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Image identifier: media://{guid}, file://{guid}, raw GUID, or direct HTTP/HTTPS URL." },
+                    "draftId": { "type": "string", "description": "Optional draft UUID to scope lookup or associate an imported URL." },
+                    "maxDimension": { "type": "integer", "description": "Maximum width/height dimension for resizing to optimize vision tokens (default: 1024, pass 0 for full resolution)." }
+                },
+                "required": ["id"]
+            }
+            """)),
             new("schedule_post", "Schedule a draft thread to be published at a specific future UTC timestamp without requiring manual slot rules.", CreateSchema("""
             {
                 "type": "object",
@@ -948,6 +959,7 @@ public sealed class McpToolRegistry
                 "search_images" => await HandleSearchImagesAsync(args, ct),
                 "update_media" => await HandleUpdateMediaAsync(userId, args, ct),
                 "delete_media" => await HandleDeleteMediaAsync(userId, args, ct),
+                "view_image" => await HandleViewImageAsync(userId, args, ct),
                 "schedule_post" => await HandleSchedulePostAsync(userId, args, ct),
                 "remove_queue_item" => await HandleRemoveQueueItemAsync(userId, args, ct),
                 "reorder_queue" => await HandleReorderQueueAsync(userId, args, ct),
@@ -1327,7 +1339,39 @@ public sealed class McpToolRegistry
         }
 
         var sources = await _sourcesService.GetSourcesForDraftAsync(userId, draftId, ct);
-        return TextResult(JsonSerializer.Serialize(sources, JsonOptions));
+        var mediaAssets = await _db.MediaAssets
+            .AsNoTracking()
+            .Where(m => m.DraftId == draftId)
+            .OrderBy(m => m.CreatedAt)
+            .ToListAsync(ct);
+
+        var combined = new List<object>(sources);
+        foreach (var m in mediaAssets)
+        {
+            combined.Add(new
+            {
+                id = m.Id,
+                draftId = draftId,
+                kind = "Image",
+                reference = $"media://{m.Id}",
+                title = m.FileName,
+                summary = m.AltText,
+                processingStatus = "Complete",
+                youtubeVideoId = (string?)null,
+                addedAt = m.CreatedAt,
+                canonicalUrl = $"/api/media/{m.Id}",
+                citationLabel = m.FileName,
+                embedKind = "image",
+                canonicalEmbedMarkdown = $"![{m.AltText ?? m.FileName}](media://{m.Id})",
+                plainLinkLine = $"/api/media/{m.Id}",
+                mimeType = m.MimeType,
+                width = m.Width,
+                height = m.Height,
+                sizeBytes = m.SizeBytes
+            });
+        }
+
+        return TextResult(JsonSerializer.Serialize(combined, JsonOptions));
     }
 
     private async Task<McpToolCallResult> HandleAddSourceAsync(Guid userId, JsonElement args, CancellationToken ct)
@@ -1353,18 +1397,62 @@ public sealed class McpToolRegistry
 
     private async Task<McpToolCallResult> HandleFetchSourceAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
-        if (!args.TryGetProperty("sourceId", out var idProp) || !Guid.TryParse(idProp.GetString(), out var sourceId))
+        if (!args.TryGetProperty("sourceId", out var idProp))
         {
-            return TextError("sourceId must be a valid UUID.");
+            return TextError("sourceId is required.");
+        }
+
+        var sourceIdStr = idProp.GetString()?.Trim() ?? string.Empty;
+        if (sourceIdStr.StartsWith("media://", StringComparison.OrdinalIgnoreCase))
+            sourceIdStr = sourceIdStr.Substring("media://".Length);
+        else if (sourceIdStr.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            sourceIdStr = sourceIdStr.Substring("file://".Length);
+
+        if (!Guid.TryParse(sourceIdStr, out var sourceId))
+        {
+            return TextError("sourceId must be a valid UUID or media:// URI.");
         }
 
         var source = await _db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null)
+        if (source != null)
         {
-            return TextError($"Source {sourceId} not found.");
+            return TextResult($"Title: {source.Title}\nKind: {source.Kind}\nReference: {source.Reference}\nSummary: {source.Summary}\n\nContent:\n{source.Content}");
         }
 
-        return TextResult($"Title: {source.Title}\nKind: {source.Kind}\nReference: {source.Reference}\nSummary: {source.Summary}\n\nContent:\n{source.Content}");
+        var media = await _db.MediaAssets.Include(m => m.Draft).FirstOrDefaultAsync(m => m.Id == sourceId, ct);
+        if (media != null)
+        {
+            if (media.Draft != null && media.Draft.UserId != userId)
+            {
+                return TextError("Access denied to target image source.");
+            }
+
+            var mediaService = ResolveMediaService();
+            if (mediaService != null)
+            {
+                try
+                {
+                    var (fullPath, mimeType) = await mediaService.GetMediaFileAsync(media.Id, ct);
+                    if (File.Exists(fullPath))
+                    {
+                        var bytes = await File.ReadAllBytesAsync(fullPath, ct);
+                        var base64 = Convert.ToBase64String(bytes);
+                        var textDesc = $"Image Source: {media.FileName} ({media.Width}x{media.Height}, {media.MimeType}, {media.SizeBytes / 1024} KB). Alt: \"{media.AltText}\". Tag: ![{media.AltText ?? media.FileName}](media://{media.Id})";
+                        return new McpToolCallResult(new List<McpContentPart>
+                        {
+                            McpContentPart.AsText(textDesc),
+                            McpContentPart.AsImage(base64, mimeType)
+                        }, false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return TextError($"Failed to read media source file: {ex.Message}");
+                }
+            }
+        }
+
+        return TextError($"Source {sourceId} not found.");
     }
 
     private async Task<McpToolCallResult> HandleListWorkflowsAsync(Guid userId, CancellationToken ct)
@@ -3366,6 +3454,143 @@ public sealed class McpToolRegistry
         catch (Exception ex)
         {
             return TextError($"Failed to delete media: {ex.Message}");
+        }
+    }
+
+    private async Task<McpToolCallResult> HandleViewImageAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("id", out var idProp) || string.IsNullOrWhiteSpace(idProp.GetString()))
+        {
+            return TextError("Image 'id' is required.");
+        }
+
+        var idStr = idProp.GetString()!.Trim();
+        var maxDimension = 1024;
+        if (args.TryGetProperty("maxDimension", out var mdProp) && mdProp.TryGetInt32(out var parsedMd))
+        {
+            maxDimension = parsedMd;
+        }
+
+        Guid? draftId = null;
+        if (args.TryGetProperty("draftId", out var dProp) && Guid.TryParse(dProp.GetString(), out var parsedDraftId))
+        {
+            draftId = parsedDraftId;
+        }
+
+        var isHttpUrl = Uri.TryCreate(idStr, UriKind.Absolute, out var imageUri) &&
+                        (string.Equals(imageUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(imageUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
+
+        var mediaService = ResolveMediaService();
+        if (mediaService == null)
+            return TextError("MediaService is not configured.");
+
+        if (isHttpUrl)
+        {
+            if (draftId.HasValue)
+            {
+                var draftExists = await _db.Drafts.AnyAsync(d => d.Id == draftId.Value && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+                if (!draftExists)
+                {
+                    return TextError("Draft not found or access denied.");
+                }
+
+                using var http = ResolveHttpClient();
+                var importResult = await mediaService.ImportMediaFromUrlAsync(userId, draftId.Value, idStr, http, ct);
+                idStr = importResult.Id.ToString();
+            }
+            else
+            {
+                try
+                {
+                    using var http = ResolveHttpClient();
+                    var resp = await http.GetAsync(imageUri, ct);
+                    resp.EnsureSuccessStatusCode();
+                    var rawBytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                    var rawMime = resp.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+
+                    var imgEngine = ResolveImageEngine();
+                    byte[] finalBytes = rawBytes;
+                    var finalMime = rawMime;
+                    if (maxDimension > 0 && imgEngine != null)
+                    {
+                        using var ms = new MemoryStream(rawBytes);
+                        var resized = await imgEngine.ResizeImageAsync(ms, rawMime, maxDimension, ct);
+                        finalBytes = resized.Data;
+                        finalMime = resized.MimeType;
+                    }
+
+                    var b64 = Convert.ToBase64String(finalBytes);
+                    var textDesc = $"External Image: {idStr} ({finalBytes.Length / 1024} KB, {finalMime})";
+                    return new McpToolCallResult(new List<McpContentPart>
+                    {
+                        McpContentPart.AsText(textDesc),
+                        McpContentPart.AsImage(b64, finalMime)
+                    }, false);
+                }
+                catch (Exception ex)
+                {
+                    return TextError($"Failed to fetch external image: {ex.Message}");
+                }
+            }
+        }
+
+        if (idStr.StartsWith("media://", StringComparison.OrdinalIgnoreCase))
+            idStr = idStr.Substring("media://".Length);
+        else if (idStr.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            idStr = idStr.Substring("file://".Length);
+
+        if (!Guid.TryParse(idStr, out var mediaId))
+        {
+            return TextError("Invalid image identifier format. Use media://{guid}, file://{guid}, guid, or direct http/https URL.");
+        }
+
+        var asset = await _db.MediaAssets.Include(m => m.Draft).FirstOrDefaultAsync(m => m.Id == mediaId, ct);
+        if (asset == null)
+        {
+            return TextError($"Media asset '{mediaId}' not found.");
+        }
+
+        if (asset.Draft != null && asset.Draft.UserId != userId)
+        {
+            return TextError("Access denied to target image asset.");
+        }
+
+        try
+        {
+            var (fullPath, mimeType) = await mediaService.GetMediaFileAsync(asset.Id, ct);
+            if (!File.Exists(fullPath))
+            {
+                return TextError($"Image file not found on disk for asset '{asset.Id}'.");
+            }
+
+            byte[] bytes;
+            var outMime = mimeType;
+            var imageEngine = ResolveImageEngine();
+            if (maxDimension > 0 && imageEngine != null)
+            {
+                using var stream = File.OpenRead(fullPath);
+                var resized = await imageEngine.ResizeImageAsync(stream, mimeType, maxDimension, ct);
+                bytes = resized.Data;
+                outMime = resized.MimeType;
+            }
+            else
+            {
+                bytes = await File.ReadAllBytesAsync(fullPath, ct);
+            }
+
+            var base64 = Convert.ToBase64String(bytes);
+            var metadata = $"Image: {asset.FileName} ({asset.Width}x{asset.Height}, {outMime}, {asset.SizeBytes / 1024} KB). Alt: \"{asset.AltText}\". Tag: ![{asset.AltText ?? asset.FileName}](media://{asset.Id})";
+
+            return new McpToolCallResult(new List<McpContentPart>
+            {
+                McpContentPart.AsText(metadata),
+                McpContentPart.AsImage(base64, outMime)
+            }, false);
+        }
+        catch (Exception ex)
+        {
+            return TextError($"Failed to read image asset: {ex.Message}");
         }
     }
 

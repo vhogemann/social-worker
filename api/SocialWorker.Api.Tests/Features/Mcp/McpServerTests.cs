@@ -31,14 +31,24 @@ namespace SocialWorker.Api.Tests.Features.Mcp;
 
 public sealed class McpServerTests : SqliteTestBase
 {
-    private (McpServer Server, AppUser User, AppDbContext Db) CreateTestServer(
+    private (McpServer Server, AppUser User, AppDbContext Db, FileStorageProvider Storage) CreateTestServerWithStorage(
         TestBackgroundTaskQueue? customQueue = null,
         IReplyPlatformAdapterResolver? customAdapterResolver = null)
+    {
+        var storage = new FileStorageProvider(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
+        var (server, user, db) = CreateTestServer(customQueue, customAdapterResolver, storage);
+        return (server, user, db, storage);
+    }
+
+    private (McpServer Server, AppUser User, AppDbContext Db) CreateTestServer(
+        TestBackgroundTaskQueue? customQueue = null,
+        IReplyPlatformAdapterResolver? customAdapterResolver = null,
+        FileStorageProvider? customStorage = null)
     {
         var db = CreateDbContext();
         var user = CreateSeedUser(db);
         var sourcesService = TestServiceFactory.CreateSourcesService(db);
-        var storage = new FileStorageProvider(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
+        var storage = customStorage ?? new FileStorageProvider(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
         var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService);
         var taskQueue = customQueue ?? new TestBackgroundTaskQueue();
         var feedPollingService = new FeedPollingService(db, taskQueue, NullLogger<FeedPollingService>.Instance);
@@ -87,7 +97,7 @@ public sealed class McpServerTests : SqliteTestBase
             mediaService: mediaService,
             imageEngineClient: imageEngine);
 
-        var resourceRegistry = new McpResourceRegistry(db, draftsService);
+        var resourceRegistry = new McpResourceRegistry(db, draftsService, mediaService);
         var server = new McpServer(toolRegistry, resourceRegistry);
 
         return (server, user, db);
@@ -1225,11 +1235,12 @@ public sealed class McpServerTests : SqliteTestBase
         var json = JsonSerializer.Serialize(response.Result);
         using var doc = JsonDocument.Parse(json);
         var tools = doc.RootElement.GetProperty("tools").EnumerateArray().ToList();
-        Assert.Equal(66, tools.Count);
+        Assert.Equal(67, tools.Count);
 
         var toolNames = tools.Select(t => t.GetProperty("name").GetString()!).ToHashSet();
         Assert.Contains("import_media_from_url", toolNames);
         Assert.Contains("upload_media", toolNames);
+        Assert.Contains("view_image", toolNames);
         Assert.Contains("list_templates", toolNames);
         Assert.Contains("render_template", toolNames);
         Assert.Contains("render_code_blocks", toolNames);
@@ -1661,6 +1672,282 @@ public sealed class McpServerTests : SqliteTestBase
 
         var postCount = await db.Posts.CountAsync(p => p.DraftId == draft.Id);
         Assert.Equal(0, postCount);
+    }
+
+    [Fact]
+    public async Task Tools_ViewImage_WithValidMediaAsset_ReturnsImageContentPartAndMetadata()
+    {
+        var (server, user, db, storage) = CreateTestServerWithStorage();
+        var draft = Draft.Create(user.Id, "Draft with image", "Content", SocialPlatform.Bluesky);
+        db.Drafts.Add(draft);
+
+        var mediaId = Guid.NewGuid();
+        var relativePath = Path.Combine("media", $"{mediaId}.png");
+        var fullPath = storage.GetFullPath(relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        var dummyBytes = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4 };
+        await File.WriteAllBytesAsync(fullPath, dummyBytes);
+
+        var asset = new MediaAsset
+        {
+            Id = mediaId,
+            DraftId = draft.Id,
+            FileName = "infographic.png",
+            MimeType = "image/png",
+            FilePath = relativePath,
+            Sha256 = "dummy",
+            SizeBytes = dummyBytes.Length,
+            Width = 800,
+            Height = 600,
+            AltText = "Visual breakdown of Q3 revenue",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaAssets.Add(asset);
+        await db.SaveChangesAsync();
+
+        var callArgs = JsonDocument.Parse($$"""
+        {
+            "name": "view_image",
+            "arguments": {
+                "id": "{{asset.Id}}"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 66, "tools/call", callArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        Assert.Equal(2, result.Content.Count);
+
+        var textPart = result.Content.First(c => c.Type == "text");
+        Assert.Contains("infographic.png", textPart.Text);
+        Assert.Contains("Visual breakdown of Q3 revenue", textPart.Text);
+        Assert.Contains($"media://{asset.Id}", textPart.Text);
+
+        var imagePart = result.Content.First(c => c.Type == "image");
+        Assert.Equal("image/png", imagePart.MimeType);
+        Assert.False(string.IsNullOrWhiteSpace(imagePart.Data));
+
+        var uriArgs = JsonDocument.Parse($$"""
+        {
+            "name": "view_image",
+            "arguments": {
+                "id": "media://{{asset.Id}}"
+            }
+        }
+        """).RootElement;
+        var uriResp = await server.HandleRequestAsync(new McpRequest("2.0", 67, "tools/call", uriArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(uriResp);
+        var uriResult = Assert.IsType<McpToolCallResult>(uriResp.Result);
+        Assert.False(uriResult.IsError);
+        Assert.Contains("infographic.png", uriResult.Content.First(c => c.Type == "text").Text);
+    }
+
+    [Fact]
+    public async Task Tools_ViewImage_WithNonExistentOrUnauthorizedAsset_ReturnsError()
+    {
+        var (server, user, db, _) = CreateTestServerWithStorage();
+
+        var nonExistentArgs = JsonDocument.Parse($$"""
+        {
+            "name": "view_image",
+            "arguments": {
+                "id": "{{Guid.NewGuid()}}"
+            }
+        }
+        """).RootElement;
+        var resp1 = await server.HandleRequestAsync(new McpRequest("2.0", 68, "tools/call", nonExistentArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(resp1);
+        var res1 = Assert.IsType<McpToolCallResult>(resp1.Result);
+        Assert.True(res1.IsError);
+
+        var otherUser = CreateSeedUser(db, "other", "other@example.com");
+        var otherDraft = Draft.Create(otherUser.Id, "Other Draft", "Private", SocialPlatform.Bluesky);
+        db.Drafts.Add(otherDraft);
+        var otherAsset = new MediaAsset
+        {
+            Id = Guid.NewGuid(),
+            DraftId = otherDraft.Id,
+            FileName = "secret.png",
+            MimeType = "image/png",
+            FilePath = "secret.png",
+            Sha256 = "dummy",
+            SizeBytes = 10,
+            Width = 10,
+            Height = 10
+        };
+        db.MediaAssets.Add(otherAsset);
+        await db.SaveChangesAsync();
+
+        var unauthorizedArgs = JsonDocument.Parse($$"""
+        {
+            "name": "view_image",
+            "arguments": {
+                "id": "{{otherAsset.Id}}"
+            }
+        }
+        """).RootElement;
+        var resp2 = await server.HandleRequestAsync(new McpRequest("2.0", 69, "tools/call", unauthorizedArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(resp2);
+        var res2 = Assert.IsType<McpToolCallResult>(resp2.Result);
+        Assert.True(res2.IsError);
+    }
+
+    [Fact]
+    public async Task Tools_ListSources_IncludesMediaAssetsAsImageSources()
+    {
+        var (server, user, db, _) = CreateTestServerWithStorage();
+        var draft = Draft.Create(user.Id, "Sourced draft", "Content", SocialPlatform.Bluesky);
+        db.Drafts.Add(draft);
+
+        var urlSource = Source.CreateUrl("https://example.com/article", "Example Article");
+        urlSource.ProcessingStatus = SourceProcessingStatus.Complete;
+        db.Sources.Add(urlSource);
+        db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = urlSource.Id });
+
+        var mediaAsset = new MediaAsset
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            FileName = "revenue-chart.jpg",
+            MimeType = "image/jpeg",
+            FilePath = "chart.jpg",
+            Sha256 = "dummy",
+            SizeBytes = 5000,
+            Width = 1200,
+            Height = 800,
+            AltText = "Revenue growth trajectory",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaAssets.Add(mediaAsset);
+        await db.SaveChangesAsync();
+
+        var listArgs = JsonDocument.Parse($$"""
+        {
+            "name": "list_sources",
+            "arguments": {
+                "draftId": "{{draft.Id}}"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 70, "tools/call", listArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var text = result.Content[0].Text!;
+        Assert.Contains("Example Article", text);
+        Assert.Contains("revenue-chart.jpg", text);
+        Assert.Contains("Image", text);
+        Assert.Contains($"media://{mediaAsset.Id}", text);
+        Assert.Contains("Revenue growth trajectory", text);
+    }
+
+    [Fact]
+    public async Task Tools_FetchSource_WithMediaAssetId_ReturnsImageContent()
+    {
+        var (server, user, db, storage) = CreateTestServerWithStorage();
+        var draft = Draft.Create(user.Id, "Draft for fetch", "Content", SocialPlatform.Bluesky);
+        db.Drafts.Add(draft);
+
+        var mediaId = Guid.NewGuid();
+        var relativePath = Path.Combine("media", $"{mediaId}.png");
+        var fullPath = storage.GetFullPath(relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        var dummyBytes = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10, 5, 6, 7, 8 };
+        await File.WriteAllBytesAsync(fullPath, dummyBytes);
+
+        var asset = new MediaAsset
+        {
+            Id = mediaId,
+            DraftId = draft.Id,
+            FileName = "source-photo.png",
+            MimeType = "image/png",
+            FilePath = relativePath,
+            Sha256 = "dummy",
+            SizeBytes = dummyBytes.Length,
+            Width = 400,
+            Height = 300,
+            AltText = "Conference photo",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaAssets.Add(asset);
+        await db.SaveChangesAsync();
+
+        var fetchArgs = JsonDocument.Parse($$"""
+        {
+            "name": "fetch_source",
+            "arguments": {
+                "sourceId": "{{asset.Id}}"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 71, "tools/call", fetchArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var textPart = result.Content.FirstOrDefault(c => c.Type == "text");
+        Assert.NotNull(textPart);
+        Assert.Contains("source-photo.png", textPart.Text);
+
+        var imagePart = result.Content.FirstOrDefault(c => c.Type == "image");
+        Assert.NotNull(imagePart);
+        Assert.Equal("image/png", imagePart.MimeType);
+        Assert.False(string.IsNullOrWhiteSpace(imagePart.Data));
+    }
+
+    [Fact]
+    public async Task Resources_ReadResource_WithMediaUri_ReturnsBlobContent()
+    {
+        var (server, user, db, storage) = CreateTestServerWithStorage();
+        var draft = Draft.Create(user.Id, "Resource draft", "Content", SocialPlatform.Bluesky);
+        db.Drafts.Add(draft);
+
+        var mediaId = Guid.NewGuid();
+        var relativePath = Path.Combine("media", $"{mediaId}.jpg");
+        var fullPath = storage.GetFullPath(relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        var dummyBytes = new byte[] { 255, 216, 255, 224, 0, 16, 74, 70, 73, 70 };
+        await File.WriteAllBytesAsync(fullPath, dummyBytes);
+
+        var asset = new MediaAsset
+        {
+            Id = mediaId,
+            DraftId = draft.Id,
+            FileName = "hero.jpg",
+            MimeType = "image/jpeg",
+            FilePath = relativePath,
+            Sha256 = "dummy",
+            SizeBytes = dummyBytes.Length,
+            Width = 1920,
+            Height = 1080,
+            AltText = "Hero landscape",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaAssets.Add(asset);
+        await db.SaveChangesAsync();
+
+        var readReq = new McpRequest("2.0", 72, "resources/read", JsonDocument.Parse($$"""{"uri": "socialworker://media/{{asset.Id}}"}""").RootElement);
+        var resp = await server.HandleRequestAsync(readReq, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var readResult = Assert.IsType<McpResourceReadResult>(resp.Result);
+        var content = Assert.Single(readResult.Contents);
+        Assert.Equal($"socialworker://media/{asset.Id}", content.Uri);
+        Assert.Equal("image/jpeg", content.MimeType);
+        Assert.NotNull(content.Blob);
+        Assert.Equal(Convert.ToBase64String(dummyBytes), content.Blob);
+        Assert.Null(content.Text);
     }
 
     private sealed class MockReplyAdapterResolver : IReplyPlatformAdapterResolver

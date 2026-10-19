@@ -60,7 +60,11 @@ public sealed record McpContentPart(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("text")] string? Text = null,
     [property: JsonPropertyName("data")] string? Data = null,
-    [property: JsonPropertyName("mimeType")] string? MimeType = null);
+    [property: JsonPropertyName("mimeType")] string? MimeType = null)
+{
+    public static McpContentPart AsText(string text) => new("text", Text: text);
+    public static McpContentPart AsImage(string base64Data, string mimeType) => new("image", Data: base64Data, MimeType: mimeType);
+}
 
 public sealed record McpResourceDefinition(
     [property: JsonPropertyName("uri")] string Uri,
@@ -74,7 +78,12 @@ public sealed record McpResourceReadResult(
 public sealed record McpResourceContent(
     [property: JsonPropertyName("uri")] string Uri,
     [property: JsonPropertyName("mimeType")] string MimeType,
-    [property: JsonPropertyName("text")] string Text);
+    [property: JsonPropertyName("text")] string? Text = null,
+    [property: JsonPropertyName("blob")] string? Blob = null)
+{
+    public static McpResourceContent AsText(string uri, string mimeType, string text) => new(uri, mimeType, Text: text);
+    public static McpResourceContent AsBlob(string uri, string mimeType, string blob) => new(uri, mimeType, Blob: blob);
+}
 
 public sealed record McpPromptDefinition(
     [property: JsonPropertyName("name")] string Name,

@@ -45,7 +45,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Configuration & Overrides: api/SocialWorker.Api/Program.cs (mounted host override `./config/appsettings.json` -> `/app/config/appsettings.json:ro`)
 - Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/ (TokenRefreshHostedService)
 - API Key Subsystem: api/SocialWorker.Api/Infrastructure/Auth/ (ApiKeyService, ApiKeyAuthenticationHandler, SHA-256 hash storage)
-- Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, 66 tools in McpToolRegistry across 9 domains including media upload/templates/code rendering, schedule/queue management, lifecycle deletion, variants, video transcription, search, dryRun simulation, McpResourceRegistry; MCP-First operations policy in .agents/rules/mcp-first.md; complete documentation in docs/mcp_server.md)
+- Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, 67 tools in McpToolRegistry across 9 domains including media upload/templates/code rendering, image source inspection (`view_image`), schedule/queue management, lifecycle deletion, variants, video transcription, search, dryRun simulation, McpResourceRegistry; MCP-First operations policy in .agents/rules/mcp-first.md; complete documentation in docs/mcp_server.md)
 - Markdown AST & Thread Document: api/SocialWorker.Api/Infrastructure/Markdown/ (Markdig CommonMark AST parser for segments, media, links, and facets)
 
 
@@ -89,8 +89,8 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ## Model Context Protocol (MCP) & Authentication
 
 - Endpoint: `/api/mcp` (Stateless Streamable HTTP JSON-RPC 2.0), `/api/mcp/sse` (Server-Sent Events continuous stream), with aliases `/mcp` and `/mcp/sse`.
-- Tools (66): Complete catalog of 66 domain tools covering drafts, platform variants, media assets/templates, sources & video transcription, feed discovery & polling, workflows, queue/scheduling operations, accounts, reply agents, and monitored posts.
-- Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`, `socialworker://audits/{workflowId}`.
+- Tools (67): Complete catalog of 67 domain tools covering drafts, platform variants, media assets/templates, sources & image viewing (`view_image`) & video transcription, feed discovery & polling, workflows, queue/scheduling operations, accounts, reply agents, and monitored posts.
+- Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`, `socialworker://audits/{workflowId}`, `socialworker://media/{id}`.
 - Standard MCP Auth (Claude Compatible):
   - RFC 9728 401 challenge emits `WWW-Authenticate: Bearer realm="mcp", resource_metadata="{baseUrl}/.well-known/oauth-protected-resource"`.
   - RFC 8414 server metadata at `/.well-known/oauth-authorization-server` and OpenID alias.

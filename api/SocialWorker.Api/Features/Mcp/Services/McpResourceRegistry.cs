@@ -18,11 +18,13 @@ public sealed class McpResourceRegistry
 {
     private readonly AppDbContext _db;
     private readonly DraftsService _draftsService;
+    private readonly SocialWorker.Api.Features.Media.MediaService? _mediaService;
 
-    public McpResourceRegistry(AppDbContext db, DraftsService draftsService)
+    public McpResourceRegistry(AppDbContext db, DraftsService draftsService, SocialWorker.Api.Features.Media.MediaService? mediaService = null)
     {
         _db = db;
         _draftsService = draftsService;
+        _mediaService = mediaService;
     }
 
     public async Task<List<McpResourceDefinition>> ListResourcesAsync(Guid userId, CancellationToken ct)
@@ -63,6 +65,23 @@ public sealed class McpResourceRegistry
                 $"Reply Agent: {wf.Title}",
                 $"Autonomous reply agent configuration and stats for workflow '{wf.Title}'",
                 "application/json"));
+        }
+
+        var recentMedia = await _db.MediaAssets
+            .AsNoTracking()
+            .Where(m => m.Draft != null && m.Draft.UserId == userId)
+            .OrderByDescending(m => m.CreatedAt)
+            .Take(15)
+            .Select(m => new { m.Id, m.FileName, m.MimeType, m.Width, m.Height })
+            .ToListAsync(ct);
+
+        foreach (var media in recentMedia)
+        {
+            resources.Add(new(
+                $"socialworker://media/{media.Id}",
+                $"Image: {media.FileName}",
+                $"Attached image {media.FileName} ({media.Width}x{media.Height})",
+                media.MimeType));
         }
 
         return resources;
@@ -140,6 +159,39 @@ public sealed class McpResourceRegistry
                 {
                     new(uri, "text/markdown", formatted)
                 });
+            }
+        }
+
+        if (uri.StartsWith("socialworker://media/", StringComparison.OrdinalIgnoreCase))
+        {
+            var idStr = uri.Substring("socialworker://media/".Length).Trim();
+            if (Guid.TryParse(idStr, out var mediaId))
+            {
+                var asset = await _db.MediaAssets
+                    .AsNoTracking()
+                    .Include(m => m.Draft)
+                    .FirstOrDefaultAsync(m => m.Id == mediaId, ct);
+
+                if (asset != null && (asset.Draft == null || asset.Draft.UserId == userId) && _mediaService != null)
+                {
+                    try
+                    {
+                        var (fullPath, mimeType) = await _mediaService.GetMediaFileAsync(mediaId, ct);
+                        if (System.IO.File.Exists(fullPath))
+                        {
+                            var bytes = await System.IO.File.ReadAllBytesAsync(fullPath, ct);
+                            var base64 = Convert.ToBase64String(bytes);
+                            return new McpResourceReadResult(new List<McpResourceContent>
+                            {
+                                McpResourceContent.AsBlob(uri, mimeType, base64)
+                            });
+                        }
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }
             }
         }
 
