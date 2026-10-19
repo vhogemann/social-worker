@@ -78,6 +78,12 @@ public class FeedAutoPublishService
 
                 if (isAuto)
                 {
+                    if (thread.Stage == PlatformThreadStage.Sent)
+                    {
+                        _logger.LogInformation("Thread {ThreadId} for platform {Platform} is already Sent; skipping auto-publish.", thread.Id, dest.Platform);
+                        continue;
+                    }
+
                     Account? account = null;
                     if (dest.AccountId.HasValue)
                     {
@@ -104,28 +110,13 @@ public class FeedAutoPublishService
                         continue;
                     }
 
+                    thread.AccountId = account.Id;
                     _logger.LogInformation("Auto-publishing draft {DraftId} to {Platform}...", variant?.Id ?? canonicalDraft.Id, dest.Platform);
                     var publishResult = await publisher.PublishAsync(thread, account, ct);
+                    var outcomeRecorder = new SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder(_db);
+                    await outcomeRecorder.RecordOutcomeAsync(thread, publishResult, ct);
                     if (publishResult.Success)
                     {
-                        foreach (var publishedPost in publishResult.Posts)
-                        {
-                            var post = new Post
-                            {
-                                UserId = canonicalDraft.UserId,
-                                DraftId = variant?.Id ?? canonicalDraft.Id,
-                                PlatformThreadId = thread.Id,
-                                SegmentIndex = publishedPost.SegmentIndex,
-                                Platform = dest.Platform,
-                                RemoteId = publishedPost.RemoteId,
-                                Url = publishedPost.Url
-                            };
-                            _db.Posts.Add(post);
-                        }
-                        thread.AccountId = account.Id;
-                        thread.Stage = PlatformThreadStage.Sent;
-                        thread.UpdatedAt = DateTime.UtcNow;
-                        await _db.SaveChangesAsync(ct);
                         _logger.LogInformation("Successfully auto-published to {Platform}.", dest.Platform);
                     }
                     else

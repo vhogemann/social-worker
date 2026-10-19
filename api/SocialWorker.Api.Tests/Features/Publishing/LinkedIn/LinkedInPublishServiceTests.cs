@@ -187,4 +187,66 @@ public sealed class LinkedInPublishServiceTests : SqliteTestBase
         Assert.False(result.Success);
         Assert.Contains("LinkedIn publishing does not support multi-post threads", result.ErrorMessage);
     }
+
+    [Fact]
+    public async Task PublishAsync_AlreadyPublished_ReturnsExistingWithoutCallingApi()
+    {
+        using var db = CreateFreshDb(Options);
+        var user = CreateSeedUser(db);
+        var draft = Draft.Create(user.Id, targetPlatform: SocialPlatform.LinkedIn);
+        db.Drafts.Add(draft);
+
+        var thread = new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "LinkedIn",
+            Content = "Hello LinkedIn!",
+            Stage = PlatformThreadStage.Sent
+        };
+        db.PlatformThreads.Add(thread);
+
+        var existingPost = new Post
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            DraftId = draft.Id,
+            PlatformThreadId = thread.Id,
+            SegmentIndex = 0,
+            Platform = "LinkedIn",
+            RemoteId = "urn:li:share:already-sent",
+            PublishedText = "Hello LinkedIn!",
+            Url = "https://www.linkedin.com/feed/update/urn:li:share:already-sent",
+            PostedAt = DateTime.UtcNow
+        };
+        db.Posts.Add(existingPost);
+        await db.SaveChangesAsync();
+
+        bool apiWasCalled = false;
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            apiWasCalled = true;
+            return new HttpResponseMessage(HttpStatusCode.BadRequest);
+        });
+
+        var client = new HttpClient(handler);
+        var apiClient = new LinkedInApiClient(client);
+        var storage = new FileStorageProvider();
+        var service = new LinkedInPublishService(db, storage, apiClient);
+
+        var result = await service.PublishAsync(
+            content: "Hello LinkedIn!",
+            authorUrn: "urn:li:person:abcdef",
+            visibility: "PUBLIC",
+            draftId: draft.Id,
+            threadId: thread.Id,
+            token: "my-token",
+            ct: default
+        );
+
+        Assert.True(result.Success);
+        Assert.False(apiWasCalled);
+        Assert.Single(result.Posts);
+        Assert.Equal("urn:li:share:already-sent", result.Posts[0].RemoteId);
+    }
 }

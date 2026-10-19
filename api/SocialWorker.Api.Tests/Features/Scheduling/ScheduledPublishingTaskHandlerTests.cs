@@ -224,6 +224,27 @@ public sealed class ScheduledPublishingTaskHandlerTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task ExecuteAsync_ThreadAlreadySent_MarksQueueItemSucceededAndDoesNotPublish()
+    {
+        var (_, draft, thread, _, item) = await CreateTestDataAsync();
+        thread.Stage = PlatformThreadStage.Sent;
+        await _db.SaveChangesAsync();
+
+        var payload = new ScheduledPublishingPayload(item.Id, item.ScheduleId, draft.Id, thread.Id);
+        var context = new TestTaskExecutionContext();
+
+        var result = await _handler.ExecuteAsync(payload, context, CancellationToken.None);
+
+        Assert.Equal(TaskOutcome.Success, result.Outcome);
+        Assert.False(_publisher.WasCalled);
+
+        var updatedItem = await _db.ScheduleQueueItems.FindAsync(item.Id);
+        Assert.NotNull(updatedItem);
+        Assert.Equal(ScheduleQueueItemStatus.Succeeded, updatedItem.Status);
+        Assert.Null(updatedItem.LastError);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WhenValidationFails_InvokesAgentRepairAndPublishesIfRepairSucceeds()
     {
         var (_, draft, thread, _, item) = await CreateTestDataAsync();

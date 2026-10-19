@@ -36,6 +36,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<SocialWorker.Api.Features.Workflows.Services.ISourceRelevanceEvaluator, SocialWorker.Api.Features.Workflows.Services.SourceRelevanceEvaluator>();
         builder.Services.AddScoped<SocialWorker.Api.Features.Workflows.Abstractions.IWorkflowSourceHandler, FeedWorkflowSourceHandler>();
         builder.Services.AddScoped<SocialWorker.Api.Features.Workflows.Abstractions.IWorkflowSourceHandler, DigestWorkflowSourceHandler>();
+        builder.Services.AddScoped<SocialWorker.Api.Features.Workflows.IWorkflowPortabilityService, SocialWorker.Api.Features.Workflows.WorkflowPortabilityService>();
         builder.Services.AddSingleton<FeedPollingHostedService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<FeedPollingHostedService>());
     }

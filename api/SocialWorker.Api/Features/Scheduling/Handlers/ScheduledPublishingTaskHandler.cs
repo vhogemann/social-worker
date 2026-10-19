@@ -22,6 +22,7 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
     private readonly SocialWorker.Api.Features.Publishing.Validation.PublishValidationService _validationService;
     private readonly SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder _outcomeRecorder;
     private readonly SocialWorker.Api.Features.Drafts.Services.IDraftAutoRepairService? _repairService;
+    private readonly SocialWorker.Api.Features.Publishing.Resilience.IPublishLockService? _publishLockService;
     private readonly ILogger<ScheduledPublishingTaskHandler> _logger;
 
     public override string TaskType => TaskTypeName;
@@ -34,7 +35,8 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
         SocialWorker.Api.Features.Publishing.Validation.PublishValidationService validationService,
         SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder outcomeRecorder,
         ILogger<ScheduledPublishingTaskHandler> logger,
-        SocialWorker.Api.Features.Drafts.Services.IDraftAutoRepairService? repairService = null)
+        SocialWorker.Api.Features.Drafts.Services.IDraftAutoRepairService? repairService = null,
+        SocialWorker.Api.Features.Publishing.Resilience.IPublishLockService? publishLockService = null)
     {
         _db = db;
         _publisherResolver = publisherResolver;
@@ -42,6 +44,7 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
         _outcomeRecorder = outcomeRecorder;
         _logger = logger;
         _repairService = repairService;
+        _publishLockService = publishLockService;
     }
 
     public override async Task<TaskResult> ExecuteAsync(
@@ -80,6 +83,40 @@ public sealed class ScheduledPublishingTaskHandler : BackgroundTaskHandlerBase<S
             await _db.SaveChangesAsync(ct);
             return TaskResult.Fatal("Platform thread not found.");
         }
+
+        if (thread.Stage == PlatformThreadStage.Sent)
+        {
+            _logger.LogInformation("Thread '{ThreadId}' for queue item '{QueueItemId}' is already sent; marking succeeded.", thread.Id, queueItem.Id);
+            queueItem.Status = ScheduleQueueItemStatus.Succeeded;
+            queueItem.LastError = null;
+            queueItem.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+            return TaskResult.Success();
+        }
+
+        IDisposable? lockHandle = null;
+        if (_publishLockService != null)
+        {
+            lockHandle = await _publishLockService.TryAcquireLockAsync(thread.Id, TimeSpan.FromSeconds(30), ct);
+            if (lockHandle == null)
+            {
+                _logger.LogWarning("Thread '{ThreadId}' is locked by another publishing operation. Retrying scheduled publishing later.", thread.Id);
+                return TaskResult.Retry(TimeSpan.FromSeconds(10), "Thread is locked by another publishing operation.");
+            }
+
+            await _db.Entry(thread).ReloadAsync(ct);
+            if (thread.Stage == PlatformThreadStage.Sent)
+            {
+                lockHandle.Dispose();
+                queueItem.Status = ScheduleQueueItemStatus.Succeeded;
+                queueItem.LastError = null;
+                queueItem.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+                return TaskResult.Success();
+            }
+        }
+
+        using var _ = lockHandle;
 
 
         Account? account = null;

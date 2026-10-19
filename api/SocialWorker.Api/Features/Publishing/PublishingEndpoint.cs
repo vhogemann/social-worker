@@ -18,58 +18,83 @@ public static class PublishingEndpoint
     public static void MapPublishingEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/drafts/{draftId:guid}/threads").RequireAuthorization();
+        group.MapPost("/{threadId:guid}/publish", PublishThreadAsync);
+    }
 
-        group.MapPost("/{threadId:guid}/publish", async (
-            ClaimsPrincipal principal,
-            AppDbContext db,
-            IPublisherResolver publisherResolver,
-            Validation.PublishValidationService validationService,
-            Resilience.PublishOutcomeRecorder outcomeRecorder,
-            Guid draftId,
-            Guid threadId,
-            CancellationToken ct) =>
+    public static async Task<IResult> PublishThreadAsync(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        IPublisherResolver publisherResolver,
+        Validation.PublishValidationService validationService,
+        Resilience.PublishOutcomeRecorder outcomeRecorder,
+        Resilience.IPublishLockService lockService,
+        Guid draftId,
+        Guid threadId,
+        CancellationToken ct)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+
+        using var handle = await lockService.TryAcquireLockAsync(threadId, TimeSpan.FromSeconds(30), ct);
+        if (handle == null)
         {
-            var userId = principal.GetUserId();
-            if (userId is null) return Results.Unauthorized();
+            return Results.Conflict(new ApiErrorResponse("A publishing operation is currently in progress for this thread."));
+        }
 
-            var thread = await db.PlatformThreads
-                .Include(t => t.Draft)
-                .FirstOrDefaultAsync(t => t.Id == threadId && t.DraftId == draftId && t.Draft.UserId == userId, ct);
+        var thread = await db.PlatformThreads
+            .Include(t => t.Draft)
+            .FirstOrDefaultAsync(t => t.Id == threadId && t.DraftId == draftId && t.Draft.UserId == userId, ct);
 
-            if (thread == null) return Results.NotFound(new ApiErrorResponse("Platform thread not found."));
+        if (thread == null) return Results.NotFound(new ApiErrorResponse("Platform thread not found."));
 
-            // Validate content before publishing
-            var validationError = await validationService.ValidateForPublishAsync(thread, ct);
-            if (validationError != null)
-            {
-                return Results.BadRequest(new ApiErrorResponse(validationError));
-            }
+        if (thread.Stage == PlatformThreadStage.Sent)
+        {
+            var existingPosts = await db.Posts
+                .Where(p => p.PlatformThreadId == thread.Id)
+                .OrderBy(p => p.SegmentIndex)
+                .Select(p => new PublishedPost
+                {
+                    SegmentIndex = p.SegmentIndex,
+                    RemoteId = p.RemoteId ?? "",
+                    RemoteCid = p.RemoteCid,
+                    PublishedText = p.PublishedText,
+                    Url = p.Url ?? ""
+                })
+                .ToListAsync(ct);
 
-            Account? account = null;
-            if (thread.AccountId.HasValue)
-            {
-                account = await db.Accounts.FirstOrDefaultAsync(a => a.Id == thread.AccountId.Value && a.UserId == userId, ct);
-            }
-            if (account == null)
-            {
-                account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == thread.Platform, ct);
-            }
-            if (account == null)
-            {
-                return Results.BadRequest(new ApiErrorResponse($"No connected account found for platform: {thread.Platform}"));
-            }
+            return Results.Ok(PublishResult.Succeeded(existingPosts));
+        }
 
-            var publisher = publisherResolver.Resolve(thread.Platform);
-            if (publisher == null)
-            {
-                return Results.BadRequest(new ApiErrorResponse($"No publisher configured for platform: {thread.Platform}"));
-            }
+        var validationError = await validationService.ValidateForPublishAsync(thread, ct);
+        if (validationError != null)
+        {
+            return Results.BadRequest(new ApiErrorResponse(validationError));
+        }
 
-            var result = await publisher.PublishAsync(thread, account, ct);
+        Account? account = null;
+        if (thread.AccountId.HasValue)
+        {
+            account = await db.Accounts.FirstOrDefaultAsync(a => a.Id == thread.AccountId.Value && a.UserId == userId, ct);
+        }
+        if (account == null)
+        {
+            account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == thread.Platform, ct);
+        }
+        if (account == null)
+        {
+            return Results.BadRequest(new ApiErrorResponse($"No connected account found for platform: {thread.Platform}"));
+        }
 
-            await outcomeRecorder.RecordOutcomeAsync(thread, result, ct);
+        var publisher = publisherResolver.Resolve(thread.Platform);
+        if (publisher == null)
+        {
+            return Results.BadRequest(new ApiErrorResponse($"No publisher configured for platform: {thread.Platform}"));
+        }
 
-            return Results.Ok(result);
-        });
+        var result = await publisher.PublishAsync(thread, account, ct);
+
+        await outcomeRecorder.RecordOutcomeAsync(thread, result, ct);
+
+        return Results.Ok(result);
     }
 }

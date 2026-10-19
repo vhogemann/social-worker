@@ -34,6 +34,15 @@ public class PublishOutcomeRecorder
             .Select(d => d.UserId)
             .FirstOrDefaultAsync(ct);
 
+        var authorHandle = thread.Account?.Handle;
+        if (string.IsNullOrEmpty(authorHandle) && thread.AccountId.HasValue)
+        {
+            authorHandle = await _db.Accounts
+                .Where(a => a.Id == thread.AccountId.Value)
+                .Select(a => a.Handle)
+                .FirstOrDefaultAsync(ct);
+        }
+
         foreach (var p in result.Posts)
         {
             if (!existingIndices.Contains(p.SegmentIndex))
@@ -49,6 +58,7 @@ public class PublishOutcomeRecorder
                     RemoteId = p.RemoteId,
                     RemoteCid = p.RemoteCid,
                     PublishedText = p.PublishedText,
+                    AuthorHandle = authorHandle,
                     Url = p.Url,
                     PostedAt = DateTime.UtcNow
                 };

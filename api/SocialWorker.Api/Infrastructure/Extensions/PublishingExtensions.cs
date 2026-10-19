@@ -50,6 +50,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<IDraftValidatorResolver, DraftValidatorResolver>();
         builder.Services.AddScoped<PublishValidationService>();
         builder.Services.AddScoped<PublishOutcomeRecorder>();
+        builder.Services.AddSingleton<IPublishLockService, PublishLockService>();
         builder.Services.AddHttpClient<BlueskyApiClient>();
         builder.Services.AddHttpClient<BlueskyContentPreparationService>();
         builder.Services.AddScoped<BlueskyFacetBuilder>();

@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Features.Publishing.Resilience;
 using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Markdown;
 
@@ -43,6 +44,37 @@ public sealed class LinkedInPublishService
         try
         {
             var doc = ThreadMarkdownDocument.Parse(content);
+
+            if (threadId != Guid.Empty)
+            {
+                var existingPosts = await _db.Posts
+                    .Where(p => p.PlatformThreadId == threadId)
+                    .OrderBy(p => p.SegmentIndex)
+                    .ToListAsync(ct);
+
+                if (existingPosts.Count > 0)
+                {
+                    var segmentTexts = doc.Segments.Select(s => s.PlainText).ToList();
+                    var resumePlan = PublishResumePlanner.CreatePlan(segmentTexts, existingPosts, "LinkedIn");
+
+                    if (!resumePlan.CanResume)
+                    {
+                        return PublishResult.Failed(resumePlan.ErrorMessage!);
+                    }
+
+                    if (resumePlan.IsFullyPublished)
+                    {
+                        return PublishResult.Succeeded(existingPosts.Select(p => new PublishedPost
+                        {
+                            SegmentIndex = p.SegmentIndex,
+                            RemoteId = p.RemoteId ?? "",
+                            RemoteCid = p.RemoteCid,
+                            PublishedText = p.PublishedText,
+                            Url = p.Url ?? ""
+                        }));
+                    }
+                }
+            }
             var mediaRefs = doc.Segments.SelectMany(s => s.MediaEmbeds).ToList();
             var assetsMap = new Dictionary<Guid, (string? FilePath, string? MimeType, string? AltText)>();
 
