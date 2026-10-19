@@ -1,4 +1,4 @@
-name: Release Docker Images
+name: Release and Deploy
 
 on:
   push:
@@ -14,12 +14,31 @@ permissions:
   packages: write
 
 jobs:
+  test:
+    name: Run Test Suites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run API Tests in Docker
+        run: docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
+
+      - name: Run Web Tests in Docker
+        run: docker compose --profile tooling run --rm web-test
+
+      - name: Run Image Engine Tests in Docker
+        run: docker compose --profile tooling run --rm image-engine-test
+
   publish:
     name: Build and Publish to GHCR
+    needs: test
     runs-on: ubuntu-latest
     env:
       API_IMAGE: ghcr.io/${{ github.repository_owner }}/social-worker-api
       WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/social-worker-web
+      TRANSCRIBER_IMAGE: ghcr.io/${{ github.repository_owner }}/social-worker-transcriber
+      IMAGE_ENGINE_IMAGE: ghcr.io/${{ github.repository_owner }}/social-worker-image-engine
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -34,6 +53,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # --- API ---
       - name: Extract Docker metadata for API
         id: meta_api
         uses: docker/metadata-action@v6
@@ -52,7 +72,10 @@ jobs:
           push: true
           tags: ${{ steps.meta_api.outputs.tags }}
           labels: ${{ steps.meta_api.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
+      # --- Web ---
       - name: Extract Docker metadata for web
         id: meta_web
         uses: docker/metadata-action@v6
@@ -71,3 +94,120 @@ jobs:
           push: true
           tags: ${{ steps.meta_web.outputs.tags }}
           labels: ${{ steps.meta_web.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Transcriber ---
+      - name: Extract Docker metadata for transcriber
+        id: meta_transcriber
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.TRANSCRIBER_IMAGE }}
+          tags: |
+            type=ref,event=tag
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push transcriber image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./transcriber
+          file: ./transcriber/Dockerfile
+          push: true
+          tags: ${{ steps.meta_transcriber.outputs.tags }}
+          labels: ${{ steps.meta_transcriber.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Image Engine ---
+      - name: Extract Docker metadata for image-engine
+        id: meta_image_engine
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE_ENGINE_IMAGE }}
+          tags: |
+            type=ref,event=tag
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push image-engine image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./image-engine
+          file: ./image-engine/Dockerfile
+          push: true
+          tags: ${{ steps.meta_image_engine.outputs.tags }}
+          labels: ${{ steps.meta_image_engine.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Hetzner VPS
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Deploy to Hetzner via SSH
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER || 'deploy' }}
+          HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          HETZNER_PORT: ${{ secrets.HETZNER_PORT || '22' }}
+          IMAGE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
+        run: |
+          if [ -z "$HETZNER_HOST" ] || [ -z "$HETZNER_SSH_KEY" ]; then
+            echo "::notice ::HETZNER_HOST or HETZNER_SSH_KEY secret not configured. Skipping automated remote deployment."
+            exit 0
+          fi
+
+          mkdir -p ~/.ssh
+          echo "$HETZNER_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$HETZNER_PORT" "$HETZNER_HOST" >> ~/.ssh/known_hosts
+
+          # Ensure deploy directories exist on host
+          ssh -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "mkdir -p /opt/social-worker/searxng /opt/social-worker/scripts"
+
+          # Sync configuration and operational scripts
+          scp -P "$HETZNER_PORT" docker-compose.prod.yml "$HETZNER_USER@$HETZNER_HOST:/opt/social-worker/docker-compose.prod.yml"
+          scp -P "$HETZNER_PORT" searxng/settings.yml "$HETZNER_USER@$HETZNER_HOST:/opt/social-worker/searxng/settings.yml"
+          scp -P "$HETZNER_PORT" scripts/backup-db.sh "$HETZNER_USER@$HETZNER_HOST:/opt/social-worker/scripts/backup-db.sh"
+          ssh -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "chmod +x /opt/social-worker/scripts/backup-db.sh"
+
+          # Deploy and perform healthcheck
+          ssh -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "bash -s" << EOF
+            set -euo pipefail
+            cd /opt/social-worker
+
+            # Ensure .env exists (create empty template if first deployment)
+            if [ ! -f .env ]; then
+              touch .env
+            fi
+
+            # Login to GHCR
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            export SW_API_IMAGE="ghcr.io/${{ github.repository_owner }}/social-worker-api:${IMAGE_TAG}"
+            export SW_WEB_IMAGE="ghcr.io/${{ github.repository_owner }}/social-worker-web:${IMAGE_TAG}"
+            export SW_TRANSCRIBER_IMAGE="ghcr.io/${{ github.repository_owner }}/social-worker-transcriber:${IMAGE_TAG}"
+            export SW_IMAGE_ENGINE_IMAGE="ghcr.io/${{ github.repository_owner }}/social-worker-image-engine:${IMAGE_TAG}"
+
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            echo "Verifying service health on loopback..."
+            for i in {1..30}; do
+              if curl -s -f http://127.0.0.1:8100/api/health > /dev/null 2>&1; then
+                echo "Health check succeeded: Stack is healthy and online."
+                exit 0
+              fi
+              echo "Waiting for stack to respond... (\$i/30)"
+              sleep 2
+            done
+
+            echo "Health check timed out. Displaying container logs:"
+            docker compose -f docker-compose.prod.yml logs --tail=50
+            exit 1
+          EOF

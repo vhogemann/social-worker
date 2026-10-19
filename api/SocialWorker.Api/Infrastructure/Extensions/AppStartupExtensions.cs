@@ -59,7 +59,10 @@ static class AppStartupExtensions
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         await SeedAdminUserAsync(scope.ServiceProvider, db);
-        await SeedDefaultApiKeyAsync(db);
+        if (app.Environment.IsDevelopment())
+        {
+            await SeedDefaultApiKeyAsync(db);
+        }
         await SeedDefaultLlmProviderAsync(scope.ServiceProvider, db);
         await RecoverStuckDraftsAsync(db);
     }
@@ -222,6 +225,7 @@ static partial class WebApplicationExtensions
         SocialWorker.Api.Features.ReplyAgents.ReplyAgentsCrudEndpoint.Map(app);
         SocialWorker.Api.Features.Mcp.McpEndpoints.MapMcpEndpoints(app);
         SocialWorker.Api.Features.Mcp.Auth.McpOAuthEndpoints.MapMcpOAuthEndpoints(app);
+        app.MapHealthEndpoints();
     }
 }
 

@@ -1,0 +1,137 @@
+services:
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - web
+
+  web:
+    image: ${SW_WEB_IMAGE:-ghcr.io/vhogemann/social-worker-web:latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8100:80"
+    depends_on:
+      - api
+
+  api:
+    image: ${SW_API_IMAGE:-ghcr.io/vhogemann/social-worker-api:latest}
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: Host=db;Database=socialworker;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      LLM__BaseUrl: ${LLM__BaseUrl:-https://openrouter.ai/api/v1}
+      LLM__ApiKey: ${LLM__ApiKey}
+      LLM__Model: ${LLM__Model:-anthropic/claude-3.5-sonnet}
+      Auth__JwtSecret: ${Auth__JwtSecret}
+      Auth__AdminPassword: ${Auth__AdminPassword:-changeme}
+      Auth__AccessTokenLifetimeMinutes: ${Auth__AccessTokenLifetimeMinutes:-60}
+      Auth__RefreshTokenLifetimeDays: ${Auth__RefreshTokenLifetimeDays:-7}
+      Auth__DbEncryptionKey: ${Auth__DbEncryptionKey:-}
+      Search__Provider: ${Search__Provider:-SearXng}
+      Search__BraveApiKey: ${Search__BraveApiKey:-}
+      Search__SearXngBaseUrl: http://searxng:8080
+      Transcriber__BaseUrl: http://transcriber:8000
+      Transcriber__TimeoutSeconds: ${TRANSCRIBER__TimeoutSeconds:-1800}
+      Transcriber__TranscriptsPath: /app/transcripts
+      ImageEngine__BaseUrl: http://image-engine:8000
+      LinkedIn__ClientId: ${LINKEDIN__CLIENTID:-}
+      LinkedIn__ClientSecret: ${LINKEDIN__CLIENTSECRET:-}
+      LinkedIn__RedirectUri: ${LINKEDIN__REDIRECTURI:-}
+      LinkedIn__Scopes: ${LINKEDIN__SCOPES:-}
+      LinkedIn__CompanyClientId: ${LINKEDIN__COMPANY__CLIENTID:-}
+      LinkedIn__CompanyClientSecret: ${LINKEDIN__COMPANY__CLIENTSECRET:-}
+      LinkedIn__CompanyRedirectUri: ${LINKEDIN__COMPANY__REDIRECTURI:-}
+      LinkedIn__CompanyScopes: ${LINKEDIN__COMPANY__SCOPES:-}
+      MetaThreads__AppId: ${METATHREADS__APPID:-}
+      MetaThreads__AppSecret: ${METATHREADS__APPSECRET:-}
+      MetaThreads__RedirectUri: ${METATHREADS__REDIRECTURI:-}
+      MetaThreads__PublicBaseUrl: ${METATHREADS__PUBLICBASEURL:-}
+      Twitter__ClientId: ${TWITTER__CLIENTID:-}
+      Twitter__ClientSecret: ${TWITTER__CLIENTSECRET:-}
+      Twitter__RedirectUri: ${TWITTER__REDIRECTURI:-}
+      Instagram__AppId: ${INSTAGRAM__APPID:-${METATHREADS__APPID:-}}
+      Instagram__AppSecret: ${INSTAGRAM__APPSECRET:-${METATHREADS__APPSECRET:-}}
+      Instagram__RedirectUri: ${INSTAGRAM__REDIRECTURI:-https://social.plopsaurus.xyz/oauth/callback/instagram}
+      Instagram__AccessToken: ${INSTAGRAM__ACCESSTOKEN:-}
+      Instagram__CallerUserId: ${INSTAGRAM__CALLERUSERID:-}
+      Instagram__RssHubBaseUrl: ${INSTAGRAM__RSSHUBBASEURL:-http://rsshub:1200}
+      Instagram__PreferRssHub: ${INSTAGRAM__PREFERRSSHUB:-true}
+      DEMO_LLM_PROFILE: ${DEMO_LLM_PROFILE:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      transcriber:
+        condition: service_started
+      image-engine:
+        condition: service_started
+      rsshub:
+        condition: service_started
+    volumes:
+      - uploads_data:/app/uploads
+      - transcripts_data:/app/transcripts
+      - api-dataprotection-keys:/root/.aspnet/DataProtection-Keys
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: socialworker
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    volumes:
+      - ./searxng:/etc/searxng:ro
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+
+  rsshub:
+    image: diygod/rsshub:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      CACHE_TYPE: memory
+      LISTEN_INADDR_ANY: 1
+      CACHE_EXPIRE: 900
+
+  transcriber:
+    image: ${SW_TRANSCRIBER_IMAGE:-ghcr.io/vhogemann/social-worker-transcriber:latest}
+    restart: unless-stopped
+    environment:
+      TRANSCRIPTS_DIR: /transcripts
+      WHISPER_MODEL: ${TRANSCRIBER__WhisperModel:-base}
+      SUMMARY_ENGINE: ${TRANSCRIBER__SummaryEngine:-disabled}
+      SUMMARY_URL: ${TRANSCRIBER__SummaryUrl:-}
+      SUMMARY_MODEL: ${TRANSCRIBER__SummaryModel:-}
+      SUMMARY_API_KEY: ${TRANSCRIBER__SummaryApiKey:-}
+      SUMMARY_MAX_CHARS: ${TRANSCRIBER__SummaryMaxChars:-12000}
+    volumes:
+      - transcripts_data:/transcripts
+      - whisper-cache:/root/.cache/whisper
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 2500M
+
+  image-engine:
+    image: ${SW_IMAGE_ENGINE_IMAGE:-ghcr.io/vhogemann/social-worker-image-engine:latest}
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads_data:
+  transcripts_data:
+  whisper-cache:
+  api-dataprotection-keys:
