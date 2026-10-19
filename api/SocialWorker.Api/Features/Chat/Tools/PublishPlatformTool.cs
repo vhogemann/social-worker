@@ -81,9 +81,14 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
             return new PublishPlatformToolResult(false, "No active draft context.", Error: "No active draft context.");
 
         string platform = args.Platform;
+        var normalizedPlatform = SocialPlatformParser.TryParse(platform, out var parsedPlatform)
+            ? parsedPlatform.ToString()
+            : platform;
 
         var thread = await _db.PlatformThreads
-            .FirstOrDefaultAsync(t => t.DraftId == context.DraftId && t.Platform.ToLower() == platform.ToLower(), context.CancellationToken);
+            .FirstOrDefaultAsync(t => t.DraftId == context.DraftId &&
+                (t.Platform.ToLower() == platform.ToLower() || t.Platform.ToLower() == normalizedPlatform.ToLower()),
+                context.CancellationToken);
 
         if (thread == null)
         {
@@ -93,7 +98,7 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
                 thread = new PlatformThread
                 {
                     DraftId = draft.Id,
-                    Platform = platform,
+                    Platform = normalizedPlatform,
                     Content = draft.Content,
                     Stage = PlatformThreadStage.Draft,
                     UpdatedAt = DateTime.UtcNow
@@ -108,12 +113,36 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
             }
         }
 
+        if (thread.Stage == PlatformThreadStage.Sent)
+        {
+            var existingPosts = await _db.Posts
+                .Where(p => p.PlatformThreadId == thread.Id)
+                .OrderBy(p => p.SegmentIndex)
+                .ToListAsync(context.CancellationToken);
+
+            var postResults = existingPosts.Select(p => new PublishedPost
+            {
+                SegmentIndex = p.SegmentIndex,
+                RemoteId = p.RemoteId ?? "",
+                RemoteCid = p.RemoteCid,
+                PublishedText = p.PublishedText,
+                Url = p.Url ?? ""
+            }).ToList();
+
+            return new PublishPlatformToolResult(
+                true,
+                $"Thread for platform '{platform}' is already published.",
+                Posts: postResults
+            );
+        }
+
         Account? account = null;
         var requestedAccountId = args.AccountId ?? thread.AccountId;
         if (requestedAccountId.HasValue)
         {
             account = await _db.Accounts.FirstOrDefaultAsync(
-                a => a.Id == requestedAccountId.Value && a.UserId == context.UserId && a.Platform.ToLower() == platform.ToLower(),
+                a => a.Id == requestedAccountId.Value && a.UserId == context.UserId &&
+                    (a.Platform.ToLower() == platform.ToLower() || a.Platform.ToLower() == normalizedPlatform.ToLower()),
                 context.CancellationToken);
 
             if (account == null)
@@ -124,7 +153,8 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
         else
         {
             var matchingAccounts = await _db.Accounts
-                .Where(a => a.UserId == context.UserId && a.Platform.ToLower() == platform.ToLower())
+                .Where(a => a.UserId == context.UserId &&
+                    (a.Platform.ToLower() == platform.ToLower() || a.Platform.ToLower() == normalizedPlatform.ToLower()))
                 .ToListAsync(context.CancellationToken);
 
             if (matchingAccounts.Count == 0)
@@ -143,7 +173,7 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
 
         thread.AccountId = account.Id;
 
-        var publisher = _publisherResolver.Resolve(platform);
+        var publisher = _publisherResolver.Resolve(normalizedPlatform) ?? _publisherResolver.Resolve(platform);
         if (publisher == null)
         {
             return new PublishPlatformToolResult(false, $"No publisher configured for platform: {platform}", Error: $"No publisher configured for platform: {platform}");
@@ -164,33 +194,11 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
 
         var result = await publisher.PublishAsync(thread, account, context.CancellationToken);
 
+        var outcomeRecorder = new SocialWorker.Api.Features.Publishing.Resilience.PublishOutcomeRecorder(_db);
+        await outcomeRecorder.RecordOutcomeAsync(thread, result, context.CancellationToken);
+
         if (result.Success)
         {
-            // Clear any previous posts from this platform thread (in case of republication)
-            var oldPosts = await _db.Posts.Where(p => p.PlatformThreadId == thread.Id).ToListAsync(context.CancellationToken);
-            _db.Posts.RemoveRange(oldPosts);
-            
-            foreach (var publishedPost in result.Posts)
-            {
-                var post = new Post
-                {
-                    UserId = context.UserId,
-                    DraftId = context.DraftId.Value,
-                    PlatformThreadId = thread.Id,
-                    SegmentIndex = publishedPost.SegmentIndex,
-                    Platform = thread.Platform,
-                    RemoteId = publishedPost.RemoteId,
-                    Url = publishedPost.Url,
-                    PublishedText = publishedPost.PublishedText ?? thread.Content,
-                    AuthorHandle = account.Handle
-                };
-                _db.Posts.Add(post);
-            }
-            
-            thread.Stage = PlatformThreadStage.Sent;
-            thread.UpdatedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(context.CancellationToken);
-            
             return new PublishPlatformToolResult(
                 true,
                 $"Successfully published {result.Posts.Count} segments to {platform}.",

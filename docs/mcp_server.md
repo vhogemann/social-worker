@@ -39,9 +39,9 @@ Além de ferramentas (`tools`), o servidor implementa o protocolo de recursos (`
 
 ---
 
-## 2. Catálogo Completo de Ferramentas (67 Ferramentas)
+## 2. Catálogo Completo de Ferramentas (69 Ferramentas)
 
-As 67 ferramentas estão organizadas em 9 domínios funcionais:
+As 69 ferramentas estão organizadas em 9 domínios funcionais:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -51,7 +51,7 @@ As 67 ferramentas estão organizadas em 9 domínios funcionais:
 │ 2. Mídia & Visual (8)        │ 7. Contas Sociais (1)        │
 │ 3. Fontes & Pesquisa (5)     │ 8. Reply Agents (8)          │
 │ 4. Feeds & Descoberta (6)    │ 9. Auditoria & Posts (6)     │
-│ 5. Workflows & Curação (6)   │                              │
+│ 5. Workflows & Curação (8)   │                              │
 └──────────────────────────────┴──────────────────────────────┘
 ```
 
@@ -304,6 +304,16 @@ Exclui um pipeline de automação pelo ID.
 Executa o ciclo de avaliação de artigos e geração de rascunhos para um workflow.
 - **Parâmetros**:
   - `workflowId` (*string, obrigatório*): UUID do workflow.
+
+#### 36a. `export_workflow`
+Exporta a configuração de um ou todos os workflows e suas fontes vinculadas (feeds RSS/YouTube) em formato JSON declarativo e seguro, omitindo IDs de banco, credenciais e contas para migração entre ambientes.
+- **Parâmetros**:
+  - `workflowId` (*string, opcional*): UUID de um workflow específico. Se omitido, exporta todos os workflows do usuário.
+
+#### 36b. `import_workflow`
+Importa definições de workflows e fontes a partir de um pacote JSON gerado por `export_workflow`, criando ou reutilizando feeds existentes de forma inteligente.
+- **Parâmetros**:
+  - `workflowJson` (*string, obrigatório*): String JSON do `WorkflowExportPackage`.
 
 ---
 

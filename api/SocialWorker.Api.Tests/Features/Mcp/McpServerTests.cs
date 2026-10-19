@@ -43,7 +43,8 @@ public sealed class McpServerTests : SqliteTestBase
     private (McpServer Server, AppUser User, AppDbContext Db) CreateTestServer(
         TestBackgroundTaskQueue? customQueue = null,
         IReplyPlatformAdapterResolver? customAdapterResolver = null,
-        FileStorageProvider? customStorage = null)
+        FileStorageProvider? customStorage = null,
+        IPublisherResolver? customPublisherResolver = null)
     {
         var db = CreateDbContext();
         var user = CreateSeedUser(db);
@@ -52,7 +53,7 @@ public sealed class McpServerTests : SqliteTestBase
         var draftsService = TestServiceFactory.CreateDraftsService(db, storage, sourcesService);
         var taskQueue = customQueue ?? new TestBackgroundTaskQueue();
         var feedPollingService = new FeedPollingService(db, taskQueue, NullLogger<FeedPollingService>.Instance);
-        var publisherResolver = new MockPublisherResolver();
+        var publisherResolver = customPublisherResolver ?? new MockPublisherResolver();
         var blueskyContentValidator = new BlueskyContentValidator();
         var replyResolver = new MockBlueskyReplyTargetResolver();
         var blueskyDraftValidator = new BlueskyDraftValidator(
@@ -1235,7 +1236,7 @@ public sealed class McpServerTests : SqliteTestBase
         var json = JsonSerializer.Serialize(response.Result);
         using var doc = JsonDocument.Parse(json);
         var tools = doc.RootElement.GetProperty("tools").EnumerateArray().ToList();
-        Assert.Equal(67, tools.Count);
+        Assert.Equal(69, tools.Count);
 
         var toolNames = tools.Select(t => t.GetProperty("name").GetString()!).ToHashSet();
         Assert.Contains("import_media_from_url", toolNames);
@@ -1261,6 +1262,8 @@ public sealed class McpServerTests : SqliteTestBase
         Assert.Contains("set_bluesky_reply_target", toolNames);
         Assert.Contains("transcribe_video", toolNames);
         Assert.Contains("web_search", toolNames);
+        Assert.Contains("export_workflow", toolNames);
+        Assert.Contains("import_workflow", toolNames);
     }
 
     [Fact]
@@ -1287,6 +1290,60 @@ public sealed class McpServerTests : SqliteTestBase
                 Assert.Contains($"`{name}`", docsContent);
             }
         }
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_WorkflowPortability_ExportAndImport_Succeeds()
+    {
+        var (server, user, db) = CreateTestServer();
+        var feed = FeedSubscription.Create(user.Id, "MCP Feed", "https://example.com/mcp.xml");
+        db.FeedSubscriptions.Add(feed);
+
+        var wf = AutomationWorkflow.Create(user.Id, "MCP Export WF", "Instruction prompt", null, 8);
+        wf.WorkflowSources.Add(AutomationWorkflowSource.CreateFeedSource(wf.Id, feed.Id));
+        wf.Destinations.Add(AutomationWorkflowDestination.Create(wf.Id, "Bluesky", WorkflowPublishingMode.Manual));
+        db.AutomationWorkflows.Add(wf);
+        await db.SaveChangesAsync();
+
+        var exportArgs = JsonDocument.Parse($$"""
+        {
+            "name": "export_workflow",
+            "arguments": {
+                "workflowId": "{{wf.Id}}"
+            }
+        }
+        """).RootElement;
+
+        var exportReq = new McpRequest("2.0", 80, "tools/call", exportArgs);
+        var exportResp = await server.HandleRequestAsync(exportReq, user.Id, CancellationToken.None);
+
+        Assert.NotNull(exportResp);
+        var exportResult = Assert.IsType<McpToolCallResult>(exportResp.Result);
+        Assert.False(exportResult.IsError);
+        var exportJson = exportResult.Content[0].Text!;
+        Assert.Contains("MCP Export WF", exportJson);
+        Assert.Contains("https://example.com/mcp.xml", exportJson);
+
+        var user2 = new AppUser { Id = Guid.NewGuid(), Username = "user2", PasswordHash = "hash", Role = "User", CreatedAt = DateTime.UtcNow };
+        db.Users.Add(user2);
+        await db.SaveChangesAsync();
+
+        var importArgs = JsonDocument.Parse($$"""
+        {
+            "name": "import_workflow",
+            "arguments": {
+                "workflowJson": {{JsonSerializer.Serialize(exportJson)}}
+            }
+        }
+        """).RootElement;
+
+        var importReq = new McpRequest("2.0", 81, "tools/call", importArgs);
+        var importResp = await server.HandleRequestAsync(importReq, user2.Id, CancellationToken.None);
+
+        Assert.NotNull(importResp);
+        var importResult = Assert.IsType<McpToolCallResult>(importResp.Result);
+        Assert.False(importResult.IsError);
+        Assert.Contains("Successfully imported 1 workflow(s)", importResult.Content[0].Text!);
     }
 
     [Fact]
@@ -1948,6 +2005,191 @@ public sealed class McpServerTests : SqliteTestBase
         Assert.NotNull(content.Blob);
         Assert.Equal(Convert.ToBase64String(dummyBytes), content.Blob);
         Assert.Null(content.Text);
+    }
+
+    [Fact]
+    public async Task Tools_ListPosts_WithPlatformAliasThreads_ReturnsMetaThreadsPosts()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Threads Draft", "Content", SocialPlatform.MetaThreads);
+        db.Drafts.Add(draft);
+        var post = new Post
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            DraftId = draft.Id,
+            Platform = "MetaThreads",
+            RemoteId = "threads-post-123",
+            Url = "https://www.threads.net/@tester/post/threads-post-123",
+            PublishedText = "Hello Threads"
+        };
+        db.Posts.Add(post);
+        await db.SaveChangesAsync();
+
+        var req = new McpRequest("2.0", 80, "tools/call", JsonDocument.Parse("""
+        {
+            "name": "list_posts",
+            "arguments": {
+                "platform": "Threads"
+            }
+        }
+        """).RootElement);
+
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        var doc = JsonDocument.Parse(result.Content[0].Text);
+        var posts = doc.RootElement.EnumerateArray().ToList();
+        Assert.Single(posts);
+        Assert.Equal("threads-post-123", posts[0].GetProperty("remoteId").GetString());
+        Assert.Equal("https://www.threads.net/@tester/post/threads-post-123", posts[0].GetProperty("url").GetString());
+    }
+
+    [Fact]
+    public async Task Tools_ListPosts_WithDraftId_FiltersByDraftId()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft1 = Draft.Create(user.Id, "Draft 1", "Content 1", SocialPlatform.MetaThreads);
+        var draft2 = Draft.Create(user.Id, "Draft 2", "Content 2", SocialPlatform.Bluesky);
+        db.Drafts.AddRange(draft1, draft2);
+
+        var post1 = new Post { Id = Guid.NewGuid(), UserId = user.Id, DraftId = draft1.Id, Platform = "MetaThreads", RemoteId = "p1", Url = "https://example.com/1" };
+        var post2 = new Post { Id = Guid.NewGuid(), UserId = user.Id, DraftId = draft2.Id, Platform = "Bluesky", RemoteId = "p2", Url = "https://example.com/2" };
+        db.Posts.AddRange(post1, post2);
+        await db.SaveChangesAsync();
+
+        var req = new McpRequest("2.0", 81, "tools/call", JsonDocument.Parse($$"""
+        {
+            "name": "list_posts",
+            "arguments": {
+                "draftId": "{{draft1.Id}}"
+            }
+        }
+        """).RootElement);
+
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        var doc = JsonDocument.Parse(result.Content[0].Text);
+        var posts = doc.RootElement.EnumerateArray().ToList();
+        Assert.Single(posts);
+        Assert.Equal("p1", posts[0].GetProperty("remoteId").GetString());
+    }
+
+    [Fact]
+    public async Task Tools_GetDraft_WhenThreadPublished_ReturnsIsPublishedTrueAndPublishedUrls()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Published Draft", "Content", SocialPlatform.MetaThreads);
+        var thread = new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "MetaThreads",
+            Stage = PlatformThreadStage.Sent,
+            Content = "Content"
+        };
+        draft.Threads.Add(thread);
+        var post = new Post
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            DraftId = draft.Id,
+            PlatformThreadId = thread.Id,
+            Platform = "MetaThreads",
+            RemoteId = "post-remote-999",
+            Url = "https://www.threads.net/@tester/post/post-remote-999",
+            PublishedText = "Content"
+        };
+        db.Drafts.Add(draft);
+        db.Posts.Add(post);
+        await db.SaveChangesAsync();
+
+        var req = new McpRequest("2.0", 82, "tools/call", JsonDocument.Parse($$"""
+        {
+            "name": "get_draft",
+            "arguments": {
+                "draftId": "{{draft.Id}}"
+            }
+        }
+        """).RootElement);
+
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        var doc = JsonDocument.Parse(result.Content[0].Text);
+        Assert.True(doc.RootElement.GetProperty("isPublished").GetBoolean());
+        var urls = doc.RootElement.GetProperty("publishedUrls").EnumerateArray().Select(u => u.GetString()).ToList();
+        Assert.Contains("https://www.threads.net/@tester/post/post-remote-999", urls);
+    }
+
+    [Fact]
+    public async Task Tools_PublishThread_ReturnsStructuredJsonWithPostsAndUrls()
+    {
+        var stubPublisher = new ConfigurableStubPublisher("MetaThreads", new List<PublishedPost>
+        {
+            new() { SegmentIndex = 0, RemoteId = "remote-1234", Url = "https://www.threads.net/@tester/post/1234" }
+        });
+        var publisherResolver = new ConfigurablePublisherResolver(stubPublisher);
+
+        var (server, user, db) = CreateTestServer(customPublisherResolver: publisherResolver);
+        var account = new Account { Id = Guid.NewGuid(), UserId = user.Id, Platform = "MetaThreads", Handle = "tester" };
+        var draft = Draft.Create(user.Id, "Threads Publish Draft", "Hello Threads", SocialPlatform.MetaThreads);
+        var thread = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft.Id, Platform = "MetaThreads", Content = "Hello Threads" };
+        draft.Threads.Add(thread);
+        db.Accounts.Add(account);
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var req = new McpRequest("2.0", 83, "tools/call", JsonDocument.Parse($$"""
+        {
+            "name": "publish_thread",
+            "arguments": {
+                "draftId": "{{draft.Id}}",
+                "platform": "Threads",
+                "confirm": true
+            }
+        }
+        """).RootElement);
+
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var doc = JsonDocument.Parse(result.Content[0].Text);
+        Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
+        var urls = doc.RootElement.GetProperty("publishedUrls").EnumerateArray().Select(u => u.GetString()).ToList();
+        Assert.Contains("https://www.threads.net/@tester/post/1234", urls);
+        var posts = doc.RootElement.GetProperty("posts").EnumerateArray().ToList();
+        Assert.Single(posts);
+        Assert.Equal("remote-1234", posts[0].GetProperty("remoteId").GetString());
+    }
+
+    private sealed class ConfigurablePublisherResolver : IPublisherResolver
+    {
+        private readonly IPublisher _publisher;
+        public ConfigurablePublisherResolver(IPublisher publisher) => _publisher = publisher;
+        public IPublisher? Resolve(string platform) => _publisher;
+    }
+
+    private sealed class ConfigurableStubPublisher : IPublisher
+    {
+        private readonly List<PublishedPost> _posts;
+        public string Platform { get; }
+        public ConfigurableStubPublisher(string platform, List<PublishedPost> posts)
+        {
+            Platform = platform;
+            _posts = posts;
+        }
+
+        public Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)
+        {
+            return Task.FromResult(PublishResult.Succeeded(_posts));
+        }
     }
 
     private sealed class MockReplyAdapterResolver : IReplyPlatformAdapterResolver

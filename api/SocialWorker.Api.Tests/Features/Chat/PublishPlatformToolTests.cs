@@ -329,6 +329,101 @@ public sealed class PublishPlatformToolTests : SqliteTestBase
         Assert.Contains("exceeds the 280 weighted-character limit", result.Error);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_AlreadySent_ReturnsSuccessIdempotentlyWithoutCallingPublisher()
+    {
+        using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var draftId = Guid.NewGuid();
+        var threadId = Guid.NewGuid();
+
+        db.Users.Add(new AppUser { Id = userId, Username = "u", Email = "u@example.com", PasswordHash = "hash" });
+        db.Drafts.Add(new Draft { Id = draftId, UserId = userId, Title = "Draft", Status = DraftStatus.Editing, Content = "Already posted content." });
+        db.PlatformThreads.Add(new PlatformThread
+        {
+            Id = threadId,
+            DraftId = draftId,
+            Platform = "Bluesky",
+            Stage = PlatformThreadStage.Sent,
+            Content = "Already posted content."
+        });
+        db.Posts.Add(new Post
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            DraftId = draftId,
+            PlatformThreadId = threadId,
+            SegmentIndex = 0,
+            Platform = "Bluesky",
+            RemoteId = "at://did:plc:test/app.bsky.feed.post/123",
+            Url = "https://bsky.app/profile/test.bsky.social/post/123",
+            PublishedText = "Already posted content."
+        });
+        db.Accounts.Add(new Account
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Platform = "Bluesky",
+            Handle = "test.bsky.social",
+            CredentialsEncrypted = "encrypted"
+        });
+        await db.SaveChangesAsync();
+
+        var stubPublisher = new StubPublisher();
+        var resolver = new StubPublisherResolver(stubPublisher);
+        var replyResolver = new StubReplyTargetResolver(new BlueskyReplyTargetResolutionResult(true, "root", "cid", "parent", "cid", "url", "author", "text", "avatar"));
+        var validator = new BlueskyContentValidator();
+        var tool = new PublishPlatformTool(db, resolver, validator, replyResolver);
+
+        var result = await tool.ExecuteAsync(new PublishPlatformArgs("Bluesky"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+        Assert.True(result.Success);
+        Assert.Equal(0, stubPublisher.CallCount);
+        Assert.Contains("already published", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(result.Posts);
+        Assert.Equal("https://bsky.app/profile/test.bsky.social/post/123", result.Posts![0].Url);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithPlatformAliasThreads_ResolvesMetaThreadsAccountAndThreadSuccessfully()
+    {
+        using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var draftId = Guid.NewGuid();
+        var threadId = Guid.NewGuid();
+
+        db.Users.Add(new AppUser { Id = userId, Username = "u", Email = "u@example.com", PasswordHash = "hash" });
+        db.Drafts.Add(new Draft { Id = draftId, UserId = userId, Title = "Draft", Status = DraftStatus.Editing });
+        db.PlatformThreads.Add(new PlatformThread
+        {
+            Id = threadId,
+            DraftId = draftId,
+            Platform = "MetaThreads",
+            Stage = PlatformThreadStage.Draft,
+            Content = "Hello from Threads"
+        });
+        db.Accounts.Add(new Account
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Platform = "MetaThreads",
+            Handle = "tester",
+            CredentialsEncrypted = "encrypted"
+        });
+        await db.SaveChangesAsync();
+
+        var stubPublisher = new StubPublisher();
+        var resolver = new StubPublisherResolver(stubPublisher);
+        var replyResolver = new StubReplyTargetResolver(new BlueskyReplyTargetResolutionResult(false, null, null, null, null, null, null, null, null, "not used"));
+        var validator = new BlueskyContentValidator();
+        var tool = new PublishPlatformTool(db, resolver, validator, replyResolver);
+
+        var result = await tool.ExecuteAsync(new PublishPlatformArgs("Threads"), SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+        Assert.True(result.Success);
+        Assert.Equal(1, stubPublisher.CallCount);
+    }
+
     private sealed class StubDraftValidatorResolver : SocialWorker.Api.Features.Publishing.Validation.IDraftValidatorResolver
     {
         private readonly SocialWorker.Api.Features.Publishing.Validation.IDraftValidator _validator;

@@ -619,7 +619,8 @@ public sealed class McpToolRegistry
             {
                 "type": "object",
                 "properties": {
-                    "platform": { "type": "string", "description": "Filter by platform (e.g. 'Bluesky', 'Twitter', 'MetaThreads', 'LinkedIn')." },
+                    "platform": { "type": "string", "description": "Filter by platform (e.g. 'Bluesky', 'Twitter', 'MetaThreads', 'Threads', 'LinkedIn')." },
+                    "draftId": { "type": "string", "description": "Filter by draft UUID to see posts created from a specific draft." },
                     "workflowId": { "type": "string", "description": "Filter by automation workflow UUID." },
                     "since": { "type": "string", "description": "ISO-8601 timestamp to filter posts published after this date." },
                     "hasReplies": { "type": "boolean", "description": "Filter to only posts that have received comments or replies." },
@@ -892,6 +893,23 @@ public sealed class McpToolRegistry
                 },
                 "required": ["query"]
             }
+            """)),
+            new("export_workflow", "Export workflow configurations and source definitions (without accounts/credentials) for backup or environment migration.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "workflowId": { "type": "string", "description": "Optional UUID of a specific workflow to export. If omitted, exports all workflows." }
+                }
+            }
+            """)),
+            new("import_workflow", "Import workflow configurations and source definitions from an exported JSON package.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "workflowJson": { "type": "string", "description": "JSON string of the WorkflowExportPackage to import." }
+                },
+                "required": ["workflowJson"]
+            }
             """))
         };
     }
@@ -974,6 +992,8 @@ public sealed class McpToolRegistry
                 "set_bluesky_reply_target" => await HandleSetBlueskyReplyTargetAsync(userId, args, ct),
                 "transcribe_video" => await HandleTranscribeVideoAsync(args, ct),
                 "web_search" => await HandleWebSearchAsync(args, ct),
+                "export_workflow" => await HandleExportWorkflowAsync(userId, args, ct),
+                "import_workflow" => await HandleImportWorkflowAsync(userId, args, ct),
                 _ => TextError($"Unknown tool '{toolName}'.")
             };
         }
@@ -1077,6 +1097,43 @@ public sealed class McpToolRegistry
             markdownTag = $"![{m.AltText ?? m.FileName}](media://{m.Id})"
         }).ToList();
 
+        var allThreads = new List<PlatformThreadDto>();
+        if (draft.Threads != null) allThreads.AddRange(draft.Threads);
+        if (draft.Variants != null)
+        {
+            foreach (var v in draft.Variants)
+            {
+                if (v.Threads != null) allThreads.AddRange(v.Threads);
+            }
+        }
+
+        var threadIds = allThreads.Select(t => t.Id).ToList();
+        var posts = await _db.Posts
+            .AsNoTracking()
+            .Where(p => (p.DraftId == draftId || (p.PlatformThreadId.HasValue && threadIds.Contains(p.PlatformThreadId.Value))) && p.RemoteId != null)
+            .OrderBy(p => p.SegmentIndex)
+            .ToListAsync(ct);
+
+        var publishedPosts = posts.Select(p => new
+        {
+            id = p.Id,
+            platform = p.Platform,
+            remoteId = p.RemoteId,
+            url = p.Url,
+            segmentIndex = p.SegmentIndex,
+            publishedText = p.PublishedText,
+            postedAt = p.PostedAt
+        }).ToList();
+
+        var publishedUrls = publishedPosts
+            .Where(p => !string.IsNullOrEmpty(p.url))
+            .Select(p => p.url!)
+            .Distinct()
+            .ToList();
+
+        bool isPublished = allThreads.Any(t => string.Equals(t.Stage, "Sent", StringComparison.OrdinalIgnoreCase) || string.Equals(t.Stage, "Published", StringComparison.OrdinalIgnoreCase))
+            || publishedPosts.Count > 0;
+
         var result = new
         {
             draft.Id,
@@ -1099,7 +1156,10 @@ public sealed class McpToolRegistry
             draft.AutomationWorkflowTitle,
             draft.Variants,
             draft.DiscardReason,
-            draft.RelevanceScore
+            draft.RelevanceScore,
+            isPublished,
+            publishedUrls,
+            publishedPosts
         };
 
         return TextResult(JsonSerializer.Serialize(result, JsonOptions));
@@ -1254,8 +1314,9 @@ public sealed class McpToolRegistry
             var previews = new List<object>();
             foreach (var plat in platforms)
             {
+                var normalizedPlat = SocialPlatformParser.TryParse(plat, out var parsedPlat) ? parsedPlat.ToString() : plat;
                 var matchingAccounts = await _db.Accounts
-                    .Where(a => a.UserId == userId && a.Platform.ToLower() == plat.ToLower())
+                    .Where(a => a.UserId == userId && (a.Platform.ToLower() == plat.ToLower() || a.Platform.ToLower() == normalizedPlat.ToLower()))
                     .ToListAsync(ct);
 
                 var resolvedAccount = accountId.HasValue
@@ -1316,18 +1377,28 @@ public sealed class McpToolRegistry
             });
         }
 
-        if (results.Count == 1)
-        {
-            var single = (dynamic)results[0];
-            return TextResult(single.message);
-        }
+        var allPublishedPosts = results
+            .SelectMany(r => ((dynamic)r).posts as IEnumerable<SocialWorker.Api.Features.Publishing.PublishedPost> ?? Enumerable.Empty<SocialWorker.Api.Features.Publishing.PublishedPost>())
+            .ToList();
+
+        var publishedUrls = allPublishedPosts
+            .Where(p => !string.IsNullOrEmpty(p.Url))
+            .Select(p => p.Url)
+            .Distinct()
+            .ToList();
+
+        var summaryMessage = results.Count == 1
+            ? ((dynamic)results[0]).message
+            : $"Successfully published draft to {results.Count} platforms.";
 
         return TextResult(JsonSerializer.Serialize(new
         {
             success = true,
             draftId,
             publishedPlatforms = results,
-            message = $"Successfully published draft to {results.Count} platforms."
+            posts = allPublishedPosts,
+            publishedUrls,
+            message = summaryMessage
         }, JsonOptions));
     }
 
@@ -3001,6 +3072,12 @@ public sealed class McpToolRegistry
             workflowId = parsedWf;
         }
 
+        Guid? draftId = null;
+        if (args.TryGetProperty("draftId", out var dProp) && Guid.TryParse(dProp.GetString(), out var parsedDraftId))
+        {
+            draftId = parsedDraftId;
+        }
+
         DateTime? since = null;
         if (args.TryGetProperty("since", out var sProp) && DateTime.TryParse(sProp.GetString(), out var parsedSince))
         {
@@ -3021,7 +3098,20 @@ public sealed class McpToolRegistry
 
         if (!string.IsNullOrWhiteSpace(platform))
         {
-            query = query.Where(p => p.Platform == platform);
+            if (SocialPlatformParser.TryParse(platform, out var parsedPlatform))
+            {
+                var canonicalPlatform = parsedPlatform.ToString();
+                query = query.Where(p => p.Platform == canonicalPlatform || p.Platform.ToLower() == platform.ToLower());
+            }
+            else
+            {
+                query = query.Where(p => p.Platform.ToLower() == platform.ToLower());
+            }
+        }
+
+        if (draftId.HasValue)
+        {
+            query = query.Where(p => p.DraftId == draftId.Value || (p.PlatformThread != null && p.PlatformThread.DraftId == draftId.Value));
         }
 
         if (workflowId.HasValue)
@@ -4173,6 +4263,51 @@ public sealed class McpToolRegistry
         catch (Exception ex)
         {
             return TextError($"Web search failed: {ex.Message}");
+        }
+    }
+
+    private async Task<McpToolCallResult> HandleExportWorkflowAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        Guid? workflowId = null;
+        if (args.TryGetProperty("workflowId", out var idProp) && Guid.TryParse(idProp.GetString(), out var parsedId))
+        {
+            workflowId = parsedId;
+        }
+
+        var service = _serviceProvider?.GetService<IWorkflowPortabilityService>() ?? new WorkflowPortabilityService(_db);
+        var package = await service.ExportAsync(userId, workflowId, ct);
+        var json = JsonSerializer.Serialize(package, JsonOptions);
+        return TextResult(json);
+    }
+
+    private async Task<McpToolCallResult> HandleImportWorkflowAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("workflowJson", out var jsonProp))
+        {
+            return TextError("Missing required argument: workflowJson.");
+        }
+
+        var jsonString = jsonProp.GetString();
+        if (string.IsNullOrWhiteSpace(jsonString))
+        {
+            return TextError("Argument workflowJson cannot be empty.");
+        }
+
+        try
+        {
+            var package = JsonSerializer.Deserialize<WorkflowExportPackage>(jsonString, JsonOptions);
+            if (package == null)
+            {
+                return TextError("Failed to parse workflow export package.");
+            }
+
+            var service = _serviceProvider?.GetService<IWorkflowPortabilityService>() ?? new WorkflowPortabilityService(_db);
+            var result = await service.ImportAsync(userId, package, ct);
+            return TextResult($"Successfully imported {result.ImportedWorkflowsCount} workflow(s). Feeds created: {result.CreatedFeedsCount}, feeds reused: {result.ReusedFeedsCount}.");
+        }
+        catch (Exception ex)
+        {
+            return TextError($"Failed to import workflow package: {ex.Message}");
         }
     }
 

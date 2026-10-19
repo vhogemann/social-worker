@@ -26,26 +26,27 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ### Backend entry and wiring
 
 - App startup: api/SocialWorker.Api/Program.cs
-- Endpoint mapping + DB seed/migration startup flow: api/SocialWorker.Api/Infrastructure/Extensions/AppStartupExtensions.cs
+- Endpoint mapping & health check (/api/health) + DB seed/migration startup flow: api/SocialWorker.Api/Infrastructure/Extensions/AppStartupExtensions.cs, api/SocialWorker.Api/Infrastructure/HealthEndpoint.cs
 - Feature registration extensions: api/SocialWorker.Api/Infrastructure/Extensions/*Extensions.cs
+- Production deployment & Cloudflare Tunnel ingress: docker-compose.prod.yml, docs/DEPLOYMENT_HETZNER.md
 
 ### Backend domains
 
 - Chat: api/SocialWorker.Api/Features/Chat/
 - Draft lifecycle: api/SocialWorker.Api/Features/Drafts/ (DraftsService, DraftSegmentService, DraftAutoRepairService agent self-correction feedback loop on validation rejections)
-- Publishing: api/SocialWorker.Api/Features/Publishing/ (Bluesky, LinkedIn, MetaThreads, Twitter, Resilience/PublishOutcomeRecorder, PublishValidationService)
+- Publishing: api/SocialWorker.Api/Features/Publishing/ (Bluesky, LinkedIn with resume planner, MetaThreads, Twitter, Resilience/PublishOutcomeRecorder, Resilience/PublishLockService for thread-level concurrency locking, PublishValidationService, unified idempotency across PublishingEndpoint, PublishPlatformTool, FeedAutoPublishService, OutboxEndpoint, and ScheduledPublishingTaskHandler)
 - Sources and media: api/SocialWorker.Api/Features/Sources/, api/SocialWorker.Api/Features/Sources/Instagram/ (Instagram profile feed bridge via RSSHub sidecar container with fallback to Business Discovery Graph API, FeedMediaExtractor for video/image parsing, credential provider, OAuth, setup guide in docs/INSTAGRAM_SETUP.md), api/SocialWorker.Api/Features/Media/
 - Templates and Canvas: api/SocialWorker.Api/Features/Templates/, image-engine/
 - Feed automation & RSSHub discovery: api/SocialWorker.Api/Features/Feeds/ (RssHubRouteResolver, RssHubFeedDiscoveryService supporting multi-platform URLs for Instagram, X, Telegram, Reddit, TikTok, Bluesky with RSSHub route resolution and fallbacks, FeedOrchestrationService retry feedback loop, FeedThreadGenerationService, FeedPollingService)
 - Content calendar & scheduling engine: api/SocialWorker.Api/Features/Scheduling/ (Schedules, Slot Rules, Cronos recurrence, SlotWindowCalculator pacing, QueueService with Level 2 Time-Decay and Cascading Preemption, SchedulePriorityCalculator, ScheduleSlotEvaluatorService worker, ScheduleEvaluationHostedService recurring evaluator, ScheduledPublishingTaskHandler auto-repair before publishing, active queue deduplication & partial unique index, Review Outbox)
-- Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/ (IWorkflowSourceHandler, FeedWorkflowSourceHandler, DigestWorkflowSourceHandler, extensible sources)
+- Automation workflows & validation: api/SocialWorker.Api/Features/Workflows/ (IWorkflowSourceHandler, FeedWorkflowSourceHandler, DigestWorkflowSourceHandler, extensible sources, IWorkflowPortabilityService / WorkflowPortabilityService credential-free JSON export and feed-deduplicating import)
 - Reply Agents: api/SocialWorker.Api/Features/ReplyAgents/ (Independent `ReplyAgent` entity in user library, many-to-one workflow assignment via `AutomationWorkflow.ReplyAgentId`, direct post assignment to organic/external/third-party posts via `ReplyAgentPost` and `IExternalPostResolver`, `Post.IsExternal`, `WorkflowCommentThread`, `WorkflowCommentAudit`, `IReplyPlatformAdapter` for Bluesky and Meta Threads with automatic Graph API shortcode-to-mediaId resolution via `GetUserThreadsAsync`, `CommentEnrichmentService` with automated video/audio transcription via `ITranscriptExtractionService` and vision inspection, `CommentRankingService` 1-10 scoring/terminal closure, `ReplyGenerationService` leveraging draft `ChatToolExecutor` and `IChatTool`s including `TranscribeVideoTool`, `web_search`, `fetch_source`, `search_sources`, multi-turn tool loops with final-turn forced synthesis, `CommentThreadSummarizer` rolling summary cache, stop criteria enforcement)
 - Background tasks & durable queue: api/SocialWorker.Api/Features/BackgroundTasks/ (PostgreSQL atomic queue with Allow-List worker filtering, PostgresBackgroundTaskQueue, workflow-reply-check-post, reply-thread-summary, scheduled-publishing, ScheduleEvaluationHostedService, BackgroundTaskRetentionService)
 - Background task worker pool: api/SocialWorker.Api/Features/BackgroundTasks/Services/BackgroundTaskHostedService.cs (configurable worker workloads, dedicated transcription worker, general workers)
 - Configuration & Overrides: api/SocialWorker.Api/Program.cs (mounted host override `./config/appsettings.json` -> `/app/config/appsettings.json:ro`)
 - Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/ (TokenRefreshHostedService)
 - API Key Subsystem: api/SocialWorker.Api/Infrastructure/Auth/ (ApiKeyService, ApiKeyAuthenticationHandler, SHA-256 hash storage)
-- Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, 67 tools in McpToolRegistry across 9 domains including media upload/templates/code rendering, image source inspection (`view_image`), schedule/queue management, lifecycle deletion, variants, video transcription, search, dryRun simulation, McpResourceRegistry; MCP-First operations policy in .agents/rules/mcp-first.md; complete documentation in docs/mcp_server.md)
+- Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, 69 tools in McpToolRegistry across 9 domains including export/import portability tools, media upload/templates/code rendering, image source inspection (`view_image`), schedule/queue management, lifecycle deletion, variants, video transcription, search, dryRun simulation, McpResourceRegistry; MCP-First operations policy in .agents/rules/mcp-first.md; complete documentation in docs/mcp_server.md)
 - Markdown AST & Thread Document: api/SocialWorker.Api/Infrastructure/Markdown/ (Markdig CommonMark AST parser for segments, media, links, and facets)
 
 
@@ -56,7 +57,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Content Calendar & Views: web/src/components/Calendar/ (CalendarPage, MonthView, WeekView, DayView, QueueSidebar with Priority Badges, ScheduleManagerModal, SlotRuleFormModal, DraftPickerModal)
 - Review Outbox Triage: web/src/components/Outbox/ReviewOutboxPage.tsx
 - Settings Library: web/src/components/Settings/ (AccountTab, ConnectionsTab, BrandVoicesTab, FeedsTab, UsersTab, ProvidersTab)
-- Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/ (polymorphic sources: RSS/YouTube feeds, Workflow Highlights/Digests, WorkflowReplyAgentTab with agent selector and live audit triage)
+- Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/ (polymorphic sources: RSS/YouTube feeds, Workflow Highlights/Digests, WorkflowImportModal, Export All / Import actions, individual workflow card JSON export, WorkflowReplyAgentTab with agent selector and live audit triage)
 - Drafts Library Page: web/src/components/Drafts/DraftsPage.tsx
 - Full-width 2-pane Composer: web/src/components/Composer/ComposerPage.tsx
 - Scoped Composer Draft Context: web/src/components/Composer/ComposerDraftContext.tsx (local draft, editor doc, autosave, scoped sources)
@@ -69,8 +70,8 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (868 tests): api/SocialWorker.Api.Tests/
-- Web tests (Vitest, 492 tests in 93 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- API unit/integration tests (895 tests): api/SocialWorker.Api.Tests/
+- Web tests (Vitest, 504 tests in 94 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - Image Engine tests (Vitest, 14 tests in 3 test files): image-engine/tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
@@ -84,7 +85,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 5. Platform thread variants are created/updated with server-enforced validation rules (character limits, facets, single-card embed constraints).
 6. Stage transitions are explicit and server-enforced.
 7. Publish is allowed only when validation rules are satisfied (readiness + character count + AST syntax checks).
-8. Successful publish writes post records and updates thread stage to Sent.
+8. Successful publish writes post records and updates thread stage to Sent. Subsequent or duplicate publish calls are idempotent (return 200 OK with existing posts without re-posting) and guarded by thread locks.
 
 ## Model Context Protocol (MCP) & Authentication
 
@@ -112,6 +113,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - MCP stress test: docker compose --profile tooling run --rm -v "$(pwd):/repo" -w /repo -e API_URL="http://api:8080" web-test node scripts/mcp-stress-test-suite.mjs
 - E2E: ./scripts/run-e2e.sh
 - SQL against Postgres: ./scripts/sql.sh -c "select now();"
+- Backup / restore Postgres DB: ./scripts/backup-db.sh backup (or ./scripts/backup-db.sh restore <file>)
 
 
 ## Durable task queue behavior
