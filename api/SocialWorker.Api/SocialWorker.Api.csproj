@@ -26,8 +26,8 @@
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
     <PackageReference Include="dbup-postgresql" Version="7.0.1" />
     <PackageReference Include="CodeHollow.FeedReader" Version="1.2.6" />
-    <PackageReference Include="FluentValidation" Version="12.1.1" />
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageReference Include="FluentValidation" Version="12.2.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />
     <PackageReference Include="Markdig" Version="0.40.0" />
     <PackageReference Include="Cronos" Version="0.13.0" />
   </ItemGroup>
