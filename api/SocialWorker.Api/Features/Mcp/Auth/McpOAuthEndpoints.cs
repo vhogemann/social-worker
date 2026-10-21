@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,6 +9,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Features.Auth;
 
@@ -16,35 +19,30 @@ public static class McpOAuthEndpoints
 {
     public static void MapMcpOAuthEndpoints(this WebApplication app)
     {
+        var getAndHead = new[] { "GET", "HEAD" };
+
         // 1. RFC 9728 Protected Resource Metadata
-        app.MapGet("/.well-known/oauth-protected-resource", (HttpContext ctx) =>
+        IResult GetProtectedResourceMetadata(HttpContext ctx)
         {
             var baseUrl = GetBaseUrl(ctx);
+            var isApiMcp = ctx.Request.Path.StartsWithSegments("/api/mcp");
+            var resourceUrl = isApiMcp ? $"{baseUrl}/api/mcp" : $"{baseUrl}/mcp";
             var metadata = new ProtectedResourceMetadataResponse(
-                Resource: $"{baseUrl}/api/mcp",
+                Resource: resourceUrl,
                 AuthorizationServers: new[] { baseUrl },
                 ScopesSupported: new[] { "mcp:tools", "mcp:read", "mcp:write" },
                 BearerMethodsSupported: new[] { "header" },
                 ResourceDocumentation: $"{baseUrl}/docs/mcp");
 
             return Results.Ok(metadata);
-        }).AllowAnonymous();
+        }
 
-        app.MapGet("/api/mcp/.well-known/oauth-protected-resource", (HttpContext ctx) =>
-        {
-            var baseUrl = GetBaseUrl(ctx);
-            var metadata = new ProtectedResourceMetadataResponse(
-                Resource: $"{baseUrl}/api/mcp",
-                AuthorizationServers: new[] { baseUrl },
-                ScopesSupported: new[] { "mcp:tools", "mcp:read", "mcp:write" },
-                BearerMethodsSupported: new[] { "header" },
-                ResourceDocumentation: $"{baseUrl}/docs/mcp");
+        app.MapMethods("/.well-known/oauth-protected-resource", getAndHead, GetProtectedResourceMetadata).AllowAnonymous();
+        app.MapMethods("/api/mcp/.well-known/oauth-protected-resource", getAndHead, GetProtectedResourceMetadata).AllowAnonymous();
+        app.MapMethods("/mcp/.well-known/oauth-protected-resource", getAndHead, GetProtectedResourceMetadata).AllowAnonymous();
 
-            return Results.Ok(metadata);
-        }).AllowAnonymous();
-
-        // 2. RFC 8414 Authorization Server Metadata
-        app.MapGet("/.well-known/oauth-authorization-server", (HttpContext ctx) =>
+        // 2. RFC 8414 Authorization Server Metadata & OpenID Configuration
+        IResult GetAuthServerMetadata(HttpContext ctx)
         {
             var baseUrl = GetBaseUrl(ctx);
             var metadata = new AuthorizationServerMetadataResponse(
@@ -52,59 +50,114 @@ public static class McpOAuthEndpoints
                 AuthorizationEndpoint: $"{baseUrl}/oauth/authorize",
                 TokenEndpoint: $"{baseUrl}/oauth/token",
                 RegistrationEndpoint: $"{baseUrl}/oauth/register",
+                JwksUri: $"{baseUrl}/.well-known/jwks.json",
                 ResponseTypesSupported: new[] { "code" },
                 GrantTypesSupported: new[] { "authorization_code", "refresh_token" },
                 CodeChallengeMethodsSupported: new[] { "S256", "plain" },
                 TokenEndpointAuthMethodsSupported: new[] { "none", "client_secret_post", "client_secret_basic" },
-                ScopesSupported: new[] { "mcp:tools", "mcp:read", "mcp:write" });
+                ScopesSupported: new[] { "mcp:tools", "mcp:read", "mcp:write" },
+                ResponseModesSupported: new[] { "query" },
+                SubjectTypesSupported: new[] { "public" },
+                IdTokenSigningAlgValuesSupported: new[] { "RS256" });
 
             return Results.Ok(metadata);
-        }).AllowAnonymous();
+        }
 
-        app.MapGet("/.well-known/openid-configuration", (HttpContext ctx) =>
+        app.MapMethods("/.well-known/oauth-authorization-server", getAndHead, GetAuthServerMetadata).AllowAnonymous();
+        app.MapMethods("/api/mcp/.well-known/oauth-authorization-server", getAndHead, GetAuthServerMetadata).AllowAnonymous();
+        app.MapMethods("/mcp/.well-known/oauth-authorization-server", getAndHead, GetAuthServerMetadata).AllowAnonymous();
+
+        app.MapMethods("/.well-known/openid-configuration", getAndHead, GetAuthServerMetadata).AllowAnonymous();
+        app.MapMethods("/api/mcp/.well-known/openid-configuration", getAndHead, GetAuthServerMetadata).AllowAnonymous();
+        app.MapMethods("/mcp/.well-known/openid-configuration", getAndHead, GetAuthServerMetadata).AllowAnonymous();
+
+        // 2b. RFC 7517 JSON Web Key Set (JWKS)
+        IResult GetJwks(HttpContext ctx)
         {
-            var baseUrl = GetBaseUrl(ctx);
-            var metadata = new AuthorizationServerMetadataResponse(
-                Issuer: baseUrl,
-                AuthorizationEndpoint: $"{baseUrl}/oauth/authorize",
-                TokenEndpoint: $"{baseUrl}/oauth/token",
-                RegistrationEndpoint: $"{baseUrl}/oauth/register",
-                ResponseTypesSupported: new[] { "code" },
-                GrantTypesSupported: new[] { "authorization_code", "refresh_token" },
-                CodeChallengeMethodsSupported: new[] { "S256", "plain" },
-                TokenEndpointAuthMethodsSupported: new[] { "none", "client_secret_post", "client_secret_basic" },
-                ScopesSupported: new[] { "mcp:tools", "mcp:read", "mcp:write" });
+            return Results.Ok(new { keys = Array.Empty<object>() });
+        }
 
-            return Results.Ok(metadata);
-        }).AllowAnonymous();
+        app.MapMethods("/.well-known/jwks.json", getAndHead, GetJwks).AllowAnonymous();
+        app.MapMethods("/api/mcp/.well-known/jwks.json", getAndHead, GetJwks).AllowAnonymous();
+        app.MapMethods("/mcp/.well-known/jwks.json", getAndHead, GetJwks).AllowAnonymous();
 
         // 3. RFC 7591 Dynamic Client Registration (DCR)
-        app.MapPost("/oauth/register", async (HttpContext ctx, McpOAuthStore store) =>
+        async Task<IResult> HandleRegister(HttpContext ctx, McpOAuthStore store, ILoggerFactory loggerFactory)
         {
+            var logger = loggerFactory.CreateLogger("SocialWorker.McpOAuth");
             ClientRegistrationRequest? req = null;
             try
             {
-                req = await ctx.Request.ReadFromJsonAsync<ClientRegistrationRequest>();
+                using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8);
+                var rawBody = await reader.ReadToEndAsync();
+                logger.LogInformation("Dynamic Client Registration raw body: {RawBody}", rawBody);
+                if (!string.IsNullOrWhiteSpace(rawBody))
+                {
+                    req = JsonSerializer.Deserialize<ClientRegistrationRequest>(rawBody, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to deserialize ClientRegistrationRequest");
+            }
 
             var client = store.RegisterClient(req?.ClientName, req?.RedirectUris);
+            var authMethod = req?.TokenEndpointAuthMethod ?? (!string.IsNullOrWhiteSpace(client.ClientSecret) ? "client_secret_basic" : "none");
+
+            var baseUrl = GetBaseUrl(ctx);
             var response = new ClientRegistrationResponse(
                 ClientId: client.ClientId,
                 ClientName: client.ClientName,
                 RedirectUris: client.RedirectUris,
                 GrantTypes: new[] { "authorization_code", "refresh_token" },
                 ResponseTypes: new[] { "code" },
-                TokenEndpointAuthMethod: "none",
-                ClientIdIssuedAt: DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                TokenEndpointAuthMethod: authMethod,
+                RegistrationClientUri: $"{baseUrl}/oauth/register/{client.ClientId}",
+                RegistrationAccessToken: $"reg_{client.ClientId}",
+                ClientSecret: client.ClientSecret,
+                ClientSecretExpiresAt: 0,
+                Scope: req?.Scope);
 
-            return Results.Created($"/oauth/register/{client.ClientId}", response);
-        }).AllowAnonymous();
+            logger.LogInformation("Registered OAuth client {ClientId} ({ClientName}) with {RedirectUriCount} redirect URIs, authMethod={AuthMethod}",
+                client.ClientId, client.ClientName, client.RedirectUris.Length, authMethod);
+
+            return Results.Json(response, statusCode: StatusCodes.Status201Created);
+        }
+
+        IResult HandleGetClient(string clientId, McpOAuthStore store, HttpContext ctx)
+        {
+            var client = store.GetClient(clientId);
+            if (client == null) return Results.NotFound(new OAuthErrorResponse("not_found", "Client not found."));
+
+            var baseUrl = GetBaseUrl(ctx);
+            var response = new ClientRegistrationResponse(
+                ClientId: client.ClientId,
+                ClientName: client.ClientName,
+                RedirectUris: client.RedirectUris,
+                GrantTypes: new[] { "authorization_code", "refresh_token" },
+                ResponseTypes: new[] { "code" },
+                TokenEndpointAuthMethod: !string.IsNullOrWhiteSpace(client.ClientSecret) ? "client_secret_post" : "none",
+                RegistrationClientUri: $"{baseUrl}/oauth/register/{client.ClientId}",
+                RegistrationAccessToken: $"reg_{client.ClientId}",
+                ClientSecret: client.ClientSecret,
+                ClientSecretExpiresAt: 0);
+
+            return Results.Ok(response);
+        }
+
+        app.MapPost("/oauth/register", HandleRegister).AllowAnonymous();
+        app.MapPost("/register", HandleRegister).AllowAnonymous();
+        app.MapGet("/oauth/register/{clientId}", HandleGetClient).AllowAnonymous();
+        app.MapGet("/register/{clientId}", HandleGetClient).AllowAnonymous();
 
         // 4. OAuth 2.1 Authorization Code Consent UI
-        app.MapGet("/oauth/authorize", (
+        IResult HandleAuthorizeGet(
             HttpContext ctx,
             McpOAuthStore store,
+            ILoggerFactory loggerFactory,
             string? response_type,
             string? client_id,
             string? redirect_uri,
@@ -112,8 +165,12 @@ public static class McpOAuthEndpoints
             string? code_challenge_method,
             string? state,
             string? scope,
-            string? error) =>
+            string? error)
         {
+            var logger = loggerFactory.CreateLogger("SocialWorker.McpOAuth");
+            logger.LogInformation("OAuth Authorize GET: client_id={ClientId}, redirect_uri={RedirectUri}, response_type={ResponseType}, scope={Scope}",
+                client_id, redirect_uri, response_type, scope);
+
             if (string.IsNullOrWhiteSpace(client_id) || string.IsNullOrWhiteSpace(redirect_uri))
             {
                 return Results.BadRequest(new OAuthErrorResponse("invalid_request", "Missing client_id or redirect_uri."));
@@ -138,16 +195,21 @@ public static class McpOAuthEndpoints
                 errorMessage: error);
 
             return Results.Content(html, "text/html");
-        }).AllowAnonymous();
+        }
+
+        app.MapMethods("/oauth/authorize", getAndHead, HandleAuthorizeGet).AllowAnonymous();
+        app.MapMethods("/authorize", getAndHead, HandleAuthorizeGet).AllowAnonymous();
 
         // 5. OAuth 2.1 Authorization Decision Processor
-        app.MapPost("/oauth/authorize", async (
+        async Task<IResult> HandleAuthorizePost(
             HttpContext ctx,
             McpOAuthStore store,
             AppDbContext db,
             AuthService authService,
-            CancellationToken ct) =>
+            ILoggerFactory loggerFactory,
+            CancellationToken ct)
         {
+            var logger = loggerFactory.CreateLogger("SocialWorker.McpOAuth");
             var form = await ctx.Request.ReadFormAsync(ct);
             var action = form["action"].ToString();
             var clientId = form["client_id"].ToString();
@@ -158,6 +220,9 @@ public static class McpOAuthEndpoints
             var scope = form["scope"].ToString();
             var username = form["username"].ToString();
             var password = form["password"].ToString();
+
+            logger.LogInformation("OAuth Authorize POST: action={Action}, client_id={ClientId}, redirect_uri={RedirectUri}",
+                action, clientId, redirectUri);
 
             if (string.IsNullOrWhiteSpace(redirectUri))
             {
@@ -221,20 +286,44 @@ public static class McpOAuthEndpoints
 
                 return Results.Content(html, "text/html");
             }
-        }).AllowAnonymous();
+        }
+
+        app.MapPost("/oauth/authorize", HandleAuthorizePost).AllowAnonymous();
+        app.MapPost("/authorize", HandleAuthorizePost).AllowAnonymous();
 
         // 6. OAuth 2.1 Token Endpoint
-        app.MapPost("/oauth/token", async (
+        async Task<IResult> HandleTokenPost(
             HttpContext ctx,
             McpOAuthService oauthService,
-            CancellationToken ct) =>
+            ILoggerFactory loggerFactory,
+            CancellationToken ct)
         {
+            var logger = loggerFactory.CreateLogger("SocialWorker.McpOAuth");
             string? grantType = null;
             string? code = null;
             string? redirectUri = null;
             string? clientId = null;
+            string? clientSecret = null;
             string? codeVerifier = null;
             string? refreshToken = null;
+
+            // 1. Support RFC 6749 Section 2.3.1 Client Authentication via Authorization: Basic header
+            var authHeader = ctx.Request.Headers.Authorization.ToString();
+            if (authHeader.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
+            {
+                var encoded = authHeader.Substring(6).Trim();
+                try
+                {
+                    var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+                    var colonIdx = decoded.IndexOf(':');
+                    if (colonIdx >= 0)
+                    {
+                        clientId = Uri.UnescapeDataString(decoded.Substring(0, colonIdx));
+                        clientSecret = Uri.UnescapeDataString(decoded.Substring(colonIdx + 1));
+                    }
+                }
+                catch { }
+            }
 
             if (ctx.Request.HasFormContentType)
             {
@@ -242,7 +331,8 @@ public static class McpOAuthEndpoints
                 grantType = form["grant_type"].ToString();
                 code = form["code"].ToString();
                 redirectUri = form["redirect_uri"].ToString();
-                clientId = form["client_id"].ToString();
+                if (string.IsNullOrWhiteSpace(clientId)) clientId = form["client_id"].ToString();
+                if (string.IsNullOrWhiteSpace(clientSecret)) clientSecret = form["client_secret"].ToString();
                 codeVerifier = form["code_verifier"].ToString();
                 refreshToken = form["refresh_token"].ToString();
             }
@@ -255,19 +345,23 @@ public static class McpOAuthEndpoints
                     if (root.TryGetProperty("grant_type", out var gt)) grantType = gt.GetString();
                     if (root.TryGetProperty("code", out var cd)) code = cd.GetString();
                     if (root.TryGetProperty("redirect_uri", out var ru)) redirectUri = ru.GetString();
-                    if (root.TryGetProperty("client_id", out var ci)) clientId = ci.GetString();
+                    if (string.IsNullOrWhiteSpace(clientId) && root.TryGetProperty("client_id", out var ci)) clientId = ci.GetString();
+                    if (string.IsNullOrWhiteSpace(clientSecret) && root.TryGetProperty("client_secret", out var cs)) clientSecret = cs.GetString();
                     if (root.TryGetProperty("code_verifier", out var cv)) codeVerifier = cv.GetString();
                     if (root.TryGetProperty("refresh_token", out var rt)) refreshToken = rt.GetString();
                 }
                 catch { }
             }
 
+            logger.LogInformation("OAuth Token request: grant_type={GrantType}, client_id={ClientId}, redirect_uri={RedirectUri}",
+                grantType, clientId, redirectUri);
+
             var baseUrl = GetBaseUrl(ctx);
 
             if (string.Equals(grantType, "authorization_code", StringComparison.OrdinalIgnoreCase))
             {
                 if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(redirectUri) ||
-                    string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(codeVerifier))
+                    string.IsNullOrWhiteSpace(clientId))
                 {
                     return Results.BadRequest(new OAuthErrorResponse("invalid_request", "Missing required authorization_code parameters."));
                 }
@@ -278,6 +372,7 @@ public static class McpOAuthEndpoints
                     clientId: clientId,
                     codeVerifier: codeVerifier,
                     baseUrl: baseUrl,
+                    clientSecret: clientSecret,
                     ct: ct);
 
                 if (tokenRes == null)
@@ -309,21 +404,41 @@ public static class McpOAuthEndpoints
             }
 
             return Results.BadRequest(new OAuthErrorResponse("unsupported_grant_type", $"Grant type '{grantType}' is not supported."));
-        }).AllowAnonymous();
+        }
+
+        app.MapPost("/oauth/token", HandleTokenPost).AllowAnonymous();
+        app.MapPost("/token", HandleTokenPost).AllowAnonymous();
     }
 
     public static string GetBaseUrl(HttpContext ctx)
     {
         var scheme = ctx.Request.Headers["X-Forwarded-Proto"].ToString();
-        if (string.IsNullOrWhiteSpace(scheme))
+        if (!string.IsNullOrWhiteSpace(scheme))
+        {
+            scheme = scheme.Split(',')[0].Trim();
+        }
+        else
         {
             scheme = ctx.Request.Scheme;
         }
 
         var host = ctx.Request.Headers["X-Forwarded-Host"].ToString();
-        if (string.IsNullOrWhiteSpace(host))
+        if (!string.IsNullOrWhiteSpace(host))
+        {
+            host = host.Split(',')[0].Trim();
+        }
+        else
         {
             host = ctx.Request.Host.Value;
+        }
+
+        // If accessed through external domain with TLS (non-local), force https if not already
+        if (!host.StartsWith("localhost", StringComparison.OrdinalIgnoreCase) &&
+            !host.StartsWith("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
+            !host.StartsWith("api:", StringComparison.OrdinalIgnoreCase) &&
+            !host.StartsWith("web:", StringComparison.OrdinalIgnoreCase))
+        {
+            scheme = "https";
         }
 
         return $"{scheme}://{host}{ctx.Request.PathBase}";

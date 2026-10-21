@@ -564,3 +564,40 @@ As respostas de erro seguem o padrão JSON-RPC:
 - `-32602` (*Invalid Params*): Argumento ausente ou formato inválido.
 - `-32601` (*Method Not Found*): Ferramenta não registrada.
 - `-32000` (*Server Error*): Falha de banco de dados ou erro de execução capturado e logado.
+
+---
+
+## 4. Integração com Google Gemini (Custom Connections / Gemini Apps)
+
+O servidor MCP do `social-worker` possui conformidade nativa com o **Google Gemini** para conexões personalizadas de ferramentas e agentes (conforme documentado na Central de Ajuda do Google no [Artigo 17209137 — Connect & manage custom apps for Gemini Apps](https://support.google.com/gemini/answer/17209137)).
+
+### 4.1 Requisitos e Endpoints de Conexão
+
+No Google Gemini (`gemini.google.com` ou Gemini Enterprise), acesse:
+**Configurações** > **Apps Conectados** (ou *Managed / Custom apps*) > **Adicionar app personalizado**.
+
+Informe o endpoint do servidor:
+- **URL do Servidor MCP**:
+  - `https://<seu-dominio>/mcp` ou `https://<seu-dominio>/api/mcp` (Streamable HTTP, recomendado pelo Google).
+  - Ou `https://<seu-dominio>/mcp/sse` (Server-Sent Events).
+
+### 4.2 Fluxo de Autenticação Automático (DCR)
+1. **Descoberta RFC 9728 & RFC 8414**:
+   O Gemini realiza uma requisição inicial ao endpoint. O servidor responde com o cabeçalho `WWW-Authenticate` e expõe os metadados em `/.well-known/oauth-protected-resource` e `/.well-known/oauth-authorization-server` (com espelhamento em `/mcp/.well-known/...` e `/api/mcp/.well-known/...`).
+2. **Registro Dinâmico (RFC 7591)**:
+   O Gemini envia uma requisição `POST /oauth/register`. O servidor emite credenciais dinâmicas (`client_id`, `client_secret`, métodos de autenticação `client_secret_post` e `client_secret_basic`).
+3. **Consentimento e PKCE**:
+   O usuário é redirecionado para a tela de autenticação do SocialWorker (`/oauth/authorize`). Após a inserção de usuário e senha, o código de autorização é redirecionado de volta para os domínios autorizados do Google (`*.googleusercontent.com`, `gemini.google.com`, `vertexaisearch.cloud.google.com`).
+4. **Troca de Token (RFC 6749)**:
+   O Gemini consome o código no `/oauth/token` suportando tanto PKCE S256 quanto autenticação confidencial via cabeçalho `Authorization: Basic base64(client_id:client_secret)`.
+
+### 4.3 Configuração Manual / Contingência
+Se a interface do Gemini solicitar credenciais manuais:
+- **Client ID**: `gemini` (ou `google`)
+- **Client Secret**: `secret_gemini` (ou `secret_google`)
+- **Authorization URL**: `https://<seu-dominio>/oauth/authorize`
+- **Token URL**: `https://<seu-dominio>/oauth/token`
+- **Escopos**: `mcp:tools mcp:read mcp:write`
+
+### 4.4 Utilização no Gemini
+Após a conexão, todas as 69 ferramentas do SocialWorker tornam-se acessíveis nas conversas e fluxos do Gemini, podendo ser invocadas diretamente ou marcadas com menção (ex: `@SocialWorker liste os rascunhos prontos para publicação`).

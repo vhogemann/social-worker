@@ -90,13 +90,14 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ## Model Context Protocol (MCP) & Authentication
 
 - Endpoint: `/api/mcp` (Stateless Streamable HTTP JSON-RPC 2.0), `/api/mcp/sse` (Server-Sent Events continuous stream), with aliases `/mcp` and `/mcp/sse`.
-- Tools (67): Complete catalog of 67 domain tools covering drafts, platform variants, media assets/templates, sources & image viewing (`view_image`) & video transcription, feed discovery & polling, workflows, queue/scheduling operations, accounts, reply agents, and monitored posts.
+- Tools (69): Complete catalog of 69 domain tools covering drafts, platform variants, media assets/templates, sources & image viewing (`view_image`) & video transcription, feed discovery & polling, workflows, queue/scheduling operations, accounts, reply agents, and monitored posts.
 - Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`, `socialworker://audits/{workflowId}`, `socialworker://media/{id}`.
-- Standard MCP Auth (Claude Compatible):
-  - RFC 9728 401 challenge emits `WWW-Authenticate: Bearer realm="mcp", resource_metadata="{baseUrl}/.well-known/oauth-protected-resource"`.
-  - RFC 8414 server metadata at `/.well-known/oauth-authorization-server` and OpenID alias.
-  - RFC 7591 Dynamic Client Registration at `POST /oauth/register`.
-  - OAuth 2.1 with PKCE S256 (`GET /oauth/authorize` always requiring re-authentication with username/password without trusting frontend cookies, `POST /oauth/token` with 1-hour JWT + 30-day refresh token). Scopes supported: `mcp:tools`, `mcp:read`, `mcp:write`.
+- Standard MCP Auth (Claude & Google Gemini Compatible):
+  - Google Gemini Custom Connections (Google Help 17209137): Full support for connecting via Gemini Custom Apps (`gemini.google.com/settings` or Enterprise) using Streamable HTTP (`/mcp` or `/api/mcp`), automatic discovery, pre-registered `gemini`/`google` client IDs, and dynamic client identity URLs (`accountlinking.google.com`).
+  - RFC 9728 401 challenge emits `WWW-Authenticate: Bearer realm="mcp", resource_metadata="{baseUrl}/.well-known/oauth-protected-resource"`. CORS exposes `WWW-Authenticate`.
+  - RFC 8414 server metadata at `/.well-known/oauth-authorization-server` and OpenID alias (with aliases under `/mcp/.well-known/...` and `/api/mcp/.well-known/...`).
+  - RFC 7591 Dynamic Client Registration at `POST /oauth/register` returning `client_id`, `client_secret`, and client expiration metadata.
+  - OAuth 2.1 with PKCE S256 & RFC 6749 Section 2.3.1 Client Authentication (`Authorization: Basic base64(client_id:client_secret)` or request body credentials). `GET /oauth/authorize` requires credential confirmation. `POST /oauth/token` issues 1-hour JWT + 30-day refresh token. Scopes supported: `mcp:tools`, `mcp:read`, `mcp:write`.
 - Legacy/Static Auth: `ApiKeyAuthenticationHandler` validates SHA-256 hashed keys (`sw_live_...`, `X-API-Key`, `?api_key=...`) routed through ASP.NET Core `PolicyScheme` ("Composite"). Dev key `sw_live_dev_admin_key_000000000000` seeded in development.
 
 ## Runtime and commands that matter most

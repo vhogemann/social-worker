@@ -35,7 +35,7 @@ public static class McpEndpoints
                 {
                     ctx.Response.StatusCode = 401;
                     ctx.Response.Headers.Append("WWW-Authenticate",
-                        $"Bearer realm=\"mcp\", resource_metadata=\"{baseUrl}/.well-known/oauth-protected-resource\"");
+                        $"Bearer realm=\"mcp\", resource_metadata=\"{baseUrl}{prefix}/.well-known/oauth-protected-resource\"");
                     return;
                 }
 
@@ -69,6 +69,10 @@ public static class McpEndpoints
 
             group.MapGet("/sse", HandleSse);
             group.MapGet("/", HandleSse);
+            group.MapMethods("/sse", new[] { "HEAD" }, () => Results.Ok());
+            group.MapMethods("/", new[] { "HEAD" }, () => Results.Ok());
+            group.MapMethods("/sse", new[] { "OPTIONS" }, () => Results.NoContent());
+            group.MapMethods("/", new[] { "OPTIONS" }, () => Results.NoContent());
 
             // 2. Client Message Endpoint (Standard MCP SSE Transport)
             group.MapPost("/message", async (
@@ -136,7 +140,7 @@ public static class McpEndpoints
                 {
                     var baseUrl = GetBaseUrl(ctx);
                     ctx.Response.Headers.Append("WWW-Authenticate",
-                        $"Bearer realm=\"mcp\", resource_metadata=\"{baseUrl}/.well-known/oauth-protected-resource\"");
+                        $"Bearer realm=\"mcp\", resource_metadata=\"{baseUrl}{prefix}/.well-known/oauth-protected-resource\"");
                     return Results.Unauthorized();
                 }
 
@@ -152,7 +156,6 @@ public static class McpEndpoints
                 HttpContext ctx,
                 ClaimsPrincipal principal,
                 McpServer mcpServer,
-                McpRequest request,
                 CancellationToken ct)
             {
                 var userId = principal.GetUserId();
@@ -160,8 +163,28 @@ public static class McpEndpoints
                 {
                     var baseUrl = GetBaseUrl(ctx);
                     ctx.Response.Headers.Append("WWW-Authenticate",
-                        $"Bearer realm=\"mcp\", resource_metadata=\"{baseUrl}/.well-known/oauth-protected-resource\"");
+                        $"Bearer realm=\"mcp\", resource_metadata=\"{baseUrl}{prefix}/.well-known/oauth-protected-resource\"");
                     return Results.Unauthorized();
+                }
+
+                if (ctx.Request.ContentLength == 0)
+                {
+                    return Results.Ok();
+                }
+
+                McpRequest? request;
+                try
+                {
+                    request = await ctx.Request.ReadFromJsonAsync<McpRequest>(cancellationToken: ct);
+                }
+                catch
+                {
+                    return Results.BadRequest(new ApiErrorResponse("Invalid JSON-RPC request."));
+                }
+
+                if (request == null)
+                {
+                    return Results.BadRequest(new ApiErrorResponse("Invalid JSON-RPC request."));
                 }
 
                 var response = await mcpServer.HandleRequestAsync(request, userId.Value, ct);
@@ -172,20 +195,5 @@ public static class McpEndpoints
         }
     }
 
-    public static string GetBaseUrl(HttpContext ctx)
-    {
-        var scheme = ctx.Request.Headers["X-Forwarded-Proto"].ToString();
-        if (string.IsNullOrWhiteSpace(scheme))
-        {
-            scheme = ctx.Request.Scheme;
-        }
-
-        var host = ctx.Request.Headers["X-Forwarded-Host"].ToString();
-        if (string.IsNullOrWhiteSpace(host))
-        {
-            host = ctx.Request.Host.Value;
-        }
-
-        return $"{scheme}://{host}{ctx.Request.PathBase}";
-    }
+    public static string GetBaseUrl(HttpContext ctx) => Auth.McpOAuthEndpoints.GetBaseUrl(ctx);
 }

@@ -46,8 +46,9 @@ public sealed class McpOAuthService
         string code,
         string redirectUri,
         string clientId,
-        string codeVerifier,
+        string? codeVerifier,
         string baseUrl,
+        string? clientSecret = null,
         CancellationToken ct = default)
     {
         var entry = _store.ConsumeAuthorizationCode(code);
@@ -66,9 +67,30 @@ public sealed class McpOAuthService
             return (null, "invalid_grant", "Redirect URI does not match the authorization request.");
         }
 
-        if (!McpOAuthStore.VerifyPkce(codeVerifier, entry.CodeChallenge, entry.CodeChallengeMethod))
+        // Validate client secret if provided or if client requires secret
+        if (!string.IsNullOrWhiteSpace(clientSecret))
         {
-            return (null, "invalid_grant", "PKCE code verifier verification failed.");
+            if (!_store.ValidateClientSecret(clientId, clientSecret))
+            {
+                return (null, "invalid_client", "Client secret verification failed.");
+            }
+        }
+
+        // Verify PKCE if a code challenge was established during authorization
+        if (!string.IsNullOrWhiteSpace(entry.CodeChallenge))
+        {
+            if (string.IsNullOrWhiteSpace(codeVerifier) ||
+                !McpOAuthStore.VerifyPkce(codeVerifier, entry.CodeChallenge, entry.CodeChallengeMethod))
+            {
+                return (null, "invalid_grant", "PKCE code verifier verification failed.");
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(codeVerifier))
+        {
+            if (!McpOAuthStore.VerifyPkce(codeVerifier, entry.CodeChallenge, entry.CodeChallengeMethod))
+            {
+                return (null, "invalid_grant", "PKCE code verifier verification failed.");
+            }
         }
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == entry.UserId && u.IsActive, ct);

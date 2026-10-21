@@ -14,6 +14,9 @@ public sealed class McpOAuthStore
     {
         var defaultClients = new[]
         {
+            new OAuthClientInfo("gemini", "Google Gemini", Array.Empty<string>(), DateTime.UtcNow, "secret_gemini"),
+            new OAuthClientInfo("google", "Google Gemini", Array.Empty<string>(), DateTime.UtcNow, "secret_google"),
+            new OAuthClientInfo("google-gemini", "Google Gemini", Array.Empty<string>(), DateTime.UtcNow, "secret_google_gemini"),
             new OAuthClientInfo("claude", "Claude", Array.Empty<string>(), DateTime.UtcNow),
             new OAuthClientInfo("claude-desktop", "Claude Desktop", Array.Empty<string>(), DateTime.UtcNow),
             new OAuthClientInfo("claude-code", "Claude Code", Array.Empty<string>(), DateTime.UtcNow),
@@ -26,13 +29,16 @@ public sealed class McpOAuthStore
         }
     }
 
-    public OAuthClientInfo RegisterClient(string? clientName, string[]? redirectUris)
+    public OAuthClientInfo RegisterClient(string? clientName, string[]? redirectUris, string? clientSecret = null)
     {
         var clientId = $"client_{Guid.NewGuid():N}";
         var name = string.IsNullOrWhiteSpace(clientName) ? "MCP Client" : clientName.Trim();
         var uris = redirectUris ?? Array.Empty<string>();
+        var secret = !string.IsNullOrWhiteSpace(clientSecret)
+            ? clientSecret
+            : $"cs_{Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()}";
 
-        var client = new OAuthClientInfo(clientId, name, uris, DateTime.UtcNow);
+        var client = new OAuthClientInfo(clientId, name, uris, DateTime.UtcNow, secret);
         _clients[clientId] = client;
         return client;
     }
@@ -40,7 +46,48 @@ public sealed class McpOAuthStore
     public OAuthClientInfo? GetClient(string clientId)
     {
         if (string.IsNullOrWhiteSpace(clientId)) return null;
-        return _clients.TryGetValue(clientId, out var client) ? client : null;
+
+        if (_clients.TryGetValue(clientId, out var client))
+        {
+            return client;
+        }
+
+        // Support dynamic Google Gemini client identity URLs (e.g. accountlinking.google.com)
+        if (clientId.StartsWith("https://accountlinking.google.com", StringComparison.OrdinalIgnoreCase) ||
+            clientId.Contains("google", StringComparison.OrdinalIgnoreCase) ||
+            clientId.Contains("gemini", StringComparison.OrdinalIgnoreCase))
+        {
+            var geminiClient = new OAuthClientInfo(
+                clientId,
+                "Google Gemini",
+                new[]
+                {
+                    "https://oauth-redirect.googleusercontent.com",
+                    "https://gemini.google.com/oauth-redirect",
+                    "https://vertexaisearch.cloud.google.com/oauth-redirect"
+                },
+                DateTime.UtcNow,
+                $"cs_{Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()}");
+
+            _clients[clientId] = geminiClient;
+            return geminiClient;
+        }
+
+        return null;
+    }
+
+    public bool ValidateClientSecret(string clientId, string? clientSecret)
+    {
+        if (string.IsNullOrWhiteSpace(clientId)) return false;
+        if (!_clients.TryGetValue(clientId, out var client)) return false;
+
+        // If client has no secret configured, secret is not required
+        if (string.IsNullOrWhiteSpace(client.ClientSecret)) return true;
+
+        if (string.IsNullOrWhiteSpace(clientSecret)) return false;
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(client.ClientSecret),
+            Encoding.UTF8.GetBytes(clientSecret));
     }
 
     public string CreateAuthorizationCode(

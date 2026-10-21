@@ -89,10 +89,11 @@ static partial class ServiceCollectionExtensions
                     if (context.Request.Path.StartsWithSegments("/api/mcp") || context.Request.Path.StartsWithSegments("/mcp"))
                     {
                         var baseUrl = Features.Mcp.Auth.McpOAuthEndpoints.GetBaseUrl(context.HttpContext);
+                        var mcpPath = context.Request.Path.StartsWithSegments("/api/mcp") ? "/api/mcp" : "/mcp";
                         context.HandleResponse();
                         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                         context.Response.Headers.Append("WWW-Authenticate",
-                            $"Bearer realm=\"mcp\", resource_metadata=\"{baseUrl}/.well-known/oauth-protected-resource\"");
+                            $"Bearer realm=\"mcp\", resource_metadata=\"{baseUrl}{mcpPath}/.well-known/oauth-protected-resource\"");
                     }
                     return Task.CompletedTask;
                 }
@@ -109,6 +110,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
             .AllowAnyOrigin()
             .AllowAnyHeader()
-            .AllowAnyMethod()));
+            .AllowAnyMethod()
+            .WithExposedHeaders("WWW-Authenticate")));
     }
 }

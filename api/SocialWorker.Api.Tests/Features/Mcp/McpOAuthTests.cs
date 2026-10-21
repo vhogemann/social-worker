@@ -45,6 +45,9 @@ public sealed class McpOAuthTests : SqliteTestBase
     [Fact]
     public void McpOAuthStore_HasDefaultClientsConfigured()
     {
+        Assert.NotNull(_store.GetClient("gemini"));
+        Assert.NotNull(_store.GetClient("google"));
+        Assert.NotNull(_store.GetClient("google-gemini"));
         Assert.NotNull(_store.GetClient("claude"));
         Assert.NotNull(_store.GetClient("claude-desktop"));
         Assert.NotNull(_store.GetClient("claude-code"));
@@ -260,5 +263,127 @@ public sealed class McpOAuthTests : SqliteTestBase
 
         Assert.Null(res);
         Assert.Equal("invalid_grant", err);
+    }
+
+    [Fact]
+    public void McpOAuthStore_DynamicGeminiClientUrl_AutoRegistersAndReturnsFriendlyName()
+    {
+        var clientUrl = "https://accountlinking.google.com/clientidmetadata/test-gemini-spark";
+        var client = _store.GetClient(clientUrl);
+
+        Assert.NotNull(client);
+        Assert.Equal(clientUrl, client.ClientId);
+        Assert.Equal("Google Gemini", client.ClientName);
+        Assert.NotEmpty(client.RedirectUris);
+        Assert.Contains("https://gemini.google.com/oauth-redirect", client.RedirectUris);
+        Assert.NotNull(client.ClientSecret);
+    }
+
+    [Fact]
+    public void McpOAuthStore_RegisterClient_GeneratesSecretAndValidates()
+    {
+        var client = _store.RegisterClient("Google Gemini Custom App", new[] { "https://oauth-redirect.googleusercontent.com/r/custom" });
+
+        Assert.NotNull(client);
+        Assert.StartsWith("client_", client.ClientId);
+        Assert.NotNull(client.ClientSecret);
+        Assert.StartsWith("cs_", client.ClientSecret);
+
+        Assert.True(_store.ValidateClientSecret(client.ClientId, client.ClientSecret));
+        Assert.False(_store.ValidateClientSecret(client.ClientId, "wrong_secret"));
+    }
+
+    [Fact]
+    public async Task ExchangeAuthorizationCodeAsync_ValidClientSecret_Succeeds()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var oauthService = CreateOAuthService(db);
+
+        var client = _store.RegisterClient("Gemini App", new[] { "https://oauth-redirect.googleusercontent.com/r/123" });
+
+        var code = _store.CreateAuthorizationCode(
+            clientId: client.ClientId,
+            redirectUri: "https://oauth-redirect.googleusercontent.com/r/123",
+            codeChallenge: "",
+            codeChallengeMethod: "",
+            userId: user.Id,
+            scope: "mcp:tools");
+
+        var (res, err, _) = await oauthService.ExchangeAuthorizationCodeAsync(
+            code: code,
+            redirectUri: "https://oauth-redirect.googleusercontent.com/r/123",
+            clientId: client.ClientId,
+            codeVerifier: null,
+            baseUrl: "https://social.example.com",
+            clientSecret: client.ClientSecret,
+            ct: CancellationToken.None);
+
+        Assert.Null(err);
+        Assert.NotNull(res);
+        Assert.NotNull(res.AccessToken);
+        Assert.Equal("Bearer", res.TokenType);
+    }
+
+    [Fact]
+    public async Task ExchangeAuthorizationCodeAsync_InvalidClientSecret_Fails()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var oauthService = CreateOAuthService(db);
+
+        var client = _store.RegisterClient("Gemini App", new[] { "https://oauth-redirect.googleusercontent.com/r/123" });
+
+        var code = _store.CreateAuthorizationCode(
+            clientId: client.ClientId,
+            redirectUri: "https://oauth-redirect.googleusercontent.com/r/123",
+            codeChallenge: "",
+            codeChallengeMethod: "",
+            userId: user.Id,
+            scope: "mcp:tools");
+
+        var (res, err, _) = await oauthService.ExchangeAuthorizationCodeAsync(
+            code: code,
+            redirectUri: "https://oauth-redirect.googleusercontent.com/r/123",
+            clientId: client.ClientId,
+            codeVerifier: null,
+            baseUrl: "https://social.example.com",
+            clientSecret: "wrong_client_secret",
+            ct: CancellationToken.None);
+
+        Assert.Null(res);
+        Assert.Equal("invalid_client", err);
+    }
+
+    [Fact]
+    public async Task ExchangeAuthorizationCodeAsync_GeminiWithPkceAndClientSecret_Succeeds()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var oauthService = CreateOAuthService(db);
+
+        var (verifier, challenge) = GeneratePkce();
+        var client = _store.RegisterClient("Gemini App", new[] { "https://gemini.google.com/oauth-redirect" });
+
+        var code = _store.CreateAuthorizationCode(
+            clientId: client.ClientId,
+            redirectUri: "https://gemini.google.com/oauth-redirect",
+            codeChallenge: challenge,
+            codeChallengeMethod: "S256",
+            userId: user.Id,
+            scope: "mcp:tools");
+
+        var (res, err, _) = await oauthService.ExchangeAuthorizationCodeAsync(
+            code: code,
+            redirectUri: "https://gemini.google.com/oauth-redirect",
+            clientId: client.ClientId,
+            codeVerifier: verifier,
+            baseUrl: "https://social.example.com",
+            clientSecret: client.ClientSecret,
+            ct: CancellationToken.None);
+
+        Assert.Null(err);
+        Assert.NotNull(res);
+        Assert.NotNull(res.AccessToken);
     }
 }
