@@ -307,6 +307,8 @@ public sealed class McpServerTests : SqliteTestBase
         var result = Assert.IsType<McpToolCallResult>(response.Result);
         Assert.False(result.IsError);
         Assert.Contains("Draft created successfully", result.Content[0].Text);
+        Assert.Contains("\"url\":", result.Content[0].Text);
+        Assert.Contains("/draft/", result.Content[0].Text);
 
         var drafts = db.Drafts.ToList();
         Assert.Single(drafts);
@@ -2207,6 +2209,8 @@ public sealed class McpServerTests : SqliteTestBase
         Assert.False(result.IsError);
         var doc = JsonDocument.Parse(result.Content[0].Text);
         Assert.True(doc.RootElement.GetProperty("isPublished").GetBoolean());
+        Assert.True(doc.RootElement.TryGetProperty("url", out var draftUrlProp));
+        Assert.Contains($"/draft/{draft.Id}", draftUrlProp.GetString());
         var urls = doc.RootElement.GetProperty("publishedUrls").EnumerateArray().Select(u => u.GetString()).ToList();
         Assert.Contains("https://www.threads.net/@tester/post/post-remote-999", urls);
     }

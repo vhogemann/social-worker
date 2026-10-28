@@ -42,6 +42,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<OAuthStateService>();
         builder.Services.AddScoped<AccountUpsertService>();
 
+        builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<Features.Mcp.Services.McpSessionManager>();
         builder.Services.AddScoped<Features.Mcp.Services.McpToolRegistry>();
         builder.Services.AddScoped<Features.Mcp.Services.McpResourceRegistry>();

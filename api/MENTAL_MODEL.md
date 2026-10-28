@@ -29,7 +29,7 @@ api/
 │   │   └── Migrations/                # Version-controlled EF Core SQL migrations
 │   ├── Features/                      # Vertical slice feature folders
 │   └── Infrastructure/                # Cross-cutting concerns (Auth, Llm, Markdown, Platforms, Security)
-└── SocialWorker.Api.Tests/            # Comprehensive unit and integration test suite (825 tests)
+└── SocialWorker.Api.Tests/            # Comprehensive unit and integration test suite (915 tests)
 ```
 
 ### Entry & Startup Sequence
@@ -81,7 +81,7 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - `BackgroundTaskRetentionService`: Prunes task logs, dead runs, and succeeded/expired schedule queue items older than 7 days.
 - **`Mcp/`**: Model Context Protocol integration.
   - Stateless JSON-RPC 2.0 at `POST /api/mcp` and streaming Server-Sent Events at `GET /api/mcp/sse`.
-  - Exposes 35 tools covering drafts, sources, workflows, feeds, schedules, calendar events, accounts, and reply agents (`list_reply_agents`, `create_reply_agent`, `update_reply_agent`, `assign_reply_agent`, `get_reply_agent`, `configure_reply_agent`, `trigger_reply_check`, `list_comment_audits`, `reply_to_comment`).
+  - Exposes 74 tools across 9 domains covering drafts, platform variants, media assets/templates, AI image generation (`generate_image`), sources, image inspection (`view_image`), video transcription, feeds, workflows, schedules, calendar events, accounts, reply agents, and monitored posts.
 
 ### 2. Static Entity Factories & Invariant Protection
 
@@ -104,7 +104,7 @@ All commands must be executed within Docker containers via the `tooling` profile
 # Build API project
 docker compose --profile tooling run --rm dotnet build
 
-# Run full test suite (697 tests)
+# Run full test suite (915 tests)
 docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
 
 # Run single test class or filter

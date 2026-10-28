@@ -70,8 +70,8 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (895 tests): api/SocialWorker.Api.Tests/
-- Web tests (Vitest, 504 tests in 94 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- API unit/integration tests (915 tests): api/SocialWorker.Api.Tests/
+- Web tests (Vitest, 516 tests in 97 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - Image Engine tests (Vitest, 14 tests in 3 test files): image-engine/tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh
@@ -90,7 +90,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ## Model Context Protocol (MCP) & Authentication
 
 - Endpoint: `/api/mcp` (Stateless Streamable HTTP JSON-RPC 2.0), `/api/mcp/sse` (Server-Sent Events continuous stream), with aliases `/mcp` and `/mcp/sse`.
-- Tools (69): Complete catalog of 69 domain tools covering drafts, platform variants, media assets/templates, sources & image viewing (`view_image`) & video transcription, feed discovery & polling, workflows, queue/scheduling operations, accounts, reply agents, and monitored posts.
+- Tools (74): Complete catalog of 74 domain tools covering drafts, platform variants, media assets/templates/AI image generation (`generate_image`), sources & image viewing (`view_image`) & video transcription, feed discovery & polling, workflows, queue/scheduling operations, accounts, reply agents, and monitored posts.
 - Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`, `socialworker://audits/{workflowId}`, `socialworker://media/{id}`.
 - Standard MCP Auth (Claude & Google Gemini Compatible):
   - Google Gemini Custom Connections (Google Help 17209137): Full support for connecting via Gemini Custom Apps (`gemini.google.com/settings` or Enterprise) using Streamable HTTP (`/mcp` or `/api/mcp`), automatic discovery, pre-registered `gemini`/`google` client IDs, and dynamic client identity URLs (`accountlinking.google.com`).

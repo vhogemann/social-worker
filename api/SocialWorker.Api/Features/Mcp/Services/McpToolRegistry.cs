@@ -137,6 +137,43 @@ public sealed class McpToolRegistry
     private ImageGenerationService? ResolveImageGenerationService() => _imageGenerationService ?? _serviceProvider?.GetService<ImageGenerationService>();
     private TemplateGeneratorService? ResolveTemplateGeneratorService() => _templateGeneratorService ?? _serviceProvider?.GetService<TemplateGeneratorService>();
 
+    private string GetAppBaseUrl()
+    {
+        var config = _serviceProvider?.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
+        var configured = config?["App:BaseUrl"]
+            ?? config?["APP_BASE_URL"]
+            ?? config?["App:PublicBaseUrl"]
+            ?? config?["APP__PUBLICBASEURL"]
+            ?? config?["MetaThreads:PublicBaseUrl"]
+            ?? config?["METATHREADS__PUBLICBASEURL"];
+
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured.TrimEnd('/');
+        }
+
+        var httpContextAccessor = _serviceProvider?.GetService<Microsoft.AspNetCore.Http.IHttpContextAccessor>();
+        var ctx = httpContextAccessor?.HttpContext;
+        if (ctx != null)
+        {
+            try
+            {
+                var url = Auth.McpOAuthEndpoints.GetBaseUrl(ctx);
+                if (!string.IsNullOrWhiteSpace(url))
+                {
+                    return url.TrimEnd('/');
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        return "http://localhost:8100";
+    }
+
+    private string GetDraftUrl(Guid draftId) => $"{GetAppBaseUrl()}/draft/{draftId}";
+
     public List<McpToolDefinition> ListTools()
     {
         return new List<McpToolDefinition>
@@ -1146,6 +1183,7 @@ public sealed class McpToolRegistry
                 d.AutomationWorkflowTitle,
                 d.DiscardReason,
                 d.RelevanceScore,
+                Url = GetDraftUrl(d.Id),
                 IsPublished = isPub,
                 PublishedUrls = urls,
                 d.UpdatedAt
@@ -1220,6 +1258,7 @@ public sealed class McpToolRegistry
             draft.Content,
             draft.TargetPlatform,
             draft.CanonicalDraftId,
+            url = GetDraftUrl(draft.Id),
             draft.Threads,
             MediaAssets = mediaWithTags,
             draft.BlueskyReplyTarget,
@@ -1256,13 +1295,15 @@ public sealed class McpToolRegistry
         }
 
         var result = await _draftsService.CreateDraftAsync(userId, title, content, platform, accountId, ct);
+        var draftUrl = GetDraftUrl(result.Id);
         return TextResult(JsonSerializer.Serialize(new
         {
             success = true,
             id = result.Id,
             title = result.Title,
             platform = result.TargetPlatform,
-            message = $"Draft created successfully with ID: {result.Id}"
+            url = draftUrl,
+            message = $"Draft created successfully with ID: {result.Id}. URL: {draftUrl}"
         }, JsonOptions));
     }
 
@@ -1277,7 +1318,8 @@ public sealed class McpToolRegistry
         var content = args.TryGetProperty("content", out var c) ? c.GetString() : null;
 
         var result = await _draftsService.UpdateDraftAsync(userId, draftId, title, content, null, null, null, null, ct);
-        return TextResult($"Draft {result.Id} updated successfully.");
+        var draftUrl = GetDraftUrl(result.Id);
+        return TextResult($"Draft {result.Id} updated successfully. URL: {draftUrl}");
     }
 
     private async Task<McpToolCallResult> HandleDeleteDraftAsync(Guid userId, JsonElement args, CancellationToken ct)
@@ -4514,12 +4556,14 @@ public sealed class McpToolRegistry
         }
 
         await _db.SaveChangesAsync(ct);
+        var draftUrl = GetDraftUrl(draftId);
         return TextResult(JsonSerializer.Serialize(new
         {
             success = true,
             draftId,
+            url = draftUrl,
             variants = createdVariants,
-            message = $"Platform variants configured for draft {draftId} across {createdVariants.Count} platforms."
+            message = $"Platform variants configured for draft {draftId} across {createdVariants.Count} platforms. URL: {draftUrl}"
         }, JsonOptions));
     }
 

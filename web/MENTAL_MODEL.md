@@ -95,7 +95,7 @@ API contracts are hand-synced with the .NET backend:
 All web build and test commands run inside Docker via the `tooling` profile:
 
 ```bash
-# Run Vitest test suite (474 tests in 91 files)
+# Run Vitest test suite (516 tests in 97 files)
 docker compose --profile tooling run --rm web-test
 
 # Run TypeScript type check and production build
