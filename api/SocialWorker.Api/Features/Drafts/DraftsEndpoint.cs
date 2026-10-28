@@ -29,6 +29,7 @@ public static class DraftsEndpoint
             bool? isPublished,
             DateTime? since,
             int? limit,
+            int? offset,
             bool? includeDiscarded,
             CancellationToken ct) =>
         {
@@ -42,6 +43,7 @@ public static class DraftsEndpoint
                 IsPublished: isPublished,
                 Since: since,
                 Limit: limit,
+                Offset: offset,
                 IncludeDiscarded: includeDiscarded
             );
 

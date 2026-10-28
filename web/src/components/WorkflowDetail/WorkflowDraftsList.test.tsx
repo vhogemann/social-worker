@@ -181,4 +181,37 @@ describe("WorkflowDraftsList", () => {
     fireEvent.click(threadBadge);
     expect(mockNavigate).toHaveBeenCalledWith("/workflows/wf-1/draft/draft-active-1/variant/var-1");
   });
+
+  it("paginates drafts when total items exceed page size (12)", () => {
+    const manyDrafts = Array.from({ length: 15 }, (_, i) => ({
+      id: `wf-draft-${i + 1}`,
+      title: `Workflow Draft ${i + 1}`,
+      status: "Draft",
+      targetPlatform: null,
+      threads: [],
+      createdAt: `2026-08-${String(i + 1).padStart(2, "0")}T10:00:00Z`,
+      updatedAt: `2026-08-${String(i + 1).padStart(2, "0")}T10:00:00Z`,
+    }));
+
+    render(
+      <WorkflowDraftsList
+        workflowId="wf-1"
+        drafts={manyDrafts}
+        onTrigger={onTrigger}
+      />
+    );
+
+    expect(screen.getByText("Workflow Draft 1")).toBeInTheDocument();
+    expect(screen.getByText("Workflow Draft 12")).toBeInTheDocument();
+    expect(screen.queryByText("Workflow Draft 13")).not.toBeInTheDocument();
+
+    expect(screen.getByText("Page 1 of 2 (15 items)")).toBeInTheDocument();
+    const nextBtn = screen.getByRole("button", { name: /next/i });
+    fireEvent.click(nextBtn);
+
+    expect(screen.getByText("Workflow Draft 13")).toBeInTheDocument();
+    expect(screen.getByText("Workflow Draft 15")).toBeInTheDocument();
+    expect(screen.queryByText("Workflow Draft 1")).not.toBeInTheDocument();
+    expect(screen.getByText("Page 2 of 2 (15 items)")).toBeInTheDocument();
+  });
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -12,6 +12,7 @@ import { CreateDraftModal } from "../DraftList/CreateDraftModal";
 import { Button } from "../common/Button";
 import { Input } from "../common/Input";
 import { EmptyState } from "../common/EmptyState";
+import { Pagination } from "../common/Pagination";
 
 type FilterTab = "all" | "standalone" | "workflow" | "archived" | "discarded";
 
@@ -28,6 +29,13 @@ export const DraftsPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, search]);
 
   useEffect(() => {
     if (activeTab === "discarded") {
@@ -90,8 +98,32 @@ export const DraftsPage: React.FC = () => {
     });
   }, [drafts, activeTab, search]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredDrafts.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(Math.max(1, totalPages));
+    }
+  }, [page, totalPages]);
+
+  const paginatedDrafts = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredDrafts.slice(start, start + pageSize);
+  }, [filteredDrafts, page, pageSize]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    if (typeof containerRef.current?.scrollTo === "function") {
+      containerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto bg-bg p-8 flex flex-col gap-6" data-testid="drafts-page">
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-y-auto bg-bg p-8 flex flex-col gap-6"
+      data-testid="drafts-page"
+    >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-foreground">Drafts Library</h1>
@@ -197,19 +229,28 @@ export const DraftsPage: React.FC = () => {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredDrafts.map((draft) => (
-            <DraftCard
-              key={draft.id}
-              draft={draft}
-              onSelect={handleSelectDraft}
-              onSelectVariant={handleSelectVariant}
-              onArchive={archiveDraft}
-              onUnarchive={unarchiveDraft}
-              onDelete={deleteDraft}
-              onRename={(id, title) => updateDraftTitle(id, title)}
-            />
-          ))}
+        <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedDrafts.map((draft) => (
+              <DraftCard
+                key={draft.id}
+                draft={draft}
+                onSelect={handleSelectDraft}
+                onSelectVariant={handleSelectVariant}
+                onArchive={archiveDraft}
+                onUnarchive={unarchiveDraft}
+                onDelete={deleteDraft}
+                onRename={(id, title) => updateDraftTitle(id, title)}
+              />
+            ))}
+          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={filteredDrafts.length}
+            onPageChange={handlePageChange}
+            testId="drafts-pagination"
+          />
         </div>
       )}
 

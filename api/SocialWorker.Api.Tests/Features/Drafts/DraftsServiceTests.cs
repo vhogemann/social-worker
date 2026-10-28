@@ -607,6 +607,45 @@ public sealed class DraftsServiceTests : SqliteTestBase
         Assert.Contains(filteredList, d => d.Id == discardedDraft.Id);
         Assert.DoesNotContain(filteredList, d => d.Id == normalDraft.Id);
     }
+
+    [Fact]
+    public async Task GetDraftsForUserAsync_Supports_OffsetAndLimit_Pagination()
+    {
+        using var db = CreateDbContext();
+        db.Database.EnsureCreated();
+        var (_, service, user) = await CreateServiceAsync(db);
+
+        db.Drafts.RemoveRange(db.Drafts.Where(d => d.UserId == user.Id));
+        await db.SaveChangesAsync();
+
+        var now = DateTime.UtcNow;
+        for (int i = 0; i < 5; i++)
+        {
+            db.Drafts.Add(new Draft
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Title = $"Draft {i}",
+                Status = DraftStatus.Editing,
+                UpdatedAt = now.AddMinutes(i)
+            });
+        }
+        await db.SaveChangesAsync();
+
+        var page1 = await service.GetDraftsForUserAsync(user.Id, new DraftQueryFilter(Limit: 2, Offset: 0));
+        Assert.Equal(2, page1.Count);
+        Assert.Equal("Draft 4", page1[0].Title);
+        Assert.Equal("Draft 3", page1[1].Title);
+
+        var page2 = await service.GetDraftsForUserAsync(user.Id, new DraftQueryFilter(Limit: 2, Offset: 2));
+        Assert.Equal(2, page2.Count);
+        Assert.Equal("Draft 2", page2[0].Title);
+        Assert.Equal("Draft 1", page2[1].Title);
+
+        var page3 = await service.GetDraftsForUserAsync(user.Id, new DraftQueryFilter(Limit: 2, Offset: 4));
+        Assert.Single(page3);
+        Assert.Equal("Draft 0", page3[0].Title);
+    }
 }
 
 /// <summary>

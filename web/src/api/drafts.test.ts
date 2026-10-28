@@ -66,6 +66,14 @@ describe("drafts API", () => {
       expect(result[0].id).toBe("d1");
     });
 
+    it("appends query parameters including pagination limit and offset", async () => {
+      mockApiFetch.mockResolvedValueOnce(new Response(JSON.stringify([makeDraft()]), { status: 200 }));
+      await fetchDrafts({ limit: 12, offset: 24, status: "Draft" });
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/drafts?status=Draft&limit=12&offset=24")
+      );
+    });
+
     it("throws on failure", async () => {
       mockApiFetch.mockResolvedValueOnce(new Response("{}", { status: 500 }));
       await expect(fetchDrafts()).rejects.toThrow("fetchDrafts failed");

@@ -7,6 +7,7 @@ import { Button } from "../common/Button";
 import { Input } from "../common/Input";
 import { EmptyState } from "../common/EmptyState";
 import { Badge } from "../common/Badge";
+import { Pagination } from "../common/Pagination";
 import { getPlatformLabel } from "../../config/platformBadges";
 
 type FilterTab = "all" | "discarded" | "archived";
@@ -35,6 +36,12 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [activeTab, search]);
 
   const failedDraftsCount = drafts.filter((d) => d.status === "Failed").length;
   const activeCount = useMemo(
@@ -78,6 +85,19 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
       return true;
     });
   }, [drafts, activeTab, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredDrafts.length / pageSize));
+
+  React.useEffect(() => {
+    if (page > totalPages) {
+      setPage(Math.max(1, totalPages));
+    }
+  }, [page, totalPages]);
+
+  const paginatedDrafts = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredDrafts.slice(start, start + pageSize);
+  }, [filteredDrafts, page, pageSize]);
 
   const handleOpenDraft = (draftId: string) => {
     if (workflowId) {
@@ -249,96 +269,105 @@ export const WorkflowDraftsList: React.FC<WorkflowDraftsListProps> = ({
           }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredDrafts.map((draft) => {
-            const isFailed = draft.status === "Failed";
-            const isDiscarded = draft.status === "Discarded";
-            const isRetryingThis = retryingDraftId === draft.id;
+        <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedDrafts.map((draft) => {
+              const isFailed = draft.status === "Failed";
+              const isDiscarded = draft.status === "Discarded";
+              const isRetryingThis = retryingDraftId === draft.id;
 
-            return (
-              <div
-                key={draft.id}
-                onClick={() => handleOpenDraft(draft.id)}
-                className={`bg-panel border rounded-xl p-5 flex flex-col justify-between transition hover:shadow-md cursor-pointer group ${
-                  isFailed
-                    ? "border-red-500/30 hover:border-red-500/60 bg-red-950/10"
-                    : isDiscarded
-                    ? "border-amber-500/30 hover:border-amber-500/50 bg-amber-950/10"
-                    : "border-border hover:border-zinc-600"
-                }`}
-                data-testid="workflow-draft-card"
-              >
-                <div className="flex flex-col gap-3">
-                  <div className="flex justify-between items-start gap-2">
-                    <h3 className="text-sm font-bold text-foreground line-clamp-2 group-hover:text-accent transition">
-                      {draft.title}
-                    </h3>
-                    {isFailed && onRetryDraft && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRetryDraft(draft.id);
-                        }}
-                        disabled={isRetryingThis}
-                        data-testid={`workflow-draft-retry-btn-${draft.id}`}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-medium text-amber-400 bg-amber-400/10 border border-amber-400/20 hover:bg-amber-400/20 transition cursor-pointer flex-shrink-0"
-                        title="Retry draft generation"
-                      >
-                        <FontAwesomeIcon icon={faRotateRight} spin={isRetryingThis} className="text-[10px]" />
-                        <span>Retry</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {isDiscarded && draft.discardReason && (
-                    <p className="text-xs text-muted/90 line-clamp-2 italic bg-bg/60 p-2 rounded border border-border/60">
-                      "{draft.discardReason}"
-                    </p>
-                  )}
-
-                  {/* Platform Thread Badges & Status */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {isFailed && (
-                      <Badge variant="danger" data-testid="workflow-draft-failed-badge">
-                        Failed
-                      </Badge>
-                    )}
-                    {isDiscarded && (
-                      <Badge variant="warning" data-testid="workflow-draft-discarded-badge" className="border-amber-500/40 text-amber-300 bg-amber-500/10">
-                        Discarded {draft.relevanceScore != null ? `(${draft.relevanceScore}/10)` : ""}
-                      </Badge>
-                    )}
-                    {draft.threads.length === 0 ? (
-                      !isFailed && !isDiscarded && <Badge variant="neutral">{draft.status}</Badge>
-                    ) : (
-                      draft.threads.map((thread, idx) => (
+              return (
+                <div
+                  key={draft.id}
+                  onClick={() => handleOpenDraft(draft.id)}
+                  className={`bg-panel border rounded-xl p-5 flex flex-col justify-between transition hover:shadow-md cursor-pointer group ${
+                    isFailed
+                      ? "border-red-500/30 hover:border-red-500/60 bg-red-950/10"
+                      : isDiscarded
+                      ? "border-amber-500/30 hover:border-amber-500/50 bg-amber-950/10"
+                      : "border-border hover:border-zinc-600"
+                  }`}
+                  data-testid="workflow-draft-card"
+                >
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-between items-start gap-2">
+                      <h3 className="text-sm font-bold text-foreground line-clamp-2 group-hover:text-accent transition">
+                        {draft.title}
+                      </h3>
+                      {isFailed && onRetryDraft && (
                         <button
                           type="button"
-                          key={idx}
-                          onClick={(e) => handleOpenVariant(e, draft.id, thread.variantId)}
-                          data-testid={`workflow-draft-thread-${thread.platform.toLowerCase()}`}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-medium transition cursor-pointer hover:scale-105 ${
-                            thread.stage === "Sent"
-                              ? "bg-green-500/10 text-green-400 border border-green-500/20 hover:border-green-400"
-                              : "bg-bg text-foreground border border-border hover:border-accent"
-                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRetryDraft(draft.id);
+                          }}
+                          disabled={isRetryingThis}
+                          data-testid={`workflow-draft-retry-btn-${draft.id}`}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-medium text-amber-400 bg-amber-400/10 border border-amber-400/20 hover:bg-amber-400/20 transition cursor-pointer flex-shrink-0"
+                          title="Retry draft generation"
                         >
-                          <span>{getPlatformLabel(thread.platform)}</span>
-                          <span className="opacity-60">({thread.stage})</span>
+                          <FontAwesomeIcon icon={faRotateRight} spin={isRetryingThis} className="text-[10px]" />
+                          <span>Retry</span>
                         </button>
-                      ))
+                      )}
+                    </div>
+
+                    {isDiscarded && draft.discardReason && (
+                      <p className="text-xs text-muted/90 line-clamp-2 italic bg-bg/60 p-2 rounded border border-border/60">
+                        "{draft.discardReason}"
+                      </p>
                     )}
+
+                    {/* Platform Thread Badges & Status */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {isFailed && (
+                        <Badge variant="danger" data-testid="workflow-draft-failed-badge">
+                          Failed
+                        </Badge>
+                      )}
+                      {isDiscarded && (
+                        <Badge variant="warning" data-testid="workflow-draft-discarded-badge" className="border-amber-500/40 text-amber-300 bg-amber-500/10">
+                          Discarded {draft.relevanceScore != null ? `(${draft.relevanceScore}/10)` : ""}
+                        </Badge>
+                      )}
+                      {draft.threads.length === 0 ? (
+                        !isFailed && !isDiscarded && <Badge variant="neutral">{draft.status}</Badge>
+                      ) : (
+                        draft.threads.map((thread, idx) => (
+                          <button
+                            type="button"
+                            key={idx}
+                            onClick={(e) => handleOpenVariant(e, draft.id, thread.variantId)}
+                            data-testid={`workflow-draft-thread-${thread.platform.toLowerCase()}`}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-medium transition cursor-pointer hover:scale-105 ${
+                              thread.stage === "Sent"
+                                ? "bg-green-500/10 text-green-400 border border-green-500/20 hover:border-green-400"
+                                : "bg-bg text-foreground border border-border hover:border-accent"
+                            }`}
+                          >
+                            <span>{getPlatformLabel(thread.platform)}</span>
+                            <span className="opacity-60">({thread.stage})</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center border-t border-border pt-3 mt-4 text-[10px] font-mono text-muted">
+                    <span>{new Date(draft.createdAt).toLocaleDateString()}</span>
+                    <span className="text-accent group-hover:underline">Open in Composer →</span>
                   </div>
                 </div>
-
-                <div className="flex justify-between items-center border-t border-border pt-3 mt-4 text-[10px] font-mono text-muted">
-                  <span>{new Date(draft.createdAt).toLocaleDateString()}</span>
-                  <span className="text-accent group-hover:underline">Open in Composer →</span>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={filteredDrafts.length}
+            onPageChange={setPage}
+            testId="workflow-drafts-pagination"
+          />
         </div>
       )}
     </div>

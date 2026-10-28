@@ -56,6 +56,7 @@ public sealed record DraftQueryFilter(
     bool? IsPublished = null,
     DateTime? Since = null,
     int? Limit = null,
+    int? Offset = null,
     bool? IncludeDiscarded = null
 );
 
@@ -227,6 +228,11 @@ public sealed class DraftsService
         }
 
         query = query.OrderByDescending(d => d.UpdatedAt);
+
+        if (filter?.Offset.HasValue == true && filter.Offset.Value > 0)
+        {
+            query = query.Skip(filter.Offset.Value);
+        }
 
         if (filter?.Limit.HasValue == true && filter.Limit.Value > 0)
         {

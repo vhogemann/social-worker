@@ -127,6 +127,7 @@ export interface FetchDraftsParams {
   isPublished?: boolean;
   since?: string;
   limit?: number;
+  offset?: number;
   includeDiscarded?: boolean;
 }
 
@@ -138,6 +139,7 @@ export async function fetchDrafts(params?: FetchDraftsParams): Promise<DraftDto[
   if (params?.isPublished !== undefined) query.set("isPublished", String(params.isPublished));
   if (params?.since) query.set("since", params.since);
   if (params?.limit !== undefined) query.set("limit", String(params.limit));
+  if (params?.offset !== undefined) query.set("offset", String(params.offset));
   if (params?.includeDiscarded !== undefined) query.set("includeDiscarded", String(params.includeDiscarded));
 
   const url = query.toString() ? `/api/drafts?${query.toString()}` : "/api/drafts";

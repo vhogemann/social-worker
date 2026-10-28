@@ -7,6 +7,7 @@ export interface PaginationProps {
   totalItems?: number;
   onPageChange: (page: number) => void;
   className?: string;
+  testId?: string;
 }
 
 export const Pagination: React.FC<PaginationProps> = ({
@@ -14,12 +15,14 @@ export const Pagination: React.FC<PaginationProps> = ({
   totalPages,
   totalItems,
   onPageChange,
-  className = ""
+  className = "",
+  testId
 }) => {
   if (totalPages <= 1) return null;
 
   return (
     <div
+      data-testid={testId}
       className={`flex justify-between items-center border-t border-border pt-3 text-xs text-muted ${className}`}
     >
       <span>

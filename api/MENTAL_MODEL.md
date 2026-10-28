@@ -29,7 +29,7 @@ api/
 │   │   └── Migrations/                # Version-controlled EF Core SQL migrations
 │   ├── Features/                      # Vertical slice feature folders
 │   └── Infrastructure/                # Cross-cutting concerns (Auth, Llm, Markdown, Platforms, Security)
-└── SocialWorker.Api.Tests/            # Comprehensive unit and integration test suite (915 tests)
+└── SocialWorker.Api.Tests/            # Comprehensive unit and integration test suite (916 tests)
 ```
 
 ### Entry & Startup Sequence
@@ -104,7 +104,7 @@ All commands must be executed within Docker containers via the `tooling` profile
 # Build API project
 docker compose --profile tooling run --rm dotnet build
 
-# Run full test suite (915 tests)
+# Run full test suite (916 tests)
 docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
 
 # Run single test class or filter
