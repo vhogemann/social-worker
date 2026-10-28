@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using SocialWorker.Api.Features.Media.Models;
+using SocialWorker.Api.Features.Media.Services;
 using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Validation;
 
@@ -187,6 +189,33 @@ public static class MediaEndpoint
             catch (UnauthorizedAccessException)
             {
                 return Results.Forbid();
+            }
+        }).RequireAuthorization();
+
+        app.MapPost("/api/media/generate", async (
+            GenerateImageRequest req,
+            ImageGenerationService generator,
+            ClaimsPrincipal principal,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(req.Prompt))
+                return Results.BadRequest(new ApiErrorResponse("Prompt is required."));
+
+            try
+            {
+                var result = await generator.GenerateAndAttachAsync(req.ToCommand(userId.Value), ct);
+                return Results.Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new ApiErrorResponse(ex.Message));
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new ApiErrorResponse($"Image generation failed: {ex.Message}"));
             }
         }).RequireAuthorization();
     }

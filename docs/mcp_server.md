@@ -39,16 +39,16 @@ Além de ferramentas (`tools`), o servidor implementa o protocolo de recursos (`
 
 ---
 
-## 2. Catálogo Completo de Ferramentas (69 Ferramentas)
+## 2. Catálogo Completo de Ferramentas (74 Ferramentas)
 
-As 69 ferramentas estão organizadas em 9 domínios funcionais:
+As 74 ferramentas estão organizadas em 9 domínios funcionais:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                 DOMÍNIOS DO MCP REGISTRY                    │
 ├──────────────────────────────┬──────────────────────────────┤
 │ 1. Rascunhos & Threads (10)  │ 6. Agendamento & Fila (16)   │
-│ 2. Mídia & Visual (8)        │ 7. Contas Sociais (1)        │
+│ 2. Mídia & Visual (14)       │ 7. Contas Sociais (1)        │
 │ 3. Fontes & Pesquisa (5)     │ 8. Reply Agents (8)          │
 │ 4. Feeds & Descoberta (6)    │ 9. Auditoria & Posts (6)     │
 │ 5. Workflows & Curação (8)   │                              │
@@ -154,13 +154,53 @@ Lista os templates visuais cadastrados na biblioteca do usuário com nomes de sl
 - **Parâmetros**:
   - `search` (*string, opcional*): Termo para busca de templates.
 
-#### 14. `render_template`
-Renderiza um template gráfico substituindo os slots de texto/métricas e anexa a imagem resultante ao rascunho.
+#### 14. `get_template`
+Obtém os detalhes e a definição JSON completa do schema de um template visual por ID.
 - **Parâmetros**:
-  - `draftId` (*string, obrigatório*): UUID do rascunho.
+  - `templateId` (*string, obrigatório*): UUID do template.
+
+#### 15. `preview_template`
+Renderiza uma prévia visual de um template em memória sem persistir no banco de dados ou no disco, ideal para agentes iterarem sobre designs visuais. Retorna a imagem renderizada diretamente.
+- **Parâmetros**:
+  - `schema` (*string, obrigatório*): Especificação JSON do layout do template.
+  - `slots` (*object, opcional*): Dicionário com os valores das variáveis/slots.
+
+#### 16. `create_template`
+Cadastra um novo template visual na biblioteca do usuário a partir de sua especificação JSON.
+- **Parâmetros**:
+  - `name` (*string, obrigatório*): Nome de exibição do template.
+  - `schema` (*string, obrigatório*): Especificação JSON declarativa do template.
+  - `description` (*string, opcional*): Descrição do propósito ou estilo visual.
+  - `width` (*integer, opcional*): Largura em pixels (padrão: 1080).
+  - `height` (*integer, opcional*): Altura em pixels (padrão: 1080).
+
+#### 17. `generate_template`
+Gera dinamicamente uma nova especificação de template visual usando o LLM ativo e salva na biblioteca.
+- **Parâmetros**:
+  - `prompt` (*string, obrigatório*): Instruções criativas em linguagem natural descrevendo o layout e propósito.
+  - `width` (*integer, opcional*): Largura em pixels (padrão: 1080).
+  - `height` (*integer, opcional*): Altura em pixels (padrão: 1080).
+
+#### 18. `render_template`
+Renderiza um template gráfico substituindo os slots de texto/métricas e anexa a imagem resultante ao rascunho. Suporta modo `previewOnly` para retorno direto sem salvar.
+- **Parâmetros**:
+  - `draftId` (*string, condicional*): UUID do rascunho (obrigatório se `previewOnly` for falso).
   - `templateId` (*string, obrigatório*): UUID ou nome do template.
   - `slots` (*object, opcional*): Dicionário de valores para preenchimento dos slots.
   - `altText` (*string, opcional*): Texto alternativo para a imagem gerada.
+  - `previewOnly` (*boolean, opcional*): Se `true`, renderiza em memória e retorna a imagem diretamente no MCP sem salvar no banco ou disco.
+
+#### 19. `generate_image`
+Gera imagens usando modelos de inteligência artificial generativa via OpenRouter (ex: Flux, SDXL), com suporte opcional para pipeline híbrido (composição visual com templates vetoriais declarativos do image-engine).
+- **Parâmetros**:
+  - `prompt` (*string, obrigatório*): Descrição textual da imagem desejada.
+  - `draftId` (*string, opcional*): UUID do rascunho para associar o ativo de mídia criado.
+  - `aspectRatio` (*string, opcional*): Proporção desejada (`1:1`, `16:9`, `4:5`, `9:16`). Padrão: `1:1`.
+  - `model` (*string, opcional*): Modelo de imagem no OpenRouter (ex: `black-forest-labs/flux-schnell`).
+  - `templateId` (*string, opcional*): UUID do template para composição híbrida.
+  - `templateSlots` (*object, opcional*): Dicionário com os slots para composição sobre a imagem de fundo.
+  - `imageSlotName` (*string, opcional*): Nome do slot no template onde a imagem gerada será inserida (padrão: `image`).
+  - `previewOnly` (*boolean, opcional*): Se `true`, gera e compõe sem persistir no banco ou disco, retornando a imagem diretamente.
 
 #### 15. `render_code_blocks`
 Converte blocos de código markdown presentes no rascunho em imagens estilizadas de sintaxe destacada.
@@ -600,4 +640,4 @@ Se a interface do Gemini solicitar credenciais manuais:
 - **Escopos**: `mcp:tools mcp:read mcp:write`
 
 ### 4.4 Utilização no Gemini
-Após a conexão, todas as 69 ferramentas do SocialWorker tornam-se acessíveis nas conversas e fluxos do Gemini, podendo ser invocadas diretamente ou marcadas com menção (ex: `@SocialWorker liste os rascunhos prontos para publicação`).
+Após a conexão, todas as 74 ferramentas do SocialWorker tornam-se acessíveis nas conversas e fluxos do Gemini, podendo ser invocadas diretamente ou marcadas com menção (ex: `@SocialWorker liste os rascunhos prontos para publicação`).

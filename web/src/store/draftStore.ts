@@ -11,6 +11,7 @@ import {
   fetchSources,
   uploadFile,
   uploadMedia,
+  generateMediaImage,
   patchMediaAsset,
   deleteMediaAsset,
   fetchPlatformCapabilities,
@@ -20,6 +21,8 @@ import {
   type SourceDto,
   type MediaAssetDto,
   type PlatformCapabilityDto,
+  type GenerateImageApiRequest,
+  type GenerateImageApiResponse,
 } from "../api/drafts";
 
 export function findDraft(drafts: DraftDto[], id: string | null | undefined): DraftDto | undefined {
@@ -86,6 +89,7 @@ interface DraftStore {
   loadSources: (draftId: string) => Promise<void>;
   uploadFileSource: (draftId: string, file: File) => Promise<{ sourceId: string; markdownLink: string }>;
   uploadMediaAsset: (draftId: string, file: File) => Promise<{ id: string; markdownTag: string }>;
+  generateMediaImage: (req: GenerateImageApiRequest) => Promise<GenerateImageApiResponse>;
   updateMediaAltText: (mediaId: string, altText: string) => Promise<void>;
   deleteMediaAsset: (mediaId: string) => Promise<void>;
   saveDraftChat: (id: string, chatHistory: string) => Promise<void>;
@@ -282,6 +286,12 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   uploadMediaAsset: async (draftId, file) => {
     const res = await uploadMedia(draftId, file);
     await get().switchDraft(draftId);
+    return res;
+  },
+
+  generateMediaImage: async (req) => {
+    const res = await generateMediaImage(req);
+    await get().switchDraft(req.draftId);
     return res;
   },
 

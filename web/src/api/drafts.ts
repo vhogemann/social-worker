@@ -448,6 +448,40 @@ export async function deleteMediaAsset(id: string): Promise<{ success: boolean }
   return res.json();
 }
 
+export interface GenerateImageApiRequest {
+  draftId: string;
+  prompt: string;
+  aspectRatio?: string;
+  model?: string;
+  templateId?: string;
+  templateSlots?: Record<string, string>;
+  altText?: string;
+}
+
+export interface GenerateImageApiResponse {
+  mediaAssetId: string;
+  markdownTag: string;
+  url: string;
+  width: number;
+  height: number;
+  mimeType: string;
+}
+
+export async function generateMediaImage(req: GenerateImageApiRequest): Promise<GenerateImageApiResponse> {
+  const res = await apiFetch("/api/media/generate", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => `${res.status}`);
+    throw new Error(msg || `generateMediaImage failed: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+
 export async function generateVariants(draftId: string, platforms?: string[], accountIds?: string[]): Promise<{ canonical: DraftDto; variants: DraftDto[] }> {
   const res = await apiFetch(`/api/drafts/${draftId}/generate-variants`, {
     method: "POST",

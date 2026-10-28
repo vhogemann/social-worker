@@ -1236,13 +1236,18 @@ public sealed class McpServerTests : SqliteTestBase
         var json = JsonSerializer.Serialize(response.Result);
         using var doc = JsonDocument.Parse(json);
         var tools = doc.RootElement.GetProperty("tools").EnumerateArray().ToList();
-        Assert.Equal(69, tools.Count);
+        Assert.Equal(74, tools.Count);
 
         var toolNames = tools.Select(t => t.GetProperty("name").GetString()!).ToHashSet();
         Assert.Contains("import_media_from_url", toolNames);
         Assert.Contains("upload_media", toolNames);
         Assert.Contains("view_image", toolNames);
         Assert.Contains("list_templates", toolNames);
+        Assert.Contains("get_template", toolNames);
+        Assert.Contains("preview_template", toolNames);
+        Assert.Contains("create_template", toolNames);
+        Assert.Contains("generate_template", toolNames);
+        Assert.Contains("generate_image", toolNames);
         Assert.Contains("render_template", toolNames);
         Assert.Contains("render_code_blocks", toolNames);
         Assert.Contains("search_images", toolNames);
@@ -1430,6 +1435,86 @@ public sealed class McpServerTests : SqliteTestBase
         var renderResult = Assert.IsType<McpToolCallResult>(renderResp.Result);
         Assert.False(renderResult.IsError);
         Assert.Contains("media://", renderResult.Content[0].Text);
+
+        var previewOnlyArgs = JsonDocument.Parse($$"""
+        {
+            "name": "render_template",
+            "arguments": {
+                "templateId": "{{template.Id}}",
+                "previewOnly": true,
+                "slots": {
+                    "headline": "Ephemeral Preview"
+                }
+            }
+        }
+        """).RootElement;
+        var previewOnlyReq = new McpRequest("2.0", 53, "tools/call", previewOnlyArgs);
+        var previewOnlyResp = await server.HandleRequestAsync(previewOnlyReq, user.Id, CancellationToken.None);
+        Assert.NotNull(previewOnlyResp);
+        var previewOnlyResult = Assert.IsType<McpToolCallResult>(previewOnlyResp.Result);
+        Assert.False(previewOnlyResult.IsError);
+        Assert.Equal(2, previewOnlyResult.Content.Count);
+        Assert.Equal("image", previewOnlyResult.Content[1].Type);
+    }
+
+    [Fact]
+    public async Task CreateTemplate_And_GetTemplate_And_PreviewTemplate_Succeeds()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var createArgs = JsonDocument.Parse("""
+        {
+            "name": "create_template",
+            "arguments": {
+                "name": "Brand Banner",
+                "description": "Visual banner",
+                "width": 1200,
+                "height": 630,
+                "schema": "{\"slots\":[],\"layers\":[]}"
+            }
+        }
+        """).RootElement;
+        var createReq = new McpRequest("2.0", 60, "tools/call", createArgs);
+        var createResp = await server.HandleRequestAsync(createReq, user.Id, CancellationToken.None);
+        Assert.NotNull(createResp);
+        var createResult = Assert.IsType<McpToolCallResult>(createResp.Result);
+        Assert.False(createResult.IsError);
+        Assert.Contains("Brand Banner", createResult.Content[0].Text);
+
+        using var createDoc = JsonDocument.Parse(createResult.Content[0].Text);
+        var templateId = createDoc.RootElement.GetProperty("templateId").GetString()!;
+
+        var getArgs = JsonDocument.Parse($$"""
+        {
+            "name": "get_template",
+            "arguments": {
+                "templateId": "{{templateId}}"
+            }
+        }
+        """).RootElement;
+        var getReq = new McpRequest("2.0", 61, "tools/call", getArgs);
+        var getResp = await server.HandleRequestAsync(getReq, user.Id, CancellationToken.None);
+        Assert.NotNull(getResp);
+        var getResult = Assert.IsType<McpToolCallResult>(getResp.Result);
+        Assert.False(getResult.IsError);
+        Assert.Contains("Brand Banner", getResult.Content[0].Text);
+
+        var previewArgs = JsonDocument.Parse("""
+        {
+            "name": "preview_template",
+            "arguments": {
+                "schema": "{\"width\":1080,\"height\":1080,\"slots\":[]}",
+                "slots": { "greeting": "Hello" }
+            }
+        }
+        """).RootElement;
+        var previewReq = new McpRequest("2.0", 62, "tools/call", previewArgs);
+        var previewResp = await server.HandleRequestAsync(previewReq, user.Id, CancellationToken.None);
+        Assert.NotNull(previewResp);
+        var previewResult = Assert.IsType<McpToolCallResult>(previewResp.Result);
+        Assert.False(previewResult.IsError);
+        Assert.Equal(2, previewResult.Content.Count);
+        Assert.Equal("image", previewResult.Content[1].Type);
     }
 
     [Fact]

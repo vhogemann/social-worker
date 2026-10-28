@@ -35,6 +35,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<IChatTool, ListTemplatesTool>();
         builder.Services.AddScoped<IChatTool, RenderTemplateTool>();
         builder.Services.AddScoped<IChatTool, CreateTemplateTool>();
+        builder.Services.AddScoped<IChatTool, GenerateImageTool>();
         builder.Services.AddScoped<IChatTool, ListDraftsTool>();
         builder.Services.AddScoped<IChatTool, TranscribeVideoTool>();
     }

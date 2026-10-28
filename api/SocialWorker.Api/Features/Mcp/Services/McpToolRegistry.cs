@@ -18,6 +18,10 @@ using SocialWorker.Api.Features.Feeds;
 using SocialWorker.Api.Features.ImageEngine;
 using SocialWorker.Api.Features.Mcp.Models;
 using SocialWorker.Api.Features.Media;
+using SocialWorker.Api.Features.Media.Models;
+using SocialWorker.Api.Features.Media.Services;
+using SocialWorker.Api.Features.Templates.Services;
+using SocialWorker.Api.Features.Chat.Adapters;
 using SocialWorker.Api.Features.PlatformVariants;
 using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Publishing.Bluesky;
@@ -62,6 +66,8 @@ public sealed class McpToolRegistry
     private readonly ITranscriptExtractionService? _transcriberService;
     private readonly PlatformVariantService? _platformVariantService;
     private readonly IImageEngineClient? _imageEngineClient;
+    private readonly ImageGenerationService? _imageGenerationService;
+    private readonly TemplateGeneratorService? _templateGeneratorService;
 
     public McpToolRegistry(
         AppDbContext db,
@@ -88,7 +94,9 @@ public sealed class McpToolRegistry
         ISearchEngine? searchEngine = null,
         ITranscriptExtractionService? transcriberService = null,
         PlatformVariantService? platformVariantService = null,
-        IImageEngineClient? imageEngineClient = null)
+        IImageEngineClient? imageEngineClient = null,
+        ImageGenerationService? imageGenerationService = null,
+        TemplateGeneratorService? templateGeneratorService = null)
     {
         _db = db;
         _draftsService = draftsService;
@@ -115,6 +123,8 @@ public sealed class McpToolRegistry
         _transcriberService = transcriberService;
         _platformVariantService = platformVariantService;
         _imageEngineClient = imageEngineClient;
+        _imageGenerationService = imageGenerationService;
+        _templateGeneratorService = templateGeneratorService;
     }
 
     private MediaService? ResolveMediaService() => _mediaService ?? _serviceProvider?.GetService<MediaService>();
@@ -124,6 +134,8 @@ public sealed class McpToolRegistry
     private ISearchEngine? ResolveSearchEngine() => _searchEngine ?? _serviceProvider?.GetService<ISearchEngine>();
     private ITranscriptExtractionService? ResolveTranscriber() => _transcriberService ?? _serviceProvider?.GetService<ITranscriptExtractionService>();
     private PlatformVariantService? ResolveVariantService() => _platformVariantService ?? _serviceProvider?.GetService<PlatformVariantService>();
+    private ImageGenerationService? ResolveImageGenerationService() => _imageGenerationService ?? _serviceProvider?.GetService<ImageGenerationService>();
+    private TemplateGeneratorService? ResolveTemplateGeneratorService() => _templateGeneratorService ?? _serviceProvider?.GetService<TemplateGeneratorService>();
 
     public List<McpToolDefinition> ListTools()
     {
@@ -692,16 +704,77 @@ public sealed class McpToolRegistry
                 }
             }
             """)),
-            new("render_template", "Renders an image template with custom slot parameters (text, quotes, metrics, background image) and attaches the generated graphic to a draft.", CreateSchema("""
+            new("get_template", "Retrieves the full schema, layers, dimensions, and slot definitions of a specific template by ID or name.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
-                    "draftId": { "type": "string", "description": "The UUID of the draft to attach the rendered template to." },
-                    "templateId": { "type": "string", "description": "The exact GUID or exact Name of the template to render." },
+                    "templateId": { "type": "string", "description": "The exact GUID or exact Name of the template to retrieve." }
+                },
+                "required": ["templateId"]
+            }
+            """)),
+            new("preview_template", "Renders an unpersisted declarative template schema with custom or sample slots without storing anything in the database or filesystem, returning the rendered image inline for visual review and rapid design iteration.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "schema": { "type": "string", "description": "The full declarative JSON schema definition containing 'name', 'width', 'height', 'slots', and 'layers'." },
+                    "slots": { "type": "object", "description": "Optional slot values for text, images, or colors. If omitted, sample text is auto-populated for preview.", "additionalProperties": { "type": "string" } }
+                },
+                "required": ["schema"]
+            }
+            """)),
+            new("create_template", "Creates and saves a new graphic template into the system template library by specifying its name, canvas dimensions, slots, and layer definitions, validating rendering with image-engine before saving.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "The display name for the template (e.g. 'Cyber Alert Card', 'Minimal Quote')." },
+                    "schema": { "type": "string", "description": "The full declarative JSON schema definition containing 'name', 'width', 'height', 'slots', and 'layers'." },
+                    "description": { "type": "string", "description": "Optional description of the visual layout and intended social post use-case." },
+                    "width": { "type": "integer", "description": "Canvas width in pixels (typically 1080)." },
+                    "height": { "type": "integer", "description": "Canvas height in pixels (1080 for square, 1350 for 4:5 portrait)." },
+                    "test_slots": { "type": "object", "description": "Optional sample slot values to render the initial preview thumbnail.", "additionalProperties": { "type": "string" } }
+                },
+                "required": ["name", "schema"]
+            }
+            """)),
+            new("generate_template", "Uses the AI graphic designer to generate a new template schema from a natural language prompt, validates rendering, and saves it to the library.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "prompt": { "type": "string", "description": "Design brief describing layout, theme, slots, and intended use (e.g. 'Modern dark-mode announcement card with a background photo slot, cyan border, and large title')." },
+                    "width": { "type": "integer", "description": "Canvas width in pixels (default 1080)." },
+                    "height": { "type": "integer", "description": "Canvas height in pixels (default 1080, or 1350 for portrait)." }
+                },
+                "required": ["prompt"]
+            }
+            """)),
+            new("render_template", "Renders an image template with custom slot parameters (text, quotes, metrics, background image). Can attach to a draft or return an inline preview image without storing if previewOnly is true.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to attach the rendered template to (required unless previewOnly is true)." },
+                    "templateId": { "type": "string", "description": "The exact GUID or Name of the template to render (required unless schema is supplied)." },
+                    "schema": { "type": "string", "description": "Optional inline JSON template schema to render directly." },
                     "slots": { "type": "object", "description": "Key-value mapping of slot names to text values or media://{guid} references.", "additionalProperties": { "type": "string" } },
+                    "previewOnly": { "type": "boolean", "description": "If true, returns the rendered graphic inline as an MCP image without saving to media assets or draft." },
                     "altText": { "type": "string", "description": "Optional accessibility alt text for preview and publishing." }
                 },
-                "required": ["draftId", "templateId", "slots"]
+                "required": ["slots"]
+            }
+            """)),
+            new("generate_image", "Generates a visual asset using generative AI (Flux/OpenRouter) with optional aspect-ratio framing (1:1, 4:5, 16:9, 9:16) and optional graphic template compositing, attaching it to a draft.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to attach the generated image to." },
+                    "prompt": { "type": "string", "description": "Visual scene description to generate (e.g. 'Minimalist server room with glowing neon blue cables, digital art')." },
+                    "aspectRatio": { "type": "string", "enum": ["1:1", "4:5", "16:9", "9:16"], "description": "Target social aspect ratio (default '1:1')." },
+                    "templateId": { "type": "string", "description": "Optional template ID or Name to composite vector typography and branding over the AI background." },
+                    "templateSlots": { "type": "object", "description": "Optional slot values for text overlays when templateId is provided.", "additionalProperties": { "type": "string" } },
+                    "altText": { "type": "string", "description": "Optional accessibility description for the generated graphic." },
+                    "model": { "type": "string", "description": "Optional OpenRouter image model slug. Defaults to 'black-forest-labs/flux-3-image-klein'." }
+                },
+                "required": ["draftId", "prompt"]
             }
             """)),
             new("render_code_blocks", "Renders code fences in a draft into Carbon-style syntax-highlighted images and replaces the code blocks with compact media markdown references.", CreateSchema("""
@@ -972,7 +1045,12 @@ public sealed class McpToolRegistry
                 "import_media_from_url" => await HandleImportMediaFromUrlAsync(userId, args, ct),
                 "upload_media" => await HandleUploadMediaAsync(userId, args, ct),
                 "list_templates" => await HandleListTemplatesAsync(userId, args, ct),
+                "get_template" => await HandleGetTemplateAsync(userId, args, ct),
+                "preview_template" => await HandlePreviewTemplateAsync(userId, args, ct),
+                "create_template" => await HandleCreateTemplateAsync(userId, args, ct),
+                "generate_template" => await HandleGenerateTemplateAsync(userId, args, ct),
                 "render_template" => await HandleRenderTemplateAsync(userId, args, ct),
+                "generate_image" => await HandleGenerateImageAsync(userId, args, ct),
                 "render_code_blocks" => await HandleRenderCodeBlocksAsync(userId, args, ct),
                 "search_images" => await HandleSearchImagesAsync(args, ct),
                 "update_media" => await HandleUpdateMediaAsync(userId, args, ct),
@@ -3400,15 +3478,215 @@ public sealed class McpToolRegistry
         return TextResult(JsonSerializer.Serialize(items, JsonOptions));
     }
 
+    private async Task<McpToolCallResult> HandleGetTemplateAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("templateId", out var tProp) || string.IsNullOrWhiteSpace(tProp.GetString()))
+            return TextError("templateId is required (GUID or Name).");
+
+        var searchId = tProp.GetString()!.Trim();
+        Template? template = null;
+        if (Guid.TryParse(searchId, out var parsedGuid))
+        {
+            template = await _db.Templates.AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == parsedGuid && t.UserId == userId, ct);
+        }
+
+        template ??= await _db.Templates.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Name.ToLower() == searchId.ToLowerInvariant() && t.UserId == userId, ct);
+
+        if (template == null)
+            return TextError($"Template '{searchId}' not found.");
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            id = template.Id,
+            name = template.Name,
+            description = template.Description,
+            width = template.Width,
+            height = template.Height,
+            schema = template.Schema,
+            createdAt = template.CreatedAt,
+            updatedAt = template.UpdatedAt
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandlePreviewTemplateAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("schema", out var sProp) || string.IsNullOrWhiteSpace(sProp.GetString()))
+            return TextError("schema JSON is required.");
+
+        var schema = sProp.GetString()!;
+        var slots = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (args.TryGetProperty("slots", out var slotsEl) && slotsEl.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in slotsEl.EnumerateObject())
+            {
+                slots[prop.Name] = prop.Value.GetString() ?? prop.Value.GetRawText();
+            }
+        }
+        else
+        {
+            slots = TemplateGeneratorService.GenerateSampleSlots(schema);
+        }
+
+        var imageEngine = ResolveImageEngine();
+        var mediaService = ResolveMediaService();
+        if (imageEngine == null || mediaService == null)
+            return TextError("ImageEngine or MediaService is not configured.");
+
+        var images = new Dictionary<string, (Stream Stream, string FileName, string MimeType)>();
+        var disposables = new List<IDisposable>();
+
+        try
+        {
+            await TemplateAssetResolver.ResolveTemplateImagesAsync(schema, slots, images, disposables, mediaService, ct);
+            var pngBytes = await imageEngine.RenderTemplateAsync(schema, slots, images, ct);
+            var b64 = Convert.ToBase64String(pngBytes);
+            var text = $"Template preview rendered successfully in-memory ({pngBytes.Length / 1024} KB PNG, zero database pollution):";
+            return new McpToolCallResult(new List<McpContentPart>
+            {
+                McpContentPart.AsText(text),
+                McpContentPart.AsImage(b64, "image/png")
+            }, false);
+        }
+        catch (Exception ex)
+        {
+            return TextError($"Preview render failed: {ex.Message}");
+        }
+        finally
+        {
+            foreach (var d in disposables) d.Dispose();
+        }
+    }
+
+    private async Task<McpToolCallResult> HandleCreateTemplateAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("name", out var nProp) || string.IsNullOrWhiteSpace(nProp.GetString()))
+            return TextError("name is required.");
+
+        if (!args.TryGetProperty("schema", out var sProp) || string.IsNullOrWhiteSpace(sProp.GetString()))
+            return TextError("schema JSON is required.");
+
+        var name = nProp.GetString()!;
+        var schema = sProp.GetString()!;
+        var description = args.TryGetProperty("description", out var dProp) ? dProp.GetString() : null;
+        int? width = args.TryGetProperty("width", out var wProp) && wProp.TryGetInt32(out var w) ? w : null;
+        int? height = args.TryGetProperty("height", out var hProp) && hProp.TryGetInt32(out var h) ? h : null;
+
+        var testSlots = new Dictionary<string, string>();
+        if (args.TryGetProperty("test_slots", out var slotsEl) && slotsEl.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in slotsEl.EnumerateObject())
+            {
+                testSlots[prop.Name] = prop.Value.GetString() ?? prop.Value.GetRawText();
+            }
+        }
+
+        var imageEngine = ResolveImageEngine();
+        var mediaService = ResolveMediaService();
+        if (imageEngine == null || mediaService == null)
+            return TextError("ImageEngine or MediaService is not configured.");
+
+        var tool = new CreateTemplateTool(_db, imageEngine, mediaService);
+        var result = await tool.ExecuteAsync(
+            new CreateTemplateArgs(name, schema, description, width, height, testSlots),
+            SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, Guid.Empty));
+
+        if (!result.Success)
+            return TextError(result.Error ?? result.Message);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            templateId = result.TemplateId,
+            message = result.Message
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleGenerateTemplateAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("prompt", out var pProp) || string.IsNullOrWhiteSpace(pProp.GetString()))
+            return TextError("prompt is required.");
+
+        var prompt = pProp.GetString()!;
+        int? width = args.TryGetProperty("width", out var wProp) && wProp.TryGetInt32(out var w) ? w : 1080;
+        int? height = args.TryGetProperty("height", out var hProp) && hProp.TryGetInt32(out var h) ? h : 1080;
+
+        var generator = ResolveTemplateGeneratorService();
+        if (generator == null)
+            return TextError("TemplateGeneratorService is not configured.");
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+        var provider = user?.PreferredProviderId.HasValue == true
+            ? await _db.LlmProviders.FirstOrDefaultAsync(p => p.Id == user.PreferredProviderId.Value && p.IsActive, ct)
+            : null;
+
+        provider ??= await _db.LlmProviders.FirstOrDefaultAsync(p => p.IsDefault && p.IsActive, ct);
+        provider ??= await _db.LlmProviders.FirstOrDefaultAsync(p => p.ProviderType == "OpenRouter" && p.IsActive, ct);
+
+        if (provider == null)
+            return TextError("No active LLM provider configured to generate templates.");
+
+        var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
+        var genResult = await generator.GenerateTemplateAsync(prompt, credentials, width, height, ct);
+
+        var template = new Template
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Name = genResult.Name,
+            Description = genResult.Description,
+            Width = genResult.Width,
+            Height = genResult.Height,
+            Schema = genResult.Schema,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _db.Templates.Add(template);
+        await _db.SaveChangesAsync(ct);
+
+        var resultObj = new
+        {
+            success = true,
+            templateId = template.Id,
+            name = template.Name,
+            description = template.Description,
+            width = template.Width,
+            height = template.Height,
+            message = $"Template '{template.Name}' generated and saved successfully."
+        };
+
+        if (!string.IsNullOrEmpty(genResult.PreviewBase64))
+        {
+            return new McpToolCallResult(new List<McpContentPart>
+            {
+                new("text", Text: JsonSerializer.Serialize(resultObj, JsonOptions)),
+                McpContentPart.AsImage(genResult.PreviewBase64, "image/png")
+            });
+        }
+
+        return TextResult(JsonSerializer.Serialize(resultObj, JsonOptions));
+    }
+
     private async Task<McpToolCallResult> HandleRenderTemplateAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
-        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
-            return TextError("draftId must be a valid UUID.");
+        var previewOnly = args.TryGetProperty("previewOnly", out var poProp) && poProp.GetBoolean();
+        Guid? draftId = null;
+        if (args.TryGetProperty("draftId", out var dProp) && Guid.TryParse(dProp.GetString(), out var parsedDraftId))
+        {
+            draftId = parsedDraftId;
+        }
 
-        if (!args.TryGetProperty("templateId", out var tProp) || string.IsNullOrWhiteSpace(tProp.GetString()))
-            return TextError("templateId is required (template GUID or name).");
+        if (!previewOnly && !draftId.HasValue)
+            return TextError("draftId must be a valid UUID unless previewOnly is set to true.");
 
-        var templateId = tProp.GetString()!;
+        string? templateId = args.TryGetProperty("templateId", out var tProp) ? tProp.GetString() : null;
+        string? schema = args.TryGetProperty("schema", out var sProp) ? sProp.GetString() : null;
+
+        if (string.IsNullOrWhiteSpace(templateId) && string.IsNullOrWhiteSpace(schema))
+            return TextError("Either templateId or schema is required.");
+
         var altText = args.TryGetProperty("altText", out var aProp) ? aProp.GetString() : null;
 
         var slots = new Dictionary<string, string>();
@@ -3425,10 +3703,46 @@ public sealed class McpToolRegistry
         if (mediaService == null || imageEngine == null)
             return TextError("Template rendering services (MediaService / ImageEngine) are not configured.");
 
+        if (previewOnly)
+        {
+            string schemaToRender = schema!;
+            if (string.IsNullOrWhiteSpace(schemaToRender) && !string.IsNullOrWhiteSpace(templateId))
+            {
+                Template? t = null;
+                if (Guid.TryParse(templateId, out var tGuid))
+                    t = await _db.Templates.AsNoTracking().FirstOrDefaultAsync(x => x.Id == tGuid && x.UserId == userId, ct);
+                t ??= await _db.Templates.AsNoTracking().FirstOrDefaultAsync(x => x.Name.ToLower() == templateId.ToLowerInvariant() && x.UserId == userId, ct);
+                if (t == null) return TextError($"Template '{templateId}' not found.");
+                schemaToRender = t.Schema;
+            }
+
+            var images = new Dictionary<string, (Stream Stream, string FileName, string MimeType)>();
+            var disposables = new List<IDisposable>();
+            try
+            {
+                await TemplateAssetResolver.ResolveTemplateImagesAsync(schemaToRender, slots, images, disposables, mediaService, ct);
+                var pngBytes = await imageEngine.RenderTemplateAsync(schemaToRender, slots, images, ct);
+                var b64 = Convert.ToBase64String(pngBytes);
+                return new McpToolCallResult(new List<McpContentPart>
+                {
+                    McpContentPart.AsText($"Template rendered in preview-only mode ({pngBytes.Length / 1024} KB PNG):"),
+                    McpContentPart.AsImage(b64, "image/png")
+                }, false);
+            }
+            catch (Exception ex)
+            {
+                return TextError($"Preview render failed: {ex.Message}");
+            }
+            finally
+            {
+                foreach (var d in disposables) d.Dispose();
+            }
+        }
+
         var renderTool = new RenderTemplateTool(_db, imageEngine, mediaService);
         var renderResult = await renderTool.ExecuteAsync(
-            new RenderTemplateArgs(templateId, slots, altText),
-            SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+            new RenderTemplateArgs(templateId!, slots, altText),
+            SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId!.Value));
 
         if (!renderResult.Success)
             return TextError(renderResult.Error ?? renderResult.Message);
@@ -3440,6 +3754,65 @@ public sealed class McpToolRegistry
             markdownTag = renderResult.MarkdownTag,
             message = renderResult.Message
         }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleGenerateImageAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
+            return TextError("draftId must be a valid UUID.");
+
+        if (!args.TryGetProperty("prompt", out var pProp) || string.IsNullOrWhiteSpace(pProp.GetString()))
+            return TextError("prompt is required.");
+
+        var prompt = pProp.GetString()!;
+        var aspectRatio = args.TryGetProperty("aspectRatio", out var arProp) ? arProp.GetString() : "1:1";
+        var templateId = args.TryGetProperty("templateId", out var tProp) ? tProp.GetString() : null;
+        var altText = args.TryGetProperty("altText", out var aProp) ? aProp.GetString() : null;
+        var model = args.TryGetProperty("model", out var mProp) ? mProp.GetString() : null;
+
+        Dictionary<string, string>? templateSlots = null;
+        if (args.TryGetProperty("templateSlots", out var slotsEl) && slotsEl.ValueKind == JsonValueKind.Object)
+        {
+            templateSlots = new Dictionary<string, string>();
+            foreach (var prop in slotsEl.EnumerateObject())
+            {
+                templateSlots[prop.Name] = prop.Value.GetString() ?? prop.Value.GetRawText();
+            }
+        }
+
+        var generator = ResolveImageGenerationService();
+        if (generator == null)
+            return TextError("ImageGenerationService is not configured.");
+
+        try
+        {
+            var cmd = new GenerateImageCommand(
+                userId,
+                draftId,
+                prompt,
+                aspectRatio ?? "1:1",
+                model,
+                templateId,
+                templateSlots,
+                altText);
+
+            var result = await generator.GenerateAndAttachAsync(cmd, ct);
+
+            return TextResult(JsonSerializer.Serialize(new
+            {
+                success = true,
+                mediaAssetId = result.MediaAssetId,
+                markdownTag = result.MarkdownTag,
+                url = result.Url,
+                width = result.Width,
+                height = result.Height,
+                message = $"Generated image {result.MediaAssetId} and attached to draft: {result.MarkdownTag}"
+            }, JsonOptions));
+        }
+        catch (Exception ex)
+        {
+            return TextError($"Failed to generate image: {ex.Message}");
+        }
     }
 
     private async Task<McpToolCallResult> HandleRenderCodeBlocksAsync(Guid userId, JsonElement args, CancellationToken ct)
