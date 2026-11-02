@@ -14,8 +14,8 @@ public sealed record McpRequest(
 public sealed record McpResponse(
     [property: JsonPropertyName("jsonrpc")] string JsonRpc,
     [property: JsonPropertyName("id")] object? Id,
-    [property: JsonPropertyName("result")] object? Result,
-    [property: JsonPropertyName("error")] McpError? Error)
+    [property: JsonPropertyName("result"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] object? Result,
+    [property: JsonPropertyName("error"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] McpError? Error)
 {
     public static McpResponse Success(object? id, object? result) =>
         new("2.0", id, result, null);
@@ -27,7 +27,7 @@ public sealed record McpResponse(
 public sealed record McpError(
     [property: JsonPropertyName("code")] int Code,
     [property: JsonPropertyName("message")] string Message,
-    [property: JsonPropertyName("data")] object? Data = null);
+    [property: JsonPropertyName("data"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] object? Data = null);
 
 public sealed record McpInitializeResult(
     [property: JsonPropertyName("protocolVersion")] string ProtocolVersion,
@@ -35,9 +35,9 @@ public sealed record McpInitializeResult(
     [property: JsonPropertyName("serverInfo")] McpServerInfo ServerInfo);
 
 public sealed record McpServerCapabilities(
-    [property: JsonPropertyName("tools")] McpCapabilityTools? Tools = null,
-    [property: JsonPropertyName("resources")] McpCapabilityResources? Resources = null,
-    [property: JsonPropertyName("prompts")] McpCapabilityPrompts? Prompts = null);
+    [property: JsonPropertyName("tools"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] McpCapabilityTools? Tools = null,
+    [property: JsonPropertyName("resources"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] McpCapabilityResources? Resources = null,
+    [property: JsonPropertyName("prompts"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] McpCapabilityPrompts? Prompts = null);
 
 public sealed record McpCapabilityTools([property: JsonPropertyName("listChanged")] bool ListChanged = false);
 public sealed record McpCapabilityResources([property: JsonPropertyName("subscribe")] bool Subscribe = false, [property: JsonPropertyName("listChanged")] bool ListChanged = false);
@@ -58,9 +58,9 @@ public sealed record McpToolCallResult(
 
 public sealed record McpContentPart(
     [property: JsonPropertyName("type")] string Type,
-    [property: JsonPropertyName("text")] string? Text = null,
-    [property: JsonPropertyName("data")] string? Data = null,
-    [property: JsonPropertyName("mimeType")] string? MimeType = null)
+    [property: JsonPropertyName("text"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Text = null,
+    [property: JsonPropertyName("data"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Data = null,
+    [property: JsonPropertyName("mimeType"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MimeType = null)
 {
     public static McpContentPart AsText(string text) => new("text", Text: text);
     public static McpContentPart AsImage(string base64Data, string mimeType) => new("image", Data: base64Data, MimeType: mimeType);
@@ -69,7 +69,7 @@ public sealed record McpContentPart(
 public sealed record McpResourceDefinition(
     [property: JsonPropertyName("uri")] string Uri,
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("description")] string? Description = null,
+    [property: JsonPropertyName("description"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Description = null,
     [property: JsonPropertyName("mimeType")] string? MimeType = "text/plain");
 
 public sealed record McpResourceReadResult(
@@ -78,8 +78,8 @@ public sealed record McpResourceReadResult(
 public sealed record McpResourceContent(
     [property: JsonPropertyName("uri")] string Uri,
     [property: JsonPropertyName("mimeType")] string MimeType,
-    [property: JsonPropertyName("text")] string? Text = null,
-    [property: JsonPropertyName("blob")] string? Blob = null)
+    [property: JsonPropertyName("text"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Text = null,
+    [property: JsonPropertyName("blob"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Blob = null)
 {
     public static McpResourceContent AsText(string uri, string mimeType, string text) => new(uri, mimeType, Text: text);
     public static McpResourceContent AsBlob(string uri, string mimeType, string blob) => new(uri, mimeType, Blob: blob);
@@ -87,10 +87,10 @@ public sealed record McpResourceContent(
 
 public sealed record McpPromptDefinition(
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("description")] string? Description = null,
-    [property: JsonPropertyName("arguments")] List<McpPromptArgument>? Arguments = null);
+    [property: JsonPropertyName("description"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Description = null,
+    [property: JsonPropertyName("arguments"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<McpPromptArgument>? Arguments = null);
 
 public sealed record McpPromptArgument(
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("description")] string? Description = null,
+    [property: JsonPropertyName("description"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Description = null,
     [property: JsonPropertyName("required")] bool Required = false);

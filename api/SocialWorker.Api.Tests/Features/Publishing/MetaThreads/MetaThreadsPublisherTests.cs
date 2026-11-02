@@ -325,4 +325,109 @@ public sealed class MetaThreadsPublisherTests : SqliteTestBase
         Assert.Equal("post_1", result.Posts[0].RemoteId);
         Assert.Contains("Rate limit reached", result.ErrorMessage);
     }
+
+    [Fact]
+    public async Task PublishAsync_WithYouTubeEmbed_AppendsUrlToTextContainer()
+    {
+        var (publisher, httpHandler, db) = CreatePublisher();
+
+        httpHandler.Handler = (req, body) =>
+        {
+            if (req.RequestUri!.AbsolutePath.EndsWith("/threads"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"container_yt_1\"}") };
+            }
+            if (req.RequestUri.AbsolutePath.EndsWith("/threads_publish"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"post_yt_1\"}") };
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"c\",\"status\":\"FINISHED\"}") };
+        };
+
+        var user = CreateSeedUser(db);
+        var account = new Account
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Platform = "MetaThreads",
+            Handle = "techlead",
+            ExternalId = "threads_user_123",
+            CredentialsEncrypted = CryptoHelper.EncryptString("access_token_xyz", EncryptionKey)
+        };
+        db.Accounts.Add(account);
+
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = user.Id };
+        db.Drafts.Add(draft);
+
+        var thread = new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "MetaThreads",
+            Content = "Watch our demo\n\n![Demo](https://www.youtube.com/watch?v=dQw4w9WgXcQ)"
+        };
+        db.PlatformThreads.Add(thread);
+        await db.SaveChangesAsync();
+
+        var result = await publisher.PublishAsync(thread, account);
+
+        Assert.True(result.Success);
+        Assert.Single(result.Posts);
+        Assert.Equal("Watch our demo\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ", result.Posts[0].PublishedText);
+
+        var containerReq = httpHandler.RequestBodies.Find(b => b.Contains("media_type=TEXT"));
+        Assert.NotNull(containerReq);
+        var decoded = Uri.UnescapeDataString(containerReq.Replace("+", " "));
+        Assert.Contains("Watch our demo\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ", decoded);
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithVideoOnly_PublishesYouTubeUrl()
+    {
+        var (publisher, httpHandler, db) = CreatePublisher();
+
+        httpHandler.Handler = (req, body) =>
+        {
+            if (req.RequestUri!.AbsolutePath.EndsWith("/threads"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"container_yt_2\"}") };
+            }
+            if (req.RequestUri.AbsolutePath.EndsWith("/threads_publish"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"post_yt_2\"}") };
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"c\",\"status\":\"FINISHED\"}") };
+        };
+
+        var user = CreateSeedUser(db);
+        var account = new Account
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Platform = "MetaThreads",
+            Handle = "techlead",
+            ExternalId = "threads_user_123",
+            CredentialsEncrypted = CryptoHelper.EncryptString("access_token_xyz", EncryptionKey)
+        };
+        db.Accounts.Add(account);
+
+        var draft = new Draft { Id = Guid.NewGuid(), UserId = user.Id };
+        db.Drafts.Add(draft);
+
+        var thread = new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "MetaThreads",
+            Content = "![Demo](https://www.youtube.com/watch?v=dQw4w9WgXcQ)"
+        };
+        db.PlatformThreads.Add(thread);
+        await db.SaveChangesAsync();
+
+        var result = await publisher.PublishAsync(thread, account);
+
+        Assert.True(result.Success);
+        Assert.Single(result.Posts);
+        Assert.Equal("https://www.youtube.com/watch?v=dQw4w9WgXcQ", result.Posts[0].PublishedText);
+    }
 }

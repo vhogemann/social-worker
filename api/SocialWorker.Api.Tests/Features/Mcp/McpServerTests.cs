@@ -1238,9 +1238,11 @@ public sealed class McpServerTests : SqliteTestBase
         var json = JsonSerializer.Serialize(response.Result);
         using var doc = JsonDocument.Parse(json);
         var tools = doc.RootElement.GetProperty("tools").EnumerateArray().ToList();
-        Assert.Equal(74, tools.Count);
+        Assert.Equal(76, tools.Count);
 
         var toolNames = tools.Select(t => t.GetProperty("name").GetString()!).ToHashSet();
+        Assert.Contains("search_sources", toolNames);
+        Assert.Contains("preview_draft", toolNames);
         Assert.Contains("import_media_from_url", toolNames);
         Assert.Contains("upload_media", toolNames);
         Assert.Contains("view_image", toolNames);
@@ -2043,11 +2045,104 @@ public sealed class McpServerTests : SqliteTestBase
         var textPart = result.Content.FirstOrDefault(c => c.Type == "text");
         Assert.NotNull(textPart);
         Assert.Contains("source-photo.png", textPart.Text);
+        Assert.Contains("Public URL:", textPart.Text);
+        Assert.Contains($"media://{asset.Id}", textPart.Text);
+        Assert.Contains($"/api/media/{asset.Id}", textPart.Text);
 
         var imagePart = result.Content.FirstOrDefault(c => c.Type == "image");
         Assert.NotNull(imagePart);
         Assert.Equal("image/png", imagePart.MimeType);
         Assert.False(string.IsNullOrWhiteSpace(imagePart.Data));
+    }
+
+    [Fact]
+    public async Task Tools_FetchSource_WithImageSourceEntity_ReturnsPublicUrlAndMarkdownTag()
+    {
+        var (server, user, db) = CreateTestServer();
+        var source = new Source
+        {
+            Id = Guid.NewGuid(),
+            Title = "Infographic Image",
+            Kind = SourceKind.Url,
+            Reference = "https://example.com/assets/infographic.png",
+            Summary = "A detailed diagram illustrating modern architecture."
+        };
+        db.Sources.Add(source);
+        await db.SaveChangesAsync();
+
+        var callArgs = JsonDocument.Parse($$"""
+        {
+            "name": "fetch_source",
+            "arguments": {
+                "sourceId": "{{source.Id}}"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 72, "tools/call", callArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var textPart = result.Content.FirstOrDefault(c => c.Type == "text");
+        Assert.NotNull(textPart);
+        Assert.Contains("Public URL: https://example.com/assets/infographic.png", textPart.Text);
+        Assert.Contains("Tag: ![Infographic Image](https://example.com/assets/infographic.png)", textPart.Text);
+        Assert.Contains("Direct image link for display or visual analysis", textPart.Text);
+    }
+
+    [Fact]
+    public async Task Tools_SearchSources_Returns_Matching_Sources()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Search Draft", "Content", SocialPlatform.Bluesky);
+        db.Drafts.Add(draft);
+
+        var matchingSource = new Source
+        {
+            Id = Guid.NewGuid(),
+            Title = "Quantum Computing Breakthrough",
+            Kind = SourceKind.Url,
+            Reference = "https://example.com/quantum",
+            Content = "Superconductors and qubits in 2026",
+            Summary = "A review of quantum computing advances"
+        };
+        var otherSource = new Source
+        {
+            Id = Guid.NewGuid(),
+            Title = "Cooking Pasta",
+            Kind = SourceKind.Url,
+            Reference = "https://example.com/pasta",
+            Content = "Boil water with salt",
+            Summary = "Simple recipe"
+        };
+        db.Sources.AddRange(matchingSource, otherSource);
+        db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = matchingSource.Id });
+        db.DraftSources.Add(new DraftSource { DraftId = draft.Id, SourceId = otherSource.Id });
+        await db.SaveChangesAsync();
+
+        var callArgs = JsonDocument.Parse("""
+        {
+            "name": "search_sources",
+            "arguments": {
+                "query": "quantum"
+            }
+        }
+        """).RootElement;
+
+        var req = new McpRequest("2.0", 73, "tools/call", callArgs);
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var textPart = result.Content.FirstOrDefault(c => c.Type == "text");
+        Assert.NotNull(textPart);
+        Assert.Contains("Quantum Computing Breakthrough", textPart.Text);
+        Assert.DoesNotContain("Cooking Pasta", textPart.Text);
     }
 
     [Fact]
@@ -2216,6 +2311,40 @@ public sealed class McpServerTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task Tools_PreviewDraft_Returns_Markdown_With_Segments_And_CharacterCounts()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Agentic AI in Production", "First post introducing agentic systems.\n\n---\n\nSecond post covering MCP tools.", SocialPlatform.Bluesky);
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var req = new McpRequest("2.0", 83, "tools/call", JsonDocument.Parse($$"""
+        {
+            "name": "preview_draft",
+            "arguments": {
+                "draftId": "{{draft.Id}}",
+                "platform": "Bluesky"
+            }
+        }
+        """).RootElement);
+
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+        Assert.Single(result.Content);
+
+        var text = result.Content[0].Text;
+        Assert.Contains("### Draft Preview: Agentic AI in Production", text);
+        Assert.Contains("**Platform:** Bluesky", text);
+        Assert.DoesNotContain(".png", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"/draft/{draft.Id}", text);
+        Assert.Contains("Post 1/2", text);
+        Assert.Contains("Post 2/2", text);
+        Assert.DoesNotContain("base64", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Tools_PublishThread_ReturnsStructuredJsonWithPostsAndUrls()
     {
         var stubPublisher = new ConfigurableStubPublisher("MetaThreads", new List<PublishedPost>
@@ -2239,7 +2368,8 @@ public sealed class McpServerTests : SqliteTestBase
             "arguments": {
                 "draftId": "{{draft.Id}}",
                 "platform": "Threads",
-                "confirm": true
+                "confirm": true,
+                "waitForCompletion": true
             }
         }
         """).RootElement);
@@ -2256,6 +2386,91 @@ public sealed class McpServerTests : SqliteTestBase
         var posts = doc.RootElement.GetProperty("posts").EnumerateArray().ToList();
         Assert.Single(posts);
         Assert.Equal("remote-1234", posts[0].GetProperty("remoteId").GetString());
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_PublishThread_Async_EnqueuesTaskAndReportsPublishing()
+    {
+        var stubPublisher = new ConfigurableStubPublisher("MetaThreads", new List<PublishedPost>
+        {
+            new() { SegmentIndex = 0, RemoteId = "remote-1234", Url = "https://www.threads.net/@tester/post/1234" }
+        });
+        var publisherResolver = new ConfigurablePublisherResolver(stubPublisher);
+        var customQueue = new TestBackgroundTaskQueue();
+
+        var (server, user, db) = CreateTestServer(customQueue: customQueue, customPublisherResolver: publisherResolver);
+        var account = new Account { Id = Guid.NewGuid(), UserId = user.Id, Platform = "MetaThreads", Handle = "tester" };
+        var draft = Draft.Create(user.Id, "Threads Async Draft", "Async hello threads", SocialPlatform.MetaThreads);
+        var thread = new PlatformThread { Id = Guid.NewGuid(), DraftId = draft.Id, Platform = "MetaThreads", Content = "Async hello threads" };
+        draft.Threads.Add(thread);
+        db.Accounts.Add(account);
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var req = new McpRequest("2.0", 84, "tools/call", JsonDocument.Parse($$"""
+        {
+            "name": "publish_thread",
+            "arguments": {
+                "draftId": "{{draft.Id}}",
+                "platform": "Threads",
+                "confirm": true
+            }
+        }
+        """).RootElement);
+
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var doc = JsonDocument.Parse(result.Content[0].Text);
+        Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal("publishing", doc.RootElement.GetProperty("status").GetString());
+        var taskIds = doc.RootElement.GetProperty("taskIds").EnumerateArray().ToList();
+        Assert.Single(taskIds);
+
+        // Verify task was queued
+        var enqueued = customQueue.EnqueuedTasks.FirstOrDefault(t => t.TaskType == "publish-thread");
+        Assert.NotNull(enqueued);
+        Assert.Equal($"publish-thread:{thread.Id}", enqueued.DeduplicationKey);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_GetDraft_IncludesPublishingStatusAndCounts()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Status Check Draft", "Segment 1\n---\nSegment 2", SocialPlatform.MetaThreads);
+        var thread = new PlatformThread
+        {
+            Id = Guid.NewGuid(),
+            DraftId = draft.Id,
+            Platform = "MetaThreads",
+            Content = "Segment 1\n---\nSegment 2",
+            Stage = PlatformThreadStage.Scheduled
+        };
+        draft.Threads.Add(thread);
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var req = new McpRequest("2.0", 85, "tools/call", JsonDocument.Parse($$"""
+        {
+            "name": "get_draft",
+            "arguments": {
+                "draftId": "{{draft.Id}}"
+            }
+        }
+        """).RootElement);
+
+        var resp = await server.HandleRequestAsync(req, user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var doc = JsonDocument.Parse(result.Content[0].Text);
+        Assert.Equal("publishing", doc.RootElement.GetProperty("publishingStatus").GetString());
+        Assert.Equal(0, doc.RootElement.GetProperty("publishedCount").GetInt32());
+        Assert.Equal(2, doc.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Null(doc.RootElement.GetProperty("lastPublishError").GetString());
     }
 
     private sealed class ConfigurablePublisherResolver : IPublisherResolver

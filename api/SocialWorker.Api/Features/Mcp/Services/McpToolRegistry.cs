@@ -28,6 +28,7 @@ using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Publishing.Validation;
 using SocialWorker.Api.Features.ReplyAgents.Abstractions;
 using SocialWorker.Api.Features.ReplyAgents.Models;
+using SocialWorker.Api.Infrastructure.Services;
 using SocialWorker.Api.Features.ReplyAgents.Services;
 using SocialWorker.Api.Features.Scheduling.Models;
 using SocialWorker.Api.Features.Scheduling.Services;
@@ -68,6 +69,7 @@ public sealed class McpToolRegistry
     private readonly IImageEngineClient? _imageEngineClient;
     private readonly ImageGenerationService? _imageGenerationService;
     private readonly TemplateGeneratorService? _templateGeneratorService;
+    private readonly IAppUrlResolver? _urlResolver;
 
     public McpToolRegistry(
         AppDbContext db,
@@ -96,7 +98,8 @@ public sealed class McpToolRegistry
         PlatformVariantService? platformVariantService = null,
         IImageEngineClient? imageEngineClient = null,
         ImageGenerationService? imageGenerationService = null,
-        TemplateGeneratorService? templateGeneratorService = null)
+        TemplateGeneratorService? templateGeneratorService = null,
+        IAppUrlResolver? urlResolver = null)
     {
         _db = db;
         _draftsService = draftsService;
@@ -125,6 +128,7 @@ public sealed class McpToolRegistry
         _imageEngineClient = imageEngineClient;
         _imageGenerationService = imageGenerationService;
         _templateGeneratorService = templateGeneratorService;
+        _urlResolver = urlResolver;
     }
 
     private MediaService? ResolveMediaService() => _mediaService ?? _serviceProvider?.GetService<MediaService>();
@@ -137,42 +141,16 @@ public sealed class McpToolRegistry
     private ImageGenerationService? ResolveImageGenerationService() => _imageGenerationService ?? _serviceProvider?.GetService<ImageGenerationService>();
     private TemplateGeneratorService? ResolveTemplateGeneratorService() => _templateGeneratorService ?? _serviceProvider?.GetService<TemplateGeneratorService>();
 
-    private string GetAppBaseUrl()
+    private IAppUrlResolver ResolveUrlResolver()
     {
-        var config = _serviceProvider?.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
-        var configured = config?["App:BaseUrl"]
-            ?? config?["APP_BASE_URL"]
-            ?? config?["App:PublicBaseUrl"]
-            ?? config?["APP__PUBLICBASEURL"]
-            ?? config?["MetaThreads:PublicBaseUrl"]
-            ?? config?["METATHREADS__PUBLICBASEURL"];
-
-        if (!string.IsNullOrWhiteSpace(configured))
-        {
-            return configured.TrimEnd('/');
-        }
-
-        var httpContextAccessor = _serviceProvider?.GetService<Microsoft.AspNetCore.Http.IHttpContextAccessor>();
-        var ctx = httpContextAccessor?.HttpContext;
-        if (ctx != null)
-        {
-            try
-            {
-                var url = Auth.McpOAuthEndpoints.GetBaseUrl(ctx);
-                if (!string.IsNullOrWhiteSpace(url))
-                {
-                    return url.TrimEnd('/');
-                }
-            }
-            catch
-            {
-            }
-        }
-
-        return "http://localhost:8100";
+        return _urlResolver
+            ?? _serviceProvider?.GetService<SocialWorker.Api.Infrastructure.Services.IAppUrlResolver>()
+            ?? new SocialWorker.Api.Infrastructure.Services.AppUrlResolver(
+                _serviceProvider?.GetService<Microsoft.Extensions.Configuration.IConfiguration>() ?? new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
+                _serviceProvider?.GetService<Microsoft.AspNetCore.Http.IHttpContextAccessor>());
     }
 
-    private string GetDraftUrl(Guid draftId) => $"{GetAppBaseUrl()}/draft/{draftId}";
+    private string GetDraftUrl(Guid draftId) => ResolveUrlResolver().GetDraftWebUrl(draftId);
 
     public List<McpToolDefinition> ListTools()
     {
@@ -233,6 +211,16 @@ public sealed class McpToolRegistry
                 "required": ["draftId"]
             }
             """)),
+            new("preview_draft", "Generate a formatted Markdown in-chat preview of a draft thread with post segments, character counts, and deep links for Gemini and Claude.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to preview." },
+                    "platform": { "type": "string", "description": "Optional target platform to preview for (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn'). Defaults to draft's target platform." }
+                },
+                "required": ["draftId"]
+            }
+            """)),
             new("delete_draft", "Permanently delete an unpublished draft and remove it from any schedule queues.", CreateSchema("""
             {
                 "type": "object",
@@ -252,7 +240,7 @@ public sealed class McpToolRegistry
                 "required": ["draftId"]
             }
             """)),
-            new("publish_thread", "Publish a draft to a live social media platform (e.g. Bluesky, Twitter/X, Threads, LinkedIn) with server-enforced validation.", CreateSchema("""
+            new("publish_thread", "Publish a draft to a live social media platform (e.g. Bluesky, Twitter/X, Threads, LinkedIn) with server-enforced validation. Runs asynchronously in the background by default; use get_draft to monitor status.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
@@ -261,7 +249,8 @@ public sealed class McpToolRegistry
                     "platforms": { "type": "array", "items": { "type": "string" }, "description": "Optional list of platforms to publish to simultaneously (e.g. ['Bluesky', 'Twitter'])." },
                     "accountId": { "type": "string", "description": "Optional account ID to publish with. Required if the user has multiple accounts for this platform." },
                     "dryRun": { "type": "boolean", "description": "If true, simulates validation, account resolution, and post preview without posting to live platform." },
-                    "confirm": { "type": "boolean", "description": "Confirmation flag required for irreversible live publishing actions. Defaults to true." }
+                    "confirm": { "type": "boolean", "description": "Confirmation flag required for irreversible live publishing actions. Defaults to true." },
+                    "waitForCompletion": { "type": "boolean", "description": "If true, blocks synchronously until publishing completes instead of queuing in background. Defaults to false." }
                 },
                 "required": ["draftId"]
             }
@@ -286,13 +275,26 @@ public sealed class McpToolRegistry
                 "required": ["draftId", "reference"]
             }
             """)),
-            new("fetch_source", "Fetch the extracted text content and summary of an attached source.", CreateSchema("""
+            new("fetch_source", "Fetch the extracted text content and summary of an attached source, or the public URL and metadata if the source is an image.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
-                    "sourceId": { "type": "string", "description": "The UUID of the source." }
+                    "sourceId": { "type": "string", "description": "The UUID of the source or media://{guid} identifier." }
                 },
                 "required": ["sourceId"]
+            }
+            """)),
+            new("search_sources", "Search the global source library (articles, web pages, video transcripts) using full-text search across titles, content, and summaries.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "description": "The search keywords or phrase." },
+                    "limit": { "type": "integer", "description": "Maximum number of results to return (1-50, default 10)." },
+                    "page": { "type": "integer", "description": "Page number (default 1)." },
+                    "kind": { "type": "string", "enum": ["Url", "File", "YouTube"], "description": "Optional filter by source kind." },
+                    "excludeDraftId": { "type": "string", "description": "Optional draft UUID to exclude sources already attached to that draft." }
+                },
+                "required": ["query"]
             }
             """)),
             new("list_workflows", "List all automated RSS/YouTube feed workflows.", CreateSchema("""
@@ -1037,6 +1039,7 @@ public sealed class McpToolRegistry
             {
                 "list_drafts" => await HandleListDraftsAsync(userId, args, ct),
                 "get_draft" => await HandleGetDraftAsync(userId, args, ct),
+                "preview_draft" => await HandlePreviewDraftAsync(userId, args, ct),
                 "create_draft" => await HandleCreateDraftAsync(userId, args, ct),
                 "update_draft" => await HandleUpdateDraftAsync(userId, args, ct),
                 "delete_draft" => await HandleDeleteDraftAsync(userId, args, ct),
@@ -1046,6 +1049,7 @@ public sealed class McpToolRegistry
                 "list_sources" => await HandleListSourcesAsync(userId, args, ct),
                 "add_source" => await HandleAddSourceAsync(userId, args, ct),
                 "fetch_source" => await HandleFetchSourceAsync(userId, args, ct),
+                "search_sources" => await HandleSearchSourcesAsync(userId, args, ct),
                 "list_workflows" => await HandleListWorkflowsAsync(userId, ct),
                 "trigger_workflow" => await HandleTriggerWorkflowAsync(userId, args, ct),
                 "list_feeds" => await HandleListFeedsAsync(userId, ct),
@@ -1200,6 +1204,7 @@ public sealed class McpToolRegistry
         }
 
         var draft = await _draftsService.GetDraftByIdAsync(userId, draftId, ct);
+        var urlResolver = ResolveUrlResolver();
         var mediaWithTags = draft.MediaAssets?.Select(m => new
         {
             m.Id,
@@ -1210,7 +1215,9 @@ public sealed class McpToolRegistry
             m.Width,
             m.Height,
             m.CreatedAt,
-            markdownTag = $"![{m.AltText ?? m.FileName}](media://{m.Id})"
+            url = urlResolver.GetMediaUrl(m.Id),
+            markdownTag = $"![{m.AltText ?? m.FileName}]({urlResolver.GetMediaUrl(m.Id)})",
+            internalUri = $"media://{m.Id}"
         }).ToList();
 
         var allThreads = new List<PlatformThreadDto>();
@@ -1247,8 +1254,52 @@ public sealed class McpToolRegistry
             .Distinct()
             .ToList();
 
-        bool isPublished = allThreads.Any(t => string.Equals(t.Stage, "Sent", StringComparison.OrdinalIgnoreCase) || string.Equals(t.Stage, "Published", StringComparison.OrdinalIgnoreCase))
-            || publishedPosts.Count > 0;
+        bool isAllSent = allThreads.Count > 0 && allThreads.All(t => string.Equals(t.Stage, "Sent", StringComparison.OrdinalIgnoreCase) || string.Equals(t.Stage, "Published", StringComparison.OrdinalIgnoreCase));
+        bool hasPublishErrors = allThreads.Any(t => !string.IsNullOrEmpty(t.LastPublishError));
+        bool isAnyPublishing = allThreads.Any(t => string.Equals(t.Stage, "Scheduled", StringComparison.OrdinalIgnoreCase));
+
+        if (!isAnyPublishing && _taskQueue != null && threadIds.Count > 0)
+        {
+            var activeKeys = threadIds.Select(id => $"publish-thread:{id}").ToList();
+            isAnyPublishing = await _db.BackgroundTasks
+                .AsNoTracking()
+                .AnyAsync(t => t.TaskType == SocialWorker.Api.Features.Publishing.Handlers.PublishThreadTaskHandler.TaskTypeName &&
+                    (t.Status == BackgroundTaskStatus.Pending || t.Status == BackgroundTaskStatus.Running) &&
+                    t.DeduplicationKey != null && activeKeys.Contains(t.DeduplicationKey), ct);
+        }
+
+        int totalSegments = 0;
+        foreach (var t in allThreads)
+        {
+            var count = SocialWorker.Api.Infrastructure.Markdown.ThreadMarkdownDocument.Parse(t.Content ?? "").Segments.Count;
+            totalSegments += Math.Max(1, count);
+        }
+        if (totalSegments == 0 && !string.IsNullOrWhiteSpace(draft.Content))
+        {
+            totalSegments = Math.Max(1, SocialWorker.Api.Infrastructure.Markdown.ThreadMarkdownDocument.Parse(draft.Content).Segments.Count);
+        }
+
+        string publishingStatus = "idle";
+        if (isAnyPublishing)
+        {
+            publishingStatus = "publishing";
+        }
+        else if (isAllSent)
+        {
+            publishingStatus = "completed";
+        }
+        else if (publishedPosts.Count > 0)
+        {
+            publishingStatus = hasPublishErrors ? "failed" : "partially_published";
+        }
+        else if (hasPublishErrors)
+        {
+            publishingStatus = "failed";
+        }
+
+        string? lastPublishError = allThreads.FirstOrDefault(t => !string.IsNullOrEmpty(t.LastPublishError))?.LastPublishError;
+
+        bool isPublished = isAllSent || publishedPosts.Count > 0;
 
         var result = new
         {
@@ -1258,7 +1309,8 @@ public sealed class McpToolRegistry
             draft.Content,
             draft.TargetPlatform,
             draft.CanonicalDraftId,
-            url = GetDraftUrl(draft.Id),
+            url = urlResolver.GetDraftWebUrl(draft.Id),
+            previewHtmlUrl = urlResolver.GetDraftPreviewHtmlUrl(draft.Id, draft.TargetPlatform),
             draft.Threads,
             MediaAssets = mediaWithTags,
             draft.BlueskyReplyTarget,
@@ -1275,6 +1327,10 @@ public sealed class McpToolRegistry
             draft.DiscardReason,
             draft.RelevanceScore,
             isPublished,
+            publishingStatus,
+            publishedCount = publishedPosts.Count,
+            totalCount = totalSegments,
+            lastPublishError,
             publishedUrls,
             publishedPosts
         };
@@ -1378,6 +1434,89 @@ public sealed class McpToolRegistry
         return TextResult($"Platform: {platform}\n\n{validation.ToDisplayText()}");
     }
 
+    private async Task<McpToolCallResult> HandlePreviewDraftAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var idProp) || !Guid.TryParse(idProp.GetString(), out var draftId))
+        {
+            return TextError("draftId must be a valid UUID.");
+        }
+
+        var draft = await _db.Drafts
+            .Include(d => d.TargetAccount)
+            .Include(d => d.Threads).ThenInclude(t => t.Account)
+            .FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId && d.Status != DraftStatus.Deleted, ct);
+
+        if (draft == null)
+        {
+            return TextError($"Draft '{draftId}' not found or access denied.");
+        }
+
+        var platform = args.TryGetProperty("platform", out var p) && !string.IsNullOrWhiteSpace(p.GetString())
+            ? p.GetString()!.Trim()
+            : draft.TargetPlatform?.ToString() ?? "Bluesky";
+
+        var urlResolver = ResolveUrlResolver();
+        var previewHtmlUrl = urlResolver.GetDraftPreviewHtmlUrl(draft.Id, platform);
+        var draftWebUrl = urlResolver.GetDraftWebUrl(draft.Id);
+
+        var maxChars = platform.ToLowerInvariant() switch
+        {
+            "twitter" or "x" => 280,
+            "threads" or "metathreads" => 500,
+            "linkedin" => 3000,
+            "facebook" => 5000,
+            "instagram" => 2200,
+            _ => 300
+        };
+
+        var platformThread = draft.Threads?.FirstOrDefault(t => string.Equals(t.Platform, platform, StringComparison.OrdinalIgnoreCase))
+            ?? draft.Threads?.FirstOrDefault();
+
+        var rawContent = !string.IsNullOrWhiteSpace(platformThread?.Content)
+            ? platformThread.Content
+            : !string.IsNullOrWhiteSpace(draft.Content)
+                ? draft.Content
+                : draft.Title ?? string.Empty;
+
+        var segments = DraftSegmentService.SplitMarkdownIntoSegments(rawContent);
+        if (segments.Count == 0 && !string.IsNullOrWhiteSpace(rawContent))
+        {
+            segments = new List<string> { rawContent };
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"### Draft Preview: {draft.Title}");
+        sb.AppendLine($"**Platform:** {platform} • **Status:** {draft.Status} • **Total Posts:** {Math.Max(1, segments.Count)}");
+        sb.AppendLine($"[Open Draft in social-worker]({draftWebUrl}) • [Open Full Preview Page]({previewHtmlUrl})");
+        sb.AppendLine();
+        sb.AppendLine("---");
+        sb.AppendLine();
+
+        for (int i = 0; i < segments.Count; i++)
+        {
+            var seg = segments[i];
+            var processedSeg = System.Text.RegularExpressions.Regex.Replace(
+                seg,
+                @"media://([a-fA-F0-9\-]+)",
+                m => Guid.TryParse(m.Groups[1].Value, out var mId) ? urlResolver.GetMediaUrl(mId) : m.Value);
+
+            var charCount = processedSeg.Length;
+            var isOver = charCount > maxChars;
+            var charWarning = isOver ? $" ⚠️ **Limit exceeded by {charCount - maxChars} chars**" : " ✅";
+
+            sb.AppendLine($"#### Post {i + 1}/{segments.Count} ({charCount}/{maxChars} chars{charWarning})");
+            sb.AppendLine();
+            var lines = processedSeg.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            foreach (var l in lines)
+            {
+                sb.AppendLine($"> {l}");
+            }
+            sb.AppendLine();
+        }
+
+        return TextResult(sb.ToString().TrimEnd());
+    }
+
     private async Task<McpToolCallResult> HandlePublishThreadAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
         if (!args.TryGetProperty("draftId", out var idProp) || !Guid.TryParse(idProp.GetString(), out var draftId))
@@ -1476,6 +1615,113 @@ public sealed class McpToolRegistry
             }, JsonOptions));
         }
 
+        bool waitForCompletion = args.TryGetProperty("waitForCompletion", out var wfProp) && wfProp.ValueKind == JsonValueKind.True;
+
+        if (!waitForCompletion && _taskQueue != null)
+        {
+            var draft = await _db.Drafts.Include(d => d.Threads).FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == userId, ct);
+            if (draft == null)
+            {
+                return TextError("Draft not found.");
+            }
+
+            var taskIds = new List<Guid>();
+            foreach (var plat in platforms)
+            {
+                var normalizedPlat = SocialPlatformParser.TryParse(plat, out var parsedPlat) ? parsedPlat.ToString() : plat;
+                var thread = draft.Threads.FirstOrDefault(t => t.Platform.Equals(plat, StringComparison.OrdinalIgnoreCase) || t.Platform.Equals(normalizedPlat, StringComparison.OrdinalIgnoreCase));
+                if (thread == null)
+                {
+                    if (!string.IsNullOrWhiteSpace(draft.Content))
+                    {
+                        thread = new PlatformThread
+                        {
+                            DraftId = draft.Id,
+                            Platform = normalizedPlat,
+                            Content = draft.Content,
+                            Stage = PlatformThreadStage.Draft,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        _db.PlatformThreads.Add(thread);
+                        await _db.SaveChangesAsync(ct);
+                    }
+                    else
+                    {
+                        return TextError($"No platform thread found for platform '{plat}' in this draft.");
+                    }
+                }
+
+                if (thread.Stage == PlatformThreadStage.Sent)
+                {
+                    continue;
+                }
+
+                var matchingAccounts = await _db.Accounts
+                    .Where(a => a.UserId == userId && (a.Platform.ToLower() == plat.ToLower() || a.Platform.ToLower() == normalizedPlat.ToLower()))
+                    .ToListAsync(ct);
+
+                var resolvedAccount = accountId.HasValue
+                    ? matchingAccounts.FirstOrDefault(a => a.Id == accountId.Value)
+                    : (matchingAccounts.Count == 1 ? matchingAccounts[0] : null);
+
+                if (resolvedAccount == null)
+                {
+                    if (matchingAccounts.Count == 0)
+                    {
+                        return TextError($"No connected account found for platform: {plat}");
+                    }
+                    var accountListStr = string.Join(", ", matchingAccounts.Select(a => $"{a.Handle ?? a.Id.ToString()} (ID: {a.Id})"));
+                    return TextError($"Multiple accounts found for platform '{plat}'. Please specify 'accountId': {accountListStr}");
+                }
+
+                var validation = await validatorTool.ExecuteAsync(
+                    new ValidateDraftArgs(null, plat),
+                    SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(userId, draftId));
+
+                if (validation.HasBlockingErrors)
+                {
+                    var firstError = validation.Posts.SelectMany(p => p.Issues).FirstOrDefault(i => i.Severity == ValidateDraftSeverity.Error);
+                    return TextError(firstError?.Message ?? "Validation failed.");
+                }
+
+                thread.AccountId = resolvedAccount.Id;
+                thread.Stage = PlatformThreadStage.Scheduled;
+                thread.LastPublishError = null;
+                thread.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+
+                var taskId = await _taskQueue.EnqueueAsync(
+                    SocialWorker.Api.Features.Publishing.Handlers.PublishThreadTaskHandler.TaskTypeName,
+                    new SocialWorker.Api.Features.Publishing.Models.PublishThreadTaskPayload(draftId, thread.Id, userId, plat, resolvedAccount.Id),
+                    EnqueueTaskOptions.WithDeduplication($"publish-thread:{thread.Id}"),
+                    ct);
+
+                taskIds.Add(taskId);
+            }
+
+            if (taskIds.Count == 0 && platforms.Count > 0)
+            {
+                return TextResult(JsonSerializer.Serialize(new
+                {
+                    success = true,
+                    status = "already_published",
+                    draftId,
+                    platforms,
+                    message = "Thread is already published."
+                }, JsonOptions));
+            }
+
+            return TextResult(JsonSerializer.Serialize(new
+            {
+                success = true,
+                status = "publishing",
+                draftId,
+                platforms,
+                taskIds,
+                message = "Thread publishing initiated in the background. Use get_draft to monitor status and published URLs."
+            }, JsonOptions));
+        }
+
         var results = new List<object>();
         foreach (var plat in platforms)
         {
@@ -1536,25 +1782,28 @@ public sealed class McpToolRegistry
             .OrderBy(m => m.CreatedAt)
             .ToListAsync(ct);
 
+        var urlResolver = ResolveUrlResolver();
         var combined = new List<object>(sources);
         foreach (var m in mediaAssets)
         {
+            var publicUrl = urlResolver.GetMediaUrl(m.Id);
             combined.Add(new
             {
                 id = m.Id,
                 draftId = draftId,
                 kind = "Image",
                 reference = $"media://{m.Id}",
+                publicUrl = publicUrl,
                 title = m.FileName,
                 summary = m.AltText,
                 processingStatus = "Complete",
                 youtubeVideoId = (string?)null,
                 addedAt = m.CreatedAt,
-                canonicalUrl = $"/api/media/{m.Id}",
+                canonicalUrl = publicUrl,
                 citationLabel = m.FileName,
                 embedKind = "image",
-                canonicalEmbedMarkdown = $"![{m.AltText ?? m.FileName}](media://{m.Id})",
-                plainLinkLine = $"/api/media/{m.Id}",
+                canonicalEmbedMarkdown = $"![{m.AltText ?? m.FileName}]({publicUrl})",
+                plainLinkLine = publicUrl,
                 mimeType = m.MimeType,
                 width = m.Width,
                 height = m.Height,
@@ -1604,11 +1853,7 @@ public sealed class McpToolRegistry
             return TextError("sourceId must be a valid UUID or media:// URI.");
         }
 
-        var source = await _db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source != null)
-        {
-            return TextResult($"Title: {source.Title}\nKind: {source.Kind}\nReference: {source.Reference}\nSummary: {source.Summary}\n\nContent:\n{source.Content}");
-        }
+        var urlResolver = ResolveUrlResolver();
 
         var media = await _db.MediaAssets.Include(m => m.Draft).FirstOrDefaultAsync(m => m.Id == sourceId, ct);
         if (media != null)
@@ -1618,32 +1863,144 @@ public sealed class McpToolRegistry
                 return TextError("Access denied to target image source.");
             }
 
+            var publicUrl = urlResolver.GetMediaUrl(media.Id);
+            var mimeType = media.MimeType ?? "image/png";
+            byte[]? bytes = null;
+
             var mediaService = ResolveMediaService();
             if (mediaService != null)
             {
                 try
                 {
-                    var (fullPath, mimeType) = await mediaService.GetMediaFileAsync(media.Id, ct);
+                    var (fullPath, fileMime) = await mediaService.GetMediaFileAsync(media.Id, ct);
                     if (File.Exists(fullPath))
                     {
-                        var bytes = await File.ReadAllBytesAsync(fullPath, ct);
-                        var base64 = Convert.ToBase64String(bytes);
-                        var textDesc = $"Image Source: {media.FileName} ({media.Width}x{media.Height}, {media.MimeType}, {media.SizeBytes / 1024} KB). Alt: \"{media.AltText}\". Tag: ![{media.AltText ?? media.FileName}](media://{media.Id})";
-                        return new McpToolCallResult(new List<McpContentPart>
-                        {
-                            McpContentPart.AsText(textDesc),
-                            McpContentPart.AsImage(base64, mimeType)
-                        }, false);
+                        bytes = await File.ReadAllBytesAsync(fullPath, ct);
+                        mimeType = fileMime;
                     }
                 }
-                catch (Exception ex)
+                catch
                 {
-                    return TextError($"Failed to read media source file: {ex.Message}");
                 }
             }
+
+            var altText = !string.IsNullOrWhiteSpace(media.AltText) ? media.AltText : media.FileName;
+            var textDesc = $"Image Source: {media.FileName} ({media.Width}x{media.Height}, {mimeType}, {media.SizeBytes / 1024} KB).\n" +
+                           $"URI: media://{media.Id}\n" +
+                           $"Public URL: {publicUrl}\n" +
+                           $"Alt: \"{media.AltText}\"\n" +
+                           $"Tag: ![{altText}]({publicUrl})\n\n" +
+                           $"Direct image link for display or visual analysis: {publicUrl}";
+
+            var parts = new List<McpContentPart>
+            {
+                McpContentPart.AsText(textDesc)
+            };
+
+            if (bytes != null && bytes.Length > 0)
+            {
+                parts.Add(McpContentPart.AsImage(Convert.ToBase64String(bytes), mimeType));
+            }
+
+            return new McpToolCallResult(parts, false);
+        }
+
+        var source = await _db.Sources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source != null)
+        {
+            string? publicImageUrl = null;
+            if (!string.IsNullOrWhiteSpace(source.Reference))
+            {
+                var trimmedRef = source.Reference.Trim();
+                if (trimmedRef.StartsWith("media://", StringComparison.OrdinalIgnoreCase) &&
+                    Guid.TryParse(trimmedRef.Substring("media://".Length).Trim(), out var referencedMediaId))
+                {
+                    publicImageUrl = urlResolver.GetMediaUrl(referencedMediaId);
+                }
+                else if (IsImageUrl(trimmedRef))
+                {
+                    publicImageUrl = trimmedRef;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(publicImageUrl) && !string.IsNullOrWhiteSpace(source.Title) && IsImageUrl(source.Title))
+            {
+                var matchingMedia = await _db.MediaAssets
+                    .FirstOrDefaultAsync(m => m.FileName == source.Title || (!string.IsNullOrEmpty(source.Sha256) && m.Sha256 == source.Sha256), ct);
+                if (matchingMedia != null)
+                {
+                    publicImageUrl = urlResolver.GetMediaUrl(matchingMedia.Id);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(publicImageUrl))
+            {
+                var alt = !string.IsNullOrWhiteSpace(source.Title) ? source.Title : "Image Source";
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"Title: {source.Title}");
+                sb.AppendLine($"Kind: {source.Kind}");
+                sb.AppendLine($"Reference: {source.Reference}");
+                sb.AppendLine($"Public URL: {publicImageUrl}");
+                sb.AppendLine($"Tag: ![{alt}]({publicImageUrl})");
+                if (!string.IsNullOrWhiteSpace(source.Summary))
+                {
+                    sb.AppendLine($"Summary: {source.Summary}");
+                }
+                sb.AppendLine();
+                sb.AppendLine($"Direct image link for display or visual analysis: {publicImageUrl}");
+                if (!string.IsNullOrWhiteSpace(source.Content))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("Content:");
+                    sb.AppendLine(source.Content);
+                }
+                return TextResult(sb.ToString().TrimEnd());
+            }
+
+            return TextResult($"Title: {source.Title}\nKind: {source.Kind}\nReference: {source.Reference}\nSummary: {source.Summary}\n\nContent:\n{source.Content}");
         }
 
         return TextError($"Source {sourceId} not found.");
+    }
+
+    private async Task<McpToolCallResult> HandleSearchSourcesAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        var query = args.TryGetProperty("query", out var q) ? q.GetString() ?? string.Empty : string.Empty;
+        var limit = args.TryGetProperty("limit", out var l) && l.TryGetInt32(out var parsedLimit)
+            ? Math.Clamp(parsedLimit, 1, 50)
+            : (args.TryGetProperty("pageSize", out var ps) && ps.TryGetInt32(out var parsedPs) ? Math.Clamp(parsedPs, 1, 50) : 10);
+        var page = args.TryGetProperty("page", out var p) && p.TryGetInt32(out var parsedPage)
+            ? Math.Max(1, parsedPage)
+            : 1;
+
+        SourceKind? kindFilter = null;
+        if (args.TryGetProperty("kind", out var k) && !string.IsNullOrWhiteSpace(k.GetString()) && Enum.TryParse<SourceKind>(k.GetString(), true, out var parsedKind))
+        {
+            kindFilter = parsedKind;
+        }
+
+        Guid? excludeDraftId = null;
+        if (args.TryGetProperty("excludeDraftId", out var ed) && Guid.TryParse(ed.GetString(), out var parsedDraftId))
+        {
+            excludeDraftId = parsedDraftId;
+        }
+
+        var result = await _sourcesService.SearchSourcesAsync(userId, query, page, limit, ct, kindFilter, excludeDraftId: excludeDraftId);
+        return TextResult(JsonSerializer.Serialize(result, JsonOptions));
+    }
+
+    private static bool IsImageUrl(string urlOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(urlOrPath)) return false;
+        var clean = urlOrPath.Split('?')[0].Split('#')[0].Trim().ToLowerInvariant();
+        return clean.EndsWith(".png") ||
+               clean.EndsWith(".jpg") ||
+               clean.EndsWith(".jpeg") ||
+               clean.EndsWith(".gif") ||
+               clean.EndsWith(".webp") ||
+               clean.EndsWith(".svg") ||
+               clean.EndsWith(".bmp") ||
+               clean.EndsWith(".avif");
     }
 
     private async Task<McpToolCallResult> HandleListWorkflowsAsync(Guid userId, CancellationToken ct)
@@ -4085,7 +4442,8 @@ public sealed class McpToolRegistry
             }
 
             var base64 = Convert.ToBase64String(bytes);
-            var metadata = $"Image: {asset.FileName} ({asset.Width}x{asset.Height}, {outMime}, {asset.SizeBytes / 1024} KB). Alt: \"{asset.AltText}\". Tag: ![{asset.AltText ?? asset.FileName}](media://{asset.Id})";
+            var publicUrl = ResolveUrlResolver().GetMediaUrl(asset.Id);
+            var metadata = $"Image: {asset.FileName} ({asset.Width}x{asset.Height}, {outMime}, {asset.SizeBytes / 1024} KB). Alt: \"{asset.AltText}\". URI: media://{asset.Id}. Public URL: {publicUrl}. Tag: ![{asset.AltText ?? asset.FileName}]({publicUrl})";
 
             return new McpToolCallResult(new List<McpContentPart>
             {

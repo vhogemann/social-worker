@@ -23,6 +23,8 @@ services:
     ports:
       - "8101:8080"
     environment:
+      APP_BASE_URL: ${APP_BASE_URL:-https://social.plopsaurus.xyz/api}
+      App__BaseUrl: ${APP_BASE_URL:-https://social.plopsaurus.xyz/api}
       LLM__BaseUrl: https://openrouter.ai/api/v1
       LLM__ApiKey: ${LLM__ApiKey}
       LLM__Model: ${LLM__Model:-anthropic/claude-3.5-sonnet}

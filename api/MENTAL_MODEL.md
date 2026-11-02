@@ -28,8 +28,8 @@ api/
 │   │   ├── Entities/                  # Core domain entities (Draft, Source, Post, Account, Schedule, etc.)
 │   │   └── Migrations/                # Version-controlled EF Core SQL migrations
 │   ├── Features/                      # Vertical slice feature folders
-│   └── Infrastructure/                # Cross-cutting concerns (Auth, Llm, Markdown, Platforms, Security)
-└── SocialWorker.Api.Tests/            # Comprehensive unit and integration test suite (916 tests)
+│   └── Infrastructure/                # Cross-cutting concerns (Auth, Llm, Markdown, Platforms, Security, Services)
+└── SocialWorker.Api.Tests/            # Comprehensive unit and integration test suite (927 tests)
 ```
 
 ### Entry & Startup Sequence
@@ -47,7 +47,7 @@ api/
 ### 1. Vertical Feature Slices
 
 Endpoints and domain logic are structured into vertical feature folders under `Features/`:
-- **`Drafts/`**: Draft lifecycle management, thread stage transitions (`RoughDraft -> Sourcing -> Refining -> Formatting -> Ready -> Sent`), segment ordering, and AST content updates.
+- **`Drafts/`**: Draft lifecycle management, thread stage transitions (`RoughDraft -> Sourcing -> Refining -> Formatting -> Ready -> Sent`), segment ordering, AST content updates, in-chat previews, and rich HTML preview rendering with real embeds (`DraftPreviewHtmlRenderer`).
 - **`Publishing/`**: Multi-platform publishing engine implementing `IPublisher`:
   - `BlueskyPublisher`: Chained post threads, facets, single/multiple image blobs.
   - `LinkedInPublisher`: Personal profile and organization company page authoring.
@@ -81,7 +81,7 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - `BackgroundTaskRetentionService`: Prunes task logs, dead runs, and succeeded/expired schedule queue items older than 7 days.
 - **`Mcp/`**: Model Context Protocol integration.
   - Stateless JSON-RPC 2.0 at `POST /api/mcp` and streaming Server-Sent Events at `GET /api/mcp/sse`.
-  - Exposes 74 tools across 9 domains covering drafts, platform variants, media assets/templates, AI image generation (`generate_image`), sources, image inspection (`view_image`), video transcription, feeds, workflows, schedules, calendar events, accounts, reply agents, and monitored posts.
+  - Exposes 76 tools across 9 domains covering drafts (including in-chat visual preview `preview_draft`), platform variants, media assets/templates, AI image generation (`generate_image`), sources (including full-text search `search_sources`), image inspection (`view_image`), video transcription, feeds, workflows, schedules, calendar events, accounts, reply agents, and monitored posts.
 
 ### 2. Static Entity Factories & Invariant Protection
 
@@ -104,7 +104,7 @@ All commands must be executed within Docker containers via the `tooling` profile
 # Build API project
 docker compose --profile tooling run --rm dotnet build
 
-# Run full test suite (916 tests)
+# Run full test suite (927 tests)
 docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
 
 # Run single test class or filter

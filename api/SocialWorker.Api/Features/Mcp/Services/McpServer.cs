@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Features.Mcp.Models;
 
 namespace SocialWorker.Api.Features.Mcp.Services;
@@ -11,11 +12,13 @@ public sealed class McpServer
 {
     private readonly McpToolRegistry _toolRegistry;
     private readonly McpResourceRegistry _resourceRegistry;
+    private readonly ILogger<McpServer>? _logger;
 
-    public McpServer(McpToolRegistry toolRegistry, McpResourceRegistry resourceRegistry)
+    public McpServer(McpToolRegistry toolRegistry, McpResourceRegistry resourceRegistry, ILogger<McpServer>? logger = null)
     {
         _toolRegistry = toolRegistry;
         _resourceRegistry = resourceRegistry;
+        _logger = logger;
     }
 
     public async Task<McpResponse?> HandleRequestAsync(McpRequest request, Guid userId, CancellationToken ct)
@@ -25,6 +28,7 @@ public sealed class McpServer
             switch (request.Method)
             {
                 case "initialize":
+                    _logger?.LogInformation("MCP initialize for user {UserId}", userId);
                     var initResult = new McpInitializeResult(
                         "2024-11-05",
                         new McpServerCapabilities(
@@ -41,6 +45,7 @@ public sealed class McpServer
                     return McpResponse.Success(request.Id, new Dictionary<string, object>());
 
                 case "tools/list":
+                    _logger?.LogInformation("MCP tools/list requested by user {UserId}", userId);
                     var tools = _toolRegistry.ListTools();
                     return McpResponse.Success(request.Id, new { tools });
 
@@ -59,7 +64,9 @@ public sealed class McpServer
                     var toolName = nameProp.GetString()!;
                     JsonElement? args = paramsEl.TryGetProperty("arguments", out var a) ? a : null;
 
+                    _logger?.LogInformation("MCP tools/call: tool={ToolName}, user={UserId}, args={Args}", toolName, userId, args?.GetRawText());
                     var callResult = await _toolRegistry.ExecuteToolAsync(toolName, args, userId, ct);
+                    _logger?.LogInformation("MCP tools/call completed: tool={ToolName}, isError={IsError}", toolName, callResult.IsError);
                     return McpResponse.Success(request.Id, callResult);
 
                 case "resources/list":
@@ -98,6 +105,7 @@ public sealed class McpServer
         }
         catch (Exception ex)
         {
+            _logger?.LogError(ex, "MCP request failed: method={Method}", request.Method);
             return McpResponse.Fail(request.Id, -32603, $"Internal server error: {ex.Message}");
         }
     }

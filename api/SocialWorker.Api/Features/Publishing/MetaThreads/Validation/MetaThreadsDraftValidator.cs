@@ -49,15 +49,22 @@ public sealed class MetaThreadsDraftValidator : IDraftValidator
             var issues = new List<ValidateDraftIssue>();
 
             var cleanedText = segDoc.PlainText;
+            var textToMeasure = cleanedText;
+            if (segDoc.YouTubeEmbed != null)
+            {
+                textToMeasure = string.IsNullOrWhiteSpace(textToMeasure)
+                    ? segDoc.YouTubeEmbed.Url
+                    : $"{textToMeasure}\n\n{segDoc.YouTubeEmbed.Url}";
+            }
             var mediaRefs = segDoc.MediaEmbeds;
             var imageCount = mediaRefs.Count;
             var hasYouTube = segDoc.YouTubeEmbed is not null;
 
-            if (cleanedText.Length > MaxCharacters)
+            if (textToMeasure.Length > MaxCharacters)
             {
                 issues.Add(new ValidateDraftIssue(
                     ValidateDraftSeverity.Error,
-                    $"Post exceeds the {MaxCharacters}-character Threads limit by {cleanedText.Length - MaxCharacters} characters."));
+                    $"Post exceeds the {MaxCharacters}-character Threads limit by {textToMeasure.Length - MaxCharacters} characters."));
             }
 
             if (imageCount > MaxMediaPerPost)
@@ -108,7 +115,7 @@ public sealed class MetaThreadsDraftValidator : IDraftValidator
 
             posts.Add(new ValidateDraftPostResult(
                 postNumber,
-                cleanedText.Length,
+                textToMeasure.Length,
                 imageCount,
                 hasYouTube,
                 issues));

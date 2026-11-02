@@ -16,6 +16,7 @@ public sealed class SystemPromptBuilder
           + "Use --- on its own line to separate thread segments (each segment is one post).\n"
           + "You have access to reference sources (attached files or URLs detected in the draft). "
           + "To view the list of available sources, call the 'list_sources' tool. "
+          + "To search your global library of sources (articles, video transcripts, notes) by keyword, call the 'search_sources' tool. "
           + "To read the actual cached text content of a source, call the 'fetch_source' tool with its Guid ID. "
           + "If the user asks you to summarize, explain, or draft posts based on a link or file attachment, you MUST first call 'list_sources' to locate it, and then call 'fetch_source' with the corresponding ID to read the source text before responding.\n\n"
           + "Unless the user explicitly confirms ownership/authorship, treat all fetched or attached source content as third-party. Do not describe source material as ours or as user-authored by default; use neutral attribution.\n\n"

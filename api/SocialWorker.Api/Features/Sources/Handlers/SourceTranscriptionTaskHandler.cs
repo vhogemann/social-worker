@@ -110,27 +110,40 @@ public sealed class SourceTranscriptionTaskHandler : BackgroundTaskHandlerBase<S
             if (targetDraft != null)
             {
                 targetDraft.UpdatedAt = DateTime.UtcNow;
-                await _db.SaveChangesAsync(ct);
+            }
 
-                if (targetDraft.AutomationWorkflowId.HasValue && (targetDraft.Status == DraftStatus.Editing || string.IsNullOrWhiteSpace(targetDraft.Content)))
+            var waitingDrafts = await _db.DraftSources
+                .Where(ds => ds.SourceId == source.Id)
+                .Select(ds => ds.Draft)
+                .Where(d => d != null && d.AutomationWorkflowId.HasValue && (d.Status == DraftStatus.Editing || string.IsNullOrWhiteSpace(d.Content)))
+                .ToListAsync(ct);
+
+            if (targetDraft != null && targetDraft.AutomationWorkflowId.HasValue &&
+                (targetDraft.Status == DraftStatus.Editing || string.IsNullOrWhiteSpace(targetDraft.Content)) &&
+                waitingDrafts.All(d => d.Id != targetDraft.Id))
+            {
+                waitingDrafts.Add(targetDraft);
+            }
+
+            await _db.SaveChangesAsync(ct);
+
+            if (waitingDrafts.Count > 0)
+            {
+                var orchestrator = _serviceProvider.GetService<SocialWorker.Api.Features.Feeds.FeedOrchestrationService>();
+                if (orchestrator != null)
                 {
-                    var orchestrator = _serviceProvider.GetService<SocialWorker.Api.Features.Feeds.FeedOrchestrationService>();
-                    if (orchestrator != null)
+                    foreach (var draft in waitingDrafts)
                     {
                         try
                         {
-                            await orchestrator.ContinueWorkflowDraftAfterTranscriptionAsync(targetDraft.Id, ct);
+                            await orchestrator.ContinueWorkflowDraftAfterTranscriptionAsync(draft.Id, ct);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "Downstream workflow orchestration failed for draft {DraftId} after transcription", targetDraft.Id);
+                            _logger.LogError(ex, "Downstream workflow orchestration failed for draft {DraftId} after transcription", draft.Id);
                         }
                     }
                 }
-            }
-            else
-            {
-                await _db.SaveChangesAsync(ct);
             }
 
             return TaskResult.Success();

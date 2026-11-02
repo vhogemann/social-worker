@@ -125,4 +125,33 @@ public class TwitterDraftValidatorTests
         Assert.Contains(result.Posts[1].Issues, i => i.Severity == ValidateDraftSeverity.Warning);
         Assert.Contains(result.Posts[2].Issues, i => i.Severity == ValidateDraftSeverity.Error);
     }
+
+    [Fact]
+    public void Validate_YouTubeEmbed_Includes23CharacterWeight()
+    {
+        // 200 plain text chars + newline + YouTube embed URL (which costs 23 t.co units + 2 newlines = 25 units)
+        var text = new string('a', 200);
+        var content = $"{text}\n\n![Cool Video](https://www.youtube.com/watch?v=dQw4w9WgXcQ)";
+        var result = _validator.Validate(content, Array.Empty<MediaAsset>());
+
+        Assert.Equal(ValidateDraftOverallStatus.Warnings, result.OverallStatus);
+        Assert.Single(result.Posts);
+        Assert.True(result.Posts[0].HasYouTube);
+        // Weight is 200 (text) + 2 (newlines) + 23 (t.co URL) = 225
+        Assert.Equal(225, result.Posts[0].CharacterCount);
+        Assert.DoesNotContain(result.Posts[0].Issues, i => i.Severity == ValidateDraftSeverity.Error);
+    }
+
+    [Fact]
+    public void Validate_YouTubeEmbed_ExceedingLimit_ReturnsError()
+    {
+        // 260 plain text chars + newline + YouTube URL (23 units + 2 newlines = 25 units) = 285 units > 280
+        var text = new string('a', 260);
+        var content = $"{text}\n\n![Cool Video](https://www.youtube.com/watch?v=dQw4w9WgXcQ)";
+        var result = _validator.Validate(content, Array.Empty<MediaAsset>());
+
+        Assert.Equal(ValidateDraftOverallStatus.Failed, result.OverallStatus);
+        Assert.Single(result.Posts);
+        Assert.Contains(result.Posts[0].Issues, i => i.Severity == ValidateDraftSeverity.Error && i.Message.Contains("280 weighted-character limit"));
+    }
 }

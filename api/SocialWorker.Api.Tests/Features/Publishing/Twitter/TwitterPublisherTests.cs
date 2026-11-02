@@ -289,4 +289,64 @@ public sealed class TwitterPublisherTests : SqliteTestBase
             Assert.Equal("Thread is empty.", result.ErrorMessage);
         }
     }
+
+    [Fact]
+    public async Task PublishAsync_WithYouTubeEmbed_AppendsUrlToTweetText()
+    {
+        var content = "Check out this video\n\n![Cool Video](https://www.youtube.com/watch?v=dQw4w9WgXcQ)";
+        var (publisher, handler, db) = CreatePublisher(interTweetDelayMs: 0);
+        using (db)
+        {
+            var (_, _, thread, account) = SeedEntities(db, content);
+
+            handler.Handler = (req, body) =>
+            {
+                var resp = new TwitterCreateTweetResponse(new TwitterTweetData("tweet_yt_1", ""));
+                return new HttpResponseMessage(HttpStatusCode.Created)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(resp), Encoding.UTF8, "application/json")
+                };
+            };
+
+            var result = await publisher.PublishAsync(thread, account);
+
+            Assert.True(result.Success);
+            Assert.Single(result.Posts);
+            Assert.Equal("tweet_yt_1", result.Posts[0].RemoteId);
+
+            var doc = JsonDocument.Parse(handler.RequestBodies[0]);
+            var publishedText = doc.RootElement.GetProperty("text").GetString();
+            Assert.Equal("Check out this video\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ", publishedText);
+            Assert.Equal("Check out this video\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ", result.Posts[0].PublishedText);
+        }
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithVideoOnly_PublishesYouTubeUrl()
+    {
+        var content = "![Standalone Video](https://www.youtube.com/watch?v=dQw4w9WgXcQ)";
+        var (publisher, handler, db) = CreatePublisher(interTweetDelayMs: 0);
+        using (db)
+        {
+            var (_, _, thread, account) = SeedEntities(db, content);
+
+            handler.Handler = (req, body) =>
+            {
+                var resp = new TwitterCreateTweetResponse(new TwitterTweetData("tweet_yt_2", ""));
+                return new HttpResponseMessage(HttpStatusCode.Created)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(resp), Encoding.UTF8, "application/json")
+                };
+            };
+
+            var result = await publisher.PublishAsync(thread, account);
+
+            Assert.True(result.Success);
+            Assert.Single(result.Posts);
+
+            var doc = JsonDocument.Parse(handler.RequestBodies[0]);
+            var publishedText = doc.RootElement.GetProperty("text").GetString();
+            Assert.Equal("https://www.youtube.com/watch?v=dQw4w9WgXcQ", publishedText);
+        }
+    }
 }

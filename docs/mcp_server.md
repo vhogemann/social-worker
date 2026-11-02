@@ -39,7 +39,7 @@ Além de ferramentas (`tools`), o servidor implementa o protocolo de recursos (`
 
 ---
 
-## 2. Catálogo Completo de Ferramentas (74 Ferramentas)
+## 2. Catálogo Completo de Ferramentas (76 Ferramentas)
 
 As 74 ferramentas estão organizadas em 9 domínios funcionais:
 
@@ -70,11 +70,17 @@ Lista rascunhos de threads com status, estágio, atribuição de workflow e filt
   - `limit` (*integer, opcional*): Máximo de itens (padrão: 20).
 
 #### 2. `get_draft`
-Obtém os detalhes completos de um rascunho, seus segmentos, mídia anexada e threads adaptadas por plataforma.
+Obtém os detalhes completos de um rascunho, seus segmentos, mídia anexada, threads adaptadas por plataforma e status de publicação em tempo real (`publishingStatus`: `"idle"` | `"publishing"` | `"completed"` | `"failed"` | `"partially_published"`, `publishedCount`, `totalCount`, `lastPublishError`).
 - **Parâmetros**:
   - `draftId` (*string, obrigatório*): UUID do rascunho.
 
-#### 3. `create_draft`
+#### 3. `preview_draft`
+Gera uma pré-visualização formatada em Markdown com os segmentos da thread, contagem e limites de caracteres por plataforma e links diretos para exibição em interfaces de chat (como Gemini e Claude).
+- **Parâmetros**:
+  - `draftId` (*string, obrigatório*): UUID do rascunho.
+  - `platform` (*string, opcional*): Plataforma-alvo para pré-visualização (`Bluesky`, `Twitter`, `MetaThreads`, `LinkedIn`).
+
+#### 4. `create_draft`
 Cria um novo rascunho de thread com validação inicial e retorna payload estruturado JSON.
 - **Parâmetros**:
   - `title` (*string, obrigatório*): Título do rascunho.
@@ -82,48 +88,49 @@ Cria um novo rascunho de thread com validação inicial e retorna payload estrut
   - `platform` (*string, opcional*): Plataforma-alvo (`Bluesky`, `Twitter`, `MetaThreads`, `LinkedIn`).
   - `accountId` (*string, opcional*): UUID da conta social a associar.
 
-#### 4. `update_draft`
+#### 5. `update_draft`
 Atualiza título ou conteúdo de um rascunho existente.
 - **Parâmetros**:
   - `draftId` (*string, obrigatório*): UUID do rascunho.
   - `title` (*string, opcional*): Novo título.
   - `content` (*string, opcional*): Novo texto da thread.
 
-#### 5. `delete_draft`
+#### 6. `delete_draft`
 Exclui permanentemente um rascunho.
 - **Parâmetros**:
   - `draftId` (*string, obrigatório*): UUID do rascunho.
 
-#### 6. `discard_draft`
+#### 7. `discard_draft`
 Descarta um rascunho arquivando-o com uma justificativa de descarte.
 - **Parâmetros**:
   - `draftId` (*string, obrigatório*): UUID do rascunho.
   - `reason` (*string, opcional*): Justificativa do descarte.
 
-#### 7. `validate_draft`
+#### 8. `validate_draft`
 Executa validação completa de limites de caracteres, imagens e formatação para a plataforma informada (ou a plataforma padrão do rascunho).
 - **Parâmetros**:
   - `draftId` (*string, obrigatório*): UUID do rascunho.
   - `platform` (*string, opcional*): Plataforma-alvo (Bluesky, Twitter, MetaThreads, LinkedIn).
   - `accountId` (*string, opcional*): UUID da conta para validação de limites de nível de conta.
 
-#### 8. `publish_thread`
-Publica o rascunho imediatamente ou executa simulação segura (`dryRun: true`), com suporte a multi-plataformas e verificação de conta explícita.
+#### 9. `publish_thread`
+Dispara a publicação de uma thread nas redes sociais conectadas (Bluesky, Twitter, Threads, LinkedIn). Por padrão, opera em modo assíncrono (*fire-and-forget* enfileirando tarefa de segundo plano) para evitar *timeouts* em gateways HTTP MCP de LLMs como Gemini e Claude. O progresso pode ser acompanhado chamando `get_draft`. Também suporta pré-visualização segura (`dryRun: true`) e publicação síncrona com bloqueio (`waitForCompletion: true`).
 - **Parâmetros**:
   - `draftId` (*string, obrigatório*): UUID do rascunho.
-  - `platform` (*string, opcional*): Plataforma única a publicar.
+  - `platform` (*string, opcional*): Plataforma-alvo única a publicar.
   - `platforms` (*array de strings, opcional*): Múltiplas plataformas para publicação simultânea.
   - `accountId` (*string, opcional*): UUID da conta para desambiguação de publicação.
   - `dryRun` (*boolean, opcional*): Se `true`, valida e retorna o relatório sem postar na rede social.
-  - `confirm` (*boolean, opcional*): Confirmação explícita de publicação irreversível.
+  - `confirm` (*boolean, opcional*): Confirmação explícita de publicação irreversível. Padrão: `true`.
+  - `waitForCompletion` (*boolean, opcional*): Se `true`, bloqueia de forma síncrona aguardando a finalização da publicação em vez de enfileirar em segundo plano. Padrão: `false`.
 
-#### 9. `generate_variants`
+#### 10. `generate_variants`
 Gera variações e adaptações de uma thread para plataformas sociais suportadas (Bluesky, Twitter, Threads, LinkedIn).
 - **Parâmetros**:
   - `draftId` (*string, obrigatório*): UUID do rascunho canônico.
   - `platforms` (*array de strings, opcional*): Lista de plataformas para gerar adaptações.
 
-#### 10. `set_bluesky_reply_target`
+#### 11. `set_bluesky_reply_target`
 Configura um rascunho como resposta a um post existente do Bluesky, resolvendo automaticamente os metadados do parent e root.
 - **Parâmetros**:
   - `draftId` (*string, obrigatório*): UUID do rascunho.
@@ -251,6 +258,15 @@ Adiciona uma URL, nota ou arquivo como fonte de conteúdo.
 Recupera o conteúdo de uma fonte por ID (retorna texto e resumo para fontes textuais, ou dados de imagem base64 para fontes de imagem).
 - **Parâmetros**:
   - `sourceId` (*string, obrigatório*): UUID da fonte ou referência `media://{guid}`.
+
+#### 22a. `search_sources`
+Pesquisa na biblioteca global de fontes (artigos, páginas web, transcrições de vídeo, notas) usando busca textual completa (Full-Text Search) sobre títulos, conteúdos e resumos.
+- **Parâmetros**:
+  - `query` (*string, obrigatório*): Termo ou frase de busca textual.
+  - `limit` (*integer, opcional, padrão 10*): Limite de resultados (1-50).
+  - `page` (*integer, opcional, padrão 1*): Número da página de resultados.
+  - `kind` (*string, opcional*): Filtro por tipo de fonte (`Url`, `File`, `YouTube`).
+  - `excludeDraftId` (*string, opcional*): UUID do rascunho para excluir fontes já anexadas a ele.
 
 #### 23. `transcribe_video`
 Extrai o áudio e transcreve o texto falado de um vídeo (ex: YouTube) através do serviço de transcrição.
@@ -640,4 +656,4 @@ Se a interface do Gemini solicitar credenciais manuais:
 - **Escopos**: `mcp:tools mcp:read mcp:write`
 
 ### 4.4 Utilização no Gemini
-Após a conexão, todas as 74 ferramentas do SocialWorker tornam-se acessíveis nas conversas e fluxos do Gemini, podendo ser invocadas diretamente ou marcadas com menção (ex: `@SocialWorker liste os rascunhos prontos para publicação`).
+Após a conexão, todas as 76 ferramentas do SocialWorker tornam-se acessíveis nas conversas e fluxos do Gemini, podendo ser invocadas diretamente ou marcadas com menção (ex: `@SocialWorker liste os rascunhos prontos para publicação`).

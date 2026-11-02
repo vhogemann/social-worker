@@ -22,6 +22,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<DraftChatSummaryTaskHandler>();
         builder.Services.AddScoped<FeedIngestionTaskHandler>();
         builder.Services.AddScoped<ScheduledPublishingTaskHandler>();
+        builder.Services.AddScoped<SocialWorker.Api.Features.Publishing.Handlers.PublishThreadTaskHandler>();
         builder.Services.AddScoped<SocialWorker.Api.Features.Workflows.Handlers.WorkflowDraftRetryTaskHandler>();
 
         builder.Services.AddScoped<IScheduleQueueService, ScheduleQueueService>();
@@ -37,6 +38,7 @@ static partial class ServiceCollectionExtensions
         resolver.Register<DraftChatSummaryTaskHandler>("draft-chat-summary", TimeSpan.FromMinutes(3));
         resolver.Register<FeedIngestionTaskHandler>("feed-ingestion", TimeSpan.FromMinutes(5));
         resolver.Register<ScheduledPublishingTaskHandler>(ScheduledPublishingTaskHandler.TaskTypeName, TimeSpan.FromMinutes(5));
+        resolver.Register<SocialWorker.Api.Features.Publishing.Handlers.PublishThreadTaskHandler>(SocialWorker.Api.Features.Publishing.Handlers.PublishThreadTaskHandler.TaskTypeName, TimeSpan.FromMinutes(10));
         resolver.Register<SocialWorker.Api.Features.Workflows.Handlers.WorkflowDraftRetryTaskHandler>(SocialWorker.Api.Features.Workflows.Handlers.WorkflowDraftRetryTaskHandler.TaskTypeName, TimeSpan.FromMinutes(5));
         resolver.Register<SocialWorker.Api.Features.ReplyAgents.Handlers.WorkflowReplyCheckPostTaskHandler>("workflow-reply-check-post", TimeSpan.FromMinutes(5));
         resolver.Register<SocialWorker.Api.Features.ReplyAgents.Handlers.ReplyThreadSummaryTaskHandler>("reply-thread-summary", TimeSpan.FromMinutes(5));

@@ -1,15 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Drafts.Services;
 using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Services;
 using SocialWorker.Api.Infrastructure.Validation;
 
 namespace SocialWorker.Api.Features.Drafts;
@@ -242,6 +246,27 @@ public static class DraftsEndpoint
             {
                 return Results.BadRequest(new ApiErrorResponse(ex.Message));
             }
+        });
+
+        app.MapGet("/api/drafts/{id:guid}/preview", async (
+            AppDbContext db,
+            IAppUrlResolver urlResolver,
+            Guid id,
+            string? platform,
+            CancellationToken ct) =>
+        {
+            var draft = await db.Drafts
+                .Include(d => d.TargetAccount)
+                .Include(d => d.Threads).ThenInclude(t => t.Account)
+                .FirstOrDefaultAsync(d => d.Id == id && d.Status != DraftStatus.Deleted, ct);
+
+            if (draft == null)
+            {
+                return Results.NotFound();
+            }
+
+            var html = DraftPreviewHtmlRenderer.Render(draft, platform, urlResolver);
+            return Results.Content(html, "text/html; charset=utf-8");
         });
     }
 

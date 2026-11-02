@@ -54,7 +54,14 @@ public sealed class TwitterDraftValidator : IDraftValidator
             var issues = new List<ValidateDraftIssue>();
 
             var cleanedText = segDoc.PlainText;
-            var weightedLength = TwitterTextWeightCalculator.CalculateWeight(cleanedText);
+            var textToMeasure = cleanedText;
+            if (segDoc.YouTubeEmbed != null)
+            {
+                textToMeasure = string.IsNullOrWhiteSpace(textToMeasure)
+                    ? segDoc.YouTubeEmbed.Url
+                    : $"{textToMeasure}\n\n{segDoc.YouTubeEmbed.Url}";
+            }
+            var weightedLength = TwitterTextWeightCalculator.CalculateWeight(textToMeasure);
             var mediaRefs = segDoc.MediaEmbeds;
             var imageCount = mediaRefs.Count;
             var hasYouTube = segDoc.YouTubeEmbed is not null || segDoc.HasYouTube;

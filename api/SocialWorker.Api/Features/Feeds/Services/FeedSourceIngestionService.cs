@@ -140,6 +140,11 @@ public class FeedSourceIngestionService
         var source = await _db.Sources.FindAsync(new object[] { sourceId }, ct);
         if (source != null && source.Kind == SourceKind.YouTube)
         {
+            if (source.ProcessingStatus == SourceProcessingStatus.Complete)
+            {
+                return new FeedSourceIngestionResult(IngestionStatus.Success, draft, sourceId, null);
+            }
+
             return new FeedSourceIngestionResult(IngestionStatus.PendingTranscription, draft, sourceId, null);
         }
 
@@ -148,6 +153,11 @@ public class FeedSourceIngestionService
 
         if (source != null && isVideoMedia && !string.IsNullOrWhiteSpace(mediaUrl) && _transcriptionService != null)
         {
+            if (source.Content != null && source.Content.Contains("[Transcrição do Vídeo (Whisper)]"))
+            {
+                return new FeedSourceIngestionResult(IngestionStatus.Success, draft, sourceId, null);
+            }
+
             _transcriptionService.QueueTranscriptExtraction(sourceId, draft.Id, mediaUrl);
             return new FeedSourceIngestionResult(IngestionStatus.PendingTranscription, draft, sourceId, null);
         }

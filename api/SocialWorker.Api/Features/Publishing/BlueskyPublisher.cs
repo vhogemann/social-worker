@@ -78,7 +78,7 @@ public class BlueskyPublisher : IPublisher
             var session = sessionRes.Value;
 
             var doc = ThreadMarkdownDocument.Parse(thread.Content ?? "");
-            if (doc.Segments.Count == 0 || (doc.Segments.Count == 1 && string.IsNullOrWhiteSpace(doc.Segments[0].PlainText)))
+            if (doc.Segments.Count == 0 || (doc.Segments.Count == 1 && string.IsNullOrWhiteSpace(doc.Segments[0].PlainText) && doc.Segments[0].MediaEmbeds.Count == 0 && doc.Segments[0].YouTubeEmbed == null))
             {
                 return PublishResult.Failed("Thread is empty.");
             }

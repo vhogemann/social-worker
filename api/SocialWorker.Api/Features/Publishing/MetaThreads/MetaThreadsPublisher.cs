@@ -12,6 +12,7 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing.Resilience;
 using SocialWorker.Api.Infrastructure.Markdown;
 using SocialWorker.Api.Infrastructure.Security;
+using SocialWorker.Api.Infrastructure.Services;
 
 namespace SocialWorker.Api.Features.Publishing.MetaThreads;
 
@@ -22,6 +23,7 @@ public class MetaThreadsPublisher : IPublisher
     private readonly AppDbContext _db;
     private readonly string _encryptionKey;
     private readonly string? _publicBaseUrl;
+    private readonly IAppUrlResolver? _urlResolver;
     private readonly ILogger<MetaThreadsPublisher> _logger;
 
     public string Platform => "MetaThreads";
@@ -31,13 +33,15 @@ public class MetaThreadsPublisher : IPublisher
         IOptions<MetaThreadsOptions> options,
         AppDbContext db,
         MetaThreadsApiClient apiClient,
-        ILogger<MetaThreadsPublisher> logger)
+        ILogger<MetaThreadsPublisher> logger,
+        IAppUrlResolver? urlResolver = null)
     {
         _options = options.Value;
         _db = db;
         _apiClient = apiClient;
         _logger = logger;
         _encryptionKey = config["Auth:DbEncryptionKey"] ?? "";
+        _urlResolver = urlResolver ?? new AppUrlResolver(config);
         _publicBaseUrl = _options.PublicBaseUrl ?? config["App:BaseUrl"] ?? config["APP_BASE_URL"];
     }
 
@@ -65,7 +69,7 @@ public class MetaThreadsPublisher : IPublisher
         }
 
         var doc = ThreadMarkdownDocument.Parse(thread.Content ?? "");
-        if (doc.Segments.Count == 0 || (doc.Segments.Count == 1 && string.IsNullOrWhiteSpace(doc.Segments[0].PlainText) && doc.Segments[0].MediaEmbeds.Count == 0))
+        if (doc.Segments.Count == 0 || (doc.Segments.Count == 1 && string.IsNullOrWhiteSpace(doc.Segments[0].PlainText) && doc.Segments[0].MediaEmbeds.Count == 0 && doc.Segments[0].YouTubeEmbed == null))
         {
             return PublishResult.Failed("Thread is empty.");
         }
@@ -75,7 +79,17 @@ public class MetaThreadsPublisher : IPublisher
             .OrderBy(p => p.SegmentIndex)
             .ToListAsync(ct);
 
-        var segmentTexts = doc.Segments.Select(s => s.PlainText).ToList();
+        var segmentTexts = doc.Segments.Select(s =>
+        {
+            var text = s.PlainText;
+            if (s.YouTubeEmbed != null)
+            {
+                text = string.IsNullOrWhiteSpace(text)
+                    ? s.YouTubeEmbed.Url
+                    : $"{text}\n\n{s.YouTubeEmbed.Url}";
+            }
+            return text;
+        }).ToList();
         var resumePlan = PublishResumePlanner.CreatePlan(segmentTexts, existingPosts, "MetaThreads");
 
         if (!resumePlan.CanResume)
@@ -118,7 +132,15 @@ public class MetaThreadsPublisher : IPublisher
             }
 
             var segment = doc.Segments[i];
-            if (string.IsNullOrWhiteSpace(segment.PlainText) && segment.MediaEmbeds.Count == 0)
+            var postText = segment.PlainText;
+            if (segment.YouTubeEmbed != null)
+            {
+                postText = string.IsNullOrWhiteSpace(postText)
+                    ? segment.YouTubeEmbed.Url
+                    : $"{postText}\n\n{segment.YouTubeEmbed.Url}";
+            }
+
+            if (string.IsNullOrWhiteSpace(postText) && segment.MediaEmbeds.Count == 0)
             {
                 continue;
             }
@@ -133,7 +155,7 @@ public class MetaThreadsPublisher : IPublisher
                     var container = await _apiClient.CreateTextContainerAsync(
                         userId,
                         accessToken,
-                        segment.PlainText,
+                        postText,
                         replyToId,
                         ct);
                     containerId = container.Id;
@@ -149,7 +171,7 @@ public class MetaThreadsPublisher : IPublisher
                         userId,
                         accessToken,
                         imageUrl,
-                        text: segment.PlainText,
+                        text: postText,
                         altText: altText,
                         isCarouselItem: false,
                         replyToId: replyToId,
@@ -183,7 +205,7 @@ public class MetaThreadsPublisher : IPublisher
                         userId,
                         accessToken,
                         childIds,
-                        text: segment.PlainText,
+                        text: postText,
                         replyToId: replyToId,
                         ct: ct);
                     containerId = carouselContainer.Id;
@@ -200,7 +222,7 @@ public class MetaThreadsPublisher : IPublisher
                 {
                     SegmentIndex = i,
                     RemoteId = published.Id,
-                    PublishedText = segment.PlainText,
+                    PublishedText = postText,
                     Url = postUrl
                 });
 
@@ -225,9 +247,17 @@ public class MetaThreadsPublisher : IPublisher
             return asset.FilePath;
         }
 
+        if (_urlResolver != null)
+        {
+            return _urlResolver.GetMediaUrl(mediaId);
+        }
+
         if (!string.IsNullOrWhiteSpace(_publicBaseUrl))
         {
-            return $"{_publicBaseUrl.TrimEnd('/')}/api/media/{mediaId}";
+            var baseTrim = _publicBaseUrl.TrimEnd('/');
+            return baseTrim.EndsWith("/api", StringComparison.OrdinalIgnoreCase)
+                ? $"{baseTrim}/media/{mediaId}"
+                : $"{baseTrim}/api/media/{mediaId}";
         }
 
         throw new InvalidOperationException($"Unable to resolve public URL for media asset {mediaId}. Set MetaThreads:PublicBaseUrl or App:BaseUrl in configuration.");

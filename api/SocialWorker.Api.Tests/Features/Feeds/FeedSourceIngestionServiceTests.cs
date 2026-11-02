@@ -168,6 +168,34 @@ public sealed class FeedSourceIngestionServiceTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task IngestSourceAsync_WhenYouTubeSourceAlreadyCompleted_ReturnsSuccessImmediately()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var workflow = AutomationWorkflow.Create(user.Id, "WF", "Prompt");
+        var sub = new FeedSubscription { Id = Guid.NewGuid(), UserId = user.Id, Title = "Feed", FeedUrl = "https://example.com/feed" };
+        db.AutomationWorkflows.Add(workflow);
+        db.FeedSubscriptions.Add(sub);
+
+        var existingSource = Source.CreateYouTube("existingYt", "https://youtube.com/watch?v=existingYt", "Completed Video");
+        existingSource.ProcessingStatus = SourceProcessingStatus.Complete;
+        existingSource.Content = "Full transcript already available";
+        db.Sources.Add(existingSource);
+        await db.SaveChangesAsync();
+
+        var sourcesService = TestServiceFactory.CreateSourcesService(db);
+        var service = new FeedSourceIngestionService(db, sourcesService, NullLogger<FeedSourceIngestionService>.Instance);
+
+        var result = await service.IngestSourceAsync(sub, workflow, "Completed Video", "https://youtube.com/watch?v=existingYt", "Desc", CancellationToken.None);
+
+        Assert.Equal(IngestionStatus.Success, result.Status);
+        Assert.NotNull(result.Draft);
+        Assert.Equal(DraftStatus.Editing, result.Draft!.Status);
+        Assert.Equal(workflow.Id, result.Draft.AutomationWorkflowId);
+        Assert.Equal(existingSource.Id, result.SourceId);
+    }
+
+    [Fact]
     public async Task IngestSourceAsync_WhenInstagramVideo_ReturnsPendingTranscriptionAndEnqueuesTask()
     {
         using var db = CreateDbContext();

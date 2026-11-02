@@ -43,6 +43,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<AccountUpsertService>();
 
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSingleton<SocialWorker.Api.Infrastructure.Services.IAppUrlResolver, SocialWorker.Api.Infrastructure.Services.AppUrlResolver>();
         builder.Services.AddSingleton<Features.Mcp.Services.McpSessionManager>();
         builder.Services.AddScoped<Features.Mcp.Services.McpToolRegistry>();
         builder.Services.AddScoped<Features.Mcp.Services.McpResourceRegistry>();

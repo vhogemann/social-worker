@@ -95,6 +95,61 @@ public sealed class TaskHandlersTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task SourceTranscriptionTaskHandler_ContinuesAllWaitingWorkflowDraftsLinkedToSource()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var wf1 = AutomationWorkflow.Create(user.Id, "WF1", "Prompt1");
+        var wf2 = AutomationWorkflow.Create(user.Id, "WF2", "Prompt2");
+        db.AutomationWorkflows.AddRange(wf1, wf2);
+
+        var draft1 = new Draft { Id = Guid.NewGuid(), UserId = user.Id, Title = "Draft 1", AutomationWorkflowId = wf1.Id, Status = DraftStatus.Editing };
+        var draft2 = new Draft { Id = Guid.NewGuid(), UserId = user.Id, Title = "Draft 2", AutomationWorkflowId = wf2.Id, Status = DraftStatus.Editing };
+        var source = Source.CreateYouTube("sharedVid", "https://youtube.com/watch?v=sharedVid", "Shared Title");
+        db.Drafts.AddRange(draft1, draft2);
+        db.Sources.Add(source);
+        db.DraftSources.AddRange(
+            new DraftSource { DraftId = draft1.Id, SourceId = source.Id },
+            new DraftSource { DraftId = draft2.Id, SourceId = source.Id }
+        );
+        await db.SaveChangesAsync();
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"transcripts-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var fakeTranscriber = new FakeTranscriber(tempDir);
+            var fakeOrchestrator = new FakeOrchestrationService();
+            var services = new ServiceCollection();
+            services.AddSingleton<FeedOrchestrationService>(fakeOrchestrator);
+
+            var handler = new SourceTranscriptionTaskHandler(
+                db,
+                fakeTranscriber,
+                services.BuildServiceProvider(),
+                NullLogger<SourceTranscriptionTaskHandler>.Instance);
+
+            var queue = new TestBackgroundTaskQueue();
+            var payload = new SourceTranscriptionPayload(source.Id, draft1.Id);
+            var task = BackgroundTask.Create("source-transcription", payload);
+            var context = new TaskExecutionContext(task, "worker", queue, CancellationToken.None);
+
+            var result = await handler.ExecuteAsync(payload, context, CancellationToken.None);
+
+            Assert.Equal(TaskOutcome.Success, result.Outcome);
+            Assert.Contains(draft1.Id, fakeOrchestrator.ContinuedDraftIds);
+            Assert.Contains(draft2.Id, fakeOrchestrator.ContinuedDraftIds);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task SourceTranscriptionTaskHandler_WithMediaUrl_PassesMediaUrlToTranscriber_AndCombinesWithExistingCaption()
     {
         using var db = CreateDbContext();
@@ -239,6 +294,13 @@ public sealed class TaskHandlersTests : SqliteTestBase
     {
         public bool ProcessCalled { get; private set; }
         public bool ThrowOnProcess { get; set; }
+        public List<Guid> ContinuedDraftIds { get; } = new();
+
+        public override Task ContinueWorkflowDraftAfterTranscriptionAsync(Guid draftId, CancellationToken ct)
+        {
+            ContinuedDraftIds.Add(draftId);
+            return Task.CompletedTask;
+        }
 
         public FakeOrchestrationService()
             : base(null!, null!, null!, null!, null!, NullLogger<FeedOrchestrationService>.Instance)

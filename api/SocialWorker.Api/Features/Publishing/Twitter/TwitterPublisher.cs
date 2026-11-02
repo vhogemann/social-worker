@@ -105,7 +105,7 @@ public class TwitterPublisher : IPublisher
         }
 
         var doc = ThreadMarkdownDocument.Parse(thread.Content ?? "");
-        if (doc.Segments.Count == 0 || (doc.Segments.Count == 1 && string.IsNullOrWhiteSpace(doc.Segments[0].PlainText)))
+        if (doc.Segments.Count == 0 || (doc.Segments.Count == 1 && string.IsNullOrWhiteSpace(doc.Segments[0].PlainText) && doc.Segments[0].MediaEmbeds.Count == 0 && doc.Segments[0].YouTubeEmbed == null))
         {
             return PublishResult.Failed("Thread is empty.");
         }
@@ -115,7 +115,17 @@ public class TwitterPublisher : IPublisher
             .OrderBy(p => p.SegmentIndex)
             .ToListAsync(ct);
 
-        var segmentTexts = doc.Segments.Select(s => s.PlainText).ToList();
+        var segmentTexts = doc.Segments.Select(s =>
+        {
+            var text = s.PlainText;
+            if (s.YouTubeEmbed != null)
+            {
+                text = string.IsNullOrWhiteSpace(text)
+                    ? s.YouTubeEmbed.Url
+                    : $"{text}\n\n{s.YouTubeEmbed.Url}";
+            }
+            return text;
+        }).ToList();
         var resumePlan = PublishResumePlanner.CreatePlan(segmentTexts, existingPosts, "Twitter");
 
         if (!resumePlan.CanResume)
@@ -159,7 +169,15 @@ public class TwitterPublisher : IPublisher
             }
 
             var segment = doc.Segments[i];
-            if (string.IsNullOrWhiteSpace(segment.PlainText))
+            var tweetText = segment.PlainText;
+            if (segment.YouTubeEmbed != null)
+            {
+                tweetText = string.IsNullOrWhiteSpace(tweetText)
+                    ? segment.YouTubeEmbed.Url
+                    : $"{tweetText}\n\n{segment.YouTubeEmbed.Url}";
+            }
+
+            if (string.IsNullOrWhiteSpace(tweetText) && segment.MediaEmbeds.Count == 0)
             {
                 continue;
             }
@@ -197,7 +215,7 @@ public class TwitterPublisher : IPublisher
 
                 var tweet = await _apiClient.CreateTweetAsync(
                     accessToken: accessToken,
-                    text: segment.PlainText,
+                    text: tweetText,
                     inReplyToTweetId: replyToId,
                     mediaIds: mediaIds,
                     ct: ct);
@@ -207,7 +225,7 @@ public class TwitterPublisher : IPublisher
                 {
                     SegmentIndex = i,
                     RemoteId = tweet.Id,
-                    PublishedText = segment.PlainText,
+                    PublishedText = tweetText,
                     Url = postUrl
                 };
 

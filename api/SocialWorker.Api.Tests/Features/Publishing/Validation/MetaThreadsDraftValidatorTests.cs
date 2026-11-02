@@ -133,4 +133,34 @@ public sealed class MetaThreadsDraftValidatorTests
         Assert.True(result.HasBlockingErrors);
         Assert.Contains(result.Posts[0].Issues, i => i.Message.Contains("Draft content cannot be empty"));
     }
+
+    [Fact]
+    public void Validate_YouTubeEmbed_IncludesUrlInCharacterCount()
+    {
+        var url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+        var text = new string('A', 400);
+        var content = $"{text}\n\n![Cool Video]({url})";
+        var result = _validator.Validate(content, Array.Empty<MediaAsset>());
+
+        // 400 chars + 2 newlines + 43 chars (URL) = 445 chars <= 500
+        Assert.Equal(ValidateDraftOverallStatus.Warnings, result.OverallStatus);
+        Assert.False(result.HasBlockingErrors);
+        Assert.Single(result.Posts);
+        Assert.Equal(400 + 2 + url.Length, result.Posts[0].CharacterCount);
+        Assert.True(result.Posts[0].HasYouTube);
+    }
+
+    [Fact]
+    public void Validate_YouTubeEmbed_Exceeding500Characters_ReturnsError()
+    {
+        var url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+        var text = new string('A', 480);
+        var content = $"{text}\n\n![Cool Video]({url})";
+        var result = _validator.Validate(content, Array.Empty<MediaAsset>());
+
+        // 480 chars + 2 newlines + 43 chars = 525 chars > 500
+        Assert.Equal(ValidateDraftOverallStatus.Failed, result.OverallStatus);
+        Assert.True(result.HasBlockingErrors);
+        Assert.Contains(result.Posts[0].Issues, i => i.Message.Contains("500-character"));
+    }
 }
