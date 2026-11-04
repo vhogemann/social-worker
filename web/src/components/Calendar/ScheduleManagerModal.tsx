@@ -73,8 +73,8 @@ export const ScheduleManagerModal: React.FC<ScheduleManagerModalProps> = ({
     setError(null);
     try {
       const list = await fetchSchedules();
-      setSchedules(list);
-      const nextId = targetId || selectedId || (list.length > 0 ? list[0].id : "");
+      setSchedules(list || []);
+      const nextId = targetId || selectedId || (list && list.length > 0 ? list[0].id : "");
       setSelectedId(nextId);
 
       if (nextId) {
@@ -192,7 +192,7 @@ export const ScheduleManagerModal: React.FC<ScheduleManagerModalProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-mono text-muted">Select Schedule:</span>
               <div className="flex gap-1.5 flex-wrap">
-                {schedules.map((s) => (
+                {(schedules || []).map((s) => (
                   <button
                     key={s.id}
                     type="button"

@@ -11,8 +11,6 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import {
   fetchWorkflows,
-  createWorkflow,
-  updateWorkflow,
   deleteWorkflow,
   triggerWorkflow,
   exportWorkflows,
@@ -25,7 +23,6 @@ import { EmptyState } from "../common/EmptyState";
 import { AlertBanner } from "../common/AlertBanner";
 import { ConfirmModal } from "../common/ConfirmModal";
 import { WorkflowCard } from "./WorkflowCard";
-import { WorkflowFormModal, type WorkflowFormData } from "./WorkflowFormModal";
 import { WorkflowImportModal } from "./WorkflowImportModal";
 
 export const WorkflowsPage: React.FC = () => {
@@ -37,11 +34,9 @@ export const WorkflowsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [triggeringId, setTriggeringId] = useState<string | null>(null);
 
-  // Modal form & delete confirmation state
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Delete confirmation & export/import modal state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [editingWorkflow, setEditingWorkflow] = useState<AutomationWorkflowDto | null>(null);
   const [deletingWorkflowId, setDeletingWorkflowId] = useState<string | null>(null);
 
   const loadData = async () => {
@@ -66,50 +61,6 @@ export const WorkflowsPage: React.FC = () => {
   useEffect(() => {
     void loadData();
   }, []);
-
-  const handleOpenCreateModal = () => {
-    setEditingWorkflow(null);
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEditModal = (wf: AutomationWorkflowDto) => {
-    setEditingWorkflow(wf);
-    setIsModalOpen(true);
-  };
-
-  const handleSaveWorkflow = async (data: WorkflowFormData) => {
-    setError(null);
-    const payload = {
-      title: data.title,
-      instructionPrompt: data.instructionPrompt,
-      feedSubscriptionIds: data.feedSubscriptionIds,
-      sources: data.sources,
-      destinations: data.destinations.map((d) => ({
-        platform: d.platform,
-        autoPublish: d.autoPublish,
-        publishingMode: d.publishingMode,
-        scheduleId: d.scheduleId,
-        accountId: d.accountId,
-        accountHandle: d.accountHandle
-      })),
-      scheduleId: data.scheduleId,
-      minRelevanceScore: data.minRelevanceScore
-    };
-
-    try {
-      if (editingWorkflow) {
-        await updateWorkflow(editingWorkflow.id, payload);
-      } else {
-        await createWorkflow(payload);
-      }
-      setIsModalOpen(false);
-      setEditingWorkflow(null);
-      await loadData();
-    } catch (err: any) {
-      setError(err?.message || "Failed to save workflow.");
-      throw err;
-    }
-  };
 
   const handleConfirmDelete = async () => {
     if (!deletingWorkflowId) return;
@@ -216,7 +167,7 @@ export const WorkflowsPage: React.FC = () => {
               variant="primary"
               size="sm"
               icon={faPlus}
-              onClick={handleOpenCreateModal}
+              onClick={() => navigate("/workflows/new")}
             >
               New Workflow
             </Button>
@@ -236,7 +187,7 @@ export const WorkflowsPage: React.FC = () => {
             title="No automation workflows yet"
             description="Create a workflow to connect RSS/YouTube feeds to automated 2-tier thread generation and multi-platform publishing."
             action={
-              <Button variant="primary" size="sm" onClick={handleOpenCreateModal}>
+              <Button variant="primary" size="sm" onClick={() => navigate("/workflows/new")}>
                 Create First Workflow
               </Button>
             }
@@ -250,27 +201,13 @@ export const WorkflowsPage: React.FC = () => {
                 isTriggering={triggeringId === wf.id}
                 onClick={(id) => navigate(`/workflows/${id}`)}
                 onTrigger={handleTrigger}
-                onEdit={handleOpenEditModal}
+                onEdit={(w) => navigate(`/workflows/${w.id}/edit`)}
                 onDelete={(id) => setDeletingWorkflowId(id)}
                 onExport={handleExportSingle}
               />
             ))}
           </div>
         )}
-
-        {/* Workflow Create / Edit Modal */}
-        <WorkflowFormModal
-          isOpen={isModalOpen}
-          editingWorkflow={editingWorkflow}
-          availableFeeds={availableFeeds}
-          availableWorkflows={workflows.filter((w) => !editingWorkflow || w.id !== editingWorkflow.id)}
-          connectedAccounts={connectedAccounts}
-          onClose={() => {
-            setIsModalOpen(false);
-            setEditingWorkflow(null);
-          }}
-          onSave={handleSaveWorkflow}
-        />
 
         {/* Workflow Import Modal */}
         <WorkflowImportModal

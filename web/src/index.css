@@ -2,6 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-bg: #ffffff;
+  --color-panel: #ffffff;
+  --color-panel-light: #f5f5f5;
+  --color-card: #ffffff;
+  --color-border: rgba(0, 0, 0, 0.12);
+  --color-border-light: rgba(0, 0, 0, 0.08);
+  --color-accent: #1976d2;
+  --color-accent-foreground: #ffffff;
+  --color-muted: rgba(0, 0, 0, 0.6);
+  --color-foreground: rgba(0, 0, 0, 0.87);
+  --color-destructive: #d32f2f;
+}
+
+[data-theme="dark"],
+.dark {
+  --color-bg: #121212;
+  --color-panel: #1e1e1e;
+  --color-panel-light: #252525;
+  --color-card: #1e1e1e;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-border-light: rgba(255, 255, 255, 0.08);
+  --color-accent: #90caf9;
+  --color-accent-foreground: rgba(0, 0, 0, 0.87);
+  --color-muted: rgba(255, 255, 255, 0.7);
+  --color-foreground: #ffffff;
+  --color-destructive: #f44336;
+}
+
 html,
 body,
 #root {
@@ -12,14 +41,12 @@ body,
 
 body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  color: #f4f4f6;
-  background-color: #0f1115;
 }
 
-/* Global Dark Scrollbar */
+/* Global Dynamic Scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #262a36 #0f1115;
+  scrollbar-color: var(--color-border) var(--color-bg);
 }
 
 ::-webkit-scrollbar {
@@ -28,29 +55,49 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f1115;
+  background: var(--color-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #262a36;
+  background: var(--color-border);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #33394a;
+  background: var(--color-muted);
+}
+
+.cm-theme {
+  height: 100%;
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .cm-editor {
   height: 100%;
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 14px;
 }
 
 .cm-editor .cm-scroller {
   font-family: inherit;
+  flex: 1 1 0%;
+  height: 100%;
+  min-height: 100%;
+  overflow-y: auto;
+}
+
+.cm-editor .cm-content {
+  min-height: 100%;
+  padding: 1.25rem 1.5rem;
 }
 
 .cm-editor.cm-focused {
   outline: none;
 }
-

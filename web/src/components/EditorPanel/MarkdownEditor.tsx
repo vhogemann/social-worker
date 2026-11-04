@@ -160,7 +160,7 @@ export function MarkdownEditor() {
 
   return (
     <div
-      className={`relative h-full transition-all ${
+      className={`relative flex-1 min-h-0 h-full flex flex-col transition-all ${
         isDragging ? "bg-indigo-600/5 ring-2 ring-dashed ring-indigo-500" : ""
       }`}
       onDragOver={handleDragOver}
@@ -194,6 +194,7 @@ export function MarkdownEditor() {
       <CodeMirror
         value={doc}
         height="100%"
+        className="flex-1 min-h-0 h-full flex flex-col"
         theme="dark"
         editable={!isLocked}
         extensions={extensions}

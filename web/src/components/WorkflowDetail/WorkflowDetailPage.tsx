@@ -5,7 +5,6 @@ import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 import {
   fetchWorkflow,
   fetchWorkflowDrafts,
-  updateWorkflow,
   deleteWorkflow,
   triggerWorkflow,
   retryWorkflowFailedDrafts,
@@ -19,7 +18,6 @@ import { WorkflowExecutionHistoryModal } from "./WorkflowExecutionHistoryModal";
 import { WorkflowDetailHeader } from "./WorkflowDetailHeader";
 import { WorkflowDraftsList } from "./WorkflowDraftsList";
 import { WorkflowReplyAgentTab } from "./WorkflowReplyAgentTab";
-import { WorkflowFormModal, type WorkflowFormData } from "../WorkflowsPanel/WorkflowFormModal";
 import { AlertBanner } from "../common/AlertBanner";
 import { ConfirmModal } from "../common/ConfirmModal";
 
@@ -38,7 +36,6 @@ export const WorkflowDetailPage: React.FC = () => {
   const [isRetryingFailed, setIsRetryingFailed] = useState(false);
   const [retryingDraftId, setRetryingDraftId] = useState<string | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const loadData = async () => {
@@ -66,35 +63,6 @@ export const WorkflowDetailPage: React.FC = () => {
   useEffect(() => {
     void loadData();
   }, [id]);
-
-  const handleSaveWorkflow = async (data: WorkflowFormData) => {
-    if (!id) return;
-    const payload = {
-      title: data.title,
-      instructionPrompt: data.instructionPrompt,
-      feedSubscriptionIds: data.feedSubscriptionIds,
-      sources: data.sources,
-      scheduleId: data.scheduleId,
-      minRelevanceScore: data.minRelevanceScore,
-      destinations: data.destinations.map((d) => ({
-        platform: d.platform,
-        autoPublish: d.autoPublish,
-        publishingMode: d.publishingMode,
-        scheduleId: d.scheduleId,
-        accountId: d.accountId,
-        accountHandle: d.accountHandle
-      }))
-    };
-
-    try {
-      await updateWorkflow(id, payload);
-      setIsEditModalOpen(false);
-      await loadData();
-    } catch (err: any) {
-      setError(err?.message || "Failed to update workflow.");
-      throw err;
-    }
-  };
 
   const handleTrigger = async () => {
     if (!id) return;
@@ -179,7 +147,7 @@ export const WorkflowDetailPage: React.FC = () => {
           isTriggering={triggering}
           onTrigger={handleTrigger}
           onOpenHistory={() => setIsHistoryModalOpen(true)}
-          onOpenEdit={() => setIsEditModalOpen(true)}
+          onOpenEdit={() => navigate(`/workflows/${id}/edit`)}
           onDelete={() => setIsDeleteModalOpen(true)}
         />
 
@@ -228,16 +196,6 @@ export const WorkflowDetailPage: React.FC = () => {
         ) : (
           <WorkflowReplyAgentTab workflowId={workflow.id} />
         )}
-
-        {/* Edit Modal (shared with WorkflowsPanel) */}
-        <WorkflowFormModal
-          isOpen={isEditModalOpen}
-          editingWorkflow={workflow}
-          availableFeeds={availableFeeds}
-          connectedAccounts={connectedAccounts}
-          onClose={() => setIsEditModalOpen(false)}
-          onSave={handleSaveWorkflow}
-        />
 
         {/* Execution History Modal */}
         <WorkflowExecutionHistoryModal

@@ -121,12 +121,14 @@ These should remain first-class and be kept current:
 - [planning/future/E2E_TESTING.md](planning/future/E2E_TESTING.md)
 - [planning/future/GRAPHQL_EVALUATION.md](planning/future/GRAPHQL_EVALUATION.md)
 - [planning/future/IMAGE_ENGINE_EXTENSIONS.md](planning/future/IMAGE_ENGINE_EXTENSIONS.md)
+- [planning/future/MUI_V2_MIGRATION.md](planning/future/MUI_V2_MIGRATION.md)
 - [planning/future/PYTHON_SANDBOX.md](planning/future/PYTHON_SANDBOX.md)
 - [planning/future/SELF_EVOLVING_ASSISTANT.md](planning/future/SELF_EVOLVING_ASSISTANT.md)
 - [planning/future/TELEGRAM_INTEGRATION.md](planning/future/TELEGRAM_INTEGRATION.md)
 
 ### Historical completed plans
 
+- [planning/future/MUI_V2_MIGRATION.md](planning/future/MUI_V2_MIGRATION.md)
 - [planning/archive/DRAFTS_PAGE_AND_WORKFLOW_ROUTING.md](planning/archive/DRAFTS_PAGE_AND_WORKFLOW_ROUTING.md)
 - [planning/archive/AUTHENTICATION.md](planning/archive/AUTHENTICATION.md)
 - [planning/archive/TOOL_IMPROVEMENTS.md](planning/archive/TOOL_IMPROVEMENTS.md)

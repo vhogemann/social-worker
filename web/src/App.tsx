@@ -1,8 +1,9 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AppHeader } from "./components/Navigation/AppHeader";
+import { AppLayout } from "./components/Navigation/AppLayout";
 import { WorkflowsPage } from "./components/WorkflowsPanel/WorkflowsPage";
 import { WorkflowDetailPage } from "./components/WorkflowDetail/WorkflowDetailPage";
+import { WorkflowEditorPage } from "./components/WorkflowsPanel/WorkflowEditorPage";
 import { DraftsPage } from "./components/Drafts/DraftsPage";
 import { ComposerPage } from "./components/Composer/ComposerPage";
 import { TemplateStudioPage } from "./components/TemplateStudio/TemplateStudioPage";
@@ -24,8 +25,7 @@ import { GlobalErrorToaster } from "./components/common/GlobalErrorToaster";
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="h-screen flex flex-col overflow-hidden">
-        <AppHeader />
+      <AppLayout>
         <Routes>
           <Route path="/" element={<WorkflowsPage />} />
           <Route path="/reply-agents" element={<ReplyAgentsPage />} />
@@ -34,6 +34,8 @@ export default function App() {
           <Route path="/outbox" element={<ReviewOutboxPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/workflows" element={<Navigate to="/" replace />} />
+          <Route path="/workflows/new" element={<WorkflowEditorPage />} />
+          <Route path="/workflows/:id/edit" element={<WorkflowEditorPage />} />
           <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
           <Route path="/workflows/:workflowId/draft" element={<ComposerPage />} />
           <Route path="/workflows/:workflowId/draft/:draftId" element={<ComposerPage />} />
@@ -57,7 +59,7 @@ export default function App() {
           <Route path="/oauth/callback/instagram" element={<InstagramCallbackPage />} />
         </Routes>
         <GlobalErrorToaster />
-      </div>
+      </AppLayout>
     </BrowserRouter>
   );
 }

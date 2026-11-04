@@ -1,8 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Box from "@mui/material/Box";
+import Drawer from "@mui/material/Drawer";
+import Typography from "@mui/material/Typography";
+import IconButton from "@mui/material/IconButton";
+import Divider from "@mui/material/Divider";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Chip from "@mui/material/Chip";
+import CloseIcon from "@mui/icons-material/Close";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faXmark,
   faEye,
   faPenToSquare,
   faComments,
@@ -10,7 +20,7 @@ import {
   faCheck,
   faLayerGroup,
   faFolderOpen,
-  faBolt,
+  faBolt
 } from "@fortawesome/free-solid-svg-icons";
 
 export interface DraftMenuDrawerProps {
@@ -30,7 +40,7 @@ export const DraftMenuDrawer: React.FC<DraftMenuDrawerProps> = ({
   activeView,
   onSelectView,
   onOpenAdaptModal,
-  workflowId,
+  workflowId
 }) => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
@@ -66,176 +76,308 @@ export const DraftMenuDrawer: React.FC<DraftMenuDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex bg-black/60 backdrop-blur-xs animate-fade-in font-sans"
-      onClick={onClose}
-      data-testid="draft-menu-drawer-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Draft navigation and views"
+    <Drawer
+      anchor="left"
+      open={isOpen}
+      onClose={onClose}
+      slotProps={{
+        backdrop: {
+          ...({ "data-testid": "draft-menu-drawer-backdrop" } as any)
+        }
+      }}
+      PaperProps={{
+        "data-testid": "draft-menu-drawer",
+        sx: {
+          width: 300,
+          bgcolor: "background.paper",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between"
+        }
+      }}
     >
-      <div
-        className="w-72 max-w-[85vw] h-full bg-panel border-r border-border shadow-2xl flex flex-col justify-between overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-        data-testid="draft-menu-drawer"
-      >
-        <div className="p-4 space-y-6">
-          <div className="flex items-center justify-between border-b border-border/80 pb-3">
-            <span className="text-xs font-mono uppercase tracking-wider text-muted font-semibold">
-              Draft Menu
-            </span>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-muted hover:text-foreground p-1 rounded-md transition"
-              data-testid="draft-menu-close-btn"
-              aria-label="Close menu"
-            >
-              <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
-            </button>
-          </div>
+      <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+        {/* Header */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            pb: 1.5,
+            borderBottom: 1,
+            borderColor: "divider"
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              color: "text.secondary"
+            }}
+          >
+            Draft Menu
+          </Typography>
+          <IconButton
+            size="small"
+            onClick={onClose}
+            data-testid="draft-menu-close-btn"
+            aria-label="Close menu"
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
 
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-muted px-2 py-1">
-              Views
-            </div>
-            <button
-              type="button"
+        {/* Section 1: Views */}
+        <Box>
+          <Typography
+            variant="caption"
+            sx={{
+              px: 1,
+              py: 0.5,
+              display: "block",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: "text.secondary",
+              fontSize: "0.6875rem"
+            }}
+          >
+            Views
+          </Typography>
+          <List disablePadding sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <ListItemButton
               data-testid="menu-view-preview"
+              selected={activeView === "preview"}
               onClick={() => handleSelect("preview")}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${
-                activeView === "preview"
-                  ? "bg-accent text-accent-foreground font-semibold shadow-sm"
-                  : "text-foreground hover:bg-border/60"
-              }`}
+              sx={{
+                borderRadius: 2,
+                "&.Mui-selected": {
+                  bgcolor: "action.selected",
+                  fontWeight: 700
+                }
+              }}
             >
-              <div className="flex items-center gap-2.5">
-                <FontAwesomeIcon icon={faEye} className="w-4 h-4 opacity-80" />
-                <span>Thread Preview</span>
-              </div>
+              <ListItemIcon
+                sx={{
+                  minWidth: 36,
+                  color: activeView === "preview" ? "primary.main" : "text.secondary"
+                }}
+              >
+                <FontAwesomeIcon icon={faEye} />
+              </ListItemIcon>
+              <ListItemText
+                primary="Thread Preview"
+                primaryTypographyProps={{
+                  variant: "body2",
+                  fontWeight: activeView === "preview" ? 700 : 500
+                }}
+              />
               {activeView === "preview" && (
-                <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-black/20 text-accent-foreground">
-                  Active
-                </span>
+                <Chip
+                  label="Active"
+                  size="small"
+                  color="primary"
+                  sx={{ height: 20, fontSize: "0.65rem", fontWeight: 700 }}
+                />
               )}
-            </button>
+            </ListItemButton>
 
-            <button
-              type="button"
+            <ListItemButton
               data-testid="menu-view-editor"
+              selected={activeView === "editor"}
               onClick={() => handleSelect("editor")}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${
-                activeView === "editor"
-                  ? "bg-accent text-accent-foreground font-semibold shadow-sm"
-                  : "text-foreground hover:bg-border/60"
-              }`}
+              sx={{
+                borderRadius: 2,
+                "&.Mui-selected": {
+                  bgcolor: "action.selected",
+                  fontWeight: 700
+                }
+              }}
             >
-              <div className="flex items-center gap-2.5">
-                <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 opacity-80" />
-                <span>Markdown Editor</span>
-              </div>
+              <ListItemIcon
+                sx={{
+                  minWidth: 36,
+                  color: activeView === "editor" ? "primary.main" : "text.secondary"
+                }}
+              >
+                <FontAwesomeIcon icon={faPenToSquare} />
+              </ListItemIcon>
+              <ListItemText
+                primary="Markdown Editor"
+                primaryTypographyProps={{
+                  variant: "body2",
+                  fontWeight: activeView === "editor" ? 700 : 500
+                }}
+              />
               {activeView === "editor" && (
-                <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-black/20 text-accent-foreground">
-                  Active
-                </span>
+                <Chip
+                  label="Active"
+                  size="small"
+                  color="primary"
+                  sx={{ height: 20, fontSize: "0.65rem", fontWeight: 700 }}
+                />
               )}
-            </button>
+            </ListItemButton>
 
-            <button
-              type="button"
+            <ListItemButton
               data-testid="menu-view-chat"
+              selected={activeView === "chat"}
               onClick={() => handleSelect("chat")}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${
-                activeView === "chat"
-                  ? "bg-accent text-accent-foreground font-semibold shadow-sm"
-                  : "text-foreground hover:bg-border/60"
-              }`}
+              sx={{
+                borderRadius: 2,
+                "&.Mui-selected": {
+                  bgcolor: "action.selected",
+                  fontWeight: 700
+                }
+              }}
             >
-              <div className="flex items-center gap-2.5">
-                <FontAwesomeIcon icon={faComments} className="w-4 h-4 opacity-80" />
-                <span>AI Agent Chat</span>
-              </div>
+              <ListItemIcon
+                sx={{
+                  minWidth: 36,
+                  color: activeView === "chat" ? "primary.main" : "text.secondary"
+                }}
+              >
+                <FontAwesomeIcon icon={faComments} />
+              </ListItemIcon>
+              <ListItemText
+                primary="AI Agent Chat"
+                primaryTypographyProps={{
+                  variant: "body2",
+                  fontWeight: activeView === "chat" ? 700 : 500
+                }}
+              />
               {activeView === "chat" && (
-                <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-black/20 text-accent-foreground">
-                  Active
-                </span>
+                <Chip
+                  label="Active"
+                  size="small"
+                  color="primary"
+                  sx={{ height: 20, fontSize: "0.65rem", fontWeight: 700 }}
+                />
               )}
-            </button>
-          </div>
+            </ListItemButton>
+          </List>
+        </Box>
 
-          <div className="space-y-1.5 border-t border-border/80 pt-4">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-muted px-2 py-1">
-              Actions
-            </div>
+        <Divider />
 
-            <button
-              type="button"
+        {/* Section 2: Actions */}
+        <Box>
+          <Typography
+            variant="caption"
+            sx={{
+              px: 1,
+              py: 0.5,
+              display: "block",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: "text.secondary",
+              fontSize: "0.6875rem"
+            }}
+          >
+            Actions
+          </Typography>
+          <List disablePadding sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <ListItemButton
               data-testid="menu-copy-draft-link"
               onClick={handleCopyLink}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-border/60 transition cursor-pointer"
+              sx={{ borderRadius: 2 }}
             >
-              <div className="flex items-center gap-2.5">
-                <FontAwesomeIcon
-                  icon={copied ? faCheck : faLink}
-                  className={`w-4 h-4 ${copied ? "text-emerald-400" : "opacity-80"}`}
-                />
-                <span>{copied ? "Link Copied!" : "Copy Draft Link"}</span>
-              </div>
-            </button>
+              <ListItemIcon
+                sx={{
+                  minWidth: 36,
+                  color: copied ? "success.main" : "text.secondary"
+                }}
+              >
+                <FontAwesomeIcon icon={copied ? faCheck : faLink} />
+              </ListItemIcon>
+              <ListItemText
+                primary={copied ? "Link Copied!" : "Copy Draft Link"}
+                primaryTypographyProps={{ variant: "body2" }}
+              />
+            </ListItemButton>
 
             {onOpenAdaptModal && (
-              <button
-                type="button"
+              <ListItemButton
                 data-testid="menu-adapt-platforms"
                 onClick={() => {
                   onClose();
                   onOpenAdaptModal();
                 }}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-border/60 transition cursor-pointer"
+                sx={{ borderRadius: 2 }}
               >
-                <div className="flex items-center gap-2.5">
-                  <FontAwesomeIcon icon={faLayerGroup} className="w-4 h-4 opacity-80" />
-                  <span>Adapt for Platforms</span>
-                </div>
-              </button>
+                <ListItemIcon sx={{ minWidth: 36, color: "text.secondary" }}>
+                  <FontAwesomeIcon icon={faLayerGroup} />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Adapt for Platforms"
+                  primaryTypographyProps={{ variant: "body2" }}
+                />
+              </ListItemButton>
             )}
-          </div>
+          </List>
+        </Box>
 
-          <div className="space-y-1.5 border-t border-border/80 pt-4">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-muted px-2 py-1">
-              Navigation
-            </div>
+        <Divider />
 
-            <button
-              type="button"
+        {/* Section 3: Navigation */}
+        <Box>
+          <Typography
+            variant="caption"
+            sx={{
+              px: 1,
+              py: 0.5,
+              display: "block",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: "text.secondary",
+              fontSize: "0.6875rem"
+            }}
+          >
+            Navigation
+          </Typography>
+          <List disablePadding sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <ListItemButton
               data-testid="menu-nav-drafts"
               onClick={() => {
                 onClose();
                 navigate("/drafts");
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-border/60 transition cursor-pointer"
+              sx={{ borderRadius: 2 }}
             >
-              <FontAwesomeIcon icon={faFolderOpen} className="w-4 h-4 opacity-80" />
-              <span>Drafts Library</span>
-            </button>
+              <ListItemIcon sx={{ minWidth: 36, color: "text.secondary" }}>
+                <FontAwesomeIcon icon={faFolderOpen} />
+              </ListItemIcon>
+              <ListItemText
+                primary="Drafts Library"
+                primaryTypographyProps={{ variant: "body2" }}
+              />
+            </ListItemButton>
 
             {workflowId && (
-              <button
-                type="button"
+              <ListItemButton
                 data-testid="menu-nav-workflow"
                 onClick={() => {
                   onClose();
                   navigate(`/workflows/${workflowId}`);
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-border/60 transition cursor-pointer"
+                sx={{ borderRadius: 2 }}
               >
-                <FontAwesomeIcon icon={faBolt} className="w-4 h-4 opacity-80 text-accent" />
-                <span>Back to Workflow</span>
-              </button>
+                <ListItemIcon sx={{ minWidth: 36, color: "primary.main" }}>
+                  <FontAwesomeIcon icon={faBolt} />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Back to Workflow"
+                  primaryTypographyProps={{ variant: "body2" }}
+                />
+              </ListItemButton>
             )}
-          </div>
-        </div>
-      </div>
-    </div>
+          </List>
+        </Box>
+      </Box>
+    </Drawer>
   );
 };

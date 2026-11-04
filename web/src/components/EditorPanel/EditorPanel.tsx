@@ -87,7 +87,7 @@ export const EditorPanel: React.FC = () => {
   const effectiveCanonicalId = activeDraft?.canonicalDraftId || canonicalDraftId || activeDraftId;
 
   return (
-    <div className="h-full flex flex-col bg-panel overflow-hidden" data-testid="editor-panel">
+    <div className="h-full flex-1 min-h-0 flex flex-col bg-panel overflow-hidden" data-testid="editor-panel">
       <EditorPanelHeader
         targetPlatform={activeDraft?.targetPlatform}
         mode={mode}
@@ -164,9 +164,9 @@ export const EditorPanel: React.FC = () => {
       {activeDraft && canShowReplyTarget && <ReplyTargetCard draft={activeDraft} />}
 
       <div
-        className={`flex-1 overflow-y-auto px-3 pb-3 ${
-          activeDraft && canShowReplyTarget ? "pt-3" : "pt-0"
-        }`}
+        className={`flex-1 min-h-0 h-full flex flex-col ${
+          mode === "edit" ? "p-0 overflow-hidden" : "overflow-y-auto px-3 pb-3"
+        } ${activeDraft && canShowReplyTarget && mode !== "edit" ? "pt-3" : ""}`}
         data-testid={mode === "edit" ? "editor-panel-edit-mode" : "editor-panel-preview-mode"}
       >
         {mode === "edit" ? <MarkdownEditor /> : <ThreadPreview content={doc} />}

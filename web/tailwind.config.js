@@ -6,18 +6,18 @@ export default {
   theme: {
     extend: {
       colors: {
-        bg: "#0f1115",
-        input: "#0f1115",
-        panel: "#161922",
-        "panel-light": "#1d212d",
-        card: "#161922",
-        border: "#262a36",
-        "border-light": "#33394a",
-        accent: "#7c8cff",
-        "accent-foreground": "#0f1115",
-        muted: "#8b909f",
-        foreground: "#f4f4f6",
-        destructive: "#ef4444",
+        bg: "var(--color-bg)",
+        input: "var(--color-bg)",
+        panel: "var(--color-panel)",
+        "panel-light": "var(--color-panel-light)",
+        card: "var(--color-card)",
+        border: "var(--color-border)",
+        "border-light": "var(--color-border-light)",
+        accent: "var(--color-accent)",
+        "accent-foreground": "var(--color-accent-foreground)",
+        muted: "var(--color-muted)",
+        foreground: "var(--color-foreground)",
+        destructive: "var(--color-destructive)",
       },
       fontFamily: {
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
@@ -36,4 +36,3 @@ export default {
   },
   plugins: [typography],
 };
-

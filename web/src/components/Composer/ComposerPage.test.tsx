@@ -37,6 +37,7 @@ vi.mock("./ComposerDraftContext", () => ({
     doc: "Content",
     isLoading: false,
     publish: vi.fn().mockResolvedValue({ success: true }),
+    setPanelMode: vi.fn(),
   }),
 }));
 
@@ -63,7 +64,7 @@ describe("ComposerPage", () => {
     vi.clearAllMocks();
   });
 
-  it("displays only Thread Preview by default and hides chat and editor", () => {
+  it("displays persistent sidebar and Thread Preview by default while hiding chat and editor", () => {
     render(
       <MemoryRouter initialEntries={["/draft/draft-1"]}>
         <Routes>
@@ -73,17 +74,21 @@ describe("ComposerPage", () => {
     );
 
     expect(screen.getByTestId("composer-page")).toBeInTheDocument();
+    expect(screen.getByTestId("draft-sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("composer-preview-view")).toBeInTheDocument();
     expect(screen.getByTestId("thread-preview")).toBeInTheDocument();
-    expect(screen.getByTestId("draft-hamburger-btn")).toBeInTheDocument();
 
-    // Chat and editor are hidden by default
+    // Navigation buttons in persistent sidebar
+    expect(screen.getByTestId("menu-view-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("menu-view-editor")).toBeInTheDocument();
+    expect(screen.getByTestId("menu-view-chat")).toBeInTheDocument();
+
+    // Chat and editor panels are hidden by default
     expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument();
     expect(screen.queryByTestId("editor-panel")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("draft-menu-drawer")).not.toBeInTheDocument();
   });
 
-  it("opens hamburger drawer and switches between preview, editor, and chat", () => {
+  it("switches between preview, editor, and chat views via sidebar navigation", () => {
     render(
       <MemoryRouter initialEntries={["/draft/draft-1"]}>
         <Routes>
@@ -92,13 +97,8 @@ describe("ComposerPage", () => {
       </MemoryRouter>
     );
 
-    // Open hamburger menu
-    fireEvent.click(screen.getByTestId("draft-hamburger-btn"));
-    expect(screen.getByTestId("draft-menu-drawer")).toBeInTheDocument();
-
-    // Switch to Markdown Editor
+    // Switch to Markdown Editor via sidebar
     fireEvent.click(screen.getByTestId("menu-view-editor"));
-    expect(screen.queryByTestId("draft-menu-drawer")).not.toBeInTheDocument();
     expect(screen.getByTestId("composer-editor-view")).toBeInTheDocument();
     expect(screen.getByTestId("editor-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("composer-preview-view")).not.toBeInTheDocument();
@@ -108,18 +108,15 @@ describe("ComposerPage", () => {
     expect(screen.getByTestId("composer-preview-view")).toBeInTheDocument();
     expect(screen.queryByTestId("editor-panel")).not.toBeInTheDocument();
 
-    // Open hamburger menu again and switch to Chat
-    fireEvent.click(screen.getByTestId("draft-hamburger-btn"));
-    expect(screen.getByTestId("draft-menu-drawer")).toBeInTheDocument();
-
+    // Switch to Chat via sidebar
     fireEvent.click(screen.getByTestId("menu-view-chat"));
-    expect(screen.queryByTestId("draft-menu-drawer")).not.toBeInTheDocument();
     expect(screen.getByTestId("composer-chat-view")).toBeInTheDocument();
     expect(screen.getByTestId("chat-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("composer-preview-view")).not.toBeInTheDocument();
 
-    // Return to preview
-    fireEvent.click(screen.getByTestId("back-to-preview-btn"));
+    // Return to preview via sidebar
+    fireEvent.click(screen.getByTestId("menu-view-preview"));
     expect(screen.getByTestId("composer-preview-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument();
   });
 });

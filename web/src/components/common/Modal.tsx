@@ -1,6 +1,8 @@
-import { useEffect, type ReactNode } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faXmark } from "@fortawesome/free-solid-svg-icons";
+import React, { useEffect, type ReactNode } from "react";
+import IconButton from "@mui/material/IconButton";
+import Typography from "@mui/material/Typography";
+import Box from "@mui/material/Box";
+import CloseIcon from "@mui/icons-material/Close";
 
 export interface ModalProps {
   isOpen: boolean;
@@ -13,12 +15,12 @@ export interface ModalProps {
   testId?: string;
 }
 
-const MAX_WIDTH_CLASSES: Record<NonNullable<ModalProps["maxWidth"]>, string> = {
-  sm: "max-w-sm",
-  md: "max-w-md",
-  lg: "max-w-lg",
-  xl: "max-w-xl",
-  "2xl": "max-w-2xl",
+const MAX_WIDTH_MAP: Record<NonNullable<ModalProps["maxWidth"]>, number | string> = {
+  sm: 400,
+  md: 520,
+  lg: 640,
+  xl: 768,
+  "2xl": 896,
 };
 
 export function Modal({
@@ -46,53 +48,105 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  const widthClass = MAX_WIDTH_CLASSES[maxWidth] || "max-w-md";
+  const widthVal = MAX_WIDTH_MAP[maxWidth] || 520;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4 animate-fade-in font-sans"
+    <Box
+      sx={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1300,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: "rgba(0, 0, 0, 0.6)",
+        backdropFilter: "blur(4px)",
+        p: 2,
+      }}
       onClick={onClose}
       data-testid={`${testId}-overlay`}
     >
-      <div
-        className={`bg-panel border border-border rounded-xl shadow-2xl w-full ${widthClass} mx-auto overflow-hidden flex flex-col max-h-[90vh]`}
+      <Box
+        sx={{
+          bgcolor: "background.paper",
+          color: "text.primary",
+          border: (theme) => `1px solid ${theme.palette.divider}`,
+          borderRadius: 3,
+          boxShadow: 24,
+          width: "100%",
+          maxWidth: widthVal,
+          mx: "auto",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          maxHeight: "90vh",
+        }}
         onClick={(e) => e.stopPropagation()}
         data-testid={testId}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${testId}-title`}
       >
-        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3 shrink-0 bg-panel/50">
-          <div>
-            <h2 id={`${testId}-title`} className="text-sm font-semibold text-foreground">
+        <Box
+          sx={{
+            px: 2.5,
+            py: 2,
+            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 2,
+            shrink: 0,
+          }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              id={`${testId}-title`}
+              variant="subtitle1"
+              component="h2"
+              fontWeight={600}
+              color="text.primary"
+            >
               {title}
-            </h2>
+            </Typography>
             {description && (
-              <p className="text-xs text-muted mt-0.5 font-sans leading-normal">
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                 {description}
-              </p>
+              </Typography>
             )}
-          </div>
-          <button
+          </Box>
+          <IconButton
             type="button"
             onClick={onClose}
             aria-label="Close modal"
-            className="text-muted hover:text-foreground p-1 rounded-md hover:bg-border/20 transition-colors -mr-1 -mt-1"
+            size="small"
+            sx={{ color: "text.secondary", mt: -0.5, mr: -0.5 }}
           >
-            <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
-          </button>
-        </div>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
 
-        <div className="p-5 overflow-y-auto min-h-0 flex-1 space-y-4">
+        <Box sx={{ p: 2.5, overflowY: "auto", minHeight: 0, flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
           {children}
-        </div>
+        </Box>
 
         {footer && (
-          <div className="px-5 py-3.5 border-t border-border bg-panel/30 flex items-center justify-end gap-2 shrink-0">
+          <Box
+            sx={{
+              px: 2.5,
+              py: 1.75,
+              borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 1.5,
+              shrink: 0,
+            }}
+          >
             {footer}
-          </div>
+          </Box>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }

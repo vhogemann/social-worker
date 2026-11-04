@@ -11,8 +11,16 @@ export function LinkedInCallbackPage() {
 
   const code = searchParams.get("code");
   const state = searchParams.get("state");
+  const errorParam = searchParams.get("error");
+  const errorDescription = searchParams.get("error_description");
 
   useEffect(() => {
+    if (errorParam) {
+      setStatus("error");
+      setError(errorDescription || `OAuth authorization error: ${errorParam}`);
+      return;
+    }
+
     if (!code) {
       setStatus("error");
       setError("No authorization code found in redirect URL.");

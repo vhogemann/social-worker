@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { WorkflowsPanel } from "./WorkflowsPanel";
+import { WorkflowEditorPage } from "./WorkflowEditorPage";
 import * as workflowsApi from "../../api/workflows";
 import * as feedsApi from "../../api/feeds";
 import * as accountsApi from "../../api/accounts";
@@ -85,10 +86,13 @@ describe("WorkflowsPanel", () => {
     });
   });
 
-  it("opens create modal when clicking New Workflow", async () => {
+  it("navigates to create workflow screen when clicking New Workflow", async () => {
     render(
-      <MemoryRouter future={routerFuture}>
-        <WorkflowsPanel />
+      <MemoryRouter initialEntries={["/"]} future={routerFuture}>
+        <Routes>
+          <Route path="/" element={<WorkflowsPanel />} />
+          <Route path="/workflows/new" element={<WorkflowEditorPage />} />
+        </Routes>
       </MemoryRouter>
     );
 

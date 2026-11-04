@@ -15,7 +15,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 | Project | Location | Technology Stack | Mental Model |
 | :--- | :--- | :--- | :--- |
 | **Backend API** | `api/SocialWorker.Api/` | .NET 10 Minimal API, EF Core, Postgres 16 | [api/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/api/MENTAL_MODEL.md) |
-| **Frontend Web** | `web/` | React 19, TypeScript, Vite, Tailwind CSS, Zustand | [web/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/web/MENTAL_MODEL.md) |
+| **Frontend Web** | `web/` | React 19, TypeScript, Vite, Tailwind CSS, Material UI (MUI v6) + Emotion, Zustand | [web/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/web/MENTAL_MODEL.md) |
 | **Transcriber** | `transcriber/` | Python 3.11, FastAPI, OpenAI Whisper, yt-dlp | [transcriber/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/transcriber/MENTAL_MODEL.md) |
 | **Image Engine** | `image-engine/` | Node.js 22, Fastify, Sharp, Canvas, Zod | [image-engine/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/image-engine/MENTAL_MODEL.md) |
 | **E2E Testing** | `e2e/` | Playwright, TypeScript, Docker stack (8200/8201) | [e2e/MENTAL_MODEL.md](file:///home/vhogemann/Projects/social-worker/e2e/MENTAL_MODEL.md) |
@@ -53,17 +53,16 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Frontend entry and state
 
-- App shell & routing: web/src/App.tsx, web/src/components/Navigation/AppHeader.tsx (Workflows, Reply Agents, Outbox, Calendar, Drafts, Templates, Settings)
+- App shell, theme & routing: web/src/App.tsx, web/src/theme/ (createAppTheme with Light/Dark mode, ColorModeProvider, CssBaseline), web/src/components/Navigation/ (AppLayout, AppSidebar collapsible desktop drawer, AppTopBar responsive mobile drawer)
+- Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/ (WorkflowEditorPage dedicated routes `/workflows/new` and `/workflows/:id/edit`, WorkflowForm, WorkflowCard MUI conversion, polymorphic sources: RSS/YouTube feeds, Workflow Highlights/Digests, WorkflowImportModal, Export All / Import actions, individual workflow card JSON export, WorkflowReplyAgentTab with agent selector and live audit triage)
 - Reply Agents Cockpit: web/src/components/ReplyAgents/ (ReplyAgentsPage top-level screen with Monitored Posts, Agents Library, Approval Inbox, Activity Stream, MonitorPostModal; ReplyAgentDetailPage deep management)
 - Content Calendar & Views: web/src/components/Calendar/ (CalendarPage, MonthView, WeekView, DayView, QueueSidebar with Priority Badges, ScheduleManagerModal, SlotRuleFormModal, DraftPickerModal)
 - Review Outbox Triage: web/src/components/Outbox/ReviewOutboxPage.tsx
 - Settings Library: web/src/components/Settings/ (AccountTab, ConnectionsTab, BrandVoicesTab, FeedsTab, UsersTab, ProvidersTab)
-- Workflows & Detail Dashboard: web/src/components/WorkflowsPanel/, web/src/components/WorkflowDetail/ (polymorphic sources: RSS/YouTube feeds, Workflow Highlights/Digests, WorkflowImportModal, Export All / Import actions, individual workflow card JSON export, WorkflowReplyAgentTab with agent selector and live audit triage)
 - Drafts Library Page: web/src/components/Drafts/DraftsPage.tsx
-- Full-width 2-pane Composer: web/src/components/Composer/ComposerPage.tsx
+- Full-width Composer Studio: web/src/components/Composer/ComposerPage.tsx (persistent master-detail sidebar matching Settings layout, full-viewport CodeMirror Markdown editor, Thread Preview, and AI Chat views, PreviewCard MUI cards)
 - Scoped Composer Draft Context: web/src/components/Composer/ComposerDraftContext.tsx (local draft, editor doc, autosave, scoped sources)
 - Scoped Chat Provider: web/src/api/chat.tsx (scoped assistant-ui runtime seeded from and autosaved to draft.chatHistory)
-- Navigation & Breadcrumbs: web/src/components/Navigation/
 - Template Studio & WYSIWYG Editor: web/src/components/TemplateStudio/
 - Draft library cache: web/src/store/draftStore.ts
 - Global error catcher & crash safety: web/src/components/common/GlobalErrorToaster.tsx, web/src/components/common/ErrorBoundary.tsx
@@ -72,7 +71,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ### Tests
 
 - API unit/integration tests (927 tests): api/SocialWorker.Api.Tests/
-- Web tests (Vitest, 520 tests in 97 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
+- Web tests (Vitest, 552 tests in 106 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - Image Engine tests (Vitest, 14 tests in 3 test files): image-engine/tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs
 - E2E (Playwright in Docker): e2e/ and scripts/run-e2e.sh

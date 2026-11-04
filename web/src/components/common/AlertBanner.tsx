@@ -1,6 +1,7 @@
 import React from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faXmark } from "@fortawesome/free-solid-svg-icons";
+import Alert from "@mui/material/Alert";
+import IconButton from "@mui/material/IconButton";
+import CloseIcon from "@mui/icons-material/Close";
 
 export type AlertBannerVariant = "error" | "warning" | "info" | "success";
 
@@ -12,35 +13,38 @@ export interface AlertBannerProps {
   className?: string;
 }
 
-const variantStyles: Record<AlertBannerVariant, string> = {
-  error: "bg-red-500/10 border-red-500/20 text-red-400",
-  warning: "bg-yellow-500/10 border-yellow-500/20 text-yellow-400",
-  info: "bg-blue-500/10 border-blue-500/20 text-blue-400",
-  success: "bg-green-500/10 border-green-500/20 text-green-400"
-};
-
 export const AlertBanner: React.FC<AlertBannerProps> = ({
   variant = "error",
   message,
   children,
   onDismiss,
-  className = ""
+  className = "",
 }) => {
   return (
-    <div
-      className={`p-3 border rounded-lg text-xs flex justify-between items-center ${variantStyles[variant]} ${className}`}
+    <Alert
+      severity={variant}
+      variant="outlined"
+      action={
+        onDismiss ? (
+          <IconButton
+            aria-label="Dismiss alert"
+            color="inherit"
+            size="small"
+            onClick={onDismiss}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        ) : undefined
+      }
+      className={className}
+      sx={{
+        borderRadius: 2,
+        fontSize: "0.8125rem",
+        alignItems: "center",
+        py: 0.5,
+      }}
     >
-      <div className="flex-1 pr-2">{message || children}</div>
-      {onDismiss && (
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="opacity-70 hover:opacity-100 transition p-0.5"
-          aria-label="Dismiss alert"
-        >
-          <FontAwesomeIcon icon={faXmark} />
-        </button>
-      )}
-    </div>
+      {message || children}
+    </Alert>
   );
 };

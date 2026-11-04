@@ -1,5 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
+import Avatar from "@mui/material/Avatar";
+import Typography from "@mui/material/Typography";
 import { useComposerDraft } from "../../Composer/ComposerDraftContext";
 import { useDraftStore } from "../../../store/draftStore";
 import { renderCodeImage } from "../../../api/drafts";
@@ -59,12 +63,10 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total,
     }
     try {
       const updated = activeDraft.content.replace(img.raw, codeFence);
-      
       if (updated === activeDraft.content) {
         console.error("Content did not change - img.raw not found in draft content");
         return;
       }
-      
       applyExternal(updated);
       await saveContent(updated);
     } catch (err) {
@@ -92,16 +94,51 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total,
   const canCreateReplyDraft = (activeDraft?.targetPlatform ?? "").toLowerCase() === "bluesky";
 
   return (
-    <div className="relative flex items-start gap-4 pb-8 group">
+    <Box sx={{ position: "relative", display: "flex", alignItems: "flex-start", gap: 2, pb: 4 }}>
       {!isLast && (
-        <div className="absolute left-[20px] top-[40px] bottom-0 w-[2px] bg-zinc-200 dark:bg-zinc-800" />
+        <Box
+          sx={{
+            position: "absolute",
+            left: 20,
+            top: 40,
+            bottom: 0,
+            width: 2,
+            bgcolor: "divider",
+          }}
+        />
       )}
 
-      <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-semibold text-sm shadow-sm select-none">
+      <Avatar
+        sx={{
+          width: 40,
+          height: 40,
+          bgcolor: "primary.main",
+          color: "primary.contrastText",
+          fontWeight: 600,
+          fontSize: "0.875rem",
+          zIndex: 1,
+          boxShadow: 1,
+        }}
+      >
         U
-      </div>
+      </Avatar>
 
-      <div className="flex-1 min-w-0 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-sm group-hover:border-zinc-300 dark:group-hover:border-zinc-700 transition duration-150 relative">
+      <Card
+        variant="outlined"
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          borderRadius: 3,
+          p: 2,
+          bgcolor: "background.paper",
+          borderColor: "divider",
+          "&:hover": {
+            borderColor: "primary.main",
+          },
+          transition: "border-color 0.2s ease",
+          position: "relative",
+        }}
+      >
         <PreviewCardHeader
           index={index}
           total={total}
@@ -114,9 +151,18 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total,
         />
 
         {cleanText && (
-          <div className="text-zinc-800 dark:text-zinc-200 text-sm whitespace-pre-wrap break-words leading-relaxed select-text">
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.primary",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              lineHeight: 1.6,
+              userSelect: "text",
+            }}
+          >
             {cleanText}
-          </div>
+          </Typography>
         )}
 
         <CodeFencesSection
@@ -132,7 +178,7 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ content, index, total,
         <LinksSection links={links} />
 
         <ConflictWarning hasConflict={hasConflict} />
-      </div>
-    </div>
+      </Card>
+    </Box>
   );
 };

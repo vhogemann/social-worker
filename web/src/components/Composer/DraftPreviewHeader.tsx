@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
+import IconButton from "@mui/material/IconButton";
+import MenuIcon from "@mui/icons-material/Menu";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faBars,
   faChevronDown,
   faCalendarAlt,
   faPaperPlane,
@@ -19,7 +20,7 @@ export interface DraftPreviewHeaderProps {
   isPartiallySent?: boolean;
   canPublish: boolean;
   isPublishing: boolean;
-  onOpenMenu: () => void;
+  onOpenMenu?: () => void;
   onOpenAdaptModal: () => void;
   onPublish: () => void;
   onAddToSchedule?: (scheduleId: string) => void;
@@ -81,16 +82,19 @@ export const DraftPreviewHeader: React.FC<DraftPreviewHeaderProps> = ({
       data-testid="draft-preview-header"
     >
       <div className="flex items-center gap-2 min-w-0">
-        <button
-          type="button"
-          onClick={onOpenMenu}
-          className="p-1.5 -ml-1 text-muted hover:text-foreground hover:bg-border/60 rounded-md transition cursor-pointer shrink-0"
-          data-testid="draft-hamburger-btn"
-          aria-label="Open draft menu"
-          title="Open draft menu"
-        >
-          <FontAwesomeIcon icon={faBars} className="w-4 h-4" />
-        </button>
+        {onOpenMenu && (
+          <IconButton
+            size="small"
+            edge="start"
+            onClick={onOpenMenu}
+            data-testid="draft-hamburger-btn"
+            aria-label="Open draft menu"
+            title="Open draft menu"
+            sx={{ mr: -0.5, color: "text.secondary" }}
+          >
+            <MenuIcon fontSize="small" />
+          </IconButton>
+        )}
 
         <span className="font-semibold text-foreground text-xs font-sans truncate max-w-[140px] sm:max-w-xs">
           {title || "Untitled Draft"}

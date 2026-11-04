@@ -3,12 +3,14 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { WorkflowDetailPage } from "./WorkflowDetailPage";
+import { WorkflowEditorPage } from "../WorkflowsPanel/WorkflowEditorPage";
 import * as workflowsApi from "../../api/workflows";
 import * as feedsApi from "../../api/feeds";
 import * as accountsApi from "../../api/accounts";
 
 vi.mock("../../api/workflows", () => ({
   fetchWorkflow: vi.fn(),
+  fetchWorkflows: vi.fn().mockResolvedValue([]),
   fetchWorkflowDrafts: vi.fn(),
   fetchWorkflowQueue: vi.fn(),
   updateWorkflow: vi.fn(),
@@ -96,6 +98,7 @@ describe("WorkflowDetailPage", () => {
       <MemoryRouter initialEntries={[path]} future={routerFuture}>
         <Routes>
           <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
+          <Route path="/workflows/:id/edit" element={<WorkflowEditorPage />} />
         </Routes>
       </MemoryRouter>
     );
@@ -162,7 +165,7 @@ describe("WorkflowDetailPage", () => {
     });
   });
 
-  it("opens edit modal when clicking edit button", async () => {
+  it("navigates to edit screen when clicking edit button", async () => {
     renderComponent();
 
     await waitFor(() => {
@@ -229,6 +232,7 @@ describe("WorkflowDetailPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Edit Automation Workflow" })).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Daily Tech Highlights")).toBeInTheDocument();
     });
 
     const saveBtn = screen.getByRole("button", { name: /Save Changes/i });

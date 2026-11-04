@@ -1,16 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import ToggleButton from "@mui/material/ToggleButton";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPlus,
   faMagnifyingGlass,
-  faFileLines,
+  faFileLines
 } from "@fortawesome/free-solid-svg-icons";
 import { useDraftStore } from "../../store/draftStore";
 import { DraftCard } from "./DraftCard";
 import { CreateDraftModal } from "../DraftList/CreateDraftModal";
 import { Button } from "../common/Button";
-import { Input } from "../common/Input";
 import { EmptyState } from "../common/EmptyState";
 import { Pagination } from "../common/Pagination";
 
@@ -53,7 +58,11 @@ export const DraftsPage: React.FC = () => {
     }
   };
 
-  const handleSelectVariant = (canonicalId: string, variantId: string, workflowId?: string | null) => {
+  const handleSelectVariant = (
+    canonicalId: string,
+    variantId: string,
+    workflowId?: string | null
+  ) => {
     if (workflowId) {
       navigate(`/workflows/${workflowId}/draft/${canonicalId}/variant/${variantId}`);
     } else {
@@ -119,18 +128,37 @@ export const DraftsPage: React.FC = () => {
   };
 
   return (
-    <div
+    <Box
       ref={containerRef}
-      className="flex-1 overflow-y-auto bg-bg p-8 flex flex-col gap-6"
+      sx={{
+        flex: 1,
+        overflowY: "auto",
+        bgcolor: "background.default",
+        p: { xs: 3, md: 4 },
+        display: "flex",
+        flexDirection: "column",
+        gap: 3
+      }}
       data-testid="drafts-page"
     >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Drafts Library</h1>
-          <p className="text-sm text-muted">
+      {/* Header */}
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          justifyContent: "space-between",
+          alignItems: { sm: "center" },
+          gap: 2
+        }}
+      >
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary" }}>
+            Drafts Library
+          </Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
             Browse, manage, and compose standalone and workflow-generated drafts.
-          </p>
-        </div>
+          </Typography>
+        </Box>
         <Button
           variant="primary"
           icon={faPlus}
@@ -138,71 +166,64 @@ export const DraftsPage: React.FC = () => {
         >
           New Draft
         </Button>
-      </div>
+      </Box>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-2 border-b border-border">
-        <div className="flex items-center gap-1 bg-panel border border-border rounded-lg p-1 w-full sm:w-auto text-xs font-medium">
-          <button
-            onClick={() => setActiveTab("all")}
-            className={`px-3 py-1.5 rounded-md transition ${
-              activeTab === "all"
-                ? "bg-border text-foreground font-semibold"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: { xs: "column", md: "row" },
+          alignItems: { xs: "stretch", md: "center" },
+          justifyContent: "space-between",
+          gap: 2,
+          pb: 2,
+          borderBottom: 1,
+          borderColor: "divider"
+        }}
+      >
+        <ToggleButtonGroup
+          value={activeTab}
+          exclusive
+          onChange={(_, newTab) => {
+            if (newTab) setActiveTab(newTab);
+          }}
+          size="small"
+          sx={{ flexWrap: "wrap" }}
+        >
+          <ToggleButton value="all" sx={{ textTransform: "none", fontWeight: 600, px: 2 }}>
             All Active
-          </button>
-          <button
-            onClick={() => setActiveTab("standalone")}
-            className={`px-3 py-1.5 rounded-md transition ${
-              activeTab === "standalone"
-                ? "bg-border text-foreground font-semibold"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
+          </ToggleButton>
+          <ToggleButton value="standalone" sx={{ textTransform: "none", fontWeight: 600, px: 2 }}>
             Standalone
-          </button>
-          <button
-            onClick={() => setActiveTab("workflow")}
-            className={`px-3 py-1.5 rounded-md transition ${
-              activeTab === "workflow"
-                ? "bg-border text-foreground font-semibold"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
+          </ToggleButton>
+          <ToggleButton value="workflow" sx={{ textTransform: "none", fontWeight: 600, px: 2 }}>
             Workflow Generated
-          </button>
-          <button
-            onClick={() => setActiveTab("archived")}
-            className={`px-3 py-1.5 rounded-md transition ${
-              activeTab === "archived"
-                ? "bg-border text-foreground font-semibold"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
+          </ToggleButton>
+          <ToggleButton value="archived" sx={{ textTransform: "none", fontWeight: 600, px: 2 }}>
             Archived
-          </button>
-          <button
-            onClick={() => setActiveTab("discarded")}
-            className={`px-3 py-1.5 rounded-md transition ${
-              activeTab === "discarded"
-                ? "bg-border text-foreground font-semibold"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
+          </ToggleButton>
+          <ToggleButton value="discarded" sx={{ textTransform: "none", fontWeight: 600, px: 2 }}>
             Discarded
-          </button>
-        </div>
+          </ToggleButton>
+        </ToggleButtonGroup>
 
-        <div className="w-full sm:w-72">
-          <Input
-            placeholder="Search drafts..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
+        <TextField
+          size="small"
+          placeholder="Search drafts..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <FontAwesomeIcon icon={faMagnifyingGlass} className="text-muted text-xs" />
+                </InputAdornment>
+              )
+            }
+          }}
+          sx={{ width: { xs: "100%", md: 280 } }}
+        />
+      </Box>
 
       {/* Grid of Draft Cards */}
       {filteredDrafts.length === 0 ? (
@@ -229,8 +250,18 @@ export const DraftsPage: React.FC = () => {
           }
         />
       ) : (
-        <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "repeat(2, 1fr)",
+                lg: "repeat(3, 1fr)"
+              },
+              gap: 3
+            }}
+          >
             {paginatedDrafts.map((draft) => (
               <DraftCard
                 key={draft.id}
@@ -243,7 +274,7 @@ export const DraftsPage: React.FC = () => {
                 onRename={(id, title) => updateDraftTitle(id, title)}
               />
             ))}
-          </div>
+          </Box>
           <Pagination
             currentPage={page}
             totalPages={totalPages}
@@ -251,7 +282,7 @@ export const DraftsPage: React.FC = () => {
             onPageChange={handlePageChange}
             testId="drafts-pagination"
           />
-        </div>
+        </Box>
       )}
 
       <CreateDraftModal
@@ -259,6 +290,6 @@ export const DraftsPage: React.FC = () => {
         onClose={() => setCreateModalOpen(false)}
         onCreate={handleCreateDraft}
       />
-    </div>
+    </Box>
   );
 };

@@ -1,4 +1,5 @@
 import React, { forwardRef } from "react";
+import TextField from "@mui/material/TextField";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -12,25 +13,42 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined);
 
     return (
-      <div className="w-full flex flex-col gap-1.5">
-        {label && (
-          <label htmlFor={inputId} className="block text-[10px] font-mono uppercase tracking-wider text-muted">
-            {label}
-            {required && <span className="text-accent ml-1">*</span>}
-          </label>
-        )}
-        <input
-          ref={ref}
-          id={inputId}
-          required={required}
-          className={`w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none transition focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed ${
-            mono ? "font-mono" : ""
-          } ${error ? "border-red-500/50 focus:border-red-500" : ""} ${className}`}
-          {...props}
-        />
-        {hint && !error && <span className="text-[10px] text-muted font-mono">{hint}</span>}
-        {error && <span className="text-[10px] text-red-400 font-mono">{error}</span>}
-      </div>
+      <TextField
+        inputRef={ref}
+        id={inputId}
+        label={label}
+        required={required}
+        error={Boolean(error)}
+        helperText={error || hint}
+        size="small"
+        fullWidth
+        variant="outlined"
+        className={className}
+        inputProps={{
+          ...props,
+          style: mono ? { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.8125rem" } : undefined,
+        }}
+        slotProps={{
+          inputLabel: {
+            shrink: true,
+            sx: {
+              fontSize: "0.8125rem",
+              fontWeight: 500,
+            },
+          },
+        }}
+        sx={{
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 2,
+            fontSize: "0.875rem",
+          },
+          "& .MuiFormHelperText-root": {
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+            fontSize: "0.6875rem",
+            mx: 0.5,
+          },
+        }}
+      />
     );
   }
 );

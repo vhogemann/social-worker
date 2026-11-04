@@ -1,6 +1,18 @@
 import React from "react";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CardActions from "@mui/material/CardActions";
+import Typography from "@mui/material/Typography";
+import Box from "@mui/material/Box";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBolt, faDownload, faEdit, faLayerGroup, faRss, faTrashCan } from "@fortawesome/free-solid-svg-icons";
+import {
+  faBolt,
+  faDownload,
+  faEdit,
+  faLayerGroup,
+  faRss,
+  faTrashCan
+} from "@fortawesome/free-solid-svg-icons";
 import { type AutomationWorkflowDto } from "../../api/workflows";
 import { Button } from "../common/Button";
 import { getPlatformLabel } from "../../config/platformBadges";
@@ -25,42 +37,107 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
   onExport
 }) => {
   return (
-    <div
+    <Card
       onClick={() => onClick(workflow.id)}
-      className="bg-panel border border-border rounded-xl p-5 flex flex-col justify-between transition hover:border-zinc-600 hover:shadow-md cursor-pointer group shadow-sm"
+      variant="outlined"
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        borderRadius: 3,
+        cursor: "pointer",
+        transition: "all 0.2s ease-in-out",
+        "&:hover": {
+          borderColor: "primary.main",
+          boxShadow: 2
+        }
+      }}
     >
-      <div className="flex flex-col gap-3">
-        <div className="flex justify-between items-start gap-2">
-          <h3 className="text-sm font-bold text-foreground line-clamp-1 group-hover:text-accent transition">
+      <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1.5, p: 2.5, "&:last-child": { pb: 2.5 } }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1 }}>
+          <Typography
+            variant="subtitle2"
+            component="h3"
+            sx={{
+              fontWeight: 700,
+              fontSize: "0.875rem",
+              lineHeight: 1.3,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1
+            }}
+          >
             {workflow.title}
-          </h3>
+          </Typography>
           <span
             className="text-[10px] font-mono px-2 py-0.5 rounded border shrink-0 font-medium text-muted bg-bg border-border"
             data-testid="workflow-card-filter-badge"
           >
             {(workflow.minRelevanceScore ?? 0) > 0 ? `Filter: >= ${workflow.minRelevanceScore}/10` : "Filter: Off"}
           </span>
-        </div>
+        </Box>
 
-        <p className="text-xs text-muted font-sans line-clamp-2 bg-bg/50 p-2.5 rounded-lg border border-border/50">
+        <Typography
+          variant="body2"
+          sx={{
+            fontSize: "0.75rem",
+            color: "text.secondary",
+            p: 1.25,
+            borderRadius: 1.5,
+            border: 1,
+            borderColor: "divider",
+            bgcolor: "action.hover",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden"
+          }}
+        >
           "{workflow.instructionPrompt || "Summarize this article as a thread."}"
-        </p>
+        </Typography>
 
         {/* Sources Section */}
-        <div>
-          <span className="text-[10px] font-mono uppercase tracking-wider text-muted block mb-1.5">
+        <Box>
+          <Typography
+            variant="caption"
+            sx={{
+              fontFamily: "monospace",
+              fontSize: "0.625rem",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              color: "text.secondary",
+              display: "block",
+              mb: 0.75
+            }}
+          >
             Ingestion Sources ({workflow.sources.length})
-          </span>
+          </Typography>
           {workflow.sources.length === 0 ? (
-            <span className="text-[11px] text-muted italic">No linked sources</span>
+            <Typography variant="caption" sx={{ fontSize: "0.6875rem", color: "text.secondary", fontStyle: "italic" }}>
+              No linked sources
+            </Typography>
           ) : (
-            <div className="flex flex-wrap gap-1.5">
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
               {workflow.sources.map((src, index) => {
                 const isHighlights = src.kind === "WorkflowHighlights";
                 return (
-                  <span
+                  <Box
                     key={src.id || src.feedSubscriptionId || src.sourceWorkflowId || index}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-bg border border-border text-[11px] text-foreground font-mono"
+                    component="span"
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 0.5,
+                      px: 1,
+                      py: 0.25,
+                      borderRadius: 1,
+                      border: 1,
+                      borderColor: "divider",
+                      fontSize: "0.6875rem",
+                      fontFamily: "monospace",
+                      bgcolor: "background.paper"
+                    }}
                   >
                     <FontAwesomeIcon
                       icon={isHighlights ? faLayerGroup : faRss}
@@ -71,30 +148,58 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
                         ? `Highlights: ${src.sourceWorkflowTitle || src.title || "Workflow"}`
                         : (src.title || "Feed Source")}
                     </span>
-                  </span>
+                  </Box>
                 );
               })}
-            </div>
+            </Box>
           )}
-        </div>
+        </Box>
 
         {/* Destinations Section */}
-        <div>
-          <span className="text-[10px] font-mono uppercase tracking-wider text-muted block mb-1.5">
+        <Box>
+          <Typography
+            variant="caption"
+            sx={{
+              fontFamily: "monospace",
+              fontSize: "0.625rem",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              color: "text.secondary",
+              display: "block",
+              mb: 0.75
+            }}
+          >
             Target Destinations ({workflow.destinations.length})
-          </span>
+          </Typography>
           {workflow.destinations.length === 0 ? (
-            <span className="text-[11px] text-muted italic">Drafts only (no publishing)</span>
+            <Typography variant="caption" sx={{ fontSize: "0.6875rem", color: "text.secondary", fontStyle: "italic" }}>
+              Drafts only (no publishing)
+            </Typography>
           ) : (
-            <div className="flex flex-wrap gap-1.5">
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
               {workflow.destinations.map((dest) => (
-                <span
+                <Box
                   key={dest.id}
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-bg border border-border text-[11px] text-foreground font-mono"
+                  component="span"
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 0.75,
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: 1,
+                    border: 1,
+                    borderColor: "divider",
+                    fontSize: "0.6875rem",
+                    fontFamily: "monospace",
+                    bgcolor: "background.paper"
+                  }}
                 >
                   <span>{getPlatformLabel(dest.platform)}</span>
                   {dest.accountHandle && (
-                    <span className="opacity-75 font-mono text-[10px]">@{dest.accountHandle}</span>
+                    <Box component="span" sx={{ opacity: 0.75, fontSize: "0.625rem" }}>
+                      @{dest.accountHandle}
+                    </Box>
                   )}
                   {dest.publishingMode === "Scheduled" ? (
                     <span className="text-[8px] bg-blue-500/20 text-blue-400 font-semibold px-1 py-0.5 rounded uppercase">
@@ -109,15 +214,25 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
                       Auto-Publish
                     </span>
                   ) : null}
-                </span>
+                </Box>
               ))}
-            </div>
+            </Box>
           )}
-        </div>
-      </div>
+        </Box>
+      </CardContent>
 
       {/* Actions */}
-      <div className="flex justify-between items-center border-t border-border pt-4 mt-4">
+      <CardActions
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderTop: 1,
+          borderColor: "divider",
+          px: 2.5,
+          py: 1.5
+        }}
+      >
         <Button
           variant="secondary"
           size="xs"
@@ -132,7 +247,7 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
           {isTriggering ? "Running..." : "Trigger Now"}
         </Button>
 
-        <div className="flex gap-2">
+        <Box sx={{ display: "flex", gap: 1 }}>
           {onExport && (
             <Button
               variant="outline"
@@ -171,8 +286,8 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
           >
             <FontAwesomeIcon icon={faTrashCan} />
           </Button>
-        </div>
-      </div>
-    </div>
+        </Box>
+      </CardActions>
+    </Card>
   );
 };

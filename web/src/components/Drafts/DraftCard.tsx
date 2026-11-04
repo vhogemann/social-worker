@@ -1,4 +1,14 @@
 import React, { useState } from "react";
+import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
+import TextField from "@mui/material/TextField";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import Divider from "@mui/material/Divider";
+import Paper from "@mui/material/Paper";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPenToSquare,
@@ -7,10 +17,9 @@ import {
   faTrashCan,
   faBolt,
   faLayerGroup,
-  faClock,
+  faClock
 } from "@fortawesome/free-solid-svg-icons";
-import { PLATFORM_BADGE_COLORS, PLATFORM_ICONS } from "../../config/platformBadges";
-import { Badge } from "../common/Badge";
+import { PLATFORM_ICONS } from "../../config/platformBadges";
 import type { DraftDto } from "../../api/drafts";
 
 export interface DraftCardProps {
@@ -30,7 +39,7 @@ export const DraftCard: React.FC<DraftCardProps> = ({
   onArchive,
   onUnarchive,
   onDelete,
-  onRename,
+  onRename
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(draft.title);
@@ -46,7 +55,7 @@ export const DraftCard: React.FC<DraftCardProps> = ({
 
   const formattedDate = new Date(draft.updatedAt).toLocaleDateString(undefined, {
     month: "short",
-    day: "numeric",
+    day: "numeric"
   });
 
   const variantCount = draft.variants?.length || 0;
@@ -61,16 +70,29 @@ export const DraftCard: React.FC<DraftCardProps> = ({
   };
 
   return (
-    <div
+    <Card
+      variant="outlined"
       onClick={() => onSelect(draft.id, draft.automationWorkflowId)}
-      className="bg-panel border border-border rounded-xl p-5 flex flex-col justify-between transition hover:border-zinc-600 hover:shadow-md cursor-pointer group relative"
       data-testid="draft-card"
+      sx={{
+        borderRadius: 3,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        cursor: "pointer",
+        transition: "border-color 0.2s, box-shadow 0.2s",
+        "&:hover": {
+          borderColor: "primary.main",
+          boxShadow: 2
+        }
+      }}
     >
-      <div className="flex flex-col gap-3">
-        <div className="flex justify-between items-start gap-2">
+      <CardContent sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
+        {/* Title and Status Badge */}
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1.5 }}>
           {isEditing ? (
-            <input
-              type="text"
+            <TextField
+              size="small"
               value={editTitle}
               autoFocus
               onClick={(e) => e.stopPropagation()}
@@ -83,157 +105,261 @@ export const DraftCard: React.FC<DraftCardProps> = ({
                   setEditTitle(draft.title);
                 }
               }}
-              className="text-sm font-bold bg-bg border border-accent rounded px-2 py-0.5 w-full text-foreground focus:outline-none"
+              fullWidth
+              sx={{ "& input": { py: 0.5, px: 1, fontWeight: 700, fontSize: "0.875rem" } }}
             />
           ) : (
-            <h3 className="text-sm font-bold text-foreground line-clamp-2 group-hover:text-accent transition">
+            <Typography
+              variant="subtitle2"
+              sx={{
+                fontWeight: 700,
+                lineHeight: 1.35,
+                overflow: "hidden",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                "&:hover": { color: "primary.main" }
+              }}
+            >
               {draft.title}
-            </h3>
+            </Typography>
           )}
 
-          <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-            <Badge
-              variant={
+          <Box sx={{ shrink: 0 }} onClick={(e) => e.stopPropagation()}>
+            <Chip
+              size="small"
+              label={
+                draft.status === "Discarded" && draft.relevanceScore != null
+                  ? `Discarded (${draft.relevanceScore}/10)`
+                  : draft.status
+              }
+              color={
                 draft.status === "Published" || draft.status === "Sent"
                   ? "success"
                   : draft.status === "Archived"
-                  ? "neutral"
+                  ? "default"
                   : draft.status === "Scheduled" || draft.status === "Discarded"
                   ? "warning"
-                  : "accent"
+                  : "primary"
               }
-              className={draft.status === "Discarded" ? "border-amber-500/40 text-amber-300 bg-amber-500/10" : undefined}
-            >
-              {draft.status === "Discarded" && draft.relevanceScore != null
-                ? `Discarded (${draft.relevanceScore}/10)`
-                : draft.status}
-            </Badge>
-          </div>
-        </div>
+              variant="outlined"
+              sx={{ fontWeight: 600, fontSize: "0.7rem", height: 22 }}
+            />
+          </Box>
+        </Box>
 
+        {/* Discard Reason Alert Box */}
         {draft.status === "Discarded" && draft.discardReason && (
-          <p className="text-xs text-muted/90 line-clamp-2 italic bg-bg/60 p-2 rounded border border-border/60">
-            "{draft.discardReason}"
-          </p>
-        )}
-
-        {draft.content && draft.status !== "Discarded" && (
-          <p className="text-xs text-muted line-clamp-3 leading-relaxed">
-            {draft.content}
-          </p>
-        )}
-
-        {draft.automationWorkflowTitle && (
-          <div className="flex items-center gap-1.5 text-[11px] text-accent/90 font-medium">
-            <FontAwesomeIcon icon={faBolt} className="w-3 h-3 text-accent" />
-            <span className="truncate">{draft.automationWorkflowTitle}</span>
-          </div>
-        )}
-
-        {/* Clickable Variant Badges */}
-        {draft.variants && draft.variants.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
-            {draft.variants.map((v) => (
-              <button
-                key={v.id}
-                onClick={(e) => handleVariantClick(e, v.id)}
-                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-sans font-medium hover:opacity-80 transition cursor-pointer ${
-                  PLATFORM_BADGE_COLORS[v.targetPlatform || ""] || "text-muted bg-border/40"
-                }`}
-                title={`Open ${v.targetPlatform} variant`}
-                data-testid={`card-variant-${v.id}`}
-              >
-                {v.targetPlatform && PLATFORM_ICONS[v.targetPlatform] && (
-                  <FontAwesomeIcon icon={PLATFORM_ICONS[v.targetPlatform]} className="w-2.5 h-2.5" />
-                )}
-                <span>{v.targetPlatform || v.title}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="flex justify-between items-center mt-5 pt-3 border-t border-border/40 text-xs text-muted">
-        <div className="flex items-center gap-2">
-          {draft.targetPlatform && (
-            <span
-              className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded font-sans font-medium ${
-                PLATFORM_BADGE_COLORS[draft.targetPlatform] || "text-muted"
-              }`}
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 1.25,
+              bgcolor: "action.hover",
+              fontStyle: "italic",
+              borderRadius: 1.5
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden"
+              }}
             >
-              {PLATFORM_ICONS[draft.targetPlatform] && (
-                <FontAwesomeIcon
-                  icon={PLATFORM_ICONS[draft.targetPlatform]}
-                  className="w-3 h-3"
-                />
-              )}
-              {draft.targetPlatform}
-            </span>
-          )}
+              "{draft.discardReason}"
+            </Typography>
+          </Paper>
+        )}
 
-          {variantCount > 0 && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-muted font-mono bg-border/40 px-1.5 py-0.5 rounded">
-              <FontAwesomeIcon icon={faLayerGroup} className="w-2.5 h-2.5" />
-              {variantCount} {variantCount === 1 ? "variant" : "variants"}
-            </span>
-          )}
-        </div>
+        {/* Content Snippet */}
+        {draft.content && draft.status !== "Discarded" && (
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              fontSize: "0.8125rem",
+              lineHeight: 1.5,
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: "vertical"
+            }}
+          >
+            {draft.content}
+          </Typography>
+        )}
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-[11px]">
-            <FontAwesomeIcon icon={faClock} className="w-2.5 h-2.5 text-muted/80" />
-            <span>{formattedDate}</span>
-          </div>
+        {/* Workflow Title Pill */}
+        {draft.automationWorkflowTitle && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, color: "primary.main" }}>
+            <FontAwesomeIcon icon={faBolt} className="text-xs" />
+            <Typography
+              variant="caption"
+              sx={{
+                fontWeight: 600,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap"
+              }}
+            >
+              {draft.automationWorkflowTitle}
+            </Typography>
+          </Box>
+        )}
 
-          <div
-            className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
+        {/* Clickable Variant Chips */}
+        {draft.variants && draft.variants.length > 0 && (
+          <Box
+            sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.75, mt: 0.5 }}
             onClick={(e) => e.stopPropagation()}
           >
-            {draft.status === "Archived" ? (
-              <>
-                <button
-                  onClick={() => onUnarchive(draft.id)}
-                  title="Restore Draft"
-                  className="text-muted hover:text-foreground p-1 rounded hover:bg-border/60 transition"
-                >
-                  <FontAwesomeIcon icon={faArrowRotateLeft} className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => onDelete(draft.id)}
-                  title="Delete Draft"
-                  className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-border/60 transition"
-                >
-                  <FontAwesomeIcon icon={faTrashCan} className="w-3.5 h-3.5" />
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  title="Rename Draft"
-                  className="text-muted hover:text-foreground p-1 rounded hover:bg-border/60 transition"
-                >
-                  <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => onArchive(draft.id)}
-                  title="Archive Draft"
-                  className="text-muted hover:text-foreground p-1 rounded hover:bg-border/60 transition"
-                >
-                  <FontAwesomeIcon icon={faBoxArchive} className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => onDelete(draft.id)}
-                  title="Delete Draft"
-                  className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-border/60 transition"
-                >
-                  <FontAwesomeIcon icon={faTrashCan} className="w-3.5 h-3.5" />
-                </button>
-              </>
+            {draft.variants.map((v) => (
+              <Chip
+                key={v.id}
+                component="button"
+                clickable
+                size="small"
+                onClick={(e) => handleVariantClick(e, v.id)}
+                icon={
+                  v.targetPlatform && PLATFORM_ICONS[v.targetPlatform] ? (
+                    <FontAwesomeIcon
+                      icon={PLATFORM_ICONS[v.targetPlatform]}
+                      style={{ fontSize: "0.75rem", marginLeft: 6 }}
+                    />
+                  ) : undefined
+                }
+                label={v.targetPlatform || v.title}
+                title={`Open ${v.targetPlatform} variant`}
+                data-testid={`card-variant-${v.id}`}
+                variant="outlined"
+                sx={{ height: 22, fontSize: "0.7rem", fontWeight: 600 }}
+              />
+            ))}
+          </Box>
+        )}
+      </CardContent>
+
+      {/* Footer Actions and Metadata */}
+      <Box sx={{ mt: "auto" }}>
+        <Divider />
+        <Box
+          sx={{
+            px: 2.5,
+            py: 1.5,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {draft.targetPlatform && (
+              <Chip
+                size="small"
+                icon={
+                  PLATFORM_ICONS[draft.targetPlatform] ? (
+                    <FontAwesomeIcon
+                      icon={PLATFORM_ICONS[draft.targetPlatform]}
+                      style={{ fontSize: "0.75rem", marginLeft: 6 }}
+                    />
+                  ) : undefined
+                }
+                label={draft.targetPlatform}
+                variant="filled"
+                sx={{ height: 22, fontSize: "0.7rem", fontWeight: 600 }}
+              />
             )}
-          </div>
-        </div>
-      </div>
-    </div>
+
+            {variantCount > 0 && (
+              <Chip
+                size="small"
+                icon={
+                  <FontAwesomeIcon icon={faLayerGroup} style={{ fontSize: "0.7rem", marginLeft: 6 }} />
+                }
+                label={`${variantCount} ${variantCount === 1 ? "variant" : "variants"}`}
+                variant="outlined"
+                sx={{ height: 22, fontSize: "0.7rem", fontFamily: "monospace" }}
+              />
+            )}
+          </Box>
+
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "text.secondary" }}>
+              <FontAwesomeIcon icon={faClock} className="text-[10px]" />
+              <Typography variant="caption" sx={{ fontSize: "0.7rem" }}>
+                {formattedDate}
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {draft.status === "Archived" ? (
+                <>
+                  <Tooltip title="Restore Draft">
+                    <IconButton
+                      size="small"
+                      onClick={() => onUnarchive(draft.id)}
+                      sx={{ p: 0.5 }}
+                      aria-label="Restore Draft"
+                    >
+                      <FontAwesomeIcon icon={faArrowRotateLeft} className="text-xs" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Delete Draft">
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => onDelete(draft.id)}
+                      sx={{ p: 0.5 }}
+                      aria-label="Delete Draft"
+                    >
+                      <FontAwesomeIcon icon={faTrashCan} className="text-xs" />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              ) : (
+                <>
+                  <Tooltip title="Rename Draft">
+                    <IconButton
+                      size="small"
+                      onClick={() => setIsEditing(true)}
+                      sx={{ p: 0.5 }}
+                      aria-label="Rename Draft"
+                    >
+                      <FontAwesomeIcon icon={faPenToSquare} className="text-xs" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Archive Draft">
+                    <IconButton
+                      size="small"
+                      onClick={() => onArchive(draft.id)}
+                      sx={{ p: 0.5 }}
+                      aria-label="Archive Draft"
+                    >
+                      <FontAwesomeIcon icon={faBoxArchive} className="text-xs" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Delete Draft">
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => onDelete(draft.id)}
+                      sx={{ p: 0.5 }}
+                      aria-label="Delete Draft"
+                    >
+                      <FontAwesomeIcon icon={faTrashCan} className="text-xs" />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    </Card>
   );
 };
