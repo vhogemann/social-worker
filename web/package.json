@@ -30,7 +30,7 @@
     "@mui/material": "^6.5.0",
     "@tanstack/react-hotkeys": "^0.10.0",
     "@uiw/react-codemirror": "^4.23.0",
-    "konva": "^9.3.18",
+    "konva": "^10.9.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
