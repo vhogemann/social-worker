@@ -43,7 +43,7 @@ public class FeedAutoPublishService
         foreach (var dest in destinations)
         {
             var isAuto = dest.PublishingMode == WorkflowPublishingMode.Automatic || (dest.PublishingMode == WorkflowPublishingMode.Manual && dest.AutoPublish);
-            var isScheduled = dest.PublishingMode == WorkflowPublishingMode.Scheduled && dest.ScheduleId.HasValue;
+            var isScheduled = dest.PublishingMode == WorkflowPublishingMode.Scheduled;
 
             if (!isAuto && !isScheduled)
             {
@@ -66,12 +66,43 @@ public class FeedAutoPublishService
 
                 if (isScheduled && _queueService != null)
                 {
+                    var targetScheduleId = dest.ScheduleId;
+                    if (!targetScheduleId.HasValue && canonicalDraft.AutomationWorkflow?.ScheduleId != null)
+                    {
+                        targetScheduleId = canonicalDraft.AutomationWorkflow.ScheduleId;
+                    }
+
+                    if (!targetScheduleId.HasValue && !string.IsNullOrWhiteSpace(dest.Platform))
+                    {
+                        var platformLower = dest.Platform.ToLower();
+                        var matchedSchedule = await _db.Schedules
+                            .Where(s => s.UserId == userId && s.IsActive && s.Name.ToLower().Contains(platformLower))
+                            .OrderByDescending(s => s.CreatedAt)
+                            .FirstOrDefaultAsync(ct)
+                            ?? await _db.Schedules
+                            .Where(s => s.UserId == userId && s.IsActive)
+                            .OrderByDescending(s => s.CreatedAt)
+                            .FirstOrDefaultAsync(ct);
+
+                        if (matchedSchedule != null)
+                        {
+                            targetScheduleId = matchedSchedule.Id;
+                            _logger.LogInformation("Resolved fallback schedule '{ScheduleName}' ({ScheduleId}) for platform {Platform}.", matchedSchedule.Name, targetScheduleId.Value, dest.Platform);
+                        }
+                    }
+
+                    if (!targetScheduleId.HasValue)
+                    {
+                        _logger.LogWarning("Destination for {Platform} has PublishingMode=Scheduled but no ScheduleId is assigned or could be resolved. Draft {DraftId} was not enqueued.", dest.Platform, variant?.Id ?? canonicalDraft.Id);
+                        continue;
+                    }
+
                     var priorityScore = variant?.RelevanceScore ?? canonicalDraft.RelevanceScore;
-                    _logger.LogInformation("Enqueuing draft {DraftId} (Priority: {Priority}) to schedule {ScheduleId} for platform {Platform}...", variant?.Id ?? canonicalDraft.Id, priorityScore, dest.ScheduleId!.Value, dest.Platform);
-                    await _queueService.EnqueueAsync(dest.ScheduleId.Value, thread.Id, variant?.Id ?? canonicalDraft.Id, priorityScore: priorityScore, ct: ct);
+                    _logger.LogInformation("Enqueuing draft {DraftId} (Priority: {Priority}) to schedule {ScheduleId} for platform {Platform}...", variant?.Id ?? canonicalDraft.Id, priorityScore, targetScheduleId.Value, dest.Platform);
+                    await _queueService.EnqueueAsync(targetScheduleId.Value, thread.Id, variant?.Id ?? canonicalDraft.Id, priorityScore: priorityScore, ct: ct);
                     if (_evaluator != null)
                     {
-                        await _evaluator.EvaluateScheduleAsync(dest.ScheduleId.Value, ct: ct);
+                        await _evaluator.EvaluateScheduleAsync(targetScheduleId.Value, ct: ct);
                     }
                     continue;
                 }

@@ -110,6 +110,9 @@ public sealed class TemplateGeneratorServiceTests
         public Task<ImageTransformResult> FormatAspectRatioAsync(Stream stream, string mimeType, string targetRatio = "1:1", string fitMode = "blur_padding", CancellationToken ct = default)
             => Task.FromResult(new ImageTransformResult(new byte[] { 1 }, 1080, 1080, mimeType));
 
+        public Task<byte[]> RenderChartAsync(SocialWorker.Api.Features.Charts.Models.ChartRenderRequest request, CancellationToken ct = default)
+            => Task.FromResult(new byte[] { 1, 2, 3, 4 });
+
         public Task<bool> HealthCheckAsync(CancellationToken ct = default) => Task.FromResult(true);
     }
 

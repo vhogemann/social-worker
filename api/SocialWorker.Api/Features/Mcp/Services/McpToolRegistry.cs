@@ -11,6 +11,8 @@ using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.BackgroundTasks.Abstractions;
 using SocialWorker.Api.Features.BackgroundTasks.Models;
+using SocialWorker.Api.Features.Charts.Models;
+using SocialWorker.Api.Features.Charts.Services;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.CodeImages;
 using SocialWorker.Api.Features.Drafts;
@@ -69,6 +71,7 @@ public sealed class McpToolRegistry
     private readonly IImageEngineClient? _imageEngineClient;
     private readonly ImageGenerationService? _imageGenerationService;
     private readonly TemplateGeneratorService? _templateGeneratorService;
+    private readonly ChartService? _chartService;
     private readonly IAppUrlResolver? _urlResolver;
 
     public McpToolRegistry(
@@ -99,6 +102,7 @@ public sealed class McpToolRegistry
         IImageEngineClient? imageEngineClient = null,
         ImageGenerationService? imageGenerationService = null,
         TemplateGeneratorService? templateGeneratorService = null,
+        ChartService? chartService = null,
         IAppUrlResolver? urlResolver = null)
     {
         _db = db;
@@ -128,6 +132,7 @@ public sealed class McpToolRegistry
         _imageEngineClient = imageEngineClient;
         _imageGenerationService = imageGenerationService;
         _templateGeneratorService = templateGeneratorService;
+        _chartService = chartService;
         _urlResolver = urlResolver;
     }
 
@@ -140,6 +145,7 @@ public sealed class McpToolRegistry
     private PlatformVariantService? ResolveVariantService() => _platformVariantService ?? _serviceProvider?.GetService<PlatformVariantService>();
     private ImageGenerationService? ResolveImageGenerationService() => _imageGenerationService ?? _serviceProvider?.GetService<ImageGenerationService>();
     private TemplateGeneratorService? ResolveTemplateGeneratorService() => _templateGeneratorService ?? _serviceProvider?.GetService<TemplateGeneratorService>();
+    private ChartService? ResolveChartService() => _chartService ?? _serviceProvider?.GetService<ChartService>();
 
     private IAppUrlResolver ResolveUrlResolver()
     {
@@ -827,6 +833,37 @@ public sealed class McpToolRegistry
                 "required": ["draftId"]
             }
             """)),
+            new("render_chart", "Renders statistical or numerical data into a high-DPI social media chart image (Bar, Horizontal Bar, Line, Area, or Doughnut/Pie) and attaches it to a draft as a media asset.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to attach the generated chart to." },
+                    "type": { "type": "string", "enum": ["bar", "horizontal_bar", "line", "area", "doughnut", "pie"], "description": "Chart type. Use 'bar', 'horizontal_bar', 'line', 'area', 'doughnut', or 'pie'." },
+                    "labels": { "type": "array", "items": { "type": "string" }, "description": "Category or time period labels along the primary axis." },
+                    "datasets": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "label": { "type": "string", "description": "Series name." },
+                                "data": { "type": "array", "items": { "type": "number" }, "description": "Numerical values." },
+                                "backgroundColor": { "description": "Optional hex color or array of hex colors." },
+                                "borderColor": { "description": "Optional border hex color." },
+                                "fill": { "type": "boolean", "description": "Whether to fill area." }
+                            },
+                            "required": ["data"]
+                        },
+                        "description": "Data series to plot."
+                    },
+                    "title": { "type": "string", "description": "Chart card header title." },
+                    "subtitle": { "type": "string", "description": "Optional subtitle or source note." },
+                    "theme": { "type": "string", "enum": ["dark", "light"], "description": "Visual theme. Defaults to dark." },
+                    "aspectRatio": { "type": "string", "enum": ["16:9", "1:1", "4:5"], "description": "Target social aspect ratio. Defaults to 16:9." },
+                    "cardStyle": { "type": "boolean", "description": "Whether to wrap in a styled social card container. Defaults to true." }
+                },
+                "required": ["draftId", "type", "labels", "datasets"]
+            }
+            """)),
             new("search_images", "Search the web for images based on a query and return candidate URLs for visual inspection and importing.", CreateSchema("""
             {
                 "type": "object",
@@ -1093,6 +1130,7 @@ public sealed class McpToolRegistry
                 "render_template" => await HandleRenderTemplateAsync(userId, args, ct),
                 "generate_image" => await HandleGenerateImageAsync(userId, args, ct),
                 "render_code_blocks" => await HandleRenderCodeBlocksAsync(userId, args, ct),
+                "render_chart" => await HandleRenderChartAsync(userId, args, ct),
                 "search_images" => await HandleSearchImagesAsync(args, ct),
                 "update_media" => await HandleUpdateMediaAsync(userId, args, ct),
                 "delete_media" => await HandleDeleteMediaAsync(userId, args, ct),
@@ -4243,6 +4281,102 @@ public sealed class McpToolRegistry
         }, JsonOptions));
     }
 
+    private async Task<McpToolCallResult> HandleRenderChartAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
+            return TextError("draftId must be a valid UUID.");
+
+        if (!args.TryGetProperty("type", out var tProp) || string.IsNullOrWhiteSpace(tProp.GetString()))
+            return TextError("type is required.");
+
+        if (!args.TryGetProperty("labels", out var lProp) || lProp.ValueKind != JsonValueKind.Array)
+            return TextError("labels array is required.");
+
+        if (!args.TryGetProperty("datasets", out var dsProp) || dsProp.ValueKind != JsonValueKind.Array)
+            return TextError("datasets array is required.");
+
+        var labels = new List<string>();
+        foreach (var l in lProp.EnumerateArray())
+        {
+            labels.Add(l.GetString() ?? "");
+        }
+
+        var datasets = new List<ChartDataset>();
+        foreach (var ds in dsProp.EnumerateArray())
+        {
+            var dsLabel = ds.TryGetProperty("label", out var lab) ? lab.GetString() : null;
+            var data = new List<double>();
+            if (ds.TryGetProperty("data", out var dArray) && dArray.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var num in dArray.EnumerateArray())
+                {
+                    data.Add(num.GetDouble());
+                }
+            }
+
+            object? bg = null;
+            if (ds.TryGetProperty("backgroundColor", out var bgProp))
+            {
+                if (bgProp.ValueKind == JsonValueKind.Array)
+                {
+                    bg = bgProp.EnumerateArray().Select(x => x.GetString() ?? "").ToList();
+                }
+                else if (bgProp.ValueKind == JsonValueKind.String)
+                {
+                    bg = bgProp.GetString();
+                }
+            }
+
+            object? border = null;
+            if (ds.TryGetProperty("borderColor", out var bProp) && bProp.ValueKind == JsonValueKind.String)
+            {
+                border = bProp.GetString();
+            }
+
+            bool? fill = ds.TryGetProperty("fill", out var fProp) && (fProp.ValueKind == JsonValueKind.True || fProp.ValueKind == JsonValueKind.False)
+                ? fProp.GetBoolean()
+                : null;
+
+            datasets.Add(new ChartDataset(dsLabel, data, bg, border, fill));
+        }
+
+        var title = args.TryGetProperty("title", out var titleProp) ? titleProp.GetString() : null;
+        var subtitle = args.TryGetProperty("subtitle", out var subProp) ? subProp.GetString() : null;
+        var theme = args.TryGetProperty("theme", out var thProp) ? thProp.GetString() : "dark";
+        var aspectRatio = args.TryGetProperty("aspectRatio", out var arProp) ? arProp.GetString() : "16:9";
+        var cardStyle = !args.TryGetProperty("cardStyle", out var csProp) || csProp.GetBoolean();
+
+        var chartService = ResolveChartService();
+        if (chartService == null)
+            return TextError("ChartService is not configured.");
+
+        var request = new ChartRenderRequest(
+            tProp.GetString()!,
+            labels,
+            datasets,
+            title,
+            subtitle,
+            theme ?? "dark",
+            aspectRatio ?? "16:9",
+            cardStyle);
+
+        var result = await chartService.RenderAndAttachChartAsync(userId, draftId, request, ct);
+        if (!result.Success)
+            return TextError(result.Message);
+
+        var urlResolver = ResolveUrlResolver();
+        var publicUrl = result.MediaAssetId.HasValue ? urlResolver.GetMediaUrl(result.MediaAssetId.Value) : null;
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            mediaAssetId = result.MediaAssetId,
+            markdownTag = result.MarkdownTag,
+            url = publicUrl,
+            message = result.Message
+        }, JsonOptions));
+    }
+
     private async Task<McpToolCallResult> HandleSearchImagesAsync(JsonElement args, CancellationToken ct)
     {
         if (!args.TryGetProperty("query", out var qProp) || string.IsNullOrWhiteSpace(qProp.GetString()))
@@ -4827,8 +4961,12 @@ public sealed class McpToolRegistry
             .Include(w => w.Schedule)
             .Include(w => w.WorkflowSources)
                 .ThenInclude(ws => ws.FeedSubscription)
+            .Include(w => w.WorkflowSources)
+                .ThenInclude(ws => ws.SourceWorkflow)
             .Include(w => w.Destinations)
                 .ThenInclude(d => d.Account)
+            .Include(w => w.Destinations)
+                .ThenInclude(d => d.Schedule)
             .Include(w => w.ReplyAgent)
             .FirstOrDefaultAsync(w => w.Id == workflowId && w.UserId == userId, ct);
 
@@ -4852,9 +4990,12 @@ public sealed class McpToolRegistry
             }),
             destinations = workflow.Destinations.Select(d => new
             {
+                id = d.Id,
                 platform = d.Platform,
                 autoPublish = d.AutoPublish,
                 publishingMode = d.PublishingMode.ToString(),
+                scheduleId = d.ScheduleId,
+                scheduleName = d.Schedule?.Name,
                 accountHandle = d.Account?.Handle,
                 accountId = d.AccountId
             }),

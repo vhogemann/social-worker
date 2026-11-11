@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Charts.Services;
 using SocialWorker.Api.Features.Drafts;
 using SocialWorker.Api.Features.Feeds;
 using SocialWorker.Api.Features.Mcp.Models;
@@ -78,6 +79,7 @@ public sealed class McpServerTests : SqliteTestBase
         var postService = new ReplyAgentPostService(db, postResolver, taskQueue);
         var imageEngine = new FakeImageEngineClient();
         var mediaService = new MediaService(db, imageEngine, storage);
+        var chartService = new ChartService(imageEngine, mediaService, NullLogger<ChartService>.Instance);
 
         var toolRegistry = new McpToolRegistry(
             db,
@@ -96,7 +98,8 @@ public sealed class McpServerTests : SqliteTestBase
             replyAdapterResolver: defaultAdapterResolver,
             postService: postService,
             mediaService: mediaService,
-            imageEngineClient: imageEngine);
+            imageEngineClient: imageEngine,
+            chartService: chartService);
 
         var resourceRegistry = new McpResourceRegistry(db, draftsService, mediaService);
         var server = new McpServer(toolRegistry, resourceRegistry);
@@ -1238,7 +1241,7 @@ public sealed class McpServerTests : SqliteTestBase
         var json = JsonSerializer.Serialize(response.Result);
         using var doc = JsonDocument.Parse(json);
         var tools = doc.RootElement.GetProperty("tools").EnumerateArray().ToList();
-        Assert.Equal(76, tools.Count);
+        Assert.Equal(77, tools.Count);
 
         var toolNames = tools.Select(t => t.GetProperty("name").GetString()!).ToHashSet();
         Assert.Contains("search_sources", toolNames);
@@ -1254,6 +1257,7 @@ public sealed class McpServerTests : SqliteTestBase
         Assert.Contains("generate_image", toolNames);
         Assert.Contains("render_template", toolNames);
         Assert.Contains("render_code_blocks", toolNames);
+        Assert.Contains("render_chart", toolNames);
         Assert.Contains("search_images", toolNames);
         Assert.Contains("update_media", toolNames);
         Assert.Contains("delete_media", toolNames);
@@ -1739,6 +1743,39 @@ public sealed class McpServerTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task GetWorkflow_ReturnsDestinationsWithScheduleIdAndScheduleName()
+    {
+        var (server, user, db) = CreateTestServer();
+        var schedule = Schedule.Create(user.Id, "Twitter Queue", "America/Sao_Paulo");
+        db.Schedules.Add(schedule);
+
+        var workflow = AutomationWorkflow.Create(user.Id, "Scheduled WF", "Prompt", null, 0);
+        workflow.Destinations.Add(AutomationWorkflowDestination.Create(
+            workflow.Id, "Twitter", WorkflowPublishingMode.Scheduled, schedule.Id));
+        db.AutomationWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        var getArgs = JsonDocument.Parse($$"""
+        {
+            "name": "get_workflow",
+            "arguments": {
+                "workflowId": "{{workflow.Id}}"
+            }
+        }
+        """).RootElement;
+        var getResp = await server.HandleRequestAsync(new McpRequest("2.0", 63, "tools/call", getArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(getResp);
+        var getResult = Assert.IsType<McpToolCallResult>(getResp.Result);
+        Assert.False(getResult.IsError);
+        var doc = JsonDocument.Parse(getResult.Content[0].Text);
+        var dest = doc.RootElement.GetProperty("destinations")[0];
+        Assert.Equal("Twitter", dest.GetProperty("platform").GetString());
+        Assert.Equal("Scheduled", dest.GetProperty("publishingMode").GetString());
+        Assert.Equal(schedule.Id.ToString(), dest.GetProperty("scheduleId").GetString());
+        Assert.Equal("Twitter Queue", dest.GetProperty("scheduleName").GetString());
+    }
+
+    [Fact]
     public async Task Lifecycle_DeleteSchedule_Feed_ReplyAgent_Succeeds()
     {
         var (server, user, db) = CreateTestServer();
@@ -1818,6 +1855,52 @@ public sealed class McpServerTests : SqliteTestBase
 
         var postCount = await db.Posts.CountAsync(p => p.DraftId == draft.Id);
         Assert.Equal(0, postCount);
+    }
+
+    [Fact]
+    public async Task Tools_RenderChart_WithValidDraftAndData_ReturnsMarkdownTagAndMediaAsset()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Chart Draft", "Content", SocialPlatform.Bluesky);
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var callArgs = JsonDocument.Parse($$"""
+        {
+            "name": "render_chart",
+            "arguments": {
+                "draftId": "{{draft.Id}}",
+                "type": "bar",
+                "labels": ["Q1", "Q2", "Q3"],
+                "datasets": [
+                    {
+                        "label": "Growth",
+                        "data": [10.2, 18.5, 29.1]
+                    }
+                ],
+                "title": "Quarterly Growth",
+                "subtitle": "2026 Year-to-Date",
+                "theme": "dark",
+                "aspectRatio": "16:9",
+                "cardStyle": true
+            }
+        }
+        """).RootElement;
+
+        var resp = await server.HandleRequestAsync(new McpRequest("2.0", 88, "tools/call", callArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var doc = JsonDocument.Parse(result.Content[0].Text);
+        Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
+        var tag = doc.RootElement.GetProperty("markdownTag").GetString();
+        Assert.NotNull(tag);
+        Assert.Contains("media://", tag);
+        Assert.Contains("Quarterly Growth", tag);
+
+        var assetCount = await db.MediaAssets.CountAsync(m => m.DraftId == draft.Id);
+        Assert.Equal(1, assetCount);
     }
 
     [Fact]

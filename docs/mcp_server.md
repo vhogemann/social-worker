@@ -215,6 +215,19 @@ Converte blocos de código markdown presentes no rascunho em imagens estilizadas
   - `draftId` (*string, obrigatório*): UUID do rascunho.
   - `theme` (*string, opcional*): Tema de cores do destaque de código.
 
+#### 16. `render_chart`
+Renderiza dados estatísticos ou numéricos em imagem de gráfico em alta resolução (barras, barras horizontais, linhas, áreas, rosca ou pizza) e anexa como ativo de mídia ao rascunho.
+- **Parâmetros**:
+  - `draftId` (*string, obrigatório*): UUID do rascunho.
+  - `type` (*string, obrigatório*): Tipo de gráfico (`bar`, `horizontal_bar`, `line`, `area`, `doughnut`, `pie`).
+  - `labels` (*array de strings, obrigatório*): Rótulos das categorias ou períodos de tempo.
+  - `datasets` (*array de objetos, obrigatório*): Séries de dados com `data` (números), `label` opcional, cores e preenchimento.
+  - `title` (*string, opcional*): Título do cartão de gráfico.
+  - `subtitle` (*string, opcional*): Subtítulo ou nota de fonte.
+  - `theme` (*string, opcional*): Tema visual (`dark`, `light`). Padrão: `dark`.
+  - `aspectRatio` (*string, opcional*): Proporção do cartão (`16:9`, `1:1`, `4:5`). Padrão: `16:9`.
+  - `cardStyle` (*boolean, opcional*): Se deve envolver o gráfico em um cartão estilizado para redes sociais. Padrão: `true`.
+
 #### 16. `search_images`
 Busca imagens na web via SearXNG para uso como referências ou anexos visuais.
 - **Parâmetros**:

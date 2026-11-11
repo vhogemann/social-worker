@@ -138,6 +138,22 @@ public sealed class ImageEngineClient : IImageEngineClient
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
 
+    public async Task<byte[]> RenderChartAsync(Charts.Models.ChartRenderRequest request, CancellationToken ct = default)
+    {
+        var json = JsonSerializer.Serialize(request);
+        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.PostAsync("/render/chart", content, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogError("ImageEngine chart render failed with status {Status}: {Error}", response.StatusCode, err);
+            throw new InvalidOperationException($"Chart render failed: {response.StatusCode} - {err}");
+        }
+
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
+
     public async Task<bool> HealthCheckAsync(CancellationToken ct = default)
     {
         try

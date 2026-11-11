@@ -26,5 +26,9 @@ public interface IImageEngineClient
         IDictionary<string, (Stream Stream, string FileName, string MimeType)>? images = null,
         CancellationToken ct = default);
 
+    Task<byte[]> RenderChartAsync(
+        Charts.Models.ChartRenderRequest request,
+        CancellationToken ct = default);
+
     Task<bool> HealthCheckAsync(CancellationToken ct = default);
 }

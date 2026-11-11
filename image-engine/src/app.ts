@@ -5,6 +5,7 @@ import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-
 import { healthRoutes } from './routes/health.js';
 import { transformRoutes } from './routes/transform.js';
 import { renderRoutes } from './routes/render.js';
+import { chartRoutes } from './routes/chart.js';
 
 export function buildApp() {
   const fastify = Fastify({
@@ -30,6 +31,7 @@ export function buildApp() {
   fastify.register(healthRoutes);
   fastify.register(transformRoutes);
   fastify.register(renderRoutes);
+  fastify.register(chartRoutes);
 
   return fastify;
 }

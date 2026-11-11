@@ -15,6 +15,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<MediaService>();
         builder.Services.AddSingleton<CodeImageRenderer>();
         builder.Services.AddScoped<CodeImageService>();
+        builder.Services.AddScoped<SocialWorker.Api.Features.Charts.Services.ChartService>();
 
         builder.Services.AddHttpClient<IImageGenerationClient, OpenRouterImageClient>(client =>
         {

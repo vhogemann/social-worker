@@ -151,6 +151,62 @@ public sealed class WorkflowPublishingModeTests : SqliteTestBase
         Assert.Equal(thread.Id, queueItems[0].PlatformThreadId);
     }
 
+    [Fact]
+    public async Task PublishDestinationsAsync_ScheduledModeWithoutScheduleId_FallsBackToWorkflowSchedule()
+    {
+        var (draft, thread, _) = await CreateTestEntitiesAsync();
+
+        var schedule = Schedule.Create(_user.Id, "Workflow Schedule");
+        _db.Schedules.Add(schedule);
+
+        var workflow = AutomationWorkflow.Create(_user.Id, "Test WF", "Prompt", schedule.Id);
+        _db.AutomationWorkflows.Add(workflow);
+
+        draft.AutomationWorkflowId = workflow.Id;
+        draft.AutomationWorkflow = workflow;
+        await _db.SaveChangesAsync();
+
+        var destinations = new List<AutomationWorkflowDestination>
+        {
+            AutomationWorkflowDestination.Create(workflow.Id, "Bluesky", WorkflowPublishingMode.Scheduled, scheduleId: null)
+        };
+
+        await _autoPublishService.PublishDestinationsAsync(draft, destinations, _user.Id, CancellationToken.None);
+
+        var updatedThread = await _db.PlatformThreads.FindAsync(thread.Id);
+        Assert.NotNull(updatedThread);
+        Assert.Equal(PlatformThreadStage.Scheduled, updatedThread.Stage);
+
+        var queueItems = await _db.ScheduleQueueItems.Where(q => q.ScheduleId == schedule.Id).ToListAsync();
+        Assert.Single(queueItems);
+        Assert.Equal(draft.Id, queueItems[0].DraftId);
+    }
+
+    [Fact]
+    public async Task PublishDestinationsAsync_ScheduledModeWithoutScheduleId_FallsBackToPlatformMatchingSchedule()
+    {
+        var (draft, thread, _) = await CreateTestEntitiesAsync();
+
+        var schedule = Schedule.Create(_user.Id, "Fila Pautada - Bluesky (Brasília)");
+        _db.Schedules.Add(schedule);
+        await _db.SaveChangesAsync();
+
+        var destinations = new List<AutomationWorkflowDestination>
+        {
+            AutomationWorkflowDestination.Create(Guid.NewGuid(), "Bluesky", WorkflowPublishingMode.Scheduled, scheduleId: null)
+        };
+
+        await _autoPublishService.PublishDestinationsAsync(draft, destinations, _user.Id, CancellationToken.None);
+
+        var updatedThread = await _db.PlatformThreads.FindAsync(thread.Id);
+        Assert.NotNull(updatedThread);
+        Assert.Equal(PlatformThreadStage.Scheduled, updatedThread.Stage);
+
+        var queueItems = await _db.ScheduleQueueItems.Where(q => q.ScheduleId == schedule.Id).ToListAsync();
+        Assert.Single(queueItems);
+        Assert.Equal(draft.Id, queueItems[0].DraftId);
+    }
+
     private sealed class StubPublisherResolver : IPublisherResolver
     {
         private readonly IPublisher _publisher;
