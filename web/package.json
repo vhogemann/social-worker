@@ -28,7 +28,7 @@
     "@fortawesome/react-fontawesome": "^3.4.0",
     "@mui/icons-material": "^6.5.0",
     "@mui/material": "^6.5.0",
-    "@tanstack/react-hotkeys": "^0.10.0",
+    "@tanstack/react-hotkeys": "^0.22.0",
     "@uiw/react-codemirror": "^4.23.0",
     "konva": "^9.3.18",
     "react": "^19.2.8",
