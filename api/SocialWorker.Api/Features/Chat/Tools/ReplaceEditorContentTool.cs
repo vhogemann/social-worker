@@ -35,7 +35,7 @@ public sealed class ReplaceEditorContentTool : ChatToolBase<ReplaceEditorContent
     }
 
     public override string Name => "replace_editor_content";
-    public override string Description => "Completely overwrites all existing content in the markdown editor with the provided text string. Use this when the entire document needs to be replaced.";
+    public override string Description => "Sets or replaces the full markdown content of the draft in the editor. You MUST call this tool whenever you draft, write, update, or edit the content.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

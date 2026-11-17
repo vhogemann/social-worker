@@ -97,6 +97,19 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
           "{workflow.instructionPrompt || "Summarize this article as a thread."}"
         </Typography>
 
+        {workflow.tags && workflow.tags.length > 0 && (
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }} data-testid="workflow-card-tags">
+            {workflow.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted/10 text-muted border border-border/50"
+              >
+                #{tag}
+              </span>
+            ))}
+          </Box>
+        )}
+
         {/* Sources Section */}
         <Box>
           <Typography

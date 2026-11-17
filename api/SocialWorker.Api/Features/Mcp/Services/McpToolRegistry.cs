@@ -38,6 +38,7 @@ using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Features.Workflows;
 using SocialWorker.Api.Features.Workflows.Abstractions;
 using SocialWorker.Api.Infrastructure.Platforms;
+using SocialWorker.Api.Infrastructure.Tags;
 using SocialWorker.Api.Infrastructure.Search;
 
 namespace SocialWorker.Api.Features.Mcp.Services;
@@ -162,7 +163,7 @@ public sealed class McpToolRegistry
     {
         return new List<McpToolDefinition>
         {
-            new("list_drafts", "List user social media drafts with status, published posts, workflow attribution, and filtering options.", CreateSchema("""
+            new("list_drafts", "List user social media drafts with status, published posts, workflow attribution, tags, and filtering options.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
@@ -171,7 +172,8 @@ public sealed class McpToolRegistry
                     "status": { "type": "string", "description": "Filter by draft status (Editing, Formatting, Ready, Sent, Failed)." },
                     "stage": { "type": "string", "description": "Filter by platform thread stage (Draft, Sourcing, Refining, Formatting, Ready, Sent)." },
                     "since": { "type": "string", "description": "ISO-8601 timestamp to filter drafts created/updated after this date." },
-                    "limit": { "type": "integer", "description": "Maximum number of drafts to return (default 20)" }
+                    "limit": { "type": "integer", "description": "Maximum number of drafts to return (default 20)" },
+                    "tag": { "type": "string", "description": "Optional tag filter to find drafts with a specific tag (e.g. 'ad-hoc', 'default')." }
                 }
             }
             """)),
@@ -191,7 +193,8 @@ public sealed class McpToolRegistry
                     "title": { "type": "string", "description": "Title of the draft." },
                     "content": { "type": "string", "description": "Initial markdown content for the thread segments." },
                     "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn')." },
-                    "accountId": { "type": "string", "description": "Optional connected account ID to associate with the draft." }
+                    "accountId": { "type": "string", "description": "Optional connected account ID to associate with the draft. If omitted and platform is specified, automatically resolves the account tagged 'default'." },
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Optional list of tags for organizing drafts (defaults to ['ad-hoc']). Tag 'default' or custom tags can be assigned." }
                 },
                 "required": ["title"]
             }
@@ -303,10 +306,12 @@ public sealed class McpToolRegistry
                 "required": ["query"]
             }
             """)),
-            new("list_workflows", "List all automated RSS/YouTube feed workflows.", CreateSchema("""
+            new("list_workflows", "List all automated RSS/YouTube feed workflows with tags and configuration.", CreateSchema("""
             {
                 "type": "object",
-                "properties": {}
+                "properties": {
+                    "tag": { "type": "string", "description": "Optional tag filter." }
+                }
             }
             """)),
             new("trigger_workflow", "Trigger immediate feed polling and automated draft generation for a workflow.", CreateSchema("""
@@ -333,11 +338,12 @@ public sealed class McpToolRegistry
                 }
             }
             """)),
-            new("list_schedules", "List all configured publishing schedules with their timezone, active status, slot rule count, and queued draft count.", CreateSchema("""
+            new("list_schedules", "List all configured publishing schedules with their timezone, active status, slot rule count, queued draft count, and tags.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
-                    "activeOnly": { "type": "boolean", "description": "If true, only return active schedules." }
+                    "activeOnly": { "type": "boolean", "description": "If true, only return active schedules." },
+                    "tag": { "type": "string", "description": "Optional tag filter." }
                 }
             }
             """)),
@@ -432,12 +438,25 @@ public sealed class McpToolRegistry
                 "required": ["start", "end"]
             }
             """)),
-            new("list_accounts", "List connected social media accounts (Bluesky, MetaThreads, Twitter, LinkedIn) with handles, account IDs, and status (tokens and credentials omitted).", CreateSchema("""
+            new("list_accounts", "List connected social media accounts (Bluesky, MetaThreads, Twitter, LinkedIn) with handles, account IDs, status, and tags. Accounts tagged 'default' are preferred for ad-hoc posting.", CreateSchema("""
             {
                 "type": "object",
                 "properties": {
-                    "platform": { "type": "string", "description": "Optional platform filter (e.g. 'MetaThreads', 'Bluesky', 'Twitter', 'LinkedIn')." }
+                    "platform": { "type": "string", "description": "Optional platform filter (e.g. 'MetaThreads', 'Bluesky', 'Twitter', 'LinkedIn')." },
+                    "tag": { "type": "string", "description": "Optional tag filter (e.g. 'default', 'personal', 'news')." }
                 }
+            }
+            """)),
+            new("tag_entity", "Manage tags on an entity (account, workflow, schedule, or draft). Supported actions: 'add', 'remove', 'set'. By convention, the 'default' tag identifies primary/preferred entities for ad-hoc operations.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "entityType": { "type": "string", "enum": ["account", "workflow", "schedule", "draft"], "description": "Type of entity to tag." },
+                    "entityId": { "type": "string", "description": "UUID of the entity to tag." },
+                    "action": { "type": "string", "enum": ["add", "remove", "set"], "description": "Action to perform: 'add' appends tags, 'remove' deletes tags, 'set' overwrites tags." },
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "List of tags (e.g. ['default', 'tech', 'personal'])." }
+                },
+                "required": ["entityType", "entityId", "tags"]
             }
             """)),
             new("discover_feed", "Discover the RSS/Atom feed URL, channel title, and website URL from any website, YouTube channel/playlist, or social profile (Instagram, Twitter/X, Telegram, Reddit, TikTok, Bluesky).", CreateSchema("""
@@ -1087,7 +1106,7 @@ public sealed class McpToolRegistry
                 "add_source" => await HandleAddSourceAsync(userId, args, ct),
                 "fetch_source" => await HandleFetchSourceAsync(userId, args, ct),
                 "search_sources" => await HandleSearchSourcesAsync(userId, args, ct),
-                "list_workflows" => await HandleListWorkflowsAsync(userId, ct),
+                "list_workflows" => await HandleListWorkflowsAsync(userId, args, ct),
                 "trigger_workflow" => await HandleTriggerWorkflowAsync(userId, args, ct),
                 "list_feeds" => await HandleListFeedsAsync(userId, ct),
                 "trigger_feed_poll" => await HandleTriggerFeedPollAsync(userId, args, ct),
@@ -1101,6 +1120,7 @@ public sealed class McpToolRegistry
                 "clear_schedule_queue" => await HandleClearScheduleQueueAsync(userId, args, ct),
                 "get_calendar_events" => await HandleGetCalendarEventsAsync(userId, args, ct),
                 "list_accounts" => await HandleListAccountsAsync(userId, args, ct),
+                "tag_entity" => await HandleTagEntityAsync(userId, args, ct),
                 "discover_feed" => await HandleDiscoverFeedAsync(args, ct),
                 "add_feed" => await HandleAddFeedAsync(userId, args, ct),
                 "update_feed" => await HandleUpdateFeedAsync(userId, args, ct),
@@ -1194,13 +1214,20 @@ public sealed class McpToolRegistry
             since = parsedSince;
         }
 
+        string? tag = null;
+        if (args.TryGetProperty("tag", out var tagProp) && !string.IsNullOrWhiteSpace(tagProp.GetString()))
+        {
+            tag = tagProp.GetString()!.Trim();
+        }
+
         var filter = new DraftQueryFilter(
             WorkflowId: workflowId,
             IsPublished: isPublished,
             Status: status,
             Stage: stage,
             Since: since,
-            Limit: limit
+            Limit: limit,
+            Tag: tag
         );
 
         var drafts = await _draftsService.GetDraftsForUserAsync(userId, filter, ct);
@@ -1225,6 +1252,7 @@ public sealed class McpToolRegistry
                 d.AutomationWorkflowTitle,
                 d.DiscardReason,
                 d.RelevanceScore,
+                d.Tags,
                 Url = GetDraftUrl(d.Id),
                 IsPublished = isPub,
                 PublishedUrls = urls,
@@ -1388,7 +1416,17 @@ public sealed class McpToolRegistry
             accountId = parsedAccId;
         }
 
-        var result = await _draftsService.CreateDraftAsync(userId, title, content, platform, accountId, ct);
+        List<string>? tags = null;
+        if (args.TryGetProperty("tags", out var tagsProp) && tagsProp.ValueKind == JsonValueKind.Array)
+        {
+            tags = tagsProp.EnumerateArray()
+                .Select(e => e.GetString())
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s!)
+                .ToList();
+        }
+
+        var result = await _draftsService.CreateDraftAsync(userId, title, content, platform, accountId, tags, ct);
         var draftUrl = GetDraftUrl(result.Id);
         return TextResult(JsonSerializer.Serialize(new
         {
@@ -1396,6 +1434,8 @@ public sealed class McpToolRegistry
             id = result.Id,
             title = result.Title,
             platform = result.TargetPlatform,
+            targetAccountId = result.TargetAccountId,
+            tags = result.Tags,
             url = draftUrl,
             message = $"Draft created successfully with ID: {result.Id}. URL: {draftUrl}"
         }, JsonOptions));
@@ -2041,7 +2081,7 @@ public sealed class McpToolRegistry
                clean.EndsWith(".avif");
     }
 
-    private async Task<McpToolCallResult> HandleListWorkflowsAsync(Guid userId, CancellationToken ct)
+    private async Task<McpToolCallResult> HandleListWorkflowsAsync(Guid userId, JsonElement args, CancellationToken ct)
     {
         var workflows = await _db.AutomationWorkflows
             .AsNoTracking()
@@ -2055,6 +2095,12 @@ public sealed class McpToolRegistry
             .OrderByDescending(w => w.CreatedAt)
             .ToListAsync(ct);
 
+        if (args.TryGetProperty("tag", out var tagProp) && !string.IsNullOrWhiteSpace(tagProp.GetString()))
+        {
+            var tag = tagProp.GetString()!.Trim();
+            workflows = workflows.Where(w => TagHelper.HasTag(w.Tags, tag)).ToList();
+        }
+
         var list = workflows.Select(w => new
         {
             w.Id,
@@ -2066,6 +2112,7 @@ public sealed class McpToolRegistry
             w.ScheduleId,
             ScheduleName = w.Schedule?.Name,
             w.MinRelevanceScore,
+            tags = w.Tags,
             w.CreatedAt,
             w.UpdatedAt
         }).ToList();
@@ -2154,6 +2201,12 @@ public sealed class McpToolRegistry
             .Include(s => s.QueueItems)
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync(ct);
+
+        if (args.TryGetProperty("tag", out var tagProp) && !string.IsNullOrWhiteSpace(tagProp.GetString()))
+        {
+            var tag = tagProp.GetString()!.Trim();
+            schedules = schedules.Where(s => TagHelper.HasTag(s.Tags, tag)).ToList();
+        }
 
         var dtos = schedules.Select(s => new ScheduleSummaryDto(s)).ToList();
         return TextResult(JsonSerializer.Serialize(dtos, JsonOptions));
@@ -2574,19 +2627,133 @@ public sealed class McpToolRegistry
             }
         }
 
-        var accounts = await query
-            .OrderByDescending(a => a.CreatedAt)
+        var accounts = await query.ToListAsync(ct);
+
+        if (args.TryGetProperty("tag", out var tProp) && !string.IsNullOrWhiteSpace(tProp.GetString()))
+        {
+            var tag = tProp.GetString()!.Trim();
+            accounts = accounts.Where(a => TagHelper.HasTag(a.Tags, tag)).ToList();
+        }
+
+        var sorted = accounts
+            .OrderByDescending(a => TagHelper.HasTag(a.Tags, "default"))
+            .ThenByDescending(a => a.CreatedAt)
             .Select(a => new
             {
                 id = a.Id,
                 platform = a.Platform,
                 handle = a.Handle,
                 status = a.Status,
+                tags = a.Tags,
+                isDefault = TagHelper.HasTag(a.Tags, "default"),
                 createdAt = a.CreatedAt
             })
-            .ToListAsync(ct);
+            .ToList();
 
-        return TextResult(JsonSerializer.Serialize(accounts, JsonOptions));
+        return TextResult(JsonSerializer.Serialize(sorted, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleTagEntityAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("entityType", out var typeProp) || string.IsNullOrWhiteSpace(typeProp.GetString()))
+        {
+            return TextError("entityType is required (account, workflow, schedule, or draft).");
+        }
+        if (!args.TryGetProperty("entityId", out var idProp) || !Guid.TryParse(idProp.GetString(), out var entityId))
+        {
+            return TextError("entityId must be a valid UUID.");
+        }
+        if (!args.TryGetProperty("tags", out var tagsProp) || tagsProp.ValueKind != JsonValueKind.Array)
+        {
+            return TextError("tags must be an array of strings.");
+        }
+
+        var entityType = typeProp.GetString()!.Trim().ToLowerInvariant();
+        var action = args.TryGetProperty("action", out var actionProp) && !string.IsNullOrWhiteSpace(actionProp.GetString())
+            ? actionProp.GetString()!.Trim().ToLowerInvariant()
+            : "set";
+
+        var inputTags = tagsProp.EnumerateArray()
+            .Select(e => e.GetString())
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s!)
+            .ToList();
+
+        List<string> updatedTags;
+
+        switch (entityType)
+        {
+            case "account":
+            {
+                var account = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == entityId && a.UserId == userId, ct);
+                if (account == null) return TextError($"Account '{entityId}' not found.");
+                account.Tags = action switch
+                {
+                    "add" => TagHelper.AddTag(account.Tags, inputTags),
+                    "remove" => TagHelper.RemoveTag(account.Tags, inputTags),
+                    "set" or _ => TagHelper.NormalizeTags(inputTags)
+                };
+                account.UpdatedAt = DateTime.UtcNow;
+                updatedTags = account.Tags;
+                break;
+            }
+            case "workflow":
+            {
+                var workflow = await _db.AutomationWorkflows.FirstOrDefaultAsync(w => w.Id == entityId && w.UserId == userId, ct);
+                if (workflow == null) return TextError($"Workflow '{entityId}' not found.");
+                workflow.Tags = action switch
+                {
+                    "add" => TagHelper.AddTag(workflow.Tags, inputTags),
+                    "remove" => TagHelper.RemoveTag(workflow.Tags, inputTags),
+                    "set" or _ => TagHelper.NormalizeTags(inputTags)
+                };
+                workflow.UpdatedAt = DateTime.UtcNow;
+                updatedTags = workflow.Tags;
+                break;
+            }
+            case "schedule":
+            {
+                var schedule = await _db.Schedules.FirstOrDefaultAsync(s => s.Id == entityId && s.UserId == userId, ct);
+                if (schedule == null) return TextError($"Schedule '{entityId}' not found.");
+                schedule.Tags = action switch
+                {
+                    "add" => TagHelper.AddTag(schedule.Tags, inputTags),
+                    "remove" => TagHelper.RemoveTag(schedule.Tags, inputTags),
+                    "set" or _ => TagHelper.NormalizeTags(inputTags)
+                };
+                schedule.UpdatedAt = DateTime.UtcNow;
+                updatedTags = schedule.Tags;
+                break;
+            }
+            case "draft":
+            {
+                var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == entityId && d.UserId == userId, ct);
+                if (draft == null) return TextError($"Draft '{entityId}' not found.");
+                draft.Tags = action switch
+                {
+                    "add" => TagHelper.AddTag(draft.Tags, inputTags),
+                    "remove" => TagHelper.RemoveTag(draft.Tags, inputTags),
+                    "set" or _ => TagHelper.NormalizeTags(inputTags)
+                };
+                draft.UpdatedAt = DateTime.UtcNow;
+                updatedTags = draft.Tags;
+                break;
+            }
+            default:
+                return TextError($"Unsupported entityType '{entityType}'. Supported types: account, workflow, schedule, draft.");
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            entityType,
+            entityId,
+            action,
+            tags = updatedTags,
+            message = $"Successfully updated tags on {entityType} {entityId}."
+        }, JsonOptions));
     }
 
     private async Task<McpToolCallResult> HandleDiscoverFeedAsync(JsonElement args, CancellationToken ct)

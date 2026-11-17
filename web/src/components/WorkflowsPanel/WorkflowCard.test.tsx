@@ -66,4 +66,25 @@ describe("WorkflowCard", () => {
     fireEvent.click(screen.getByLabelText(/delete workflow/i));
     expect(handleDelete).toHaveBeenCalledWith("wf-1");
   });
+
+  it("renders workflow tags if present", () => {
+    const wfWithTags: AutomationWorkflowDto = {
+      ...mockWorkflow,
+      tags: ["tech", "ai", "daily"]
+    };
+
+    render(
+      <WorkflowCard
+        workflow={wfWithTags}
+        onClick={vi.fn()}
+        onTrigger={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("#tech")).toBeInTheDocument();
+    expect(screen.getByText("#ai")).toBeInTheDocument();
+    expect(screen.getByText("#daily")).toBeInTheDocument();
+  });
 });

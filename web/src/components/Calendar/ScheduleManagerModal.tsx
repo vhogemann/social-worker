@@ -10,6 +10,7 @@ import { Button } from "../common/Button";
 import { Input } from "../common/Input";
 import { AlertBanner } from "../common/AlertBanner";
 import { ConfirmModal } from "../common/ConfirmModal";
+import { TagInput } from "../common/TagInput";
 import {
   fetchSchedules,
   fetchSchedule,
@@ -60,6 +61,7 @@ export const ScheduleManagerModal: React.FC<ScheduleManagerModalProps> = ({
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState("UTC");
   const [isActive, setIsActive] = useState(true);
+  const [tags, setTags] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -83,9 +85,11 @@ export const ScheduleManagerModal: React.FC<ScheduleManagerModalProps> = ({
         setName(d.name);
         setTimezone(d.timezone);
         setIsActive(d.isActive);
+        setTags(d.tags ? [...d.tags] : []);
         setIsCreatingNew(false);
       } else {
         setDetail(null);
+        setTags([]);
         setIsCreatingNew(true);
       }
     } catch (err: any) {
@@ -111,6 +115,7 @@ export const ScheduleManagerModal: React.FC<ScheduleManagerModalProps> = ({
       setName(d.name);
       setTimezone(d.timezone);
       setIsActive(d.isActive);
+      setTags(d.tags ? [...d.tags] : []);
     } catch (err: any) {
       setError(err?.message || "Failed to load schedule details.");
     }
@@ -123,6 +128,7 @@ export const ScheduleManagerModal: React.FC<ScheduleManagerModalProps> = ({
     setName("");
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
     setIsActive(true);
+    setTags([]);
     setError(null);
   };
 
@@ -138,11 +144,11 @@ export const ScheduleManagerModal: React.FC<ScheduleManagerModalProps> = ({
 
     try {
       if (isCreatingNew) {
-        const created = await createSchedule({ name: name.trim(), timezone });
+        const created = await createSchedule({ name: name.trim(), timezone, tags });
         await loadSchedules(created.id);
         onSchedulesChanged(created.id);
       } else if (selectedId) {
-        await updateSchedule(selectedId, { name: name.trim(), timezone, isActive });
+        await updateSchedule(selectedId, { name: name.trim(), timezone, isActive, tags });
         await loadSchedules(selectedId);
         onSchedulesChanged(selectedId);
       }
@@ -269,6 +275,15 @@ export const ScheduleManagerModal: React.FC<ScheduleManagerModalProps> = ({
                 </label>
               </div>
             )}
+
+            <TagInput
+              tags={tags}
+              onChange={setTags}
+              label="Schedule Tags"
+              hint="Categorize schedules and map to automated publishing queues."
+              showDefaultToggle={false}
+              disabled={saving}
+            />
 
             <div className="flex items-center justify-between pt-2">
               <div>

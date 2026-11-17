@@ -99,7 +99,7 @@ public sealed class ValidateDraftTool : ChatToolBase<ValidateDraftArgs, Validate
     }
 
     public override string Name => "validate_draft";
-    public override string Description => "Validates content compliance against draft formatting rules. For canonical drafts, checks structure, citation syntax, and placeholders without microblogging character limits. For platform variants, validates against that platform's rules.";
+    public override string Description => "Validates content compliance against draft formatting rules. For canonical drafts, checks structure, citation syntax, and placeholders without microblogging character limits. For platform variants, validates against that platform's rules. Note: Calling validate_draft only validates formatting; it does NOT save content to the editor. You MUST call replace_editor_content to save your draft.";
 
     public override JsonElement Parameters { get; } = JsonDocument.Parse("""
         {

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace SocialWorker.Api.Features.Chat.Services;
 
-public sealed class ChatService
+public class ChatService
 {
     private readonly ChatStreamWriter _writer;
     private readonly ILogger<ChatService> _log;
@@ -37,7 +37,7 @@ public sealed class ChatService
         _roundProcessor = roundProcessor;
     }
 
-    public async IAsyncEnumerable<string> StreamAsync(
+    public virtual async IAsyncEnumerable<string> StreamAsync(
         ChatModels.ChatRequest req,
         Guid userId,
         [EnumeratorCancellation] CancellationToken ct)

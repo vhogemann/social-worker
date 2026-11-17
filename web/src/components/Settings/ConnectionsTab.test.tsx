@@ -8,14 +8,18 @@ vi.mock("../../api/accounts", () => ({
   listAccounts: vi.fn(),
   saveAccount: vi.fn(),
   deleteAccount: vi.fn(),
+  updateAccountTags: vi.fn(),
   getLinkedInAuthUrl: vi.fn(),
   getMetaThreadsAuthUrl: vi.fn(),
+  getTwitterAuthUrl: vi.fn(),
+  getInstagramAuthUrl: vi.fn(),
 }));
 
-import { listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, getMetaThreadsAuthUrl } from "../../api/accounts";
+import { listAccounts, saveAccount, deleteAccount, updateAccountTags, getLinkedInAuthUrl, getMetaThreadsAuthUrl } from "../../api/accounts";
 const mockListAccounts = listAccounts as Mock;
 const mockSaveAccount = saveAccount as Mock;
 const mockDeleteAccount = deleteAccount as Mock;
+const mockUpdateAccountTags = updateAccountTags as Mock;
 const mockGetLinkedInAuthUrl = getLinkedInAuthUrl as Mock;
 const mockGetMetaThreadsAuthUrl = getMetaThreadsAuthUrl as Mock;
 
@@ -85,6 +89,7 @@ describe("ConnectionsTab", () => {
       platform: "Bluesky",
       handle: "alice.bsky.social",
       appPassword: "app-pw",
+      tags: []
     }));
     expect(await screen.findByText(/alice\.bsky\.social/)).toBeInTheDocument();
   });
@@ -204,6 +209,48 @@ describe("ConnectionsTab", () => {
 
     await waitFor(() => {
       expect(mockGetMetaThreadsAuthUrl).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("displays DEFAULT badge for default connections and opens tag editor", async () => {
+    mockListAccounts.mockResolvedValueOnce([
+      {
+        id: "a-default",
+        platform: "Bluesky",
+        handle: "alice.bsky.social",
+        status: "Active",
+        tags: ["default", "personal"],
+        createdAt: "2026-01-01",
+        updatedAt: "2026-01-01",
+      },
+    ]);
+    mockUpdateAccountTags.mockResolvedValueOnce({ id: "a-default", tags: ["default", "personal", "news"] });
+
+    render(<ConnectionsTab />);
+
+    expect(await screen.findByText(/alice\.bsky\.social/)).toBeInTheDocument();
+    expect(screen.getByTestId("default-badge-a-default")).toHaveTextContent("DEFAULT");
+    expect(screen.getByText("personal")).toBeInTheDocument();
+
+    // Click Tags button
+    const tagsBtn = screen.getByTestId("edit-tags-btn-a-default");
+    fireEvent.click(tagsBtn);
+
+    expect(screen.getByText("Edit Connection Tags: @alice.bsky.social")).toBeInTheDocument();
+
+    // Add tag
+    const input = screen.getByTestId("tag-text-input");
+    fireEvent.change(input, { target: { value: "news" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    // Save
+    const saveBtn = screen.getByTestId("save-tags-submit-btn");
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(mockUpdateAccountTags).toHaveBeenCalledWith("a-default", {
+        tags: ["default", "personal", "news"],
+      });
     });
   });
 });

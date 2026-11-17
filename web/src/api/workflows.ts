@@ -34,6 +34,7 @@ export interface AutomationWorkflowDto {
   scheduleId?: string | null;
   scheduleName?: string | null;
   minRelevanceScore?: number;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -81,6 +82,7 @@ export interface CreateAutomationWorkflowRequest {
   destinations?: CreateWorkflowDestinationRequest[];
   scheduleId?: string | null;
   minRelevanceScore?: number;
+  tags?: string[];
 }
 
 export async function fetchWorkflows(): Promise<AutomationWorkflowDto[]> {
@@ -226,6 +228,18 @@ export async function importWorkflows(pkg: WorkflowExportPackage): Promise<Workf
     const msg = await res.text().catch(() => "");
     throw new Error(msg || `importWorkflows failed: ${res.status}`);
   }
+  return res.json();
+}
+
+export async function updateWorkflowTags(
+  id: string,
+  req: { tags?: string[]; action?: string; add?: string[]; remove?: string[] }
+): Promise<{ id: string; tags: string[] }> {
+  const res = await apiFetch(`/api/workflows/${id}/tags`, {
+    method: "PATCH",
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error(`updateWorkflowTags failed: ${res.status}`);
   return res.json();
 }
 

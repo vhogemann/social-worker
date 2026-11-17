@@ -46,8 +46,9 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 - Configuration & Overrides: api/SocialWorker.Api/Program.cs (mounted host override `./config/appsettings.json` -> `/app/config/appsettings.json:ro`)
 - Auth/providers/accounts/users: api/SocialWorker.Api/Features/Auth/, Providers/, Accounts/, Users/ (TokenRefreshHostedService)
 - API Key Subsystem: api/SocialWorker.Api/Infrastructure/Auth/ (ApiKeyService, ApiKeyAuthenticationHandler, SHA-256 hash storage)
-- Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, 77 tools in McpToolRegistry across 9 domains including full-text source search (`search_sources`), in-chat thread preview (`preview_draft`), visual template generation/preview (`preview_template`, `create_template`, `get_template`, `generate_template`), AI image generation (`generate_image`), statistical chart generation (`render_chart`), export/import portability tools, media upload/templates/code rendering, image source inspection (`view_image`), schedule/queue management, lifecycle deletion, variants, video transcription, search, dryRun simulation, McpResourceRegistry; MCP-First operations policy in .agents/rules/mcp-first.md; complete documentation in docs/mcp_server.md)
+- Model Context Protocol (MCP): api/SocialWorker.Api/Features/Mcp/ (JSON-RPC 2.0, SSE Transport `/api/mcp/sse`, Stateless `/api/mcp`, 78 tools in McpToolRegistry across 9 domains including full-text source search (`search_sources`), universal tag management (`tag_entity`), in-chat thread preview (`preview_draft`), visual template generation/preview (`preview_template`, `create_template`, `get_template`, `generate_template`), AI image generation (`generate_image`), statistical chart generation (`render_chart`), export/import portability tools, media upload/templates/code rendering, image source inspection (`view_image`), schedule/queue management, lifecycle deletion, variants, video transcription, search, dryRun simulation, McpResourceRegistry; MCP-First operations policy in .agents/rules/mcp-first.md; complete documentation in docs/mcp_server.md)
 - Markdown AST & Thread Document: api/SocialWorker.Api/Infrastructure/Markdown/ (Markdig CommonMark AST parser for segments, media, links, and facets)
+- Tag Subsystem: api/SocialWorker.Api/Infrastructure/Tags/ (TagHelper, normalization, JSON text storage, universal tagging across Account, AutomationWorkflow, Schedule, and Draft; default account resolution for ad-hoc posting)
 - URL Resolution & Public Endpoints: api/SocialWorker.Api/Infrastructure/Services/AppUrlResolver.cs, api/SocialWorker.Api/Features/Drafts/Services/DraftPreviewHtmlRenderer.cs (centralized external URL normalization, public media, rich HTML previews with YouTube embeds and img tags)
 
 
@@ -70,7 +71,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 
 ### Tests
 
-- API unit/integration tests (927 tests): api/SocialWorker.Api.Tests/
+- API unit/integration tests (963 tests): api/SocialWorker.Api.Tests/
 - Web tests (Vitest, 552 tests in 106 test files): web/src/**/*.test.ts, web/src/**/*.test.tsx
 - Image Engine tests (Vitest, 14 tests in 3 test files): image-engine/tests/
 - MCP & Stress test suites: scripts/mcp-stress-test-suite.mjs, scripts/test-mcp-e2e.mjs

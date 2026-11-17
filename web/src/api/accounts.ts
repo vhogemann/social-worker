@@ -7,6 +7,7 @@ export interface AccountDto {
   externalId?: string;
   tokenExpiresAt?: string;
   status: string;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -15,11 +16,25 @@ export interface AccountRequest {
   platform: string;
   handle: string;
   appPassword?: string;
+  tags?: string[];
 }
 
-export async function listAccounts(): Promise<AccountDto[]> {
-  const res = await apiFetch("/api/accounts");
+export async function listAccounts(tag?: string): Promise<AccountDto[]> {
+  const query = tag ? `?tag=${encodeURIComponent(tag)}` : "";
+  const res = await apiFetch(`/api/accounts${query}`);
   if (!res.ok) throw new Error("Failed to fetch accounts");
+  return res.json();
+}
+
+export async function updateAccountTags(
+  id: string,
+  req: { tags?: string[]; action?: string; add?: string[]; remove?: string[] }
+): Promise<{ id: string; tags: string[] }> {
+  const res = await apiFetch(`/api/accounts/${id}/tags`, {
+    method: "PATCH",
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error("Failed to update account tags");
   return res.json();
 }
 

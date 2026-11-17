@@ -17,6 +17,7 @@ using SocialWorker.Api.Features.Sources;
 using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Llm;
 using SocialWorker.Api.Infrastructure.Platforms;
+using SocialWorker.Api.Infrastructure.Tags;
 
 namespace SocialWorker.Api.Features.Drafts;
 
@@ -57,7 +58,8 @@ public sealed record DraftQueryFilter(
     DateTime? Since = null,
     int? Limit = null,
     int? Offset = null,
-    bool? IncludeDiscarded = null
+    bool? IncludeDiscarded = null,
+    string? Tag = null
 );
 
 public sealed record DraftDto(
@@ -81,7 +83,8 @@ public sealed record DraftDto(
     string? AutomationWorkflowTitle = null,
     List<DraftDto>? Variants = null,
     string? DiscardReason = null,
-    int? RelevanceScore = null
+    int? RelevanceScore = null,
+    IReadOnlyList<string>? Tags = null
 );
 
 public sealed class DraftsService
@@ -172,7 +175,8 @@ public sealed class DraftsService
             draft.AutomationWorkflow?.Title,
             variants ?? new List<DraftDto>(),
             draft.DiscardReason,
-            draft.RelevanceScore
+            draft.RelevanceScore,
+            draft.Tags
         );
     }
 
@@ -225,6 +229,12 @@ public sealed class DraftsService
                     d.Threads.Any(t => t.Stage == filter.Stage.Value) ||
                     d.Variants.Any(v => v.Threads.Any(vt => vt.Stage == filter.Stage.Value)));
             }
+
+            if (!string.IsNullOrWhiteSpace(filter.Tag))
+            {
+                var normalizedTag = filter.Tag.Trim().ToLowerInvariant();
+                query = query.Where(d => EF.Functions.Like(EF.Property<string>(d, "Tags"), $"%\"{normalizedTag}\"%"));
+            }
         }
 
         query = query.OrderByDescending(d => d.UpdatedAt);
@@ -240,6 +250,10 @@ public sealed class DraftsService
         }
 
         var drafts = await query.ToListAsync(ct);
+        if (!string.IsNullOrWhiteSpace(filter?.Tag))
+        {
+            drafts = drafts.Where(d => TagHelper.HasTag(d.Tags, filter.Tag)).ToList();
+        }
         var draftIds = drafts.Select(d => d.Id).ToList();
 
         var threads = await _db.PlatformThreads
@@ -285,7 +299,14 @@ public sealed class DraftsService
             .ToList();
     }
 
-    public async Task<DraftDto> CreateDraftAsync(Guid userId, string? title = null, string? content = null, string? targetPlatform = null, Guid? targetAccountId = null, CancellationToken ct = default)
+    public async Task<DraftDto> CreateDraftAsync(
+        Guid userId,
+        string? title = null,
+        string? content = null,
+        string? targetPlatform = null,
+        Guid? targetAccountId = null,
+        IEnumerable<string>? tags = null,
+        CancellationToken ct = default)
     {
         SocialPlatform? platform = null;
         Account? targetAccount = null;
@@ -304,7 +325,18 @@ public sealed class DraftsService
             platform = parsed;
         }
 
-        var draft = Draft.Create(userId, title, content, platform ?? SocialPlatform.Bluesky, targetAccountId: targetAccount?.Id);
+        if (targetAccount == null && platform.HasValue)
+        {
+            var platformStr = platform.Value.ToString();
+            var accounts = await _db.Accounts
+                .Where(a => a.UserId == userId && a.Platform == platformStr)
+                .ToListAsync(ct);
+            targetAccount = accounts.FirstOrDefault(a => TagHelper.HasTag(a.Tags, "default"))
+                         ?? accounts.FirstOrDefault();
+        }
+
+        var normalizedTags = tags != null ? TagHelper.NormalizeTags(tags) : new List<string> { "ad-hoc" };
+        var draft = Draft.Create(userId, title, content, platform ?? SocialPlatform.Bluesky, targetAccountId: targetAccount?.Id, tags: normalizedTags);
         draft.TargetAccount = targetAccount;
         _db.Drafts.Add(draft);
         await _db.SaveChangesAsync(ct);
@@ -587,7 +619,7 @@ public sealed class DraftsService
         IBlueskyReplyTargetResolver resolver,
         CancellationToken ct)
     {
-        var created = await CreateDraftAsync(userId, title, content, "Bluesky", null, ct);
+        var created = await CreateDraftAsync(userId, title, content, "Bluesky", null, tags: null, ct);
 
         return await SetDraftBlueskyReplyTargetFromUrlAsync(
             userId,

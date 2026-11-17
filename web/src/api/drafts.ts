@@ -116,6 +116,7 @@ export interface DraftDto {
   variants?: DraftDto[];
   discardReason?: string | null;
   relevanceScore?: number | null;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -129,6 +130,7 @@ export interface FetchDraftsParams {
   limit?: number;
   offset?: number;
   includeDiscarded?: boolean;
+  tag?: string;
 }
 
 export async function fetchDrafts(params?: FetchDraftsParams): Promise<DraftDto[]> {
@@ -141,6 +143,7 @@ export async function fetchDrafts(params?: FetchDraftsParams): Promise<DraftDto[
   if (params?.limit !== undefined) query.set("limit", String(params.limit));
   if (params?.offset !== undefined) query.set("offset", String(params.offset));
   if (params?.includeDiscarded !== undefined) query.set("includeDiscarded", String(params.includeDiscarded));
+  if (params?.tag) query.set("tag", params.tag);
 
   const url = query.toString() ? `/api/drafts?${query.toString()}` : "/api/drafts";
   const res = await apiFetch(url);
@@ -153,7 +156,8 @@ export async function createDraft(
   content?: string,
   targetPlatform?: string,
   targetAccountId?: string,
-  automationWorkflowId?: string
+  automationWorkflowId?: string,
+  tags?: string[]
 ): Promise<DraftDto> {
   const res = await apiFetch("/api/drafts", {
     method: "POST",
@@ -162,7 +166,8 @@ export async function createDraft(
       content,
       targetPlatform,
       targetAccountId,
-      automationWorkflowId
+      automationWorkflowId,
+      tags
     }),
   });
   if (!res.ok) throw new Error(`createDraft failed: ${res.status}`);
@@ -178,6 +183,18 @@ export async function createReplyDraftFromBlueskyPostUrl(url: string, title?: st
     const message = await res.text().catch(() => "");
     throw new Error(message || `createReplyDraftFromBlueskyPostUrl failed: ${res.status}`);
   }
+  return res.json();
+}
+
+export async function updateDraftTags(
+  id: string,
+  req: { tags?: string[]; action?: string; add?: string[]; remove?: string[] }
+): Promise<{ id: string; tags: string[] }> {
+  const res = await apiFetch(`/api/drafts/${id}/tags`, {
+    method: "PATCH",
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error(`updateDraftTags failed: ${res.status}`);
   return res.json();
 }
 

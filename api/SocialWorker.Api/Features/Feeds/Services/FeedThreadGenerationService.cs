@@ -20,16 +20,19 @@ public class FeedThreadGenerationService
 {
     private readonly AppDbContext _db;
     private readonly ChatService _chatService;
+    private readonly DraftSegmentService _draftSegmentService;
     private readonly ILogger<FeedThreadGenerationService> _logger;
 
     public FeedThreadGenerationService(
         AppDbContext db,
         ChatService chatService,
-        ILogger<FeedThreadGenerationService> logger)
+        ILogger<FeedThreadGenerationService> logger,
+        DraftSegmentService? draftSegmentService = null)
     {
         _db = db;
         _chatService = chatService;
         _logger = logger;
+        _draftSegmentService = draftSegmentService ?? new DraftSegmentService(db);
     }
 
     public Task<bool> GenerateThreadAsync(
@@ -54,7 +57,7 @@ public class FeedThreadGenerationService
             draft.Status = DraftStatus.Formatting;
             await _db.SaveChangesAsync(ct);
 
-            var promptText = $"Please draft a thread based on the available sources. Follow these instructions:\n{instructionPrompt}";
+            var promptText = $"Please draft a thread based on the available sources. Follow these instructions:\n{instructionPrompt}\n\nCRITICAL INSTRUCTION:\nYou MUST call the 'replace_editor_content' tool with your complete drafted text. Outputting text in the chat or calling 'validate_draft' alone does NOT save the draft. Call 'replace_editor_content' to update the editor, then call 'validate_draft' to verify formatting.";
             var chatRequest = new ChatModels.ChatRequest
             {
                 DraftId = draft.Id,
@@ -77,6 +80,7 @@ public class FeedThreadGenerationService
             };
 
             var assistantTextBuilder = new System.Text.StringBuilder();
+            string? lastValidatedContent = null;
             await foreach (var line in _chatService.StreamAsync(chatRequest, userId, ct))
             {
                 if (line.StartsWith("0:"))
@@ -95,6 +99,29 @@ public class FeedThreadGenerationService
                         _logger.LogDebug(ex, "Failed to deserialize streaming text line");
                     }
                 }
+                else if (line.StartsWith("9:"))
+                {
+                    try
+                    {
+                        var json = line.Substring(2).Trim();
+                        using var doc = JsonDocument.Parse(json);
+                        if (doc.RootElement.TryGetProperty("toolName", out var toolNameEl) &&
+                            toolNameEl.GetString() == "validate_draft" &&
+                            doc.RootElement.TryGetProperty("args", out var argsEl) &&
+                            argsEl.TryGetProperty("content", out var contentEl))
+                        {
+                            var contentStr = contentEl.GetString();
+                            if (!string.IsNullOrWhiteSpace(contentStr))
+                            {
+                                lastValidatedContent = contentStr;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to parse tool call event for validated content fallback");
+                    }
+                }
             }
 
             var finalDraft = await _db.Drafts
@@ -111,6 +138,23 @@ public class FeedThreadGenerationService
             if (string.IsNullOrWhiteSpace(assistantText))
             {
                 assistantText = "Drafted canonical thread segments based on feed source and instructions.";
+            }
+
+            // Fallback: If replace_editor_content tool was not called, but content was generated
+            if (string.IsNullOrWhiteSpace(finalDraft.Content))
+            {
+                var fallbackContent = !string.IsNullOrWhiteSpace(lastValidatedContent)
+                    ? lastValidatedContent
+                    : assistantText != "Drafted canonical thread segments based on feed source and instructions."
+                        ? assistantText
+                        : null;
+
+                if (!string.IsNullOrWhiteSpace(fallbackContent))
+                {
+                    finalDraft.Content = fallbackContent;
+                    await _draftSegmentService.ReconcileSegmentsAsync(finalDraft, fallbackContent, ct);
+                    _logger.LogInformation("Saved fallback generated content ({Length} chars) to draft {DraftId}", fallbackContent.Length, finalDraft.Id);
+                }
             }
 
             var historyPayload = new ChatModels.ChatHistoryPayload

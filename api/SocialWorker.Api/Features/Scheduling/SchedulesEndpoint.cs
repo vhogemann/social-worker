@@ -13,6 +13,7 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Scheduling.Models;
 using SocialWorker.Api.Features.Scheduling.Services;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Tags;
 
 namespace SocialWorker.Api.Features.Scheduling;
 
@@ -23,7 +24,7 @@ public static class SchedulesEndpoint
         var group = app.MapGroup("/api/schedules").RequireAuthorization();
 
         // 1. List schedules
-        group.MapGet("/", async (ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (string? tag, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
         {
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
@@ -34,6 +35,11 @@ public static class SchedulesEndpoint
                 .Include(s => s.QueueItems)
                 .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync(ct);
+
+            if (!string.IsNullOrWhiteSpace(tag))
+            {
+                schedules = schedules.Where(s => TagHelper.HasTag(s.Tags, tag)).ToList();
+            }
 
             var dtos = schedules.Select(s => new ScheduleSummaryDto(s)).ToList();
             return Results.Ok(dtos);
@@ -48,7 +54,7 @@ public static class SchedulesEndpoint
             if (string.IsNullOrWhiteSpace(request.Name))
                 return Results.BadRequest(new ApiErrorResponse("Schedule name is required."));
 
-            var schedule = Schedule.Create(userId.Value, request.Name, request.Timezone);
+            var schedule = Schedule.Create(userId.Value, request.Name, request.Timezone, request.Tags);
             db.Schedules.Add(schedule);
             await db.SaveChangesAsync(ct);
 
@@ -94,10 +100,36 @@ public static class SchedulesEndpoint
                 schedule.Timezone = request.Timezone.Trim();
             }
             schedule.IsActive = request.IsActive;
+            if (request.Tags != null)
+            {
+                schedule.Tags = TagHelper.NormalizeTags(request.Tags);
+            }
             schedule.UpdatedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync(ct);
             return Results.Ok(new ScheduleSummaryDto(schedule));
+        });
+
+        group.MapPatch("/{id:guid}/tags", async (
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            Guid id,
+            UpdateTagsRequest req,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var schedule = await db.Schedules
+                .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId.Value, ct);
+
+            if (schedule == null) return Results.NotFound(new ApiErrorResponse("Schedule not found."));
+
+            schedule.Tags = TagHelper.ApplyUpdate(schedule.Tags, req);
+            schedule.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { schedule.Id, schedule.Tags });
         });
 
         // 5. Delete schedule

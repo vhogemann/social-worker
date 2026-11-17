@@ -13,10 +13,11 @@ public class Schedule
     public bool IsActive { get; set; } = true;
     public ICollection<ScheduleSlotRule> SlotRules { get; set; } = new List<ScheduleSlotRule>();
     public ICollection<ScheduleQueueItem> QueueItems { get; set; } = new List<ScheduleQueueItem>();
+    public List<string> Tags { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public static Schedule Create(Guid userId, string name, string? timezone = null)
+    public static Schedule Create(Guid userId, string name, string? timezone = null, IEnumerable<string>? tags = null)
     {
         if (userId == Guid.Empty)
             throw new ArgumentException("User ID is required.", nameof(userId));
@@ -32,6 +33,7 @@ public class Schedule
             Name = name.Trim(),
             Timezone = tz,
             IsActive = true,
+            Tags = SocialWorker.Api.Infrastructure.Tags.TagHelper.NormalizeTags(tags),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

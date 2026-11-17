@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ using SocialWorker.Api.Features.Publishing.Twitter;
 using SocialWorker.Api.Features.Sources.Instagram;
 using SocialWorker.Api.Infrastructure.Security;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Tags;
 using System.Text.Json;
 
 namespace SocialWorker.Api.Features.Accounts;
@@ -26,13 +28,25 @@ public static class AccountsEndpoint
     {
         var group = app.MapGroup("/api/accounts").RequireAuthorization();
 
-        group.MapGet("/", async (AppDbContext db, ClaimsPrincipal user) =>
+        group.MapGet("/", async (string? tag, AppDbContext db, ClaimsPrincipal user) =>
         {
             var userId = user.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
             var accounts = await db.Accounts
                 .Where(a => a.UserId == userId.Value)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync();
+
+            if (!string.IsNullOrWhiteSpace(tag))
+            {
+                accounts = accounts.Where(a => TagHelper.HasTag(a.Tags, tag)).ToList();
+            }
+
+            var result = accounts
+                .OrderByDescending(a => TagHelper.HasTag(a.Tags, "default"))
+                .ThenBy(a => a.Platform)
+                .ThenByDescending(a => a.CreatedAt)
                 .Select(a => new
                 {
                     a.Id,
@@ -41,12 +55,12 @@ public static class AccountsEndpoint
                     a.ExternalId,
                     a.TokenExpiresAt,
                     a.Status,
+                    Tags = a.Tags ?? new List<string>(),
                     a.CreatedAt,
                     a.UpdatedAt
-                })
-                .ToListAsync();
+                });
 
-            return Results.Ok(accounts);
+            return Results.Ok(result);
         });
 
         group.MapPost("/", async (AccountRequest req, AccountUpsertService upsertService, AppDbContext db, ClaimsPrincipal user, IConfiguration config, IServiceProvider sp) =>
@@ -77,9 +91,23 @@ public static class AccountsEndpoint
             }
 
             var encryptedPassword = CryptoHelper.EncryptString(req.AppPassword, encryptionKey);
-            await upsertService.UpsertAsync(userId.Value, req.Platform, req.Handle, encryptedPassword, externalId: externalId);
+            await upsertService.UpsertAsync(userId.Value, req.Platform, req.Handle, encryptedPassword, externalId: externalId, tags: req.Tags);
             await db.SaveChangesAsync();
             return Results.Ok();
+        });
+
+        group.MapPatch("/{id:guid}/tags", async (Guid id, UpdateTagsRequest req, AppDbContext db, ClaimsPrincipal user) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var account = await db.Accounts.FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId.Value);
+            if (account == null) return Results.NotFound();
+
+            account.Tags = TagHelper.ApplyUpdate(account.Tags, req);
+            account.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            return Results.Ok(new { id = account.Id, tags = account.Tags });
         });
 
         group.MapDelete("/{id:guid}", async (Guid id, AppDbContext db, ClaimsPrincipal user) =>
@@ -453,4 +481,4 @@ public record MetaThreadsCallbackResponse(string ExternalId, string Username, Da
 public record TwitterCallbackRequest(string Code, string State);
 public record TwitterCallbackResponse(string ExternalId, string Username, DateTime TokenExpiresAt);
 
-public record AccountRequest(string Platform, string Handle, string AppPassword);
+public record AccountRequest(string Platform, string Handle, string AppPassword, List<string>? Tags = null);

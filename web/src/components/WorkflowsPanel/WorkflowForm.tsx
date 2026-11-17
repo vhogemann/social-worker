@@ -13,6 +13,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { Input } from "../common/Input";
 import { Button } from "../common/Button";
+import { TagInput } from "../common/TagInput";
 import { WorkflowSourcesSelector } from "./WorkflowSourcesSelector";
 import {
   WorkflowDestinationsSelector,
@@ -43,6 +44,7 @@ export interface WorkflowFormData {
   }[];
   scheduleId?: string | null;
   minRelevanceScore?: number;
+  tags?: string[];
 }
 
 export interface WorkflowFormProps {
@@ -90,6 +92,7 @@ export const WorkflowForm: React.FC<WorkflowFormProps> = ({
   const [minRelevanceScore, setMinRelevanceScore] = useState<number>(
     editingWorkflow?.minRelevanceScore ?? 7
   );
+  const [tags, setTags] = useState<string[]>(editingWorkflow?.tags ? [...editingWorkflow.tags] : []);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -104,6 +107,7 @@ export const WorkflowForm: React.FC<WorkflowFormProps> = ({
       setInstructionPrompt(editingWorkflow.instructionPrompt || "");
       setWorkflowScheduleId(editingWorkflow.scheduleId || null);
       setMinRelevanceScore(editingWorkflow.minRelevanceScore ?? 7);
+      setTags(editingWorkflow.tags ? [...editingWorkflow.tags] : []);
 
       const hasHighlights = editingWorkflow.sources.some((s) => s.kind === "WorkflowHighlights");
       if (hasHighlights) {
@@ -156,6 +160,7 @@ export const WorkflowForm: React.FC<WorkflowFormProps> = ({
       setLookbackDays(7);
       setWorkflowScheduleId(null);
       setMinRelevanceScore(7);
+      setTags([]);
       if (connectedAccounts.length > 0) {
         setDestinations(
           connectedAccounts.map((a) => ({
@@ -261,7 +266,8 @@ export const WorkflowForm: React.FC<WorkflowFormProps> = ({
         sources: sourcesPayload,
         destinations,
         scheduleId: workflowScheduleId,
-        minRelevanceScore
+        minRelevanceScore,
+        tags
       });
     } finally {
       setSaving(false);
@@ -306,6 +312,14 @@ export const WorkflowForm: React.FC<WorkflowFormProps> = ({
               className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs text-foreground outline-none transition focus:border-accent"
             />
           </div>
+
+          <TagInput
+            tags={tags}
+            onChange={setTags}
+            label="Workflow Tags"
+            hint="Categorize workflows (e.g. 'science', 'tech', 'bot')."
+            showDefaultToggle={false}
+          />
         </CardContent>
       </Card>
 

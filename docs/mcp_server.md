@@ -491,12 +491,21 @@ Projeta os slots e publicações previstas em um intervalo de datas para visuali
 
 ---
 
-### Domínio 7: Contas Sociais
+### Domínio 7: Contas Sociais e Tags
 
 #### 53. `list_accounts`
 Lista contas conectadas e credenciadas para publicação com identificação de plataforma, handle e ID.
 - **Parâmetros**:
   - `platform` (*string, opcional*): Filtrar por plataforma social.
+  - `tag` (*string, opcional*): Filtrar por tag (ex.: 'default').
+
+#### 53b. `tag_entity`
+Gerencia tags em entidades principais (`account`, `workflow`, `schedule`, `draft`). Suporta ações 'add', 'remove' e 'set'. A tag 'default' indica entidade preferencial/padrão.
+- **Parâmetros**:
+  - `entityType` (*string, obrigatório*): Tipo de entidade (`account`, `workflow`, `schedule`, `draft`).
+  - `entityId` (*string, obrigatório*): UUID da entidade.
+  - `action` (*string, opcional*): Ação (`add`, `remove`, `set`).
+  - `tags` (*array de strings, obrigatório*): Lista de tags.
 
 ---
 

@@ -91,11 +91,14 @@ describe("ScheduleManagerModal", () => {
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
-      expect(schedulesApi.updateSchedule).toHaveBeenCalledWith("sched-1", {
-        name: "Updated Tech Beat",
-        timezone: "Europe/London",
-        isActive: true
-      });
+      expect(schedulesApi.updateSchedule).toHaveBeenCalledWith(
+        "sched-1",
+        expect.objectContaining({
+          name: "Updated Tech Beat",
+          timezone: "Europe/London",
+          isActive: true
+        })
+      );
       expect(onSchedulesChanged).toHaveBeenCalledWith("sched-1");
     });
   });

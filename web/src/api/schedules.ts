@@ -13,6 +13,7 @@ export interface ScheduleSummaryDto {
   isActive: boolean;
   slotRuleCount: number;
   queueItemCount: number;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +55,7 @@ export interface ScheduleDetailDto {
   isActive: boolean;
   slotRules: ScheduleSlotRuleDto[];
   queueItems: ScheduleQueueItemDto[];
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -76,12 +78,14 @@ export interface CalendarEventDto {
 export interface CreateScheduleRequest {
   name: string;
   timezone?: string;
+  tags?: string[];
 }
 
 export interface UpdateScheduleRequest {
   name: string;
   timezone?: string;
   isActive: boolean;
+  tags?: string[];
 }
 
 export interface CreateSlotRuleRequest {
@@ -143,6 +147,18 @@ export async function updateSchedule(id: string, req: UpdateScheduleRequest): Pr
     const msg = await res.text().catch(() => "");
     throw new Error(msg || `updateSchedule failed: ${res.status}`);
   }
+  return res.json();
+}
+
+export async function updateScheduleTags(
+  id: string,
+  req: { tags?: string[]; action?: string; add?: string[]; remove?: string[] }
+): Promise<{ id: string; tags: string[] }> {
+  const res = await apiFetch(`/api/schedules/${id}/tags`, {
+    method: "PATCH",
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error(`updateScheduleTags failed: ${res.status}`);
   return res.json();
 }
 

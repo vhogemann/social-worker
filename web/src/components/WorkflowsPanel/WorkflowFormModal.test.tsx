@@ -105,7 +105,8 @@ describe("WorkflowFormModal", () => {
           }
         ],
         scheduleId: null,
-        minRelevanceScore: 7
+        minRelevanceScore: 7,
+        tags: []
       });
       expect(handleClose).toHaveBeenCalled();
     });
@@ -161,7 +162,8 @@ describe("WorkflowFormModal", () => {
           }
         ],
         scheduleId: null,
-        minRelevanceScore: 7
+        minRelevanceScore: 7,
+        tags: []
       });
     });
   });
@@ -216,7 +218,8 @@ describe("WorkflowFormModal", () => {
           }
         ],
         scheduleId: null,
-        minRelevanceScore: 7
+        minRelevanceScore: 7,
+        tags: []
       });
     });
   });
@@ -266,6 +269,40 @@ describe("WorkflowFormModal", () => {
         expect.objectContaining({
           title: "Guerrilha News",
           minRelevanceScore: 0
+        })
+      );
+    });
+  });
+
+  it("allows adding tags to the workflow", async () => {
+    const handleSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <WorkflowFormModal
+        isOpen={true}
+        editingWorkflow={null}
+        availableFeeds={mockFeeds}
+        availableWorkflows={mockWorkflows}
+        connectedAccounts={mockAccounts}
+        onClose={vi.fn()}
+        onSave={handleSave}
+      />
+    );
+
+    const titleInput = screen.getByLabelText(/workflow title/i);
+    fireEvent.change(titleInput, { target: { value: "Tagged Workflow" } });
+
+    const tagInput = screen.getByPlaceholderText(/type a tag and press enter/i);
+    fireEvent.change(tagInput, { target: { value: "science" } });
+    fireEvent.keyDown(tagInput, { key: "Enter" });
+
+    const submitBtn = screen.getByRole("button", { name: /create workflow/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(handleSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Tagged Workflow",
+          tags: ["science"]
         })
       );
     });

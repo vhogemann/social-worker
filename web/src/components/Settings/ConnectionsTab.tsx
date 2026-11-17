@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus, faTrashCan, faShareNodes, faRotateRight } from "@fortawesome/free-solid-svg-icons";
-import { type AccountDto, listAccounts, saveAccount, deleteAccount, getLinkedInAuthUrl, getMetaThreadsAuthUrl, getTwitterAuthUrl, getInstagramAuthUrl } from "../../api/accounts";
+import { faPlus, faTrashCan, faShareNodes, faRotateRight, faTags, faStar } from "@fortawesome/free-solid-svg-icons";
+import { type AccountDto, listAccounts, saveAccount, deleteAccount, updateAccountTags, getLinkedInAuthUrl, getMetaThreadsAuthUrl, getTwitterAuthUrl, getInstagramAuthUrl } from "../../api/accounts";
 import { PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 import { Modal } from "../common/Modal";
+import { TagInput } from "../common/TagInput";
+import { TagEditorModal } from "../common/TagEditorModal";
 import { SettingsSection } from "./common/SettingsSection";
 import { SettingsEmptyState } from "./common/SettingsEmptyState";
 import { SettingsAlert } from "./common/SettingsAlert";
@@ -18,6 +20,8 @@ export function ConnectionsTab() {
   const [platform, setPlatform] = useState("Bluesky");
   const [handle, setHandle] = useState("");
   const [appPassword, setAppPassword] = useState("");
+  const [newConnectionTags, setNewConnectionTags] = useState<string[]>([]);
+  const [tagModalAccount, setTagModalAccount] = useState<AccountDto | null>(null);
   const [linkedInType, setLinkedInType] = useState<"personal" | "company">("personal");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -42,6 +46,7 @@ export function ConnectionsTab() {
     setPlatform("Bluesky");
     setHandle("");
     setAppPassword("");
+    setNewConnectionTags([]);
     setLinkedInType("personal");
     setModalError(null);
     setIsAddModalOpen(true);
@@ -50,6 +55,7 @@ export function ConnectionsTab() {
   const handleCloseAddModal = () => {
     if (isSubmitting) return;
     setIsAddModalOpen(false);
+    setNewConnectionTags([]);
     setModalError(null);
   };
 
@@ -60,9 +66,10 @@ export function ConnectionsTab() {
     try {
       setIsSubmitting(true);
       setModalError(null);
-      await saveAccount({ platform, handle, appPassword });
+      await saveAccount({ platform, handle, appPassword, tags: newConnectionTags });
       setHandle("");
       setAppPassword("");
+      setNewConnectionTags([]);
       setIsAddModalOpen(false);
       await fetchAccounts();
     } catch (err: any) {
@@ -70,6 +77,14 @@ export function ConnectionsTab() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSaveTags = async (newTags: string[]) => {
+    if (!tagModalAccount) return;
+    await updateAccountTags(tagModalAccount.id, { tags: newTags });
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === tagModalAccount.id ? { ...a, tags: newTags } : a))
+    );
   };
 
   const handleLinkedInConnect = async (type: "personal" | "company" = linkedInType) => {
@@ -207,13 +222,49 @@ export function ConnectionsTab() {
                         <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-green-800/40 bg-green-950/30 text-green-400">
                           {acc.status}
                         </span>
+                        {acc.tags?.includes("default") && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/15 text-amber-300 font-semibold"
+                            title="Default connection for ad-hoc posting"
+                            data-testid={`default-badge-${acc.id}`}
+                          >
+                            <FontAwesomeIcon icon={faStar} className="w-2.5 h-2.5 text-amber-400" />
+                            <span>DEFAULT</span>
+                          </span>
+                        )}
                       </div>
-                      <div className="text-xs text-muted font-mono mt-0.5">
-                        @{acc.handle.replace(/^@/, "")}
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className="text-xs text-muted font-mono">
+                          @{acc.handle.replace(/^@/, "")}
+                        </span>
+                        {acc.tags && acc.tags.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {acc.tags
+                              .filter((t) => t !== "default")
+                              .map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border bg-bg/60 text-muted"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTagModalAccount(acc)}
+                      className="text-xs font-mono uppercase tracking-wider text-muted hover:text-foreground px-2.5 py-1 border border-border bg-bg/40 hover:bg-bg/80 rounded transition-colors inline-flex items-center gap-1.5"
+                      title="Edit Connection Tags"
+                      data-testid={`edit-tags-btn-${acc.id}`}
+                    >
+                      <FontAwesomeIcon icon={faTags} className="w-3 h-3 text-accent" />
+                      <span>Tags</span>
+                    </button>
                     {acc.platform === "MetaThreads" && (
                       <button
                         onClick={handleMetaThreadsConnect}
@@ -510,6 +561,14 @@ export function ConnectionsTab() {
                 </p>
               </div>
 
+              <TagInput
+                tags={newConnectionTags}
+                onChange={setNewConnectionTags}
+                label="Tags"
+                hint="Tags help identify default connections and organize accounts."
+                disabled={isSubmitting}
+              />
+
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
                 <button
                   type="button"
@@ -531,6 +590,17 @@ export function ConnectionsTab() {
           )}
         </div>
       </Modal>
+
+      {tagModalAccount && (
+        <TagEditorModal
+          isOpen={!!tagModalAccount}
+          onClose={() => setTagModalAccount(null)}
+          title={`Edit Connection Tags: @${tagModalAccount.handle.replace(/^@/, "")}`}
+          description={`Manage tags for your ${getPlatformLabel(tagModalAccount.platform)} connection. The 'default' tag identifies this connection as the preferred account for ad-hoc posting on ${getPlatformLabel(tagModalAccount.platform)}.`}
+          initialTags={tagModalAccount.tags || []}
+          onSave={handleSaveTags}
+        />
+      )}
     </div>
   );
 }

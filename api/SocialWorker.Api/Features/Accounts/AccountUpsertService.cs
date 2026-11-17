@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Infrastructure.Tags;
 
 namespace SocialWorker.Api.Features.Accounts;
 
@@ -23,6 +25,7 @@ public class AccountUpsertService
         string credentialsEncrypted,
         string? externalId = null,
         DateTime? tokenExpiresAt = null,
+        IEnumerable<string>? tags = null,
         CancellationToken ct = default)
     {
         Account? existing = null;
@@ -50,9 +53,23 @@ public class AccountUpsertService
             {
                 existing.TokenExpiresAt = tokenExpiresAt.Value;
             }
+            if (tags != null)
+            {
+                existing.Tags = TagHelper.NormalizeTags(tags);
+            }
             existing.UpdatedAt = DateTime.UtcNow;
             existing.Status = "Active";
             return existing;
+        }
+
+        var normalizedTags = TagHelper.NormalizeTags(tags);
+        if (normalizedTags.Count == 0)
+        {
+            var hasAnyForPlatform = await _db.Accounts.AnyAsync(a => a.UserId == userId && a.Platform == platform, ct);
+            if (!hasAnyForPlatform)
+            {
+                normalizedTags = new List<string> { "default" };
+            }
         }
 
         var account = new Account
@@ -65,6 +82,7 @@ public class AccountUpsertService
             CredentialsEncrypted = credentialsEncrypted,
             TokenExpiresAt = tokenExpiresAt,
             Status = "Active",
+            Tags = normalizedTags,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

@@ -240,6 +240,22 @@ export const DraftCard: React.FC<DraftCardProps> = ({
             ))}
           </Box>
         )}
+        {/* Draft Tags */}
+        {draft.tags && draft.tags.length > 0 && (
+          <Box
+            sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.5, mt: 0.25 }}
+            data-testid="draft-card-tags"
+          >
+            {draft.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted/10 text-muted border border-border/50"
+              >
+                #{tag}
+              </span>
+            ))}
+          </Box>
+        )}
       </CardContent>
 
       {/* Footer Actions and Metadata */}

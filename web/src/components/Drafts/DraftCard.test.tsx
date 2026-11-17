@@ -54,4 +54,25 @@ describe("DraftCard", () => {
     fireEvent.click(screen.getByTestId("draft-card"));
     expect(onSelect).toHaveBeenCalledWith("draft-1", "wf-1");
   });
+
+  it("renders draft tags when present", () => {
+    const draftWithTags: DraftDto = {
+      ...mockDraft,
+      tags: ["announcement", "launch"]
+    };
+
+    render(
+      <DraftCard
+        draft={draftWithTags}
+        onSelect={vi.fn()}
+        onArchive={vi.fn()}
+        onUnarchive={vi.fn()}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("#announcement")).toBeInTheDocument();
+    expect(screen.getByText("#launch")).toBeInTheDocument();
+  });
 });

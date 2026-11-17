@@ -12,6 +12,7 @@ using SocialWorker.Api.Features.Publishing;
 using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Features.Publishing.Validation;
 using SocialWorker.Api.Infrastructure.Platforms;
+using SocialWorker.Api.Infrastructure.Tags;
 
 namespace SocialWorker.Api.Features.Chat.Tools;
 
@@ -164,11 +165,21 @@ public class PublishPlatformTool : ChatToolBase<PublishPlatformArgs, PublishPlat
 
             if (matchingAccounts.Count > 1)
             {
-                var accountListStr = string.Join(", ", matchingAccounts.Select(a => $"{a.Handle ?? a.Id.ToString()} (ID: {a.Id})"));
-                return new PublishPlatformToolResult(false, $"Multiple accounts found for platform '{platform}'. Please specify 'accountId': {accountListStr}", Error: $"Multiple accounts found for platform '{platform}'. Please specify 'accountId': {accountListStr}");
+                var defaultAccount = matchingAccounts.FirstOrDefault(a => TagHelper.HasTag(a.Tags, "default"));
+                if (defaultAccount != null)
+                {
+                    account = defaultAccount;
+                }
+                else
+                {
+                    var accountListStr = string.Join(", ", matchingAccounts.Select(a => $"{a.Handle ?? a.Id.ToString()} (ID: {a.Id})"));
+                    return new PublishPlatformToolResult(false, $"Multiple accounts found for platform '{platform}'. Please specify 'accountId': {accountListStr}", Error: $"Multiple accounts found for platform '{platform}'. Please specify 'accountId': {accountListStr}");
+                }
             }
-
-            account = matchingAccounts[0];
+            else
+            {
+                account = matchingAccounts[0];
+            }
         }
 
         thread.AccountId = account.Id;

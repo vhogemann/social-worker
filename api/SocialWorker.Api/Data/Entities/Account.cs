@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace SocialWorker.Api.Data.Entities;
 
@@ -14,7 +15,8 @@ public class Account
     public string CredentialsEncrypted { get; set; } = string.Empty;
     public DateTime? TokenExpiresAt { get; set; }
     
-    public string Status { get; set; } = "Active"; // Active, Invalid
+    public string Status { get; set; } = "Active";
+    public List<string> Tags { get; set; } = new();
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

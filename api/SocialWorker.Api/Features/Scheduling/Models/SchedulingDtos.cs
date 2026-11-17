@@ -15,7 +15,8 @@ public sealed record ScheduleSummaryDto(
     int SlotRuleCount,
     int QueueItemCount,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    IReadOnlyList<string>? Tags = null
 )
 {
     public ScheduleSummaryDto(Schedule s)
@@ -27,7 +28,8 @@ public sealed record ScheduleSummaryDto(
             s.SlotRules?.Count ?? 0,
             s.QueueItems?.Count(q => q.Status == ScheduleQueueItemStatus.Queued || q.Status == ScheduleQueueItemStatus.Dispatched || q.Status == ScheduleQueueItemStatus.Paused) ?? 0,
             s.CreatedAt,
-            s.UpdatedAt)
+            s.UpdatedAt,
+            s.Tags)
     {
     }
 }
@@ -106,7 +108,8 @@ public sealed record ScheduleDetailDto(
     List<ScheduleSlotRuleDto> SlotRules,
     List<ScheduleQueueItemDto> QueueItems,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    IReadOnlyList<string>? Tags = null
 )
 {
     public ScheduleDetailDto(Schedule s)
@@ -122,14 +125,15 @@ public sealed record ScheduleDetailDto(
                 .Select(q => new ScheduleQueueItemDto(q))
                 .ToList() ?? new(),
             s.CreatedAt,
-            s.UpdatedAt)
+            s.UpdatedAt,
+            s.Tags)
     {
     }
 }
 
-public sealed record CreateScheduleRequest(string Name, string? Timezone = "UTC");
+public sealed record CreateScheduleRequest(string Name, string? Timezone = "UTC", List<string>? Tags = null);
 
-public sealed record UpdateScheduleRequest(string Name, string? Timezone, bool IsActive);
+public sealed record UpdateScheduleRequest(string Name, string? Timezone, bool IsActive, List<string>? Tags = null);
 
 public sealed record CreateSlotRuleRequest(
     SlotRecurrenceType RecurrenceType,

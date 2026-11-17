@@ -13,6 +13,7 @@ using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Workflows.Abstractions;
 using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Validation;
+using SocialWorker.Api.Infrastructure.Tags;
 
 namespace SocialWorker.Api.Features.Workflows;
 
@@ -23,6 +24,7 @@ public static class WorkflowsEndpoint
         var group = app.MapGroup("/api/workflows").RequireAuthorization();
 
         group.MapGet("/", async (
+            string? tag,
             ClaimsPrincipal principal,
             AppDbContext db,
             CancellationToken ct) =>
@@ -44,6 +46,11 @@ public static class WorkflowsEndpoint
                 .OrderByDescending(w => w.CreatedAt)
                 .ToListAsync(ct);
 
+            if (!string.IsNullOrWhiteSpace(tag))
+            {
+                workflows = workflows.Where(w => TagHelper.HasTag(w.Tags, tag)).ToList();
+            }
+
             var dtos = workflows.Select(w => new AutomationWorkflowDto(w)).ToList();
             return Results.Ok(dtos);
         });
@@ -57,7 +64,7 @@ public static class WorkflowsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            var workflow = AutomationWorkflow.Create(userId.Value, req.Title, req.InstructionPrompt, req.ScheduleId, req.MinRelevanceScore ?? 7);
+            var workflow = AutomationWorkflow.Create(userId.Value, req.Title, req.InstructionPrompt, req.ScheduleId, req.MinRelevanceScore ?? 7, req.Tags);
             db.AutomationWorkflows.Add(workflow);
 
             if (req.Sources != null && req.Sources.Count > 0)
@@ -176,6 +183,10 @@ public static class WorkflowsEndpoint
             {
                 workflow.MinRelevanceScore = Math.Clamp(req.MinRelevanceScore.Value, 0, 10);
             }
+            if (req.Tags != null)
+            {
+                workflow.Tags = TagHelper.NormalizeTags(req.Tags);
+            }
             workflow.UpdatedAt = DateTime.UtcNow;
 
             var existingSources = await db.AutomationWorkflowSources
@@ -274,6 +285,28 @@ public static class WorkflowsEndpoint
             await db.SaveChangesAsync(ct);
 
             return Results.NoContent();
+        });
+
+        group.MapPatch("/{id:guid}/tags", async (
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            Guid id,
+            UpdateTagsRequest req,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var workflow = await db.AutomationWorkflows
+                .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId.Value, ct);
+
+            if (workflow == null) return Results.NotFound(new ApiErrorResponse("Workflow not found."));
+
+            workflow.Tags = TagHelper.ApplyUpdate(workflow.Tags, req);
+            workflow.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { workflow.Id, workflow.Tags });
         });
 
         group.MapPost("/{id:guid}/trigger", async (
@@ -515,7 +548,8 @@ public sealed record AutomationWorkflowDto(
     string? ScheduleName,
     int MinRelevanceScore,
     DateTime CreatedAt,
-    DateTime UpdatedAt)
+    DateTime UpdatedAt,
+    IReadOnlyList<string>? Tags = null)
 {
     public AutomationWorkflowDto(AutomationWorkflow w)
         : this(
@@ -528,7 +562,8 @@ public sealed record AutomationWorkflowDto(
             w.Schedule?.Name,
             w.MinRelevanceScore,
             w.CreatedAt,
-            w.UpdatedAt)
+            w.UpdatedAt,
+            w.Tags)
     {
     }
 }
@@ -553,7 +588,8 @@ public sealed record CreateAutomationWorkflowRequest(
     List<CreateWorkflowSourceRequest>? Sources = null,
     List<CreateWorkflowDestinationRequest>? Destinations = null,
     Guid? ScheduleId = null,
-    int? MinRelevanceScore = null);
+    int? MinRelevanceScore = null,
+    List<string>? Tags = null);
 
 public sealed record WorkflowDraftThreadDto(
     string Platform,

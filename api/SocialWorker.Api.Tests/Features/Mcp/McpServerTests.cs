@@ -1241,9 +1241,10 @@ public sealed class McpServerTests : SqliteTestBase
         var json = JsonSerializer.Serialize(response.Result);
         using var doc = JsonDocument.Parse(json);
         var tools = doc.RootElement.GetProperty("tools").EnumerateArray().ToList();
-        Assert.Equal(77, tools.Count);
+        Assert.Equal(78, tools.Count);
 
         var toolNames = tools.Select(t => t.GetProperty("name").GetString()!).ToHashSet();
+        Assert.Contains("tag_entity", toolNames);
         Assert.Contains("search_sources", toolNames);
         Assert.Contains("preview_draft", toolNames);
         Assert.Contains("import_media_from_url", toolNames);
@@ -2612,6 +2613,90 @@ public sealed class McpServerTests : SqliteTestBase
 
         public Task<string?> ResolveThreadContextAsync(string url, CancellationToken ct) =>
             Task.FromResult<string?>(null);
+    }
+
+    [Fact]
+    public async Task HandleRequest_ToolsCall_TagEntity_And_ListAccounts_Success()
+    {
+        var (server, user, db) = CreateTestServer();
+
+        var acc1 = new Account
+        {
+            UserId = user.Id,
+            Platform = "Bluesky",
+            Handle = "primary.bsky.social",
+            CredentialsEncrypted = "enc1",
+            Tags = new List<string> { "default", "primary" }
+        };
+        var acc2 = new Account
+        {
+            UserId = user.Id,
+            Platform = "Bluesky",
+            Handle = "secondary.bsky.social",
+            CredentialsEncrypted = "enc2",
+            Tags = new List<string> { "bot" }
+        };
+        db.Accounts.AddRange(acc1, acc2);
+        await db.SaveChangesAsync();
+
+        // 1. List accounts - default should be sorted first and contain tags
+        var listReq = new McpRequest("2.0", 90, "tools/call", JsonDocument.Parse("""
+        {
+            "name": "list_accounts",
+            "arguments": { "platform": "Bluesky" }
+        }
+        """).RootElement);
+        var listResp = await server.HandleRequestAsync(listReq, user.Id, CancellationToken.None);
+        var listResult = Assert.IsType<McpToolCallResult>(listResp!.Result);
+        Assert.False(listResult.IsError);
+        Assert.Contains("primary.bsky.social", listResult.Content[0].Text);
+        Assert.Contains("\"isDefault\": true", listResult.Content[0].Text);
+
+        // 2. Filter accounts by tag
+        var filterReq = new McpRequest("2.0", 91, "tools/call", JsonDocument.Parse("""
+        {
+            "name": "list_accounts",
+            "arguments": { "tag": "bot" }
+        }
+        """).RootElement);
+        var filterResp = await server.HandleRequestAsync(filterReq, user.Id, CancellationToken.None);
+        var filterResult = Assert.IsType<McpToolCallResult>(filterResp!.Result);
+        Assert.False(filterResult.IsError);
+        Assert.Contains("secondary.bsky.social", filterResult.Content[0].Text);
+        Assert.DoesNotContain("primary.bsky.social", filterResult.Content[0].Text);
+
+        // 3. tag_entity add tag to acc2
+        var tagAddReq = new McpRequest("2.0", 92, "tools/call", JsonDocument.Parse($$"""
+        {
+            "name": "tag_entity",
+            "arguments": {
+                "entityType": "account",
+                "entityId": "{{acc2.Id}}",
+                "action": "add",
+                "tags": ["news", "automated"]
+            }
+        }
+        """).RootElement);
+        var tagAddResp = await server.HandleRequestAsync(tagAddReq, user.Id, CancellationToken.None);
+        var tagAddResult = Assert.IsType<McpToolCallResult>(tagAddResp!.Result);
+        Assert.False(tagAddResult.IsError);
+        Assert.Contains("automated", tagAddResult.Content[0].Text);
+
+        // 4. Create draft without accountId -> should resolve primary.bsky.social (tagged default)
+        var createDraftReq = new McpRequest("2.0", 93, "tools/call", JsonDocument.Parse("""
+        {
+            "name": "create_draft",
+            "arguments": {
+                "title": "Ad-hoc post",
+                "content": "Testing ad-hoc posting with default account",
+                "platform": "Bluesky"
+            }
+        }
+        """).RootElement);
+        var createDraftResp = await server.HandleRequestAsync(createDraftReq, user.Id, CancellationToken.None);
+        var createDraftResult = Assert.IsType<McpToolCallResult>(createDraftResp!.Result);
+        Assert.False(createDraftResult.IsError);
+        Assert.Contains(acc1.Id.ToString(), createDraftResult.Content[0].Text);
     }
 }
 

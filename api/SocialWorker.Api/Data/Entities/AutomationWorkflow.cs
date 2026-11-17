@@ -18,10 +18,11 @@ public class AutomationWorkflow
     public Guid? ReplyAgentId { get; set; }
     public ReplyAgent? ReplyAgent { get; set; }
     public int MinRelevanceScore { get; set; } = 7;
+    public List<string> Tags { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public static AutomationWorkflow Create(Guid userId, string title, string? instructionPrompt = null, Guid? scheduleId = null, int minRelevanceScore = 7)
+    public static AutomationWorkflow Create(Guid userId, string title, string? instructionPrompt = null, Guid? scheduleId = null, int minRelevanceScore = 7, IEnumerable<string>? tags = null)
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Workflow title is required.", nameof(title));
@@ -36,6 +37,7 @@ public class AutomationWorkflow
                 : instructionPrompt.Trim(),
             ScheduleId = scheduleId,
             MinRelevanceScore = Math.Clamp(minRelevanceScore, 0, 10),
+            Tags = SocialWorker.Api.Infrastructure.Tags.TagHelper.NormalizeTags(tags),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

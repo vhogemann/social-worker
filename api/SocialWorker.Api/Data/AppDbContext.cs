@@ -92,6 +92,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.TargetAccountId)
                 .OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(x => x.TargetAccountId);
+            ConfigureTagsProperty(e);
         });
 
         modelBuilder.Entity<ThreadSegment>(e =>
@@ -192,6 +193,7 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+            ConfigureTagsProperty(e);
         });
 
         modelBuilder.Entity<Post>(e =>
@@ -289,6 +291,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.ReplyAgentId)
                 .OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(x => x.ReplyAgentId);
+            ConfigureTagsProperty(e);
         });
 
         modelBuilder.Entity<AutomationWorkflowSource>(e =>
@@ -412,6 +415,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.UserId);
+            ConfigureTagsProperty(e);
         });
 
         modelBuilder.Entity<ScheduleSlotRule>(e =>
@@ -554,5 +558,18 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.ReplyAgentId, x.PostId }).IsUnique();
         });
+    }
+
+    private static void ConfigureTagsProperty<TEntity>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity> builder) where TEntity : class
+    {
+        builder.Property<List<string>>("Tags")
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v ?? new List<string>(), (System.Text.Json.JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v) ? new List<string>() : System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<string>())
+            .HasColumnType("text")
+            .Metadata.SetValueComparer(new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<string>>(
+                (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                c => c.ToList()));
     }
 }

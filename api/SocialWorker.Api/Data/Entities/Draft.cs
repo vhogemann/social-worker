@@ -30,10 +30,11 @@ public class Draft
     public int LastSummarizedMessageCount { get; set; }
     public string? DiscardReason { get; set; }
     public int? RelevanceScore { get; set; }
+    public List<string> Tags { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public static Draft Create(Guid userId, string? title = null, string? content = null, SocialPlatform? targetPlatform = null, Guid? automationWorkflowId = null, Guid? targetAccountId = null)
+    public static Draft Create(Guid userId, string? title = null, string? content = null, SocialPlatform? targetPlatform = null, Guid? automationWorkflowId = null, Guid? targetAccountId = null, IEnumerable<string>? tags = null)
     {
         return new Draft
         {
@@ -45,6 +46,7 @@ public class Draft
             TargetAccountId = targetAccountId,
             AutomationWorkflowId = automationWorkflowId,
             Status = DraftStatus.Editing,
+            Tags = SocialWorker.Api.Infrastructure.Tags.TagHelper.NormalizeTags(tags),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

@@ -15,6 +15,7 @@ using SocialWorker.Api.Features.Publishing.Bluesky;
 using SocialWorker.Api.Infrastructure;
 using SocialWorker.Api.Infrastructure.Services;
 using SocialWorker.Api.Infrastructure.Validation;
+using SocialWorker.Api.Infrastructure.Tags;
 
 namespace SocialWorker.Api.Features.Drafts;
 
@@ -35,6 +36,7 @@ public static class DraftsEndpoint
             int? limit,
             int? offset,
             bool? includeDiscarded,
+            string? tag,
             CancellationToken ct) =>
         {
             var userId = principal.GetUserId();
@@ -48,7 +50,8 @@ public static class DraftsEndpoint
                 Since: since,
                 Limit: limit,
                 Offset: offset,
-                IncludeDiscarded: includeDiscarded
+                IncludeDiscarded: includeDiscarded,
+                Tag: tag
             );
 
             var drafts = await draftsService.GetDraftsForUserAsync(userId.Value, filter, ct);
@@ -60,7 +63,7 @@ public static class DraftsEndpoint
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
 
-            var result = await draftsService.CreateDraftAsync(userId.Value, req.Title, req.Content, req.TargetPlatform, req.TargetAccountId, ct);
+            var result = await draftsService.CreateDraftAsync(userId.Value, req.Title, req.Content, req.TargetPlatform, req.TargetAccountId, req.Tags, ct);
             return Results.Created($"/api/drafts/{result.Id}", result);
         }).WithValidation<CreateDraftRequest>();
 
@@ -248,6 +251,28 @@ public static class DraftsEndpoint
             }
         });
 
+        group.MapPatch("/{id:guid}/tags", async (
+            ClaimsPrincipal principal,
+            AppDbContext db,
+            Guid id,
+            UpdateTagsRequest req,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var draft = await db.Drafts
+                .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId.Value, ct);
+
+            if (draft == null) return Results.NotFound(new ApiErrorResponse("Draft not found."));
+
+            draft.Tags = TagHelper.ApplyUpdate(draft.Tags, req);
+            draft.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { draft.Id, draft.Tags });
+        });
+
         app.MapGet("/api/drafts/{id:guid}/preview", async (
             AppDbContext db,
             IAppUrlResolver urlResolver,
@@ -274,7 +299,7 @@ public static class DraftsEndpoint
     public static SegmentMediaAnalysis AnalyzeSegmentMedia(string segmentContent) => DraftSegmentService.AnalyzeSegmentMedia(segmentContent);
 }
 
-public sealed record CreateDraftRequest(string? Title, string? Content, string? TargetPlatform = null, Guid? TargetAccountId = null);
+public sealed record CreateDraftRequest(string? Title, string? Content, string? TargetPlatform = null, Guid? TargetAccountId = null, List<string>? Tags = null);
 
 public sealed record CreateReplyDraftFromUrlRequest(string Url, string? Title = null, string? Content = null);
 
