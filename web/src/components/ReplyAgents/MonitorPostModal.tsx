@@ -133,7 +133,7 @@ export function MonitorPostModal({
             />
           </div>
           <p className="mt-1 text-[11px] font-mono text-muted">
-            Supports Bluesky post URLs, Meta Threads post URLs, or raw AT-URIs.
+            Supports Bluesky, Meta Threads, Twitter/X, and Mastodon post URLs, or raw AT-URIs.
           </p>
         </div>
 
@@ -149,6 +149,7 @@ export function MonitorPostModal({
             <option value="auto">Auto-detect from URL</option>
             <option value="Bluesky">Bluesky</option>
             <option value="MetaThreads">Meta Threads</option>
+            <option value="Mastodon">Mastodon</option>
           </select>
         </div>
       </form>

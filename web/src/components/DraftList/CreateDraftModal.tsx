@@ -12,6 +12,7 @@ export const ALL_PLATFORMS = [
   { id: "Facebook", label: "Facebook", description: "Conversational, no hard limit" },
   { id: "Instagram", label: "Instagram", description: "Visual-first, 2200 char caption" },
   { id: "MetaThreads", label: "Threads", description: "Reply-chained thread (500 chars/post)" },
+  { id: "Mastodon", label: "Mastodon", description: "Federated thread (500 chars/post)" },
 ];
 
 interface Props {

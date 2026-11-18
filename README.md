@@ -9,6 +9,7 @@ Supported publishing platforms:
 - **LinkedIn**: Member profiles and company pages.
 - **Meta Threads**: Multi-post threads, carousel media, token lifecycle management.
 - **Twitter / X**: OAuth 2.0 PKCE, chained reply threads, weighted character validation.
+- **Instagram**: Professional/Creator single-image and carousel publishing, container polling, and validation.
 
 ---
 
@@ -132,7 +133,7 @@ All builds and tests run inside Docker containers:
   ```
 - **API Tests**:
   ```bash
-  docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
+  docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj
   ```
 - **Web Tests**:
   ```bash

@@ -48,7 +48,7 @@ public sealed class FormatValidatePlatformContentTool : ChatToolBase<FormatValid
           "properties": {
             "platform": {
               "type": "string",
-              "enum": ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads", "Threads"],
+              "enum": ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads", "Threads", "Mastodon"],
               "description": "Target platform to validate against."
             },
             "content": {

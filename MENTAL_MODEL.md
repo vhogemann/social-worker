@@ -8,7 +8,7 @@ Read this first, then use AGENTS.md for stricter policy and workflow rules.
 
 ## Product in one paragraph
 
-social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky (threads), LinkedIn (single-post personal profile and company page publishing), Meta Threads (multi-post threads, carousel media, token lifecycle, and resilient resume), and Twitter / X (OAuth 2.0 PKCE, token rotation, chained reply tweets, 280 weighted-char validation, t.co budgeting, and resilient resume) are production-ready; other publishers are stubs.
+social-worker is a local-first, Docker-only assistant for drafting and publishing social media threads. The user iterates in a chat + editor workflow, adds sources/media, formats per platform, explicitly confirms stage transitions, and publishes. Bluesky (threads), LinkedIn (single-post personal profile and company page publishing), Meta Threads (multi-post threads, carousel media, token lifecycle, and resilient resume), Twitter / X (OAuth 2.0 PKCE, token rotation, chained reply tweets, 280 weighted-char validation, t.co budgeting, and resilient resume), Instagram (Professional/Creator single-image and carousel publishing, container polling, and rule-based validation), and Mastodon (federated dynamic OAuth 2.0 + access token fallback, multi-post public/unlisted threads, 23-char URL budgeting, media polling, Reply Agent adapter, and native .rss feed discovery) are production-ready; Facebook publishing is stubbed.
 
 ## System shape & project breakdown
 
@@ -91,7 +91,7 @@ social-worker is a local-first, Docker-only assistant for drafting and publishin
 ## Model Context Protocol (MCP) & Authentication
 
 - Endpoint: `/api/mcp` (Stateless Streamable HTTP JSON-RPC 2.0), `/api/mcp/sse` (Server-Sent Events continuous stream), with aliases `/mcp` and `/mcp/sse`.
-- Tools (77): Complete catalog of 77 domain tools covering drafts (including in-chat visual preview `preview_draft`), platform variants, media assets/templates/AI image generation (`generate_image`), chart rendering (`render_chart`), sources (`search_sources`) & image viewing (`view_image`) & video transcription, feed discovery & polling, workflows, queue/scheduling operations, accounts, reply agents, and monitored posts.
+- Tools (78): Complete catalog of 78 domain tools covering drafts (including in-chat visual preview `preview_draft`), platform variants, media assets/templates/AI image generation (`generate_image`), chart rendering (`render_chart`), sources (`search_sources`) & image viewing (`view_image`) & video transcription, feed discovery & polling, workflows, queue/scheduling operations, accounts & tags (`tag_entity`), reply agents, and monitored posts.
 - Resources: `socialworker://feeds`, `socialworker://workflows`, `socialworker://drafts/{id}`, `socialworker://audits/{workflowId}`, `socialworker://media/{id}`.
 - Standard MCP Auth (Claude & Google Gemini Compatible):
   - Google Gemini Custom Connections (Google Help 17209137): Full support for connecting via Gemini Custom Apps (`gemini.google.com/settings` or Enterprise) using Streamable HTTP (`/mcp` or `/api/mcp`), automatic discovery, pre-registered `gemini`/`google` client IDs, and dynamic client identity URLs (`accountlinking.google.com`).

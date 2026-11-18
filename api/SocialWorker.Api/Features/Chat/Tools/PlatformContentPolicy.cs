@@ -22,7 +22,8 @@ public sealed class PlatformContentPolicy
             new LinkedInPlatformContentPolicy(),
             new InstagramPlatformContentPolicy(),
             new FacebookPlatformContentPolicy(),
-            new MetaThreadsPlatformContentPolicy()
+            new MetaThreadsPlatformContentPolicy(),
+            new MastodonPlatformContentPolicy()
         })
     {
     }

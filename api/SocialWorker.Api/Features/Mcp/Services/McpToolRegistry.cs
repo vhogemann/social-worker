@@ -192,7 +192,7 @@ public sealed class McpToolRegistry
                 "properties": {
                     "title": { "type": "string", "description": "Title of the draft." },
                     "content": { "type": "string", "description": "Initial markdown content for the thread segments." },
-                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn')." },
+                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn', 'Mastodon')." },
                     "accountId": { "type": "string", "description": "Optional connected account ID to associate with the draft. If omitted and platform is specified, automatically resolves the account tagged 'default'." },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Optional list of tags for organizing drafts (defaults to ['ad-hoc']). Tag 'default' or custom tags can be assigned." }
                 },
@@ -215,7 +215,7 @@ public sealed class McpToolRegistry
                 "type": "object",
                 "properties": {
                     "draftId": { "type": "string", "description": "The UUID of the draft to validate." },
-                    "platform": { "type": "string", "description": "Target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn'). Defaults to the draft's designated platform." }
+                    "platform": { "type": "string", "description": "Target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn', 'Mastodon'). Defaults to the draft's designated platform." }
                 },
                 "required": ["draftId"]
             }
@@ -928,7 +928,7 @@ public sealed class McpToolRegistry
                 "properties": {
                     "draftId": { "type": "string", "description": "The UUID of the draft to schedule." },
                     "publishAt": { "type": "string", "description": "ISO 8601 UTC date-time string when the post should be published (must be in future)." },
-                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn')." },
+                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn', 'Mastodon')." },
                     "accountId": { "type": "string", "description": "Optional account ID to publish with." },
                     "scheduleId": { "type": "string", "description": "Optional schedule ID. If omitted, uses active user schedule or creates default." }
                 },

@@ -18,18 +18,3 @@ public class FacebookPublisher : IPublisher
         });
     }
 }
-
-public class InstagramPublisher : IPublisher
-{
-    public string Platform => "Instagram";
-
-    public Task<PublishResult> PublishAsync(PlatformThread thread, Account account, CancellationToken ct = default)
-    {
-        return Task.FromResult(new PublishResult
-        {
-            Success = false,
-            ErrorMessage = "Not Implemented",
-            AuthUrl = "https://api.instagram.com/oauth/authorize?placeholder"
-        });
-    }
-}

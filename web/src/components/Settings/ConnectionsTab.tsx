@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faTrashCan, faShareNodes, faRotateRight, faTags, faStar } from "@fortawesome/free-solid-svg-icons";
-import { type AccountDto, listAccounts, saveAccount, deleteAccount, updateAccountTags, getLinkedInAuthUrl, getMetaThreadsAuthUrl, getTwitterAuthUrl, getInstagramAuthUrl } from "../../api/accounts";
+import { type AccountDto, listAccounts, saveAccount, deleteAccount, updateAccountTags, getLinkedInAuthUrl, getMetaThreadsAuthUrl, getTwitterAuthUrl, getInstagramAuthUrl, getMastodonAuthUrl } from "../../api/accounts";
 import { PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 import { Modal } from "../common/Modal";
 import { TagInput } from "../common/TagInput";
@@ -23,6 +23,8 @@ export function ConnectionsTab() {
   const [newConnectionTags, setNewConnectionTags] = useState<string[]>([]);
   const [tagModalAccount, setTagModalAccount] = useState<AccountDto | null>(null);
   const [linkedInType, setLinkedInType] = useState<"personal" | "company">("personal");
+  const [mastodonInstance, setMastodonInstance] = useState("mastodon.social");
+  const [mastodonAuthMode, setMastodonAuthMode] = useState<"oauth" | "token">("oauth");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchAccounts = async () => {
@@ -48,6 +50,8 @@ export function ConnectionsTab() {
     setAppPassword("");
     setNewConnectionTags([]);
     setLinkedInType("personal");
+    setMastodonInstance("mastodon.social");
+    setMastodonAuthMode("oauth");
     setModalError(null);
     setIsAddModalOpen(true);
   };
@@ -142,6 +146,25 @@ export function ConnectionsTab() {
       }
     } catch (err: any) {
       setModalError(err.message || "Failed to initiate Instagram connection.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleMastodonConnect = async () => {
+    if (!mastodonInstance.trim()) {
+      setModalError("Please enter your Mastodon instance domain (e.g. mastodon.social).");
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      setModalError(null);
+      const data = await getMastodonAuthUrl(mastodonInstance.trim());
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (err: any) {
+      setModalError(err.message || "Failed to initiate Mastodon connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -347,6 +370,7 @@ export function ConnectionsTab() {
               <option value="LinkedIn">LinkedIn</option>
               <option value="MetaThreads">Threads</option>
               <option value="Instagram">Instagram</option>
+              <option value="Mastodon">Mastodon</option>
             </select>
           </div>
 
@@ -403,6 +427,109 @@ export function ConnectionsTab() {
               <p className="text-[11px] text-muted font-sans leading-normal text-center">
                 You will be redirected to Meta to authorize posting permissions for your Threads account.
               </p>
+            </div>
+          ) : platform === "Mastodon" ? (
+            <div className="pt-2 space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMastodonAuthMode("oauth");
+                    setModalError(null);
+                  }}
+                  className={`py-2 px-3 text-xs font-medium rounded-lg border text-left transition-colors ${
+                    mastodonAuthMode === "oauth"
+                      ? "border-accent bg-accent/10 text-foreground font-semibold"
+                      : "border-border bg-bg text-muted hover:text-foreground"
+                  }`}
+                >
+                  <div className="font-sans font-semibold">OAuth 2.0</div>
+                  <div className="text-[10px] text-muted font-normal mt-0.5">Authorize via instance</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMastodonAuthMode("token");
+                    setModalError(null);
+                  }}
+                  className={`py-2 px-3 text-xs font-medium rounded-lg border text-left transition-colors ${
+                    mastodonAuthMode === "token"
+                      ? "border-accent bg-accent/10 text-foreground font-semibold"
+                      : "border-border bg-bg text-muted hover:text-foreground"
+                  }`}
+                >
+                  <div className="font-sans font-semibold">Access Token</div>
+                  <div className="text-[10px] text-muted font-normal mt-0.5">Manual developer token</div>
+                </button>
+              </div>
+
+              {mastodonAuthMode === "oauth" ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
+                      Instance Domain
+                    </label>
+                    <input
+                      type="text"
+                      value={mastodonInstance}
+                      onChange={(e) => setMastodonInstance(e.target.value)}
+                      placeholder="mastodon.social"
+                      disabled={isSubmitting}
+                      className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-mono"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleMastodonConnect}
+                    disabled={isSubmitting}
+                    className="w-full inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs py-2.5 px-4 rounded-lg transition duration-150 disabled:opacity-50 font-mono uppercase tracking-wider gap-2 shadow-sm"
+                  >
+                    <FontAwesomeIcon icon={PLATFORM_ICONS.Mastodon} className="w-4 h-4 text-white" />
+                    <span>{isSubmitting ? "Redirecting..." : "Connect with Mastodon"}</span>
+                  </button>
+                  <p className="text-[11px] text-muted font-sans leading-normal text-center">
+                    You will be redirected to your Mastodon instance to authorize posting permissions.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
+                      Mastodon Handle
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={handle}
+                      onChange={(e) => setHandle(e.target.value)}
+                      placeholder="@user@mastodon.social"
+                      disabled={isSubmitting}
+                      className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
+                      Access Token
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={appPassword}
+                      onChange={(e) => setAppPassword(e.target.value)}
+                      placeholder="Paste access token from Preferences -> Development"
+                      disabled={isSubmitting}
+                      className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-mono"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !handle || !appPassword}
+                    className="w-full bg-accent hover:bg-accent-hover text-accent-foreground font-semibold text-xs py-2.5 px-4 rounded-lg transition duration-150 disabled:opacity-50 font-mono uppercase tracking-wider"
+                  >
+                    {isSubmitting ? "Verifying..." : "Verify & Save Mastodon Account"}
+                  </button>
+                </div>
+              )}
             </div>
           ) : platform === "LinkedIn" ? (
             <div className="pt-2 space-y-4">
@@ -469,7 +596,7 @@ export function ConnectionsTab() {
                   <span>Instagram Professional Connection</span>
                 </div>
                 <p>
-                  Connect your Instagram Professional (Creator or Business) account via Meta Graph API to ingest posts and media from any public creator or politician.
+                  Connect your Instagram Professional (Creator or Business) account via Meta Graph API to publish image posts/carousels and ingest content.
                 </p>
               </div>
 
@@ -516,7 +643,7 @@ export function ConnectionsTab() {
                     className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent disabled:opacity-50 font-sans"
                   />
                   <p className="mt-1 text-[11px] text-muted font-sans leading-normal">
-                    Generate an access token with <code className="text-foreground">instagram_basic</code> and <code className="text-foreground">pages_show_list</code> permissions.
+                    Generate an access token with <code className="text-foreground">instagram_business_basic</code> and <code className="text-foreground">instagram_business_content_publish</code> permissions.
                   </p>
                 </div>
                 <button

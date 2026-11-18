@@ -84,7 +84,7 @@ export function MarkdownEditor() {
     if (!file) return;
 
     const ext = file.name.split(".").pop()?.toLowerCase();
-    const isImage = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext || "");
+    const isImage = ["jpg", "jpeg", "png", "webp", "gif", "bmp"].includes(ext || "");
     const isDoc = ["pdf", "txt", "md"].includes(ext || "");
 
     if (!isImage && !isDoc) {

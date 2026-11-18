@@ -53,6 +53,7 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - `LinkedInPublisher`: Personal profile and organization company page authoring.
   - `MetaThreadsPublisher`: Multi-post threads, carousel containers, media container status polling, and token refreshing.
   - `TwitterPublisher`: OAuth 2.0 PKCE, tweet thread replies, 280 weighted-char limits, and media upload.
+  - `MastodonPublisher`: Federated dynamic OAuth 2.0 (`/api/v1/apps`) + access token fallback, public root / unlisted reply threads, 500-char / 23-char URL validation, media `202` polling, and `Idempotency-Key` support.
   - `Resilience/PublishResumePlanner`: Checkpoints publishing progress per segment; allows resuming failed multi-post threads without duplicating already-posted segments.
 - **`Sources/` & `Sources/Instagram/`**: Source ingestion for URLs, uploaded files, and social profiles.
   - `InstagramBusinessDiscoveryClient`: Queries Meta Graph API for public business/creator profiles, reels, and media.
@@ -62,7 +63,7 @@ Endpoints and domain logic are structured into vertical feature folders under `F
 - **`Workflows/`**: Automated source-to-draft generation pipeline. Implements `IWorkflowSourceHandler` (e.g. `FeedWorkflowSourceHandler`, `DigestWorkflowSourceHandler`) to process feed items into formatted thread drafts using prompt templates.
 - **`ReplyAgents/`**: Autonomous reply agent library (`ReplyAgent`, `WorkflowCommentThread`, `WorkflowCommentAudit`).
   - Many-to-one workflow assignment: Workflows point to `ReplyAgentId` (nullable FK).
-  - `IReplyPlatformAdapter`: Multi-platform abstraction for fetching post reply trees and publishing comments (implements `BlueskyReplyAdapter`, `MetaThreadsReplyAdapter`, Twitter/LinkedIn stubs).
+  - `IReplyPlatformAdapter`: Multi-platform abstraction for fetching post reply trees and publishing comments (implements `BlueskyReplyAdapter`, `MetaThreadsReplyAdapter`, `TwitterReplyAdapter`, `MastodonReplyAdapter`, LinkedIn stub).
   - `CommentEnrichmentService`: Pre-fetches context for links (via `WebScraperService`) and images (via vision LLM).
   - `CommentRankingService`: Two-phase evaluation, scoring 1-10, intent classification, and terminal closure detection.
   - `ReplyGenerationService`: Persona-prompted reply synthesis.

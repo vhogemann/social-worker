@@ -76,7 +76,10 @@ public sealed class ReplyGenerationService : IReplyGenerationService
 
         var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
 
-        var maxChars = string.Equals(platform, "MetaThreads", StringComparison.OrdinalIgnoreCase) ? 500 : 300;
+        var maxChars = string.Equals(platform, "MetaThreads", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(platform, "Mastodon", StringComparison.OrdinalIgnoreCase)
+            ? 500
+            : 300;
 
         var availableTools = new List<OpenAiModels.OpenAiTool>();
 

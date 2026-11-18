@@ -18,6 +18,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<IReplyPlatformAdapter, MetaThreadsReplyAdapter>();
         builder.Services.AddScoped<IReplyPlatformAdapter, TwitterReplyAdapter>();
         builder.Services.AddScoped<IReplyPlatformAdapter, LinkedInReplyAdapter>();
+        builder.Services.AddScoped<IReplyPlatformAdapter, MastodonReplyAdapter>();
         builder.Services.AddScoped<IReplyPlatformAdapterResolver, ReplyPlatformAdapterResolver>();
 
         builder.Services.AddScoped<ICommentEnrichmentService, CommentEnrichmentService>();

@@ -25,6 +25,7 @@ export function useSourcesPanelManager() {
   } = useComposerDraft();
 
   const uploadFileSource = useDraftStore((s) => s.uploadFileSource);
+  const uploadMediaAsset = useDraftStore((s) => s.uploadMediaAsset);
   const deleteMediaAsset = useDraftStore((s) => s.deleteMediaAsset);
 
   const [expanded, setExpanded] = useState(false);
@@ -133,17 +134,33 @@ export function useSourcesPanelManager() {
     const file = e.target.files?.[0];
     if (!file || !activeDraftId) return;
 
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    const isImage =
+      file.type.startsWith("image/") ||
+      ["jpg", "jpeg", "png", "webp", "gif", "bmp"].includes(ext || "");
+
     setUploading(true);
     try {
-      const res = await uploadFileSource(activeDraftId, file);
+      let markdownToInsert = "";
+      if (isImage) {
+        const res = await uploadMediaAsset(activeDraftId, file);
+        markdownToInsert = res.markdownTag;
+      } else {
+        const res = await uploadFileSource(activeDraftId, file);
+        await loadSources();
+        markdownToInsert = res.markdownLink;
+      }
       const currentDoc = doc;
       const separator = currentDoc ? "\n\n" : "";
-      const newDoc = `${currentDoc}${separator}${res.markdownLink}`;
+      const newDoc = `${currentDoc}${separator}${markdownToInsert}`;
       setDoc(newDoc);
     } catch (err) {
       console.error("Failed to upload file source: ", err);
     } finally {
       setUploading(false);
+      if (e.target) {
+        e.target.value = "";
+      }
     }
   };
 

@@ -128,6 +128,35 @@ public class InstagramOAuthService
         return result ?? new InstagramTokenResponse(shortToken, "Bearer", 3600);
     }
 
+    public virtual async Task<InstagramTokenResponse> RefreshTokenAsync(string currentToken, CancellationToken ct = default)
+    {
+        if (!_options.OAuthBaseUrl.Contains("instagram.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return new InstagramTokenResponse(currentToken, "Bearer", null);
+        }
+
+        var igBase = _options.InstagramGraphBaseUrl.TrimEnd('/') + "/";
+        var url = $"{igBase}refresh_access_token?grant_type=ig_refresh_token&access_token={Uri.EscapeDataString(currentToken)}";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        var response = await _http.SendAsync(request, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("Instagram token refresh failed ({StatusCode}): {Body}", response.StatusCode, body);
+            throw new InvalidOperationException($"Instagram token refresh failed: {ExtractErrorMessage(body)}");
+        }
+
+        var result = JsonSerializer.Deserialize<InstagramTokenResponse>(body);
+        if (result == null || string.IsNullOrWhiteSpace(result.AccessToken))
+        {
+            throw new InvalidOperationException("Instagram token refresh response was empty or missing access token.");
+        }
+
+        return result;
+    }
+
     public async Task<(string IgUserId, string Username, string? PageToken)> DiscoverInstagramAccountAsync(string userToken, CancellationToken ct = default)
     {
         if (_options.OAuthBaseUrl.Contains("instagram.com", StringComparison.OrdinalIgnoreCase))

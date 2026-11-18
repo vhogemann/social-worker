@@ -12,11 +12,13 @@ using Microsoft.Extensions.Options;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
+using SocialWorker.Api.Features.Publishing.Mastodon;
 using SocialWorker.Api.Features.Publishing.MetaThreads;
 using SocialWorker.Api.Features.Publishing.Twitter;
 using SocialWorker.Api.Features.Sources.Instagram;
 using SocialWorker.Api.Infrastructure.Security;
 using SocialWorker.Api.Infrastructure;
+using SocialWorker.Api.Infrastructure.Services;
 using SocialWorker.Api.Infrastructure.Tags;
 using System.Text.Json;
 
@@ -75,6 +77,9 @@ public static class AccountsEndpoint
             }
 
             string? externalId = null;
+            var handleToStore = req.Handle;
+            var secretToStore = req.AppPassword;
+
             if (req.Platform.Equals("Instagram", StringComparison.OrdinalIgnoreCase))
             {
                 var igClient = sp.GetService<IInstagramDiscoveryClient>();
@@ -89,9 +94,45 @@ public static class AccountsEndpoint
                     }
                 }
             }
+            else if (req.Platform.Equals("Mastodon", StringComparison.OrdinalIgnoreCase))
+            {
+                var mastodonOAuth = sp.GetService<MastodonOAuthService>();
+                if (mastodonOAuth == null)
+                {
+                    return Results.Problem("Mastodon OAuth service is not configured.");
+                }
 
-            var encryptedPassword = CryptoHelper.EncryptString(req.AppPassword, encryptionKey);
-            await upsertService.UpsertAsync(userId.Value, req.Platform, req.Handle, encryptedPassword, externalId: externalId, tags: req.Tags);
+                var rawInstance = MastodonOAuthService.TryExtractInstanceFromHandle(req.Handle);
+                if (string.IsNullOrWhiteSpace(rawInstance))
+                {
+                    return Results.BadRequest(new ApiErrorResponse("Mastodon handle must include an instance domain (e.g. @user@mastodon.social)."));
+                }
+
+                string instanceUrl;
+                try
+                {
+                    instanceUrl = MastodonOAuthService.NormalizeInstanceUrl(rawInstance);
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(new ApiErrorResponse(ex.Message));
+                }
+
+                try
+                {
+                    var profile = await mastodonOAuth.VerifyCredentialsAsync(instanceUrl, req.AppPassword);
+                    externalId = profile.Id;
+                    handleToStore = MastodonOAuthService.FormatHandle(profile.Username, instanceUrl);
+                    secretToStore = JsonSerializer.Serialize(new MastodonCredentials(instanceUrl, req.AppPassword));
+                }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(new ApiErrorResponse($"Could not verify Mastodon access token: {ex.Message}"));
+                }
+            }
+
+            var encryptedPassword = CryptoHelper.EncryptString(secretToStore, encryptionKey);
+            await upsertService.UpsertAsync(userId.Value, req.Platform, handleToStore, encryptedPassword, externalId: externalId, tags: req.Tags);
             await db.SaveChangesAsync();
             return Results.Ok();
         });
@@ -469,6 +510,118 @@ public static class AccountsEndpoint
             await db.SaveChangesAsync(ct);
             return Results.Ok(new InstagramCallbackResponse(igUserId, username, expiresAt));
         });
+
+        group.MapGet("/mastodon/auth-url", async (
+            string instance,
+            ClaimsPrincipal user,
+            OAuthStateService oauthStateService,
+            MastodonOAuthService mastodonOAuth,
+            IOptions<MastodonOptions> mastodonOptions,
+            IAppUrlResolver urlResolver,
+            CancellationToken ct) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            string instanceUrl;
+            try
+            {
+                instanceUrl = MastodonOAuthService.NormalizeInstanceUrl(instance);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new ApiErrorResponse(ex.Message));
+            }
+
+            var redirectUri = !string.IsNullOrWhiteSpace(mastodonOptions.Value.RedirectUri)
+                ? mastodonOptions.Value.RedirectUri
+                : $"{urlResolver.GetWebBaseUrl()}/oauth/callback/mastodon";
+
+            var app = await mastodonOAuth.RegisterAppAsync(instanceUrl, redirectUri, ct);
+            var payload = JsonSerializer.Serialize(new MastodonOAuthStatePayload(
+                instanceUrl,
+                app.ClientId,
+                app.ClientSecret,
+                redirectUri));
+            var nonce = await oauthStateService.IssueAsync(userId.Value, "mastodon", payload);
+            var authUrl = mastodonOAuth.GetAuthorizationUrl(instanceUrl, app.ClientId, redirectUri, nonce);
+
+            return Results.Ok(new { authUrl });
+        });
+
+        group.MapPost("/mastodon/callback", async (
+            MastodonCallbackRequest req,
+            ClaimsPrincipal user,
+            OAuthStateService oauthStateService,
+            AccountUpsertService upsertService,
+            MastodonOAuthService mastodonOAuth,
+            AppDbContext db,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(req.Code))
+            {
+                return Results.BadRequest(new ApiErrorResponse("Authorization code is required."));
+            }
+
+            if (string.IsNullOrWhiteSpace(req.State))
+            {
+                return Results.BadRequest(new ApiErrorResponse("OAuth state parameter is required."));
+            }
+
+            var oauthState = await oauthStateService.ConsumeAsync(userId.Value, "mastodon", req.State, ct);
+            if (oauthState is null)
+            {
+                return Results.BadRequest(new ApiErrorResponse("Invalid or expired OAuth state parameter."));
+            }
+
+            MastodonOAuthStatePayload? statePayload;
+            try
+            {
+                statePayload = JsonSerializer.Deserialize<MastodonOAuthStatePayload>(oauthState.PayloadJson ?? string.Empty);
+            }
+            catch
+            {
+                statePayload = null;
+            }
+
+            if (statePayload is null || string.IsNullOrWhiteSpace(statePayload.InstanceUrl) || string.IsNullOrWhiteSpace(statePayload.ClientId))
+            {
+                return Results.BadRequest(new ApiErrorResponse("Missing Mastodon instance metadata in OAuth state."));
+            }
+
+            var encryptionKey = config["Auth:DbEncryptionKey"];
+            if (string.IsNullOrEmpty(encryptionKey))
+            {
+                return Results.Problem("Server encryption key not configured.");
+            }
+
+            var tokenResp = await mastodonOAuth.ExchangeCodeAsync(
+                statePayload.InstanceUrl,
+                statePayload.ClientId,
+                statePayload.ClientSecret,
+                statePayload.RedirectUri,
+                req.Code,
+                ct);
+            var profile = await mastodonOAuth.VerifyCredentialsAsync(statePayload.InstanceUrl, tokenResp.AccessToken, ct);
+            var handle = MastodonOAuthService.FormatHandle(profile.Username, statePayload.InstanceUrl);
+            var credentialsJson = JsonSerializer.Serialize(new MastodonCredentials(statePayload.InstanceUrl, tokenResp.AccessToken));
+            var encryptedCredentials = CryptoHelper.EncryptString(credentialsJson, encryptionKey);
+
+            await upsertService.UpsertAsync(
+                userId: userId.Value,
+                platform: "Mastodon",
+                handle: handle,
+                credentialsEncrypted: encryptedCredentials,
+                externalId: profile.Id,
+                ct: ct);
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new MastodonCallbackResponse(profile.Id, handle, statePayload.InstanceUrl));
+        });
     }
 }
 
@@ -480,5 +633,8 @@ public record MetaThreadsCallbackResponse(string ExternalId, string Username, Da
 
 public record TwitterCallbackRequest(string Code, string State);
 public record TwitterCallbackResponse(string ExternalId, string Username, DateTime TokenExpiresAt);
+
+public record MastodonCallbackRequest(string Code, string State);
+public record MastodonCallbackResponse(string ExternalId, string Handle, string InstanceUrl);
 
 public record AccountRequest(string Platform, string Handle, string AppPassword, List<string>? Tags = null);

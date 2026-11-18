@@ -21,6 +21,8 @@ public sealed class SocialPlatformParserTests
     [InlineData("linkedin", SocialPlatform.LinkedIn)]
     [InlineData("facebook", SocialPlatform.Facebook)]
     [InlineData("instagram", SocialPlatform.Instagram)]
+    [InlineData("mastodon", SocialPlatform.Mastodon)]
+    [InlineData("Mastodon", SocialPlatform.Mastodon)]
     public void TryParse_ValidInput_ReturnsExpectedPlatform(string input, SocialPlatform expected)
     {
         var result = SocialPlatformParser.TryParse(input, out var platform);
@@ -34,7 +36,7 @@ public sealed class SocialPlatformParserTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("unknown")]
-    [InlineData("mastodon")]
+    [InlineData("tiktok")]
     public void TryParse_InvalidInput_ReturnsFalse(string? input)
     {
         var result = SocialPlatformParser.TryParse(input, out var platform);

@@ -68,7 +68,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
             },
             "platforms": {
               "type": "array",
-              "items": { "type": "string", "enum": ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads", "Threads"] },
+              "items": { "type": "string", "enum": ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads", "Threads", "Mastodon"] },
               "description": "Target platforms to generate variants for."
             }
           },

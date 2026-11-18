@@ -15,7 +15,7 @@ public sealed class FormatValidatePlatformContentToolTests
         var tool = new FormatValidatePlatformContentTool(new PlatformContentPolicy());
 
         var result = await tool.ExecuteAsync(
-            new FormatValidatePlatformContentArgs("Mastodon", "Hello world", true),
+            new FormatValidatePlatformContentArgs("UnknownPlatform", "Hello world", true),
             SocialWorker.Api.Features.Chat.Models.ToolExecutionContext.Create(Guid.NewGuid(), null));
 
         Assert.False(result.IsValid);

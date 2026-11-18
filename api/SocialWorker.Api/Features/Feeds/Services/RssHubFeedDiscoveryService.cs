@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using CodeHollow.FeedReader;
@@ -12,6 +13,10 @@ public class RssHubFeedDiscoveryService
 {
     private const string BrowserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
     private const string RedditUserAgent = "social-worker/1.0 (feed-reader; contact: admin@social-worker.local)";
+
+    private static readonly Regex MastodonProfileRegex = new(
+        @"^/@(?<user>[A-Za-z0-9_.-]+)(?:/.*)?$",
+        RegexOptions.Compiled);
 
     private readonly IRssHubRouteResolver _routeResolver;
     private readonly IInstagramDiscoveryClient? _instagramClient;
@@ -32,13 +37,36 @@ public class RssHubFeedDiscoveryService
 
     public bool CanHandle(Uri uri, string rawUrl)
     {
-        return _routeResolver.TryResolve(rawUrl, out _);
+        return _routeResolver.TryResolve(rawUrl, out _) || TryBuildMastodonRssUrl(uri, out _, out _);
     }
 
     public async Task<FeedDiscoveryResult> DiscoverAsync(string normalizedUrl, Uri uri, CancellationToken ct = default)
     {
         if (!_routeResolver.TryResolve(normalizedUrl, out var match))
         {
+            if (TryBuildMastodonRssUrl(uri, out var mastodonRssUrl, out var mastodonWebUrl))
+            {
+                try
+                {
+                    var mastodonFeed = await FeedReader.ReadAsync(mastodonRssUrl, ct, autoRedirect: true, userAgent: BrowserUserAgent);
+                    if (!string.IsNullOrWhiteSpace(mastodonFeed?.Title))
+                    {
+                        var title = mastodonFeed.Title.Trim();
+                        if (!title.Contains("Mastodon", StringComparison.OrdinalIgnoreCase))
+                        {
+                            title = $"{title} (Mastodon)";
+                        }
+                        return new FeedDiscoveryResult(mastodonRssUrl, title, mastodonWebUrl, true, null);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug(ex, "Live Mastodon RSS probe failed for {RssUrl}", mastodonRssUrl);
+                }
+
+                return new FeedDiscoveryResult(mastodonRssUrl, $"Mastodon ({uri.Host})", mastodonWebUrl, true, null);
+            }
+
             return new FeedDiscoveryResult(normalizedUrl, null, null, false, "URL does not match any supported platform route.");
         }
 
@@ -123,5 +151,34 @@ public class RssHubFeedDiscoveryService
 
         var remainder = canonicalFeedUrl[(colonIndex + 3)..].Trim('/');
         return remainder.StartsWith("r/", StringComparison.OrdinalIgnoreCase) ? remainder : remainder;
+    }
+
+    private static bool TryBuildMastodonRssUrl(Uri uri, out string rssUrl, out string webUrl)
+    {
+        rssUrl = string.Empty;
+        webUrl = string.Empty;
+
+        var host = uri.Host.ToLowerInvariant();
+        if (host.Contains("threads.net") ||
+            host.Contains("threads.com") ||
+            host.Contains("youtube.com") ||
+            host.Contains("tiktok.com") ||
+            host.Contains("instagram.com") ||
+            host.Contains("medium.com"))
+        {
+            return false;
+        }
+
+        var match = MastodonProfileRegex.Match(uri.AbsolutePath);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        var user = match.Groups["user"].Value;
+        var baseUrl = uri.IsDefaultPort ? $"https://{host}" : $"https://{host}:{uri.Port}";
+        webUrl = $"{baseUrl}/@{user}";
+        rssUrl = $"{webUrl}.rss";
+        return true;
     }
 }

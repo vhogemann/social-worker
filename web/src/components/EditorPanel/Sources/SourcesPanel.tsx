@@ -112,7 +112,7 @@ export const SourcesPanel: React.FC = () => {
             type="file"
             id="attach-source-file"
             className="hidden"
-            accept=".txt,.md,.pdf"
+            accept=".txt,.md,.pdf,.jpg,.jpeg,.png,.webp,.gif,.bmp,image/*"
             onChange={handleFileChange}
             disabled={uploading}
           />

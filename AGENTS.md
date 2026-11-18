@@ -2,7 +2,7 @@
 
 ## Project
 
-**social-worker** is a local-first, Docker-only multi-modal assistant for composing and publishing social media **threads**. A chat/composer UI lets the user draft a thread with LLM help, attach sources and media, adapt to each target platform, confirm, and publish. v1 ships Bluesky publishing working end-to-end; Twitter, LinkedIn, Facebook, Instagram are stubbed.
+**social-worker** is a local-first, Docker-only multi-modal assistant for composing and publishing social media **threads**. A chat/composer UI lets the user draft a thread with LLM help, attach sources and media, adapt to each target platform, confirm, and publish. Bluesky, LinkedIn, Meta Threads, Twitter / X, and Instagram publishing are implemented; Facebook publishing is stubbed/planned.
 
 ## Core workflow
 
@@ -20,7 +20,7 @@ Thread-first: a draft is an ordered thread of segments. Stages are explicit and 
 - **DB**: Postgres 16. Migrations run automatically via a one-shot `migrator` compose service on `docker compose up`.
 - **Stack**: .NET 10, ASP.NET Core Minimal API, EF Core + Postgres 16, Vite + React + TypeScript + Tailwind, SkiaSharp, SearXNG.
 - **Hosting**: Docker Compose only. NGINX serves the frontend and proxies `/api/` to the backend.
-- **v1 auth**: single-user, no auth. Platform tokens stored encrypted in Postgres (AES with env key).
+- **Auth**: JWT + admin password auth, SHA-256 hashed API keys (`sw_live_...`), and OAuth 2.1 for MCP. Platform tokens stored encrypted in Postgres (AES with env key).
 
 ## Running locally
 
@@ -123,8 +123,8 @@ No mandated test framework yet. When adding tests:
 **Builds and checks must run inside Docker, not on the host.** Do not invoke `dotnet`, `npm`, `npx`, or `tsc` directly on the host machine. The host may not have the required SDK/runtime versions and the dev environment must match prod. Use the compose images instead:
 
 - API build: `docker compose --profile tooling run --rm dotnet build`
-- API test: `docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj`
-- API build + test: `docker compose --profile tooling run --rm dotnet build && docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj`
+- API test: `docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj`
+- API build + test: `docker compose --profile tooling run --rm dotnet build && docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj`
 - Web test (Vitest): `docker compose --profile tooling run --rm web-test`
 - Web build & typecheck: `docker compose --profile tooling run --rm web-test "npm run build && npm run typecheck"` (or `docker compose build web`)
 - To generate EF migrations: `docker compose --profile tooling run --rm dotnet ef migrations add <Name>` (the `dotnet-ef` tool is installed in the api Dockerfile build stage; for first use in the `dotnet` service run `dotnet tool install --global dotnet-ef` then ensure `PATH="$PATH:/root/.dotnet/tools"`).
@@ -144,10 +144,10 @@ Definition of done:
 Concretely for API changes:
 
 1. `docker compose --profile tooling run --rm dotnet build` — confirm baseline compiles
-2. `docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj` — confirm baseline tests pass
+2. `docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj` — confirm baseline tests pass
 3. Make the change
 4. `docker compose --profile tooling run --rm dotnet build` — confirm change compiles
-5. `docker compose --profile tooling run --rm dotnet test SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj` — confirm tests still pass
+5. `docker compose --profile tooling run --rm dotnet test ../SocialWorker.Api.Tests/SocialWorker.Api.Tests.csproj` — confirm tests still pass
 
 This workflow applies to all changes, not just new features. The `dotnet` service is defined under `profiles: [tooling]` and never starts with `docker compose up` — it is only used via `docker compose --profile tooling run --rm`.
 
@@ -185,10 +185,6 @@ DEMO_LLM_PROFILE=getting-started docker compose -f docker-compose.e2e.yml run --
 DEMO_LLM_PROFILE=getting-started docker compose -f docker-compose.e2e.yml run --rm e2e npx playwright test
 ```
 
-## Out of scope for v1
+## Stubbed / Planned
 
-- Multi-user / auth.
-- Scheduling/calendar.
-- Analytics/inbox.
-- Image generation (attach files only).
-- Twitter/LinkedIn/Facebook/Instagram publishing (stubbed).
+- Facebook publishing (stubbed; see [PLAN.md](PLAN.md)).

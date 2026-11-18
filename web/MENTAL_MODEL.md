@@ -36,7 +36,7 @@ web/
 │   │   ├── EditorPanel/               # Markdown editor, platform preview, and sources drawer
 │   │   ├── Navigation/                # AppHeader, breadcrumbs, and route links
 │   │   ├── Outbox/                    # Scheduled post review outbox triage
-│   │   ├── Settings/                  # Platform connections (Bluesky, LinkedIn, Threads, Twitter, Instagram)
+│   │   ├── Settings/                  # Platform connections (Bluesky, LinkedIn, Threads, Twitter, Instagram, Mastodon)
 │   │   ├── TemplateStudio/            # Visual WYSIWYG canvas editor
 │   │   ├── WorkflowDetail/            # Execution history, triggers, and configuration
 │   │   ├── WorkflowsPanel/            # Feed automation workflow monitor
@@ -56,7 +56,7 @@ web/
 | `/workflows/:id` | `WorkflowDetail` | Detailed workflow metrics, trigger runs, logs |
 | `/templates` | `TemplateStudio` | Canvas-based template designer and previewer |
 | `/settings` | `SettingsPage` | User preferences, platform connections, brand voices, reply agents library, and feed subscriptions |
-| `/oauth/callback/*` | Callback pages | OAuth redirect handlers (Twitter, Threads, Instagram, LinkedIn) |
+| `/oauth/callback/*` | Callback pages | OAuth redirect handlers (Twitter, Threads, Instagram, LinkedIn, Mastodon) |
 
 ## State Management Architecture
 

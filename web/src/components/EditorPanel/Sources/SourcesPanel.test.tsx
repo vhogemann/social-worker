@@ -313,4 +313,67 @@ describe("SourcesPanel", () => {
       expect(screen.getByText("Transcript content in tab")).toBeInTheDocument();
     });
   });
+
+  it("allows image file types on the attach file input and uploads images via uploadMediaAsset", async () => {
+    const uploadMediaAsset = vi.fn().mockResolvedValue({
+      id: "asset-1",
+      markdownTag: "![photo](media://asset-1)",
+    });
+    const uploadFileSource = vi.fn();
+
+    useDraftStore.setState({
+      uploadMediaAsset: uploadMediaAsset as any,
+      uploadFileSource: uploadFileSource as any,
+    });
+
+    const { container } = render(
+      <MemoryRouter future={routerFuture}>
+        <SourcesPanel />
+      </MemoryRouter>
+    );
+
+    const fileInput = container.querySelector("#attach-source-file") as HTMLInputElement;
+    expect(fileInput).not.toBeNull();
+    expect(fileInput.accept).toContain("image/*");
+    expect(fileInput.accept).toContain(".png");
+    expect(fileInput.accept).toContain(".jpg");
+
+    const imageFile = new File(["img-bytes"], "photo.png", { type: "image/png" });
+    fireEvent.change(fileInput, { target: { files: [imageFile] } });
+
+    await waitFor(() => {
+      expect(uploadMediaAsset).toHaveBeenCalledWith("draft-1", imageFile);
+    });
+    expect(uploadFileSource).not.toHaveBeenCalled();
+    expect(mockSetDoc).toHaveBeenCalledWith("Draft content\n\n![photo](media://asset-1)");
+  });
+
+  it("uploads document files via uploadFileSource", async () => {
+    const uploadMediaAsset = vi.fn();
+    const uploadFileSource = vi.fn().mockResolvedValue({
+      sourceId: "source-2",
+      markdownLink: "[notes.txt](file://source-2)",
+    });
+
+    useDraftStore.setState({
+      uploadMediaAsset: uploadMediaAsset as any,
+      uploadFileSource: uploadFileSource as any,
+    });
+
+    const { container } = render(
+      <MemoryRouter future={routerFuture}>
+        <SourcesPanel />
+      </MemoryRouter>
+    );
+
+    const fileInput = container.querySelector("#attach-source-file") as HTMLInputElement;
+    const docFile = new File(["hello"], "notes.txt", { type: "text/plain" });
+    fireEvent.change(fileInput, { target: { files: [docFile] } });
+
+    await waitFor(() => {
+      expect(uploadFileSource).toHaveBeenCalledWith("draft-1", docFile);
+    });
+    expect(uploadMediaAsset).not.toHaveBeenCalled();
+    expect(mockSetDoc).toHaveBeenCalledWith("Draft content\n\n[notes.txt](file://source-2)");
+  });
 });

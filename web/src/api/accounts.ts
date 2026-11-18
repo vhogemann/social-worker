@@ -161,3 +161,30 @@ export async function submitInstagramCallback(code: string, state: string): Prom
   return res.json();
 }
 
+export interface MastodonCallbackResponse {
+  externalId: string;
+  handle: string;
+  instanceUrl: string;
+}
+
+export async function getMastodonAuthUrl(instance: string): Promise<{ authUrl: string }> {
+  const res = await apiFetch(`/api/accounts/mastodon/auth-url?instance=${encodeURIComponent(instance)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || err?.message || "Failed to fetch Mastodon auth URL");
+  }
+  return res.json();
+}
+
+export async function submitMastodonCallback(code: string, state: string): Promise<MastodonCallbackResponse> {
+  const res = await apiFetch("/api/accounts/mastodon/callback", {
+    method: "POST",
+    body: JSON.stringify({ code, state }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || err?.message || "Failed to exchange Mastodon auth code");
+  }
+  return res.json();
+}
+

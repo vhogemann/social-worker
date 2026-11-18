@@ -48,7 +48,8 @@ public enum SocialPlatform
     LinkedIn,
     Facebook,
     Instagram,
-    MetaThreads
+    MetaThreads,
+    Mastodon
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

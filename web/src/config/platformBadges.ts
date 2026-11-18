@@ -3,6 +3,7 @@ import {
   faFacebook,
   faInstagram,
   faLinkedin,
+  faMastodon,
   faThreads,
   faXTwitter,
 } from "@fortawesome/free-brands-svg-icons";
@@ -16,6 +17,7 @@ export const PLATFORM_BADGE_COLORS: Record<string, string> = {
   Instagram: "bg-pink-500/15 text-pink-400 border border-pink-500/30",
   MetaThreads: "bg-zinc-800 text-zinc-100 border border-zinc-700",
   Threads: "bg-zinc-800 text-zinc-100 border border-zinc-700",
+  Mastodon: "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30",
 };
 
 export const PLATFORM_ICONS: Record<string, IconDefinition> = {
@@ -26,6 +28,7 @@ export const PLATFORM_ICONS: Record<string, IconDefinition> = {
   Instagram: faInstagram,
   MetaThreads: faThreads,
   Threads: faThreads,
+  Mastodon: faMastodon,
 };
 
 export function getPlatformLabel(platform?: string | null): string {

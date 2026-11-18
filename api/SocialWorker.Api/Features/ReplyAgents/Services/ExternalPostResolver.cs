@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,8 +9,10 @@ using Microsoft.Extensions.Logging;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
 using SocialWorker.Api.Features.Publishing.Bluesky;
+using SocialWorker.Api.Features.Publishing.Mastodon;
 using SocialWorker.Api.Features.Publishing.MetaThreads;
 using SocialWorker.Api.Features.ReplyAgents.Abstractions;
+using SocialWorker.Api.Features.ReplyAgents.Adapters;
 using SocialWorker.Api.Infrastructure.Security;
 
 namespace SocialWorker.Api.Features.ReplyAgents.Services;
@@ -28,9 +31,14 @@ public sealed class ExternalPostResolver : IExternalPostResolver
         @"https?://(?:www\.)?(?:twitter\.com|x\.com)/(?<user>[^/]+)/status/(?<id>[0-9]+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex MastodonUrlRegex = new(
+        @"^(?<instance>https?://[^/]+)/(?:@(?<user>[^/]+)/(?<id>[0-9]+)|users/(?<user>[^/]+)/statuses/(?<id>[0-9]+))",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private readonly AppDbContext _db;
     private readonly IBlueskyReplyTargetResolver _blueskyResolver;
     private readonly MetaThreadsApiClient? _threadsApiClient;
+    private readonly MastodonApiClient? _mastodonApiClient;
     private readonly IConfiguration? _config;
     private readonly ILogger<ExternalPostResolver> _logger;
 
@@ -39,13 +47,15 @@ public sealed class ExternalPostResolver : IExternalPostResolver
         IBlueskyReplyTargetResolver blueskyResolver,
         ILogger<ExternalPostResolver> logger,
         MetaThreadsApiClient? threadsApiClient = null,
-        IConfiguration? config = null)
+        IConfiguration? config = null,
+        MastodonApiClient? mastodonApiClient = null)
     {
         _db = db;
         _blueskyResolver = blueskyResolver;
         _logger = logger;
         _threadsApiClient = threadsApiClient;
         _config = config;
+        _mastodonApiClient = mastodonApiClient;
     }
 
     public async Task<PostResolutionResult> ResolveOrCreatePostAsync(
@@ -108,6 +118,18 @@ public sealed class ExternalPostResolver : IExternalPostResolver
             var tweetId = twitterMatch.Success ? twitterMatch.Groups["id"].Value : trimmed;
             var author = twitterMatch.Success ? twitterMatch.Groups["user"].Value : null;
             return await ResolveTwitterPostAsync(userId, trimmed, tweetId, author, ct);
+        }
+
+        var mastodonMatch = MastodonUrlRegex.Match(trimmed);
+        var isMastodon = mastodonMatch.Success
+            || string.Equals(platformHint, "Mastodon", StringComparison.OrdinalIgnoreCase);
+
+        if (isMastodon)
+        {
+            var instanceUrl = mastodonMatch.Success ? mastodonMatch.Groups["instance"].Value : null;
+            var statusId = mastodonMatch.Success ? mastodonMatch.Groups["id"].Value : trimmed;
+            var author = mastodonMatch.Success ? mastodonMatch.Groups["user"].Value : null;
+            return await ResolveMastodonPostAsync(userId, trimmed, instanceUrl, statusId, author, ct);
         }
 
         return PostResolutionResult.Fail("Unable to recognize or resolve the post URL. Supported platforms: Bluesky, Meta Threads, and Twitter/X.");
@@ -280,6 +302,80 @@ public sealed class ExternalPostResolver : IExternalPostResolver
             publishedText: null,
             url: canonicalUrl,
             authorHandle: author);
+
+        _db.Posts.Add(post);
+        await _db.SaveChangesAsync(ct);
+
+        return PostResolutionResult.Ok(post);
+    }
+
+    private async Task<PostResolutionResult> ResolveMastodonPostAsync(
+        Guid userId,
+        string url,
+        string? instanceUrl,
+        string statusId,
+        string? author,
+        CancellationToken ct)
+    {
+        var existing = await _db.Posts
+            .FirstOrDefaultAsync(p => (p.RemoteId == statusId || p.Url == url)
+                && (p.UserId == userId || (p.Draft != null && p.Draft.UserId == userId)), ct);
+
+        if (existing != null)
+        {
+            return PostResolutionResult.Ok(existing);
+        }
+
+        string? publishedText = null;
+        string? resolvedAuthor = author;
+        string resolvedUrl = url;
+
+        if (!string.IsNullOrWhiteSpace(instanceUrl) && _mastodonApiClient != null)
+        {
+            try
+            {
+                string? accessToken = null;
+                var encryptionKey = _config?["Auth:DbEncryptionKey"] ?? _config?["PLATFORM_CREDENTIALS_KEY"] ?? string.Empty;
+                if (!string.IsNullOrEmpty(encryptionKey))
+                {
+                    var mastodonAccount = await _db.Accounts
+                        .FirstOrDefaultAsync(a => a.UserId == userId && a.Platform == "Mastodon", ct);
+                    if (mastodonAccount != null)
+                    {
+                        var decrypted = CryptoHelper.DecryptString(mastodonAccount.CredentialsEncrypted, encryptionKey);
+                        var creds = JsonSerializer.Deserialize<MastodonCredentials>(decrypted);
+                        if (creds != null && string.Equals(creds.InstanceUrl.TrimEnd('/'), instanceUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+                        {
+                            accessToken = creds.AccessToken;
+                        }
+                    }
+                }
+
+                var statusRes = await _mastodonApiClient.GetStatusAsync(instanceUrl, accessToken, statusId, ct);
+                if (statusRes.Success && statusRes.Data != null)
+                {
+                    publishedText = MastodonReplyAdapter.StripHtml(statusRes.Data.Content);
+                    resolvedAuthor = statusRes.Data.Account?.Acct ?? statusRes.Data.Account?.Username ?? resolvedAuthor;
+                    if (!string.IsNullOrWhiteSpace(statusRes.Data.Url))
+                    {
+                        resolvedUrl = statusRes.Data.Url;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch Mastodon status {StatusId} metadata from {Instance}", statusId, instanceUrl);
+            }
+        }
+
+        var post = Post.CreateExternal(
+            userId: userId,
+            platform: "Mastodon",
+            remoteId: statusId,
+            remoteCid: null,
+            publishedText: publishedText,
+            url: resolvedUrl,
+            authorHandle: resolvedAuthor);
 
         _db.Posts.Add(post);
         await _db.SaveChangesAsync(ct);

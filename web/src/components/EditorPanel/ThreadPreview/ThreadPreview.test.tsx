@@ -167,4 +167,17 @@ Second segment`} />);
     expect(screen.getByTestId("twitter-preview")).toBeInTheDocument();
     expect(screen.queryByText(/maximum of 4 images per tweet/i)).not.toBeInTheDocument();
   });
+
+  it("renders Mastodon preview when targetPlatform is Mastodon", () => {
+    useDraftStore.setState((s) => ({
+      ...s,
+      drafts: s.drafts.map((d) =>
+        d.id === "draft-1" ? { ...d, targetPlatform: "Mastodon" } : d
+      ),
+    }));
+
+    render(<ThreadPreview content="Hello Fediverse!" />);
+
+    expect(screen.getByTestId("mastodon-preview")).toBeInTheDocument();
+  });
 });

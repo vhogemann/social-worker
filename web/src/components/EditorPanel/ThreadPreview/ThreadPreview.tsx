@@ -2,6 +2,7 @@ import React from "react";
 import { useDraftStore } from "../../../store/draftStore";
 import { BlueskyThreadPreview } from "./BlueskyThreadPreview";
 import { LinkedInPostPreview } from "./LinkedInPostPreview";
+import { MastodonThreadPreview } from "./MastodonThreadPreview";
 import { MetaThreadsPostPreview } from "./MetaThreadsPostPreview";
 import { TwitterThreadPreview } from "./TwitterThreadPreview";
 
@@ -25,6 +26,10 @@ export const ThreadPreview: React.FC<ThreadPreviewProps> = ({ content }) => {
 
   if (platform === "twitter" || platform === "x") {
     return <TwitterThreadPreview content={content} />;
+  }
+
+  if (platform === "mastodon") {
+    return <MastodonThreadPreview content={content} />;
   }
 
   return <BlueskyThreadPreview content={content} />;

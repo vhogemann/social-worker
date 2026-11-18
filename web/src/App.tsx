@@ -20,6 +20,7 @@ import { LinkedInCallbackPage } from "./components/Settings/LinkedInCallbackPage
 import { MetaThreadsCallbackPage } from "./components/Settings/MetaThreadsCallbackPage";
 import { TwitterCallbackPage } from "./components/Settings/TwitterCallbackPage";
 import { InstagramCallbackPage } from "./components/Settings/InstagramCallbackPage";
+import { MastodonCallbackPage } from "./components/Settings/MastodonCallbackPage";
 import { GlobalErrorToaster } from "./components/common/GlobalErrorToaster";
 
 export default function App() {
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/oauth/callback/threads" element={<MetaThreadsCallbackPage />} />
           <Route path="/oauth/callback/twitter" element={<TwitterCallbackPage />} />
           <Route path="/oauth/callback/instagram" element={<InstagramCallbackPage />} />
+          <Route path="/oauth/callback/mastodon" element={<MastodonCallbackPage />} />
         </Routes>
         <GlobalErrorToaster />
       </AppLayout>

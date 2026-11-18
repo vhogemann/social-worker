@@ -5,6 +5,10 @@ using SocialWorker.Api.Features.Publishing.Bluesky.Validation.Rules;
 using SocialWorker.Api.Features.Publishing.Validation;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
+using SocialWorker.Api.Features.Publishing.Instagram;
+using SocialWorker.Api.Features.Publishing.Instagram.Validation;
+using SocialWorker.Api.Features.Publishing.Mastodon;
+using SocialWorker.Api.Features.Publishing.Mastodon.Validation;
 using SocialWorker.Api.Features.Publishing.MetaThreads;
 using SocialWorker.Api.Features.Publishing.Twitter;
 using SocialWorker.Api.Features.Publishing.Resilience;
@@ -19,10 +23,13 @@ static partial class ServiceCollectionExtensions
         builder.Services.Configure<LinkedInOptions>(builder.Configuration.GetSection(LinkedInOptions.SectionName));
         builder.Services.Configure<MetaThreadsOptions>(builder.Configuration.GetSection(MetaThreadsOptions.SectionName));
         builder.Services.Configure<TwitterOptions>(builder.Configuration.GetSection(TwitterOptions.SectionName));
+        builder.Services.Configure<MastodonOptions>(builder.Configuration.GetSection(MastodonOptions.SectionName));
         builder.Services.AddHttpClient<MetaThreadsOAuthService>();
         builder.Services.AddHttpClient<TwitterOAuthService>();
+        builder.Services.AddHttpClient<MastodonOAuthService>();
         builder.Services.AddScoped<ITokenRefresher, MetaThreadsTokenRefresher>();
         builder.Services.AddScoped<ITokenRefresher, TwitterTokenRefresher>();
+        builder.Services.AddScoped<ITokenRefresher, InstagramTokenRefresher>();
         builder.Services.AddHostedService<TokenRefreshHostedService>();
         builder.Services.AddSingleton<PlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, BlueskyPlatformContentPolicy>();
@@ -31,6 +38,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddSingleton<IPlatformContentPolicy, InstagramPlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, FacebookPlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, MetaThreadsPlatformContentPolicy>();
+        builder.Services.AddSingleton<IPlatformContentPolicy, MastodonPlatformContentPolicy>();
         builder.Services.AddSingleton<BlueskyContentValidator>();
         builder.Services.AddSingleton<IValidateDraftRule<BlueskySegmentValidation>, BlueskyMaxCharactersRule>();
         builder.Services.AddSingleton<IValidateDraftRule<BlueskySegmentValidation>, BlueskyMaxImagesRule>();
@@ -47,6 +55,8 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<LinkedInDraftValidator>();
         builder.Services.AddScoped<SocialWorker.Api.Features.Publishing.MetaThreads.Validation.MetaThreadsDraftValidator>();
         builder.Services.AddScoped<SocialWorker.Api.Features.Publishing.Twitter.Validation.TwitterDraftValidator>();
+        builder.Services.AddScoped<InstagramDraftValidator>();
+        builder.Services.AddScoped<MastodonDraftValidator>();
         builder.Services.AddScoped<IDraftValidatorResolver, DraftValidatorResolver>();
         builder.Services.AddScoped<PublishValidationService>();
         builder.Services.AddScoped<PublishOutcomeRecorder>();
@@ -64,8 +74,11 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<IPublisher, LinkedInPublisher>();
         builder.Services.AddHttpClient<MetaThreadsApiClient>();
         builder.Services.AddScoped<IPublisher, MetaThreadsPublisher>();
-        builder.Services.AddScoped<IPublisher, FacebookPublisher>();
+        builder.Services.AddHttpClient<InstagramApiClient>();
         builder.Services.AddScoped<IPublisher, InstagramPublisher>();
+        builder.Services.AddHttpClient<MastodonApiClient>();
+        builder.Services.AddScoped<IPublisher, MastodonPublisher>();
+        builder.Services.AddScoped<IPublisher, FacebookPublisher>();
         builder.Services.AddScoped<IPublisherResolver, PublisherResolver>();
     }
 }

@@ -21,6 +21,7 @@ This file is the single source of truth for roadmap status and planning links.
 - Instagram Profile Sources via Meta Business Discovery API (Graph API client, credential provider, auto caller ID resolution, feed discovery & polling, setup guide): [planning/INSTAGRAM_PROFILE_SOURCES.md](planning/INSTAGRAM_PROFILE_SOURCES.md), [docs/INSTAGRAM_SETUP.md](docs/INSTAGRAM_SETUP.md)
 - Twitter / X support (OAuth 2.0 PKCE, refresh token rotation, chained reply tweets, 280 weighted-char validation, t.co budgeting, live X thread preview): [planning/TWITTER_SUPPORT.md](planning/TWITTER_SUPPORT.md)
 - Meta Threads support (OAuth lifecycle, multi-post thread publishing, carousel media, resilient resume, 500-char validation): [planning/THREADS_SUPPORT.md](planning/THREADS_SUPPORT.md)
+- Instagram publishing support (single-image & 2–10 image carousel container publishing, polling, `InstagramDraftValidator`, token refresh): [planning/INSTAGRAM_SUPPORT.md](planning/INSTAGRAM_SUPPORT.md)
 - Content Calendar & Scheduled Publishing Engine (Cronos recurrence, slot window pacing, BackgroundTasks queue, Review Outbox, Tailwind-native calendar UI): [planning/SCHEDULING_CALENDAR.md](planning/SCHEDULING_CALENDAR.md)
 - Drafts Page card grid, full-width 2-pane Composer, and workflow-grounded routing: [planning/archive/DRAFTS_PAGE_AND_WORKFLOW_ROUTING.md](planning/archive/DRAFTS_PAGE_AND_WORKFLOW_ROUTING.md)
 - Durable PostgreSQL `SKIP LOCKED` task queue for horizontal scaling: [planning/archive/DURABLE_POSTGRES_QUEUE.md](planning/archive/DURABLE_POSTGRES_QUEUE.md)
@@ -57,8 +58,7 @@ Status: `Planned`
 
 1. Meta platform integration: shared Meta OAuth + Instagram publisher + Facebook publisher (see [META_OAUTH.md](planning/META_OAUTH.md), [INSTAGRAM_SUPPORT.md](planning/INSTAGRAM_SUPPORT.md), [FACEBOOK_SUPPORT.md](planning/FACEBOOK_SUPPORT.md)).
 2. Thread reordering and multi-draft workflow improvements.
-3. Scheduled publishing.
-4. Publishing UX refinements around review/confirm before send.
+3. Publishing UX refinements around review/confirm before send.
 
 Scope guardrails:
 
@@ -69,9 +69,8 @@ Scope guardrails:
 
 Status: `Deferred`
 
-1. Additional publishers: Twitter/X.
-2. Advanced runtime ideas: sandbox/tool runtime evolution.
-3. External interfaces and multi-user/team workflows.
+1. Advanced runtime ideas: sandbox/tool runtime evolution.
+2. External interfaces and multi-user/team workflows.
 
 ## Active planning documents
 

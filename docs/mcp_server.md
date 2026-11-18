@@ -39,17 +39,17 @@ Além de ferramentas (`tools`), o servidor implementa o protocolo de recursos (`
 
 ---
 
-## 2. Catálogo Completo de Ferramentas (76 Ferramentas)
+## 2. Catálogo Completo de Ferramentas (78 Ferramentas)
 
-As 74 ferramentas estão organizadas em 9 domínios funcionais:
+As 78 ferramentas estão organizadas em 9 domínios funcionais:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                 DOMÍNIOS DO MCP REGISTRY                    │
 ├──────────────────────────────┬──────────────────────────────┤
-│ 1. Rascunhos & Threads (10)  │ 6. Agendamento & Fila (16)   │
-│ 2. Mídia & Visual (14)       │ 7. Contas Sociais (1)        │
-│ 3. Fontes & Pesquisa (5)     │ 8. Reply Agents (8)          │
+│ 1. Rascunhos & Threads (11)  │ 6. Agendamento & Fila (16)   │
+│ 2. Mídia & Visual (15)       │ 7. Contas & Tags (2)         │
+│ 3. Fontes & Pesquisa (6)     │ 8. Reply Agents (8)          │
 │ 4. Feeds & Descoberta (6)    │ 9. Auditoria & Posts (6)     │
 │ 5. Workflows & Curação (8)   │                              │
 └──────────────────────────────┴──────────────────────────────┘
