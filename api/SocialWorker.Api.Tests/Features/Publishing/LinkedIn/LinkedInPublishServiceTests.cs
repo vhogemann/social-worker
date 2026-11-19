@@ -106,33 +106,50 @@ public sealed class LinkedInPublishServiceTests : SqliteTestBase
         var dummyBytes = new byte[] { 1, 2, 3, 4 };
         await storage.WriteFileAsync("test-images/pic.png", dummyBytes);
 
+        string? capturedRegisterBody = null;
+        string? capturedUploadAuthHeader = null;
+        string? capturedUploadCustomHeader = null;
+        string? capturedUploadContentType = null;
+        string? capturedUgcBody = null;
+
         var handler = new MockHttpMessageHandler(req =>
         {
             if (req.RequestUri!.AbsoluteUri.Contains("registerUpload"))
             {
-                var registerResponse = new LinkedInRegisterUploadResponse
-                {
-                    Value = new LinkedInRegisterUploadValue
+                capturedRegisterBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                var rawLinkedInResponse = """
                     {
-                        Asset = "urn:li:digitalmediaAsset:1111",
-                        UploadMechanism = new LinkedInUploadMechanism
-                        {
-                            MediaUploadMechanism = new LinkedInMediaUploadMechanism
-                            {
-                                UploadUrl = "https://api.linkedin.com/upload-here",
-                                Headers = new Dictionary<string, string> { { "X-Test-Header", "Value" } }
+                      "value": {
+                        "asset": "urn:li:digitalmediaAsset:1111",
+                        "uploadMechanism": {
+                          "com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest": {
+                            "uploadUrl": "https://api.linkedin.com/upload-here",
+                            "headers": {
+                              "media-type-family": "STILLIMAGE"
                             }
+                          }
                         }
+                      }
                     }
+                    """;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(rawLinkedInResponse, Encoding.UTF8, "application/json")
                 };
-                return JsonResponse(registerResponse);
             }
             if (req.RequestUri!.AbsoluteUri.Contains("upload-here"))
             {
-                return new HttpResponseMessage(HttpStatusCode.OK);
+                capturedUploadAuthHeader = req.Headers.Authorization?.ToString();
+                if (req.Headers.TryGetValues("media-type-family", out var values))
+                {
+                    capturedUploadCustomHeader = string.Join(",", values);
+                }
+                capturedUploadContentType = req.Content?.Headers.ContentType?.MediaType;
+                return new HttpResponseMessage(HttpStatusCode.Created);
             }
             if (req.RequestUri!.AbsolutePath.Contains("ugcPosts"))
             {
+                capturedUgcBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
                 return JsonResponse(new LinkedInUgcPostResponse { Id = "urn:li:share:999" });
             }
             return new HttpResponseMessage(HttpStatusCode.BadRequest);
@@ -154,9 +171,32 @@ public sealed class LinkedInPublishServiceTests : SqliteTestBase
                 ct: default
             );
 
-            Assert.True(result.Success);
+            Assert.True(result.Success, result.ErrorMessage);
             Assert.Single(result.Posts);
             Assert.Equal("urn:li:share:999", result.Posts[0].RemoteId);
+
+            Assert.NotNull(capturedRegisterBody);
+            using var registerDoc = JsonDocument.Parse(capturedRegisterBody!);
+            Assert.True(registerDoc.RootElement.TryGetProperty("registerUploadRequest", out var registerReq));
+            Assert.Equal("urn:li:person:abcdef", registerReq.GetProperty("owner").GetString());
+            Assert.Equal("urn:li:digitalmediaRecipe:feedshare-image", registerReq.GetProperty("recipes")[0].GetString());
+            Assert.Equal("SYNCHRONOUS_UPLOAD", registerReq.GetProperty("supportedUploadMechanism")[0].GetString());
+            var relationships = registerReq.GetProperty("serviceRelationships");
+            Assert.Equal(1, relationships.GetArrayLength());
+            Assert.Equal("OWNER", relationships[0].GetProperty("relationshipType").GetString());
+            Assert.Equal("urn:li:userGeneratedContent", relationships[0].GetProperty("identifier").GetString());
+
+            Assert.Equal("Bearer my-token", capturedUploadAuthHeader);
+            Assert.Equal("STILLIMAGE", capturedUploadCustomHeader);
+            Assert.Equal("image/png", capturedUploadContentType);
+
+            Assert.NotNull(capturedUgcBody);
+            using var ugcDoc = JsonDocument.Parse(capturedUgcBody!);
+            var shareContent = ugcDoc.RootElement
+                .GetProperty("specificContent")
+                .GetProperty("com.linkedin.ugc.ShareContent");
+            Assert.Equal("IMAGE", shareContent.GetProperty("shareMediaCategory").GetString());
+            Assert.Equal("urn:li:digitalmediaAsset:1111", shareContent.GetProperty("media")[0].GetProperty("media").GetString());
         }
         finally
         {

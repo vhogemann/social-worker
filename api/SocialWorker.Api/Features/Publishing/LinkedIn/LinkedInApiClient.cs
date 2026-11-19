@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace SocialWorker.Api.Features.Publishing.LinkedIn;
 
@@ -13,10 +14,12 @@ public sealed record LinkedInApiCallResult<T>(bool Success, T? Value = default, 
 public sealed class LinkedInApiClient
 {
     private readonly HttpClient _http;
+    private readonly ILogger<LinkedInApiClient>? _logger;
 
-    public LinkedInApiClient(HttpClient http)
+    public LinkedInApiClient(HttpClient http, ILogger<LinkedInApiClient>? logger = null)
     {
         _http = http;
+        _logger = logger;
     }
 
     public async Task<LinkedInApiCallResult<LinkedInRegisterUploadResponse>> RegisterUploadAsync(
@@ -26,7 +29,7 @@ public sealed class LinkedInApiClient
     {
         var req = new LinkedInRegisterUploadRequest
         {
-            RegisterRequest = new LinkedInRegisterRequest
+            RegisterUploadRequest = new LinkedInRegisterRequest
             {
                 Owner = ownerUrn
             }
@@ -41,12 +44,14 @@ public sealed class LinkedInApiClient
         if (!res.IsSuccessStatusCode)
         {
             var err = await res.Content.ReadAsStringAsync(ct);
+            _logger?.LogWarning("LinkedIn registerUpload failed with {StatusCode}: {ErrorBody}", (int)res.StatusCode, err);
             return new LinkedInApiCallResult<LinkedInRegisterUploadResponse>(false, Error: $"Failed to register image upload: {err}");
         }
 
         var data = await res.Content.ReadFromJsonAsync<LinkedInRegisterUploadResponse>(cancellationToken: ct);
-        if (data?.Value?.Asset == null || data.Value.UploadMechanism?.MediaUploadMechanism?.UploadUrl == null)
+        if (data?.Value?.Asset == null || data.Value.UploadMechanism?.MediaUploadHttpRequest?.UploadUrl == null)
         {
+            _logger?.LogWarning("LinkedIn registerUpload returned an invalid response payload.");
             return new LinkedInApiCallResult<LinkedInRegisterUploadResponse>(false, Error: "Invalid upload registration response from LinkedIn.");
         }
 
@@ -57,27 +62,40 @@ public sealed class LinkedInApiClient
         string uploadUrl,
         byte[] bytes,
         string mimeType,
+        string token,
         Dictionary<string, string>? headers,
         CancellationToken ct)
     {
+        var contentType = string.IsNullOrWhiteSpace(mimeType) ? "application/octet-stream" : mimeType;
         using var content = new ByteArrayContent(bytes);
-        content.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
+        content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
 
         using var message = new HttpRequestMessage(HttpMethod.Put, uploadUrl);
         message.Content = content;
 
+        var hasAuthorizationHeader = false;
         if (headers != null)
         {
             foreach (var header in headers)
             {
+                if (string.Equals(header.Key, "Authorization", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasAuthorizationHeader = true;
+                }
                 message.Headers.TryAddWithoutValidation(header.Key, header.Value);
             }
+        }
+
+        if (!hasAuthorizationHeader && !string.IsNullOrWhiteSpace(token))
+        {
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
 
         var res = await _http.SendAsync(message, ct);
         if (!res.IsSuccessStatusCode)
         {
             var err = await res.Content.ReadAsStringAsync(ct);
+            _logger?.LogWarning("LinkedIn binary image upload failed with {StatusCode}: {ErrorBody}", (int)res.StatusCode, err);
             return new LinkedInApiCallResult<bool>(false, Error: $"Binary upload to LinkedIn failed: {err}");
         }
 
@@ -98,6 +116,7 @@ public sealed class LinkedInApiClient
         if (!res.IsSuccessStatusCode)
         {
             var err = await res.Content.ReadAsStringAsync(ct);
+            _logger?.LogWarning("LinkedIn ugcPosts publish failed with {StatusCode}: {ErrorBody}", (int)res.StatusCode, err);
             return new LinkedInApiCallResult<string>(false, Error: $"LinkedIn publish request failed: {err}");
         }
 

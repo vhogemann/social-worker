@@ -127,11 +127,11 @@ public sealed class LinkedInPublishService
                     return new PublishResult { Success = false, ErrorMessage = registerRes.Error ?? "Failed to register upload." };
                 }
 
-                var uploadUrl = registerRes.Value.Value.UploadMechanism!.MediaUploadMechanism!.UploadUrl!;
-                var headers = registerRes.Value.Value.UploadMechanism.MediaUploadMechanism.Headers;
+                var uploadUrl = registerRes.Value.Value.UploadMechanism!.MediaUploadHttpRequest!.UploadUrl!;
+                var headers = registerRes.Value.Value.UploadMechanism.MediaUploadHttpRequest.Headers;
                 var assetUrn = registerRes.Value.Value.Asset!;
 
-                var uploadRes = await _apiClient.UploadBinaryAsync(uploadUrl, bytes, asset.MimeType, headers, ct);
+                var uploadRes = await _apiClient.UploadBinaryAsync(uploadUrl, bytes, asset.MimeType, token, headers, ct);
                 if (!uploadRes.Success)
                 {
                     return new PublishResult { Success = false, ErrorMessage = uploadRes.Error ?? "Failed to upload image binary." };

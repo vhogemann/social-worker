@@ -94,6 +94,35 @@ public sealed class ThreadMarkdownDocumentTests
         Assert.Equal("Look at this image:", seg.PlainText);
     }
 
+    [Theory]
+    [InlineData("https://social.plopsaurus.xyz/api/media/{0}")]
+    [InlineData("http://localhost:8100/api/media/{0}")]
+    [InlineData("/api/media/{0}")]
+    public void Parse_ApiMediaUrlEmbeds_ExtractsGuidsAndAlts(string urlTemplate)
+    {
+        var mediaId = Guid.NewGuid();
+        var url = string.Format(urlTemplate, mediaId);
+        var markdown = $"Check this out:\n\n![Visual Basic 6 IDE]({url})";
+        var doc = ThreadMarkdownDocument.Parse(markdown);
+
+        Assert.Single(doc.Segments);
+        var seg = doc.Segments[0];
+        Assert.Single(seg.MediaEmbeds);
+        Assert.Equal(mediaId, seg.MediaEmbeds[0].MediaId);
+        Assert.Equal("Visual Basic 6 IDE", seg.MediaEmbeds[0].AltText);
+        Assert.Equal("Check this out:", seg.PlainText);
+    }
+
+    [Fact]
+    public void Parse_ExternalImageUrl_DoesNotExtractMediaEmbed()
+    {
+        var markdown = "Look: ![Logo](https://example.com/images/logo.png)";
+        var doc = ThreadMarkdownDocument.Parse(markdown);
+
+        Assert.Single(doc.Segments);
+        Assert.Empty(doc.Segments[0].MediaEmbeds);
+    }
+
     [Fact]
     public void Parse_TextLinksAndHashtags_ComputesExactUtf8ByteOffsets()
     {

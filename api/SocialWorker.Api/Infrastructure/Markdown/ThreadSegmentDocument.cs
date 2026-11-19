@@ -234,13 +234,9 @@ public sealed class ThreadSegmentDocument
 
                 if (link.IsImage)
                 {
-                    if (url.StartsWith("media://", StringComparison.OrdinalIgnoreCase))
+                    if (TryExtractMediaId(url, out var mediaId))
                     {
-                        var idString = url.Substring("media://".Length).Trim();
-                        if (Guid.TryParse(idString, out var mediaId))
-                        {
-                            mediaEmbeds.Add(new MediaEmbedReference(mediaId, altOrLabel, link.Span.Start, link.Span.End));
-                        }
+                        mediaEmbeds.Add(new MediaEmbedReference(mediaId, altOrLabel, link.Span.Start, link.Span.End));
                     }
                     else if (IsYouTubeUrl(url))
                     {
@@ -320,6 +316,46 @@ public sealed class ThreadSegmentDocument
                     break;
             }
         }
+    }
+
+    public static bool TryExtractMediaId(string? url, out Guid mediaId)
+    {
+        mediaId = Guid.Empty;
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return false;
+        }
+
+        var trimmed = url.Trim();
+        if (trimmed.StartsWith("media://", StringComparison.OrdinalIgnoreCase))
+        {
+            return Guid.TryParse(trimmed.Substring("media://".Length).Trim('/'), out mediaId);
+        }
+
+        string path;
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absoluteUri) &&
+            (absoluteUri.Scheme == Uri.UriSchemeHttp || absoluteUri.Scheme == Uri.UriSchemeHttps))
+        {
+            path = absoluteUri.AbsolutePath;
+        }
+        else if (trimmed.StartsWith("/", StringComparison.Ordinal))
+        {
+            var queryIdx = trimmed.IndexOfAny(['?', '#']);
+            path = queryIdx >= 0 ? trimmed.Substring(0, queryIdx) : trimmed;
+        }
+        else
+        {
+            return false;
+        }
+
+        const string mediaPrefix = "/api/media/";
+        if (!path.StartsWith(mediaPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var idPart = path.Substring(mediaPrefix.Length).Trim('/');
+        return Guid.TryParse(idPart, out mediaId);
     }
 
     public static bool IsYouTubeUrl(string? url)

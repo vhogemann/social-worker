@@ -95,8 +95,8 @@ public sealed class LinkedInUgcPostResponse
 
 public sealed class LinkedInRegisterUploadRequest
 {
-    [JsonPropertyName("registerRequest")]
-    public LinkedInRegisterRequest RegisterRequest { get; set; } = new();
+    [JsonPropertyName("registerUploadRequest")]
+    public LinkedInRegisterRequest RegisterUploadRequest { get; set; } = new();
 }
 
 public sealed class LinkedInRegisterRequest
@@ -107,8 +107,23 @@ public sealed class LinkedInRegisterRequest
     [JsonPropertyName("owner")]
     public string Owner { get; set; } = string.Empty;
 
+    [JsonPropertyName("serviceRelationships")]
+    public List<LinkedInServiceRelationship> ServiceRelationships { get; set; } = new()
+    {
+        new LinkedInServiceRelationship()
+    };
+
     [JsonPropertyName("supportedUploadMechanism")]
     public List<string> SupportedUploadMechanism { get; set; } = new() { "SYNCHRONOUS_UPLOAD" };
+}
+
+public sealed class LinkedInServiceRelationship
+{
+    [JsonPropertyName("relationshipType")]
+    public string RelationshipType { get; set; } = "OWNER";
+
+    [JsonPropertyName("identifier")]
+    public string Identifier { get; set; } = "urn:li:userGeneratedContent";
 }
 
 public sealed class LinkedInRegisterUploadResponse
@@ -128,8 +143,8 @@ public sealed class LinkedInRegisterUploadValue
 
 public sealed class LinkedInUploadMechanism
 {
-    [JsonPropertyName("com.linkedin.digitalmedia.uploading.MediaUploadMechanism")]
-    public LinkedInMediaUploadMechanism? MediaUploadMechanism { get; set; }
+    [JsonPropertyName("com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest")]
+    public LinkedInMediaUploadMechanism? MediaUploadHttpRequest { get; set; }
 }
 
 public sealed class LinkedInMediaUploadMechanism
