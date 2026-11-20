@@ -2,6 +2,7 @@ using System;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.Publishing.Bluesky.Validation;
+using SocialWorker.Api.Features.Publishing.GitHubBlog.Validation;
 using SocialWorker.Api.Features.Publishing.Instagram.Validation;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
 using SocialWorker.Api.Features.Publishing.Mastodon.Validation;
@@ -25,6 +26,7 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
     private readonly TwitterDraftValidator _twitterValidator;
     private readonly InstagramDraftValidator _instagramValidator;
     private readonly MastodonDraftValidator _mastodonValidator;
+    private readonly GitHubBlogDraftValidator _githubBlogValidator;
     private readonly PlatformPolicyDraftValidator _facebookValidator;
 
     public DraftValidatorResolver(
@@ -32,7 +34,7 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
         BlueskyDraftValidator blueskyDraftValidator,
         LinkedInDraftValidator linkedInDraftValidator,
         PlatformContentPolicy platformContentPolicy)
-        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, new MetaThreadsDraftValidator(), new TwitterDraftValidator(), new InstagramDraftValidator(), new MastodonDraftValidator(), platformContentPolicy)
+        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, new MetaThreadsDraftValidator(), new TwitterDraftValidator(), new InstagramDraftValidator(), new MastodonDraftValidator(), new GitHubBlogDraftValidator(), platformContentPolicy)
     {
     }
 
@@ -42,7 +44,7 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
         LinkedInDraftValidator linkedInDraftValidator,
         MetaThreadsDraftValidator threadsValidator,
         PlatformContentPolicy platformContentPolicy)
-        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, threadsValidator, new TwitterDraftValidator(), new InstagramDraftValidator(), new MastodonDraftValidator(), platformContentPolicy)
+        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, threadsValidator, new TwitterDraftValidator(), new InstagramDraftValidator(), new MastodonDraftValidator(), new GitHubBlogDraftValidator(), platformContentPolicy)
     {
     }
 
@@ -53,7 +55,7 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
         MetaThreadsDraftValidator threadsValidator,
         TwitterDraftValidator twitterValidator,
         PlatformContentPolicy platformContentPolicy)
-        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, threadsValidator, twitterValidator, new InstagramDraftValidator(), new MastodonDraftValidator(), platformContentPolicy)
+        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, threadsValidator, twitterValidator, new InstagramDraftValidator(), new MastodonDraftValidator(), new GitHubBlogDraftValidator(), platformContentPolicy)
     {
     }
 
@@ -65,7 +67,7 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
         TwitterDraftValidator twitterValidator,
         InstagramDraftValidator instagramValidator,
         PlatformContentPolicy platformContentPolicy)
-        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, threadsValidator, twitterValidator, instagramValidator, new MastodonDraftValidator(), platformContentPolicy)
+        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, threadsValidator, twitterValidator, instagramValidator, new MastodonDraftValidator(), new GitHubBlogDraftValidator(), platformContentPolicy)
     {
     }
 
@@ -78,6 +80,20 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
         InstagramDraftValidator instagramValidator,
         MastodonDraftValidator mastodonValidator,
         PlatformContentPolicy platformContentPolicy)
+        : this(canonicalDraftValidator, blueskyDraftValidator, linkedInDraftValidator, threadsValidator, twitterValidator, instagramValidator, mastodonValidator, new GitHubBlogDraftValidator(), platformContentPolicy)
+    {
+    }
+
+    public DraftValidatorResolver(
+        CanonicalDraftValidator canonicalDraftValidator,
+        BlueskyDraftValidator blueskyDraftValidator,
+        LinkedInDraftValidator linkedInDraftValidator,
+        MetaThreadsDraftValidator threadsValidator,
+        TwitterDraftValidator twitterValidator,
+        InstagramDraftValidator instagramValidator,
+        MastodonDraftValidator mastodonValidator,
+        GitHubBlogDraftValidator githubBlogValidator,
+        PlatformContentPolicy platformContentPolicy)
     {
         _canonicalDraftValidator = canonicalDraftValidator;
         _blueskyDraftValidator = blueskyDraftValidator;
@@ -86,6 +102,7 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
         _twitterValidator = twitterValidator;
         _instagramValidator = instagramValidator;
         _mastodonValidator = mastodonValidator;
+        _githubBlogValidator = githubBlogValidator;
         _facebookValidator = new PlatformPolicyDraftValidator(SocialPlatform.Facebook, platformContentPolicy);
     }
 
@@ -105,6 +122,7 @@ public sealed class DraftValidatorResolver : IDraftValidatorResolver
             SocialPlatform.Facebook => _facebookValidator,
             SocialPlatform.MetaThreads => _threadsValidator,
             SocialPlatform.Mastodon => _mastodonValidator,
+            SocialPlatform.GitHubBlog => _githubBlogValidator,
             _ => _canonicalDraftValidator
         };
     }

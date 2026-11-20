@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using SocialWorker.Api.Data;
 using SocialWorker.Api.Data.Entities;
+using SocialWorker.Api.Features.Publishing.GitHubBlog;
 using SocialWorker.Api.Features.Publishing.LinkedIn;
 using SocialWorker.Api.Features.Publishing.Mastodon;
 using SocialWorker.Api.Features.Publishing.MetaThreads;
@@ -621,6 +622,208 @@ public static class AccountsEndpoint
 
             await db.SaveChangesAsync(ct);
             return Results.Ok(new MastodonCallbackResponse(profile.Id, handle, statePayload.InstanceUrl));
+        });
+
+        group.MapPost("/github-blog", async (
+            ConnectGitHubBlogRequest req,
+            GitHubApiClient githubClient,
+            AccountUpsertService upsertService,
+            AppDbContext db,
+            ClaimsPrincipal user,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var encryptionKey = config["Auth:DbEncryptionKey"];
+            if (string.IsNullOrEmpty(encryptionKey))
+            {
+                return Results.Problem("Server encryption key not configured.");
+            }
+
+            var owner = req.Owner?.Trim() ?? string.Empty;
+            var repo = req.Repo?.Trim() ?? string.Empty;
+            var accessToken = req.AccessToken?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+            {
+                return Results.BadRequest(new ApiErrorResponse("GitHub repository owner and name are required."));
+            }
+
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                return Results.BadRequest(new ApiErrorResponse("GitHub Personal Access Token is required."));
+            }
+
+            var verifyResult = await githubClient.VerifyRepositoryAsync(owner, repo, accessToken, ct);
+            if (!verifyResult.Success || verifyResult.Data is null)
+            {
+                return Results.BadRequest(new ApiErrorResponse(verifyResult.Error ?? "Could not verify GitHub repository."));
+            }
+
+            var branch = string.IsNullOrWhiteSpace(req.Branch)
+                ? (string.IsNullOrWhiteSpace(verifyResult.Data.DefaultBranch) ? "main" : verifyResult.Data.DefaultBranch)
+                : req.Branch.Trim();
+
+            var preset = string.IsNullOrWhiteSpace(req.Preset) ? "jekyll" : req.Preset.Trim().ToLowerInvariant();
+            var credentials = new GitHubBlogCredentials(
+                Owner: owner,
+                Repo: repo,
+                Branch: branch,
+                AccessToken: accessToken,
+                Preset: preset,
+                PostsDirectory: GitHubBlogCredentials.NormalizeRepoDirectory(req.PostsDirectory, "_posts"),
+                AssetsDirectory: GitHubBlogCredentials.NormalizeRepoDirectory(req.AssetsDirectory, "assets/images/posts"),
+                SiteBaseUrl: string.IsNullOrWhiteSpace(req.SiteBaseUrl) ? null : req.SiteBaseUrl.Trim().TrimEnd('/'),
+                PermalinkFormat: string.IsNullOrWhiteSpace(req.PermalinkFormat) ? "/{year}/{month}/{day}/{slug}/" : req.PermalinkFormat.Trim(),
+                DefaultLayout: string.IsNullOrWhiteSpace(req.DefaultLayout) ? "post" : req.DefaultLayout.Trim(),
+                Author: string.IsNullOrWhiteSpace(req.Author) ? null : req.Author.Trim(),
+                DefaultCategories: req.DefaultCategories?.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.Trim()).ToList(),
+                SiteRootDirectory: GitHubBlogCredentials.NormalizeOptionalDirectory(req.SiteRootDirectory));
+
+            var handle = $"{owner}/{repo}";
+            var credentialsJson = JsonSerializer.Serialize(credentials);
+            var encryptedCredentials = CryptoHelper.EncryptString(credentialsJson, encryptionKey);
+            var externalId = verifyResult.Data.Id.ToString();
+
+            await upsertService.UpsertAsync(
+                userId: userId.Value,
+                platform: "GitHubBlog",
+                handle: handle,
+                credentialsEncrypted: encryptedCredentials,
+                externalId: externalId,
+                tags: req.Tags,
+                ct: ct);
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new GitHubBlogConnectionResponse(externalId, handle, branch, preset));
+        });
+
+        group.MapGet("/{id:guid}/github-blog-settings", async (
+            Guid id,
+            AppDbContext db,
+            ClaimsPrincipal user,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var encryptionKey = config["Auth:DbEncryptionKey"];
+            if (string.IsNullOrEmpty(encryptionKey))
+            {
+                return Results.Problem("Server encryption key not configured.");
+            }
+
+            var account = await db.Accounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId.Value && a.Platform == "GitHubBlog", ct);
+            if (account is null) return Results.NotFound();
+
+            try
+            {
+                var decrypted = CryptoHelper.DecryptString(account.CredentialsEncrypted, encryptionKey);
+                var creds = JsonSerializer.Deserialize<GitHubBlogCredentials>(decrypted);
+                if (creds is null)
+                {
+                    return Results.Problem("Stored GitHub Blog settings are invalid.");
+                }
+
+                return Results.Ok(new GitHubBlogSettingsDto(creds));
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem($"Could not read GitHub Blog settings: {ex.Message}");
+            }
+        });
+
+        group.MapPut("/{id:guid}/github-blog-settings", async (
+            Guid id,
+            UpdateGitHubBlogSettingsRequest req,
+            GitHubApiClient githubClient,
+            AppDbContext db,
+            ClaimsPrincipal user,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            var userId = user.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var encryptionKey = config["Auth:DbEncryptionKey"];
+            if (string.IsNullOrEmpty(encryptionKey))
+            {
+                return Results.Problem("Server encryption key not configured.");
+            }
+
+            var account = await db.Accounts
+                .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId.Value && a.Platform == "GitHubBlog", ct);
+            if (account is null) return Results.NotFound();
+
+            GitHubBlogCredentials existing;
+            try
+            {
+                var decrypted = CryptoHelper.DecryptString(account.CredentialsEncrypted, encryptionKey);
+                existing = JsonSerializer.Deserialize<GitHubBlogCredentials>(decrypted)
+                    ?? throw new InvalidOperationException("Empty GitHub Blog credentials.");
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem($"Could not read existing GitHub Blog settings: {ex.Message}");
+            }
+
+            var owner = string.IsNullOrWhiteSpace(req.Owner) ? existing.Owner : req.Owner.Trim();
+            var repo = string.IsNullOrWhiteSpace(req.Repo) ? existing.Repo : req.Repo.Trim();
+            var accessToken = string.IsNullOrWhiteSpace(req.AccessToken) ? existing.AccessToken : req.AccessToken.Trim();
+            var branch = string.IsNullOrWhiteSpace(req.Branch) ? existing.Branch : req.Branch.Trim();
+            var externalId = account.ExternalId;
+
+            var repoOrTokenChanged =
+                !string.Equals(owner, existing.Owner, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(repo, existing.Repo, StringComparison.OrdinalIgnoreCase) ||
+                !string.IsNullOrWhiteSpace(req.AccessToken);
+
+            if (repoOrTokenChanged)
+            {
+                var verifyResult = await githubClient.VerifyRepositoryAsync(owner, repo, accessToken, ct);
+                if (!verifyResult.Success || verifyResult.Data is null)
+                {
+                    return Results.BadRequest(new ApiErrorResponse(verifyResult.Error ?? "Could not verify GitHub repository."));
+                }
+
+                externalId = verifyResult.Data.Id.ToString();
+                if (string.IsNullOrWhiteSpace(req.Branch) && !string.IsNullOrWhiteSpace(verifyResult.Data.DefaultBranch))
+                {
+                    branch = verifyResult.Data.DefaultBranch;
+                }
+            }
+
+            var updated = new GitHubBlogCredentials(
+                Owner: owner,
+                Repo: repo,
+                Branch: branch,
+                AccessToken: accessToken,
+                Preset: string.IsNullOrWhiteSpace(req.Preset) ? existing.NormalizedPreset : req.Preset.Trim().ToLowerInvariant(),
+                PostsDirectory: GitHubBlogCredentials.NormalizeRepoDirectory(req.PostsDirectory, existing.NormalizedPostsDirectory),
+                AssetsDirectory: GitHubBlogCredentials.NormalizeRepoDirectory(req.AssetsDirectory, existing.NormalizedAssetsDirectory),
+                SiteBaseUrl: req.SiteBaseUrl is null ? existing.NormalizedSiteBaseUrl : (string.IsNullOrWhiteSpace(req.SiteBaseUrl) ? null : req.SiteBaseUrl.Trim().TrimEnd('/')),
+                PermalinkFormat: string.IsNullOrWhiteSpace(req.PermalinkFormat) ? existing.NormalizedPermalinkFormat : req.PermalinkFormat.Trim(),
+                DefaultLayout: string.IsNullOrWhiteSpace(req.DefaultLayout) ? existing.NormalizedDefaultLayout : req.DefaultLayout.Trim(),
+                Author: req.Author is null ? existing.Author : (string.IsNullOrWhiteSpace(req.Author) ? null : req.Author.Trim()),
+                DefaultCategories: req.DefaultCategories is null
+                    ? existing.DefaultCategories
+                    : req.DefaultCategories.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.Trim()).ToList(),
+                SiteRootDirectory: req.SiteRootDirectory is null
+                    ? existing.NormalizedSiteRootDirectory
+                    : GitHubBlogCredentials.NormalizeOptionalDirectory(req.SiteRootDirectory));
+
+            account.Handle = $"{owner}/{repo}";
+            account.ExternalId = externalId;
+            account.CredentialsEncrypted = CryptoHelper.EncryptString(JsonSerializer.Serialize(updated), encryptionKey);
+            account.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new GitHubBlogSettingsDto(updated));
         });
     }
 }

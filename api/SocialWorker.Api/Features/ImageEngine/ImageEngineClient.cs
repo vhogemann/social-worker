@@ -154,6 +154,52 @@ public sealed class ImageEngineClient : IImageEngineClient
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
 
+    public async Task<byte[]> RenderDiagramAsync(Diagrams.Models.DiagramRenderRequest request, CancellationToken ct = default)
+    {
+        var json = JsonSerializer.Serialize(request);
+        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.PostAsync("/render/diagram", content, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(ct);
+            if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                var syntaxMessage = ExtractDiagramSyntaxError(err);
+                throw new ArgumentException(syntaxMessage);
+            }
+
+            _logger.LogError("ImageEngine diagram render failed with status {Status}: {Error}", response.StatusCode, err);
+            throw new InvalidOperationException($"Diagram render failed: {response.StatusCode} - {err}");
+        }
+
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
+
+    private static string ExtractDiagramSyntaxError(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            var error = root.TryGetProperty("error", out var errProp) ? errProp.GetString() : null;
+            var hint = root.TryGetProperty("hint", out var hintProp) ? hintProp.GetString() : null;
+            if (!string.IsNullOrWhiteSpace(error) && !string.IsNullOrWhiteSpace(hint))
+            {
+                return $"{error} {hint}";
+            }
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                return error;
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return $"Invalid diagram request: {body}";
+    }
+
     public async Task<bool> HealthCheckAsync(CancellationToken ct = default)
     {
         try

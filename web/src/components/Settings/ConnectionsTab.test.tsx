@@ -13,15 +13,22 @@ vi.mock("../../api/accounts", () => ({
   getMetaThreadsAuthUrl: vi.fn(),
   getTwitterAuthUrl: vi.fn(),
   getInstagramAuthUrl: vi.fn(),
+  getMastodonAuthUrl: vi.fn(),
+  connectGitHubBlog: vi.fn(),
+  getGitHubBlogSettings: vi.fn(),
+  updateGitHubBlogSettings: vi.fn(),
 }));
 
-import { listAccounts, saveAccount, deleteAccount, updateAccountTags, getLinkedInAuthUrl, getMetaThreadsAuthUrl } from "../../api/accounts";
+import { listAccounts, saveAccount, deleteAccount, updateAccountTags, getLinkedInAuthUrl, getMetaThreadsAuthUrl, connectGitHubBlog, getGitHubBlogSettings, updateGitHubBlogSettings } from "../../api/accounts";
 const mockListAccounts = listAccounts as Mock;
 const mockSaveAccount = saveAccount as Mock;
 const mockDeleteAccount = deleteAccount as Mock;
 const mockUpdateAccountTags = updateAccountTags as Mock;
 const mockGetLinkedInAuthUrl = getLinkedInAuthUrl as Mock;
 const mockGetMetaThreadsAuthUrl = getMetaThreadsAuthUrl as Mock;
+const mockConnectGitHubBlog = connectGitHubBlog as Mock;
+const mockGetGitHubBlogSettings = getGitHubBlogSettings as Mock;
+const mockUpdateGitHubBlogSettings = updateGitHubBlogSettings as Mock;
 
 const makeAccount = (id = "a1") => ({
   id,
@@ -251,6 +258,114 @@ describe("ConnectionsTab", () => {
       expect(mockUpdateAccountTags).toHaveBeenCalledWith("a-default", {
         tags: ["default", "personal", "news"],
       });
+    });
+  });
+
+  it("connects a GitHub Blog repository via connectGitHubBlog", async () => {
+    mockListAccounts
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "gh-1",
+          platform: "GitHubBlog",
+          handle: "alice/alice.github.io",
+          status: "Active",
+          createdAt: "2026-11-19",
+          updatedAt: "2026-11-19",
+        },
+      ]);
+    mockConnectGitHubBlog.mockResolvedValueOnce({
+      externalId: "999",
+      handle: "alice/alice.github.io",
+      branch: "main",
+      preset: "jekyll",
+    });
+
+    render(<ConnectionsTab />);
+
+    const addBtn = await screen.findByRole("button", { name: /\+? ?add connection/i });
+    fireEvent.click(addBtn);
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "GitHubBlog" } });
+
+    await userEvent.type(screen.getByPlaceholderText("username/username.github.io"), "alice/alice.github.io");
+    await userEvent.type(screen.getByPlaceholderText("github_pat_..."), "github_pat_123");
+    await userEvent.type(screen.getByPlaceholderText("https://user.github.io"), "https://alice.github.io");
+
+    fireEvent.submit(screen.getByTestId("github-blog-connect-form"));
+
+    await waitFor(() => {
+      expect(mockConnectGitHubBlog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          owner: "alice",
+          repo: "alice.github.io",
+          accessToken: "github_pat_123",
+          siteBaseUrl: "https://alice.github.io",
+          preset: "jekyll",
+        })
+      );
+    });
+  });
+
+  it("edits an existing GitHub Blog connection without requiring a new PAT", async () => {
+    const ghAccount = {
+      id: "gh-1",
+      platform: "GitHubBlog",
+      handle: "alice/alice.github.io",
+      status: "Active",
+      createdAt: "2026-11-19",
+      updatedAt: "2026-11-19",
+    };
+    mockListAccounts.mockResolvedValue([ghAccount]);
+    mockGetGitHubBlogSettings.mockResolvedValueOnce({
+      owner: "alice",
+      repo: "alice.github.io",
+      branch: "main",
+      preset: "jekyll",
+      siteRootDirectory: "",
+      postsDirectory: "_posts",
+      assetsDirectory: "assets/images/posts",
+      siteBaseUrl: "https://alice.github.io",
+      permalinkFormat: "/{year}/{month}/{day}/{slug}/",
+      defaultLayout: "post",
+      author: "",
+      defaultCategories: [],
+    });
+    mockUpdateGitHubBlogSettings.mockResolvedValueOnce({
+      owner: "alice",
+      repo: "alice.github.io",
+      branch: "main",
+      preset: "jekyll",
+      siteRootDirectory: "docs",
+      postsDirectory: "_posts",
+      assetsDirectory: "assets/images/posts",
+      siteBaseUrl: "https://alice.github.io",
+      permalinkFormat: "/{year}/{month}/{day}/{slug}.html",
+      defaultLayout: "post",
+      author: "",
+      defaultCategories: [],
+    });
+
+    render(<ConnectionsTab />);
+
+    const editBtn = await screen.findByTestId("edit-github-blog-btn-gh-1");
+    fireEvent.click(editBtn);
+
+    const rootInput = await screen.findByPlaceholderText(/leave blank for repo root/i);
+    await userEvent.type(rootInput, "docs");
+
+    fireEvent.submit(screen.getByTestId("github-blog-connect-form"));
+
+    await waitFor(() => {
+      expect(mockUpdateGitHubBlogSettings).toHaveBeenCalledWith(
+        "gh-1",
+        expect.objectContaining({
+          owner: "alice",
+          repo: "alice.github.io",
+          accessToken: undefined,
+          siteRootDirectory: "docs",
+        })
+      );
     });
   });
 });

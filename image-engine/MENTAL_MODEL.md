@@ -26,13 +26,20 @@ image-engine/
 │   ├── routes/
 │   │   ├── health.ts                  # GET /health
 │   │   ├── render.ts                  # POST /render (declarative layer tree rendering)
+│   │   ├── chart.ts                   # POST /render/chart (Chart.js statistical charts)
+│   │   ├── diagram.ts                 # POST /render/diagram (Mermaid diagrams via beautiful-mermaid)
 │   │   └── transform.ts               # POST /transform (Sharp pipeline operations)
 │   ├── services/
 │   │   ├── template.service.ts        # Canvas drawing for backgrounds, shapes, text, and images
+│   │   ├── chart.service.ts           # Chart.js social card chart rendering
+│   │   ├── diagram.service.ts         # beautiful-mermaid SVG rendering + Sharp/Canvas social card framing
+│   │   ├── svg-css-resolver.ts        # Resolves CSS custom properties and color-mix() for librsvg
 │   │   └── transform.service.ts       # Sharp pipeline execution (resize, crop, format, composite)
 │   └── types/
-│       └── schema.ts                  # Zod validation schemas for templates and transforms
-└── tests/                             # Vitest unit & integration tests (14 tests in 3 files)
+│       ├── schema.ts                  # Zod validation schemas for templates and transforms
+│       ├── chart.ts                   # Zod schemas for statistical chart rendering
+│       └── diagram.ts                 # Zod schemas for Mermaid diagram rendering
+└── tests/                             # Vitest unit & integration tests (31 tests in 6 files)
 ```
 
 ## Core Pipelines

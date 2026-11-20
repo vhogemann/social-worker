@@ -188,3 +188,93 @@ export async function submitMastodonCallback(code: string, state: string): Promi
   return res.json();
 }
 
+export interface ConnectGitHubBlogRequest {
+  owner: string;
+  repo: string;
+  accessToken: string;
+  branch?: string;
+  siteRootDirectory?: string;
+  preset?: string;
+  postsDirectory?: string;
+  assetsDirectory?: string;
+  siteBaseUrl?: string;
+  permalinkFormat?: string;
+  defaultLayout?: string;
+  author?: string;
+  defaultCategories?: string[];
+  tags?: string[];
+}
+
+export interface GitHubBlogConnectionResponse {
+  externalId: string;
+  handle: string;
+  branch: string;
+  preset: string;
+}
+
+export async function connectGitHubBlog(req: ConnectGitHubBlogRequest): Promise<GitHubBlogConnectionResponse> {
+  const res = await apiFetch("/api/accounts/github-blog", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || err?.message || "Failed to connect GitHub Blog repository");
+  }
+  return res.json();
+}
+
+export interface GitHubBlogSettingsDto {
+  owner: string;
+  repo: string;
+  branch: string;
+  preset: string;
+  siteRootDirectory: string;
+  postsDirectory: string;
+  assetsDirectory: string;
+  siteBaseUrl?: string | null;
+  permalinkFormat: string;
+  defaultLayout: string;
+  author?: string | null;
+  defaultCategories: string[];
+}
+
+export interface UpdateGitHubBlogSettingsRequest {
+  owner?: string;
+  repo?: string;
+  accessToken?: string;
+  branch?: string;
+  preset?: string;
+  siteRootDirectory?: string;
+  postsDirectory?: string;
+  assetsDirectory?: string;
+  siteBaseUrl?: string;
+  permalinkFormat?: string;
+  defaultLayout?: string;
+  author?: string;
+  defaultCategories?: string[];
+}
+
+export async function getGitHubBlogSettings(accountId: string): Promise<GitHubBlogSettingsDto> {
+  const res = await apiFetch(`/api/accounts/${accountId}/github-blog-settings`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || err?.message || "Failed to load GitHub Blog settings");
+  }
+  return res.json();
+}
+
+export async function updateGitHubBlogSettings(
+  accountId: string,
+  req: UpdateGitHubBlogSettingsRequest
+): Promise<GitHubBlogSettingsDto> {
+  const res = await apiFetch(`/api/accounts/${accountId}/github-blog-settings`, {
+    method: "PUT",
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error || err?.message || "Failed to update GitHub Blog settings");
+  }
+  return res.json();
+}

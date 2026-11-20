@@ -180,4 +180,17 @@ Second segment`} />);
 
     expect(screen.getByTestId("mastodon-preview")).toBeInTheDocument();
   });
+
+  it("renders GitHub Blog preview when targetPlatform is GitHubBlog", () => {
+    useDraftStore.setState((s) => ({
+      ...s,
+      drafts: s.drafts.map((d) =>
+        d.id === "draft-1" ? { ...d, targetPlatform: "GitHubBlog" } : d
+      ),
+    }));
+
+    render(<ThreadPreview content={"# Hello Blog\n\nFull article content."} />);
+
+    expect(screen.getByTestId("github-blog-preview")).toBeInTheDocument();
+  });
 });

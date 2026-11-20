@@ -228,6 +228,17 @@ Renderiza dados estatísticos ou numéricos em imagem de gráfico em alta resolu
   - `aspectRatio` (*string, opcional*): Proporção do cartão (`16:9`, `1:1`, `4:5`). Padrão: `16:9`.
   - `cardStyle` (*boolean, opcional*): Se deve envolver o gráfico em um cartão estilizado para redes sociais. Padrão: `true`.
 
+#### 17. `render_diagram`
+Renderiza sintaxe Mermaid (`flowchart`/`graph`, `sequenceDiagram`, `stateDiagram-v2`, `classDiagram`, `erDiagram`) em imagem PNG de alta resolução com cartão social estilizado e anexa como ativo de mídia ao rascunho.
+- **Parâmetros**:
+  - `draftId` (*string, obrigatório*): UUID do rascunho.
+  - `code` (*string, obrigatório*): Definição do diagrama Mermaid.
+  - `title` (*string, opcional*): Título do cartão de diagrama.
+  - `subtitle` (*string, opcional*): Subtítulo ou legenda.
+  - `theme` (*string, opcional*): Tema visual (`dark`, `light` ou presets como `tokyo-night`, `dracula`, `nord`, `github-dark`, `github-light`, `catppuccin-mocha`, `zinc-dark`, `zinc-light`, `one-dark`, `solarized-dark`, `solarized-light`). Padrão: `dark`.
+  - `aspectRatio` (*string, opcional*): Proporção do cartão (`auto`, `16:9`, `1:1`, `4:5`). Padrão: `auto` (seleciona a melhor proporção social com base no diagrama).
+  - `cardStyle` (*boolean, opcional*): Se deve envolver o diagrama em um cartão estilizado para redes sociais. Padrão: `true`.
+
 #### 16. `search_images`
 Busca imagens na web via SearXNG para uso como referências ou anexos visuais.
 - **Parâmetros**:

@@ -1,4 +1,5 @@
 export { ThreadPreview } from "./ThreadPreview";
+export { GitHubBlogPreview, parseBlogDocument } from "./GitHubBlogPreview";
 export { MastodonThreadPreview, calculateMastodonLength } from "./MastodonThreadPreview";
 export { MetaThreadsPostPreview } from "./MetaThreadsPostPreview";
 export { TwitterThreadPreview, calculateTwitterWeight } from "./TwitterThreadPreview";

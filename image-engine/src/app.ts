@@ -6,6 +6,7 @@ import { healthRoutes } from './routes/health.js';
 import { transformRoutes } from './routes/transform.js';
 import { renderRoutes } from './routes/render.js';
 import { chartRoutes } from './routes/chart.js';
+import { diagramRoutes } from './routes/diagram.js';
 
 export function buildApp() {
   const fastify = Fastify({
@@ -32,6 +33,7 @@ export function buildApp() {
   fastify.register(transformRoutes);
   fastify.register(renderRoutes);
   fastify.register(chartRoutes);
+  fastify.register(diagramRoutes);
 
   return fastify;
 }

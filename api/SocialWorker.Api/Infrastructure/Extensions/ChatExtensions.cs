@@ -30,6 +30,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<IChatTool, ImageSearchTool>();
         builder.Services.AddScoped<IChatTool, RenderCodeBlocksTool>();
         builder.Services.AddScoped<IChatTool, RenderChartTool>();
+        builder.Services.AddScoped<IChatTool, RenderDiagramTool>();
         builder.Services.AddScoped<IChatTool, FormatValidatePlatformContentTool>();
         builder.Services.AddScoped<IChatTool, SearchSourcesTool>();
         builder.Services.AddScoped<IChatTool, SetBlueskyReplyTargetTool>();

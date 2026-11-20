@@ -9,6 +9,8 @@ using SocialWorker.Api.Features.Publishing.Instagram;
 using SocialWorker.Api.Features.Publishing.Instagram.Validation;
 using SocialWorker.Api.Features.Publishing.Mastodon;
 using SocialWorker.Api.Features.Publishing.Mastodon.Validation;
+using SocialWorker.Api.Features.Publishing.GitHubBlog;
+using SocialWorker.Api.Features.Publishing.GitHubBlog.Validation;
 using SocialWorker.Api.Features.Publishing.MetaThreads;
 using SocialWorker.Api.Features.Publishing.Twitter;
 using SocialWorker.Api.Features.Publishing.Resilience;
@@ -39,6 +41,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddSingleton<IPlatformContentPolicy, FacebookPlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, MetaThreadsPlatformContentPolicy>();
         builder.Services.AddSingleton<IPlatformContentPolicy, MastodonPlatformContentPolicy>();
+        builder.Services.AddSingleton<IPlatformContentPolicy, GitHubBlogPlatformContentPolicy>();
         builder.Services.AddSingleton<BlueskyContentValidator>();
         builder.Services.AddSingleton<IValidateDraftRule<BlueskySegmentValidation>, BlueskyMaxCharactersRule>();
         builder.Services.AddSingleton<IValidateDraftRule<BlueskySegmentValidation>, BlueskyMaxImagesRule>();
@@ -57,6 +60,7 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<SocialWorker.Api.Features.Publishing.Twitter.Validation.TwitterDraftValidator>();
         builder.Services.AddScoped<InstagramDraftValidator>();
         builder.Services.AddScoped<MastodonDraftValidator>();
+        builder.Services.AddScoped<GitHubBlogDraftValidator>();
         builder.Services.AddScoped<IDraftValidatorResolver, DraftValidatorResolver>();
         builder.Services.AddScoped<PublishValidationService>();
         builder.Services.AddScoped<PublishOutcomeRecorder>();
@@ -78,6 +82,9 @@ static partial class ServiceCollectionExtensions
         builder.Services.AddScoped<IPublisher, InstagramPublisher>();
         builder.Services.AddHttpClient<MastodonApiClient>();
         builder.Services.AddScoped<IPublisher, MastodonPublisher>();
+        builder.Services.AddSingleton<GitHubBlogDocumentBuilder>();
+        builder.Services.AddHttpClient<GitHubApiClient>();
+        builder.Services.AddScoped<IPublisher, GitHubBlogPublisher>();
         builder.Services.AddScoped<IPublisher, FacebookPublisher>();
         builder.Services.AddScoped<IPublisherResolver, PublisherResolver>();
     }

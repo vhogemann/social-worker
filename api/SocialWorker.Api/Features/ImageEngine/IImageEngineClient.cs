@@ -30,5 +30,9 @@ public interface IImageEngineClient
         Charts.Models.ChartRenderRequest request,
         CancellationToken ct = default);
 
+    Task<byte[]> RenderDiagramAsync(
+        Diagrams.Models.DiagramRenderRequest request,
+        CancellationToken ct = default);
+
     Task<bool> HealthCheckAsync(CancellationToken ct = default);
 }

@@ -15,7 +15,7 @@ export async function healthRoutes(fastify: FastifyInstance) {
       return {
         status: 'ok' as const,
         version: '1.0.0',
-        capabilities: ['resize', 'aspect-ratio', 'template-render', 'chart-render'],
+        capabilities: ['resize', 'aspect-ratio', 'template-render', 'chart-render', 'diagram-render'],
       };
     }
   );

@@ -23,7 +23,8 @@ public sealed class PlatformContentPolicy
             new InstagramPlatformContentPolicy(),
             new FacebookPlatformContentPolicy(),
             new MetaThreadsPlatformContentPolicy(),
-            new MastodonPlatformContentPolicy()
+            new MastodonPlatformContentPolicy(),
+            new GitHubBlogPlatformContentPolicy()
         })
     {
     }

@@ -80,6 +80,10 @@ public sealed class McpServerTests : SqliteTestBase
         var imageEngine = new FakeImageEngineClient();
         var mediaService = new MediaService(db, imageEngine, storage);
         var chartService = new ChartService(imageEngine, mediaService, NullLogger<ChartService>.Instance);
+        var diagramService = new SocialWorker.Api.Features.Diagrams.Services.DiagramService(
+            imageEngine,
+            mediaService,
+            NullLogger<SocialWorker.Api.Features.Diagrams.Services.DiagramService>.Instance);
 
         var toolRegistry = new McpToolRegistry(
             db,
@@ -99,7 +103,8 @@ public sealed class McpServerTests : SqliteTestBase
             postService: postService,
             mediaService: mediaService,
             imageEngineClient: imageEngine,
-            chartService: chartService);
+            chartService: chartService,
+            diagramService: diagramService);
 
         var resourceRegistry = new McpResourceRegistry(db, draftsService, mediaService);
         var server = new McpServer(toolRegistry, resourceRegistry);
@@ -1241,7 +1246,7 @@ public sealed class McpServerTests : SqliteTestBase
         var json = JsonSerializer.Serialize(response.Result);
         using var doc = JsonDocument.Parse(json);
         var tools = doc.RootElement.GetProperty("tools").EnumerateArray().ToList();
-        Assert.Equal(78, tools.Count);
+        Assert.Equal(79, tools.Count);
 
         var toolNames = tools.Select(t => t.GetProperty("name").GetString()!).ToHashSet();
         Assert.Contains("tag_entity", toolNames);
@@ -1259,6 +1264,7 @@ public sealed class McpServerTests : SqliteTestBase
         Assert.Contains("render_template", toolNames);
         Assert.Contains("render_code_blocks", toolNames);
         Assert.Contains("render_chart", toolNames);
+        Assert.Contains("render_diagram", toolNames);
         Assert.Contains("search_images", toolNames);
         Assert.Contains("update_media", toolNames);
         Assert.Contains("delete_media", toolNames);
@@ -1902,6 +1908,70 @@ public sealed class McpServerTests : SqliteTestBase
 
         var assetCount = await db.MediaAssets.CountAsync(m => m.DraftId == draft.Id);
         Assert.Equal(1, assetCount);
+    }
+
+    [Fact]
+    public async Task Tools_RenderDiagram_WithValidDraftAndCode_ReturnsMarkdownTagAndMediaAsset()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Diagram Draft", "Content", SocialPlatform.Bluesky);
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var callArgs = JsonDocument.Parse($$"""
+        {
+            "name": "render_diagram",
+            "arguments": {
+                "draftId": "{{draft.Id}}",
+                "code": "flowchart LR\n  A[Client] --> B[API]",
+                "title": "System Flow",
+                "subtitle": "Production Architecture",
+                "theme": "tokyo-night",
+                "aspectRatio": "auto",
+                "cardStyle": true
+            }
+        }
+        """).RootElement;
+
+        var resp = await server.HandleRequestAsync(new McpRequest("2.0", 89, "tools/call", callArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.False(result.IsError);
+
+        var doc = JsonDocument.Parse(result.Content[0].Text);
+        Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
+        var tag = doc.RootElement.GetProperty("markdownTag").GetString();
+        Assert.NotNull(tag);
+        Assert.Contains("media://", tag);
+        Assert.Contains("System Flow", tag);
+
+        var assetCount = await db.MediaAssets.CountAsync(m => m.DraftId == draft.Id);
+        Assert.Equal(1, assetCount);
+    }
+
+    [Fact]
+    public async Task Tools_RenderDiagram_WithMissingCode_ReturnsError()
+    {
+        var (server, user, db) = CreateTestServer();
+        var draft = Draft.Create(user.Id, "Diagram Draft", "Content", SocialPlatform.Bluesky);
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var callArgs = JsonDocument.Parse($$"""
+        {
+            "name": "render_diagram",
+            "arguments": {
+                "draftId": "{{draft.Id}}",
+                "code": ""
+            }
+        }
+        """).RootElement;
+
+        var resp = await server.HandleRequestAsync(new McpRequest("2.0", 90, "tools/call", callArgs), user.Id, CancellationToken.None);
+        Assert.NotNull(resp);
+        var result = Assert.IsType<McpToolCallResult>(resp.Result);
+        Assert.True(result.IsError);
+        Assert.Contains("code is required", result.Content[0].Text);
     }
 
     [Fact]

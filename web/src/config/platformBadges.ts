@@ -1,6 +1,7 @@
 import {
   faBluesky,
   faFacebook,
+  faGithub,
   faInstagram,
   faLinkedin,
   faMastodon,
@@ -18,6 +19,7 @@ export const PLATFORM_BADGE_COLORS: Record<string, string> = {
   MetaThreads: "bg-zinc-800 text-zinc-100 border border-zinc-700",
   Threads: "bg-zinc-800 text-zinc-100 border border-zinc-700",
   Mastodon: "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30",
+  GitHubBlog: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30",
 };
 
 export const PLATFORM_ICONS: Record<string, IconDefinition> = {
@@ -29,6 +31,7 @@ export const PLATFORM_ICONS: Record<string, IconDefinition> = {
   MetaThreads: faThreads,
   Threads: faThreads,
   Mastodon: faMastodon,
+  GitHubBlog: faGithub,
 };
 
 export function getPlatformLabel(platform?: string | null): string {
@@ -36,6 +39,9 @@ export function getPlatformLabel(platform?: string | null): string {
   const normalized = platform.trim();
   if (normalized.toLowerCase() === "metathreads" || normalized.toLowerCase() === "threads") {
     return "Threads";
+  }
+  if (normalized.toLowerCase() === "githubblog") {
+    return "GitHub Blog";
   }
   return normalized;
 }

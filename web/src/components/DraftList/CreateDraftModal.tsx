@@ -13,6 +13,7 @@ export const ALL_PLATFORMS = [
   { id: "Instagram", label: "Instagram", description: "Visual-first, 2200 char caption" },
   { id: "MetaThreads", label: "Threads", description: "Reply-chained thread (500 chars/post)" },
   { id: "Mastodon", label: "Mastodon", description: "Federated thread (500 chars/post)" },
+  { id: "GitHubBlog", label: "GitHub Blog", description: "Long-form Markdown article (Jekyll)" },
 ];
 
 interface Props {

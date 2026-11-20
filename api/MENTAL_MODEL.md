@@ -54,6 +54,7 @@ Endpoints and domain logic are structured into vertical feature folders under `F
   - `MetaThreadsPublisher`: Multi-post threads, carousel containers, media container status polling, and token refreshing.
   - `TwitterPublisher`: OAuth 2.0 PKCE, tweet thread replies, 280 weighted-char limits, and media upload.
   - `MastodonPublisher`: Federated dynamic OAuth 2.0 (`/api/v1/apps`) + access token fallback, public root / unlisted reply threads, 500-char / 23-char URL validation, media `202` polling, and `Idempotency-Key` support.
+  - `GitHubBlogPublisher`: Long-form static blog publisher (Jekyll preset) via GitHub Git Data API atomic single-commit workflow, `GitHubBlogDocumentBuilder` (hybrid YAML frontmatter, leading `# H1` promotion/stripping, local `/api/media/{id}` asset rewriting, YouTube thumbnail links, configurable permalinks, and collision suffixing), and `GitHubBlogDraftValidator`.
   - `Resilience/PublishResumePlanner`: Checkpoints publishing progress per segment; allows resuming failed multi-post threads without duplicating already-posted segments.
 - **`Sources/` & `Sources/Instagram/`**: Source ingestion for URLs, uploaded files, and social profiles.
   - `InstagramBusinessDiscoveryClient`: Queries Meta Graph API for public business/creator profiles, reels, and media.

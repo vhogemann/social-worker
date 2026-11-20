@@ -59,6 +59,19 @@ public sealed class FakeImageEngineClient : IImageEngineClient
         return Task.FromResult(DummyBytes);
     }
 
+    public Func<SocialWorker.Api.Features.Diagrams.Models.DiagramRenderRequest, Task<byte[]>>? RenderDiagramHandler { get; set; }
+
+    public Task<byte[]> RenderDiagramAsync(
+        SocialWorker.Api.Features.Diagrams.Models.DiagramRenderRequest request,
+        CancellationToken ct = default)
+    {
+        if (RenderDiagramHandler != null)
+        {
+            return RenderDiagramHandler(request);
+        }
+        return Task.FromResult(DummyBytes);
+    }
+
     public Task<bool> HealthCheckAsync(CancellationToken ct = default)
     {
         return Task.FromResult(true);

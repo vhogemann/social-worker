@@ -7,7 +7,7 @@ import { generateVariants } from "../../api/drafts";
 import { listAccounts, type AccountDto } from "../../api/accounts";
 import { PLATFORM_ICONS, getPlatformLabel } from "../../config/platformBadges";
 
-const PLATFORMS = ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads", "Mastodon"];
+const PLATFORMS = ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads", "Mastodon", "GitHubBlog"];
 
 interface Props {
   isOpen: boolean;

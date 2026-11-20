@@ -30,6 +30,18 @@ public static class SocialPlatformParser
             return true;
         }
 
+        if (string.Equals(trimmed, "githubblog", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmed, "github-blog", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmed, "github_blog", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmed, "github blog", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmed, "github", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmed, "jekyll", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmed, "blog", StringComparison.OrdinalIgnoreCase))
+        {
+            platform = SocialPlatform.GitHubBlog;
+            return true;
+        }
+
         return Enum.TryParse(trimmed, ignoreCase: true, out platform);
     }
 
@@ -48,6 +60,7 @@ public static class SocialPlatformParser
         return platform switch
         {
             SocialPlatform.MetaThreads => "Threads",
+            SocialPlatform.GitHubBlog => "GitHub Blog",
             _ => platform.ToString()
         };
     }

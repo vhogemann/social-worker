@@ -68,7 +68,7 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
             },
             "platforms": {
               "type": "array",
-              "items": { "type": "string", "enum": ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads", "Threads", "Mastodon"] },
+              "items": { "type": "string", "enum": ["Bluesky", "Twitter", "LinkedIn", "Facebook", "Instagram", "MetaThreads", "Threads", "Mastodon", "GitHubBlog"] },
               "description": "Target platforms to generate variants for."
             }
           },
@@ -134,7 +134,14 @@ public sealed class GeneratePlatformVariantsTool : ChatToolBase<GeneratePlatform
             prompt.AppendLine($"\n{platformRules}");
             prompt.AppendLine($"\nOriginal content ({sourcePlatform}):");
             prompt.AppendLine(canonical.Content ?? "");
-            prompt.AppendLine("\nIMPORTANT: Return ONLY the adapted content in markdown format. Use --- on separate lines to separate thread segments. Do not include any explanation, preamble, or postamble.");
+            if (targetPlatform == SocialPlatform.GitHubBlog)
+            {
+                prompt.AppendLine("\nIMPORTANT: Return ONLY the adapted long-form blog article in CommonMark markdown format (optional YAML frontmatter at top, full headings and paragraphs). Do NOT split into short social thread segments. Do not include any explanation, preamble, or postamble.");
+            }
+            else
+            {
+                prompt.AppendLine("\nIMPORTANT: Return ONLY the adapted content in markdown format. Use --- on separate lines to separate thread segments. Do not include any explanation, preamble, or postamble.");
+            }
 
             var request = new OpenAiModels.ChatCompletionRequest
             {

@@ -36,7 +36,7 @@ web/
 │   │   ├── EditorPanel/               # Markdown editor, platform preview, and sources drawer
 │   │   ├── Navigation/                # AppHeader, breadcrumbs, and route links
 │   │   ├── Outbox/                    # Scheduled post review outbox triage
-│   │   ├── Settings/                  # Platform connections (Bluesky, LinkedIn, Threads, Twitter, Instagram, Mastodon)
+│   │   ├── Settings/                  # Platform connections (Bluesky, LinkedIn, Threads, Twitter, Instagram, Mastodon, GitHubBlog)
 │   │   ├── TemplateStudio/            # Visual WYSIWYG canvas editor
 │   │   ├── WorkflowDetail/            # Execution history, triggers, and configuration
 │   │   ├── WorkflowsPanel/            # Feed automation workflow monitor

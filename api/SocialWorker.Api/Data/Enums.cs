@@ -49,7 +49,8 @@ public enum SocialPlatform
     Facebook,
     Instagram,
     MetaThreads,
-    Mastodon
+    Mastodon,
+    GitHubBlog
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

@@ -13,6 +13,8 @@ using SocialWorker.Api.Features.BackgroundTasks.Abstractions;
 using SocialWorker.Api.Features.BackgroundTasks.Models;
 using SocialWorker.Api.Features.Charts.Models;
 using SocialWorker.Api.Features.Charts.Services;
+using SocialWorker.Api.Features.Diagrams.Models;
+using SocialWorker.Api.Features.Diagrams.Services;
 using SocialWorker.Api.Features.Chat.Tools;
 using SocialWorker.Api.Features.CodeImages;
 using SocialWorker.Api.Features.Drafts;
@@ -73,6 +75,7 @@ public sealed class McpToolRegistry
     private readonly ImageGenerationService? _imageGenerationService;
     private readonly TemplateGeneratorService? _templateGeneratorService;
     private readonly ChartService? _chartService;
+    private readonly DiagramService? _diagramService;
     private readonly IAppUrlResolver? _urlResolver;
 
     public McpToolRegistry(
@@ -104,7 +107,8 @@ public sealed class McpToolRegistry
         ImageGenerationService? imageGenerationService = null,
         TemplateGeneratorService? templateGeneratorService = null,
         ChartService? chartService = null,
-        IAppUrlResolver? urlResolver = null)
+        IAppUrlResolver? urlResolver = null,
+        DiagramService? diagramService = null)
     {
         _db = db;
         _draftsService = draftsService;
@@ -134,6 +138,7 @@ public sealed class McpToolRegistry
         _imageGenerationService = imageGenerationService;
         _templateGeneratorService = templateGeneratorService;
         _chartService = chartService;
+        _diagramService = diagramService;
         _urlResolver = urlResolver;
     }
 
@@ -147,6 +152,7 @@ public sealed class McpToolRegistry
     private ImageGenerationService? ResolveImageGenerationService() => _imageGenerationService ?? _serviceProvider?.GetService<ImageGenerationService>();
     private TemplateGeneratorService? ResolveTemplateGeneratorService() => _templateGeneratorService ?? _serviceProvider?.GetService<TemplateGeneratorService>();
     private ChartService? ResolveChartService() => _chartService ?? _serviceProvider?.GetService<ChartService>();
+    private DiagramService? ResolveDiagramService() => _diagramService ?? _serviceProvider?.GetService<DiagramService>();
 
     private IAppUrlResolver ResolveUrlResolver()
     {
@@ -192,7 +198,7 @@ public sealed class McpToolRegistry
                 "properties": {
                     "title": { "type": "string", "description": "Title of the draft." },
                     "content": { "type": "string", "description": "Initial markdown content for the thread segments." },
-                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn', 'Mastodon')." },
+                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn', 'Mastodon', 'GitHubBlog')." },
                     "accountId": { "type": "string", "description": "Optional connected account ID to associate with the draft. If omitted and platform is specified, automatically resolves the account tagged 'default'." },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Optional list of tags for organizing drafts (defaults to ['ad-hoc']). Tag 'default' or custom tags can be assigned." }
                 },
@@ -215,7 +221,7 @@ public sealed class McpToolRegistry
                 "type": "object",
                 "properties": {
                     "draftId": { "type": "string", "description": "The UUID of the draft to validate." },
-                    "platform": { "type": "string", "description": "Target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn', 'Mastodon'). Defaults to the draft's designated platform." }
+                    "platform": { "type": "string", "description": "Target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn', 'Mastodon', 'GitHubBlog'). Defaults to the draft's designated platform." }
                 },
                 "required": ["draftId"]
             }
@@ -883,6 +889,25 @@ public sealed class McpToolRegistry
                 "required": ["draftId", "type", "labels", "datasets"]
             }
             """)),
+            new("render_diagram", "Renders Mermaid diagram syntax (flowchart, sequenceDiagram, stateDiagram-v2, classDiagram, erDiagram) into a high-DPI social media image and attaches it to a draft as a media asset.", CreateSchema("""
+            {
+                "type": "object",
+                "properties": {
+                    "draftId": { "type": "string", "description": "The UUID of the draft to attach the generated diagram to." },
+                    "code": { "type": "string", "description": "Mermaid diagram definition (flowchart TD/LR, sequenceDiagram, stateDiagram-v2, classDiagram, or erDiagram). Quote node labels containing parentheses or brackets." },
+                    "title": { "type": "string", "description": "Optional diagram card header title." },
+                    "subtitle": { "type": "string", "description": "Optional subtitle or caption under the title." },
+                    "theme": {
+                        "type": "string",
+                        "enum": ["dark", "light", "zinc-light", "zinc-dark", "tokyo-night", "tokyo-night-storm", "tokyo-night-light", "catppuccin-mocha", "catppuccin-latte", "nord", "nord-light", "dracula", "github-light", "github-dark", "solarized-light", "solarized-dark", "one-dark"],
+                        "description": "Visual theme. Defaults to dark."
+                    },
+                    "aspectRatio": { "type": "string", "enum": ["auto", "16:9", "1:1", "4:5"], "description": "Target social aspect ratio. Defaults to auto (selects best fit among 16:9, 1:1, and 4:5)." },
+                    "cardStyle": { "type": "boolean", "description": "Whether to wrap in a styled social card container. Defaults to true." }
+                },
+                "required": ["draftId", "code"]
+            }
+            """)),
             new("search_images", "Search the web for images based on a query and return candidate URLs for visual inspection and importing.", CreateSchema("""
             {
                 "type": "object",
@@ -928,7 +953,7 @@ public sealed class McpToolRegistry
                 "properties": {
                     "draftId": { "type": "string", "description": "The UUID of the draft to schedule." },
                     "publishAt": { "type": "string", "description": "ISO 8601 UTC date-time string when the post should be published (must be in future)." },
-                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn', 'Mastodon')." },
+                    "platform": { "type": "string", "description": "Optional target platform (e.g. 'Bluesky', 'Twitter', 'Threads', 'LinkedIn', 'Mastodon', 'GitHubBlog')." },
                     "accountId": { "type": "string", "description": "Optional account ID to publish with." },
                     "scheduleId": { "type": "string", "description": "Optional schedule ID. If omitted, uses active user schedule or creates default." }
                 },
@@ -1151,6 +1176,7 @@ public sealed class McpToolRegistry
                 "generate_image" => await HandleGenerateImageAsync(userId, args, ct),
                 "render_code_blocks" => await HandleRenderCodeBlocksAsync(userId, args, ct),
                 "render_chart" => await HandleRenderChartAsync(userId, args, ct),
+                "render_diagram" => await HandleRenderDiagramAsync(userId, args, ct),
                 "search_images" => await HandleSearchImagesAsync(args, ct),
                 "update_media" => await HandleUpdateMediaAsync(userId, args, ct),
                 "delete_media" => await HandleDeleteMediaAsync(userId, args, ct),
@@ -4528,6 +4554,49 @@ public sealed class McpToolRegistry
             cardStyle);
 
         var result = await chartService.RenderAndAttachChartAsync(userId, draftId, request, ct);
+        if (!result.Success)
+            return TextError(result.Message);
+
+        var urlResolver = ResolveUrlResolver();
+        var publicUrl = result.MediaAssetId.HasValue ? urlResolver.GetMediaUrl(result.MediaAssetId.Value) : null;
+
+        return TextResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            mediaAssetId = result.MediaAssetId,
+            markdownTag = result.MarkdownTag,
+            url = publicUrl,
+            message = result.Message
+        }, JsonOptions));
+    }
+
+    private async Task<McpToolCallResult> HandleRenderDiagramAsync(Guid userId, JsonElement args, CancellationToken ct)
+    {
+        if (!args.TryGetProperty("draftId", out var dProp) || !Guid.TryParse(dProp.GetString(), out var draftId))
+            return TextError("draftId must be a valid UUID.");
+
+        if (!args.TryGetProperty("code", out var cProp) || string.IsNullOrWhiteSpace(cProp.GetString()))
+            return TextError("code is required.");
+
+        var title = args.TryGetProperty("title", out var titleProp) ? titleProp.GetString() : null;
+        var subtitle = args.TryGetProperty("subtitle", out var subProp) ? subProp.GetString() : null;
+        var theme = args.TryGetProperty("theme", out var thProp) ? thProp.GetString() : "dark";
+        var aspectRatio = args.TryGetProperty("aspectRatio", out var arProp) ? arProp.GetString() : "auto";
+        var cardStyle = !args.TryGetProperty("cardStyle", out var csProp) || csProp.GetBoolean();
+
+        var diagramService = ResolveDiagramService();
+        if (diagramService == null)
+            return TextError("DiagramService is not configured.");
+
+        var request = new DiagramRenderRequest(
+            cProp.GetString()!,
+            title,
+            subtitle,
+            theme ?? "dark",
+            aspectRatio ?? "auto",
+            cardStyle);
+
+        var result = await diagramService.RenderAndAttachDiagramAsync(userId, draftId, request, ct);
         if (!result.Success)
             return TextError(result.Message);
 
