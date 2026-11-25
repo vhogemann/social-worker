@@ -31,6 +31,9 @@ public sealed class ChatRequestPreparationService
     private static readonly Regex ImageIntentRegex = new(
         @"\b(image|images|photo|photos|picture|pictures|illustrat(e|ion|ive))\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex NegatedImageAttachmentRegex = new(
+        @"\b(never|don't|do\s+not|without|avoid|no)\b.{0,24}\b(attach|embed|add|include|use)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ImageInspectionIntentRegex = new(
         @"\b(inspect|inspection|analy[sz]e|review|look\s+at|view)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -112,7 +115,10 @@ public sealed class ChatRequestPreparationService
             Tools = visibleTools,
         };
 
-        var requiresImageImportBeforeReplace = RequiresImageAttachmentFlow(commandText);
+        var requiresAllSourcesFetchedBeforeReplace = !req.SkipHeuristicGates && RequiresAllSourcesFetch(commandText);
+        var requiresImageImportBeforeReplace = !req.SkipHeuristicGates &&
+            session.MediaAssets.Count == 0 &&
+            RequiresImageAttachmentFlow(commandText);
 
         return new ChatRunPreparation(
             session,
@@ -121,7 +127,7 @@ public sealed class ChatRequestPreparationService
             historyBudget,
             messagesToSend.Count,
             _chatOptions.StrictEditorUpdateEnforcement && RequiresEditorUpdateTool(commandText),
-            RequiresAllSourcesFetch(commandText),
+            requiresAllSourcesFetchedBeforeReplace,
             requiresImageImportBeforeReplace,
             requiresImageImportBeforeReplace && RequiresImageInspection(commandText));
     }
@@ -159,10 +165,29 @@ public sealed class ChatRequestPreparationService
             return false;
         }
 
-        return ImageIntentRegex.IsMatch(text) &&
-               (text.Contains("embed", StringComparison.OrdinalIgnoreCase) ||
-                text.Contains("attach", StringComparison.OrdinalIgnoreCase) ||
-                text.Contains("illustr", StringComparison.OrdinalIgnoreCase));
+        var sentences = Regex.Split(text, @"(?<=[.!?;])\s+|\r?\n+");
+        foreach (var sentence in sentences)
+        {
+            if (string.IsNullOrWhiteSpace(sentence))
+            {
+                continue;
+            }
+
+            if (NegatedImageAttachmentRegex.IsMatch(sentence))
+            {
+                continue;
+            }
+
+            if (ImageIntentRegex.IsMatch(sentence) &&
+                (sentence.Contains("embed", StringComparison.OrdinalIgnoreCase) ||
+                 sentence.Contains("attach", StringComparison.OrdinalIgnoreCase) ||
+                 sentence.Contains("illustr", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool RequiresImageInspection(string text)

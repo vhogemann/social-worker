@@ -61,6 +61,7 @@ public class FeedThreadGenerationService
             var chatRequest = new ChatModels.ChatRequest
             {
                 DraftId = draft.Id,
+                SkipHeuristicGates = true,
                 Messages = new List<ChatModels.UiMessage>
                 {
                     new ChatModels.UiMessage
@@ -81,6 +82,9 @@ public class FeedThreadGenerationService
 
             var assistantTextBuilder = new System.Text.StringBuilder();
             string? lastValidatedContent = null;
+            var replaceEditorCallIds = new HashSet<string>(StringComparer.Ordinal);
+            var sawReplaceEditorRejection = false;
+            var sawValidationReportDelta = false;
             await foreach (var line in _chatService.StreamAsync(chatRequest, userId, ct))
             {
                 if (line.StartsWith("0:"))
@@ -91,6 +95,10 @@ public class FeedThreadGenerationService
                         var text = JsonSerializer.Deserialize<string>(json);
                         if (!string.IsNullOrEmpty(text))
                         {
+                            if (text.Contains("### Draft Validation Report", StringComparison.OrdinalIgnoreCase))
+                            {
+                                sawValidationReportDelta = true;
+                            }
                             assistantTextBuilder.Append(text);
                         }
                     }
@@ -105,21 +113,53 @@ public class FeedThreadGenerationService
                     {
                         var json = line.Substring(2).Trim();
                         using var doc = JsonDocument.Parse(json);
-                        if (doc.RootElement.TryGetProperty("toolName", out var toolNameEl) &&
-                            toolNameEl.GetString() == "validate_draft" &&
-                            doc.RootElement.TryGetProperty("args", out var argsEl) &&
-                            argsEl.TryGetProperty("content", out var contentEl))
+                        if (doc.RootElement.TryGetProperty("toolName", out var toolNameEl))
                         {
-                            var contentStr = contentEl.GetString();
-                            if (!string.IsNullOrWhiteSpace(contentStr))
+                            var toolName = toolNameEl.GetString();
+                            if (toolName == "replace_editor_content" &&
+                                doc.RootElement.TryGetProperty("toolCallId", out var callIdEl) &&
+                                !string.IsNullOrWhiteSpace(callIdEl.GetString()))
                             {
-                                lastValidatedContent = contentStr;
+                                replaceEditorCallIds.Add(callIdEl.GetString()!);
+                            }
+                            else if (toolName == "validate_draft" &&
+                                doc.RootElement.TryGetProperty("args", out var argsEl) &&
+                                argsEl.TryGetProperty("content", out var contentEl))
+                            {
+                                var contentStr = contentEl.GetString();
+                                if (!string.IsNullOrWhiteSpace(contentStr))
+                                {
+                                    lastValidatedContent = contentStr;
+                                }
                             }
                         }
                     }
                     catch (Exception ex)
                     {
                         _logger.LogDebug(ex, "Failed to parse tool call event for validated content fallback");
+                    }
+                }
+                else if (line.StartsWith("a:"))
+                {
+                    try
+                    {
+                        var json = line.Substring(2).Trim();
+                        using var doc = JsonDocument.Parse(json);
+                        if (doc.RootElement.TryGetProperty("toolCallId", out var callIdEl) &&
+                            callIdEl.GetString() is { } callId &&
+                            replaceEditorCallIds.Contains(callId) &&
+                            doc.RootElement.TryGetProperty("result", out var resultEl) &&
+                            resultEl.ValueKind == JsonValueKind.Object &&
+                            resultEl.TryGetProperty("error", out var errorEl) &&
+                            errorEl.ValueKind == JsonValueKind.String &&
+                            !string.IsNullOrWhiteSpace(errorEl.GetString()))
+                        {
+                            sawReplaceEditorRejection = true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to parse tool result event");
                     }
                 }
             }
@@ -140,12 +180,16 @@ public class FeedThreadGenerationService
                 assistantText = "Drafted canonical thread segments based on feed source and instructions.";
             }
 
-            // Fallback: If replace_editor_content tool was not called, but content was generated
             if (string.IsNullOrWhiteSpace(finalDraft.Content))
             {
+                var canFallbackToAssistantText =
+                    !sawReplaceEditorRejection &&
+                    !sawValidationReportDelta &&
+                    assistantText != "Drafted canonical thread segments based on feed source and instructions.";
+
                 var fallbackContent = !string.IsNullOrWhiteSpace(lastValidatedContent)
                     ? lastValidatedContent
-                    : assistantText != "Drafted canonical thread segments based on feed source and instructions."
+                    : canFallbackToAssistantText
                         ? assistantText
                         : null;
 
@@ -191,6 +235,17 @@ public class FeedThreadGenerationService
             };
 
             finalDraft.ChatHistory = JsonSerializer.Serialize(historyPayload);
+
+            if (string.IsNullOrWhiteSpace(finalDraft.Content))
+            {
+                _logger.LogError("Canonical thread generation produced empty content for draft {DraftId} (replaceRejected={ReplaceRejected}, validationReport={ValidationReport}). Marking draft as Failed.",
+                    finalDraft.Id, sawReplaceEditorRejection, sawValidationReportDelta);
+                finalDraft.Status = DraftStatus.Failed;
+                await _db.SaveChangesAsync(ct);
+                draft.Status = finalDraft.Status;
+                return false;
+            }
+
             finalDraft.Status = DraftStatus.Editing;
             await _db.SaveChangesAsync(ct);
 

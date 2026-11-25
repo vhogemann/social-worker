@@ -14,6 +14,9 @@ public static class ChatModels
 
         [JsonPropertyName("unstable_assistantMessageId")]
         public string? UnstableAssistantMessageId { get; set; }
+
+        [JsonIgnore]
+        public bool SkipHeuristicGates { get; set; }
     }
 
     public sealed class UiMessage

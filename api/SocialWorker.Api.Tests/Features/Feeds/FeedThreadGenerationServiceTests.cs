@@ -95,4 +95,59 @@ public sealed class FeedThreadGenerationServiceTests : SqliteTestBase
         Assert.Contains("NASA’s X-59", savedDraft.Content);
         Assert.NotEmpty(savedDraft.Segments);
     }
+
+    [Fact]
+    public async Task GenerateCanonicalThreadAsync_WhenReplaceRejectedAndOnlyValidationErrorsStreamed_MarksDraftFailedAndReturnsFalse()
+    {
+        using var db = CreateDbContext();
+        var user = CreateSeedUser(db);
+        var draft = new Draft
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Title = "How Jensen Huang Became Nvidia's Biggest Liability",
+            Status = DraftStatus.Editing,
+            Content = null,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Drafts.Add(draft);
+        await db.SaveChangesAsync();
+
+        var fakeChat = new FakeChatStreamService(req =>
+        {
+            async IAsyncEnumerable<string> Stream()
+            {
+                yield return "f:{\"messageId\":\"m_err\"}\n";
+                yield return "9:{\"toolCallId\":\"call_1\",\"toolName\":\"replace_editor_content\",\"args\":{\"markdown\":\"Good draft\"}}\n";
+                yield return "a:{\"toolCallId\":\"call_1\",\"result\":{\"error\":\"Before replace_editor_content, call add_image_source with a direct image URL and use the returned media:// tag.\"}}\n";
+                yield return "9:{\"toolCallId\":\"call_2\",\"toolName\":\"validate_draft\",\"args\":{}}\n";
+                yield return "a:{\"toolCallId\":\"call_2\",\"result\":\"### Draft Validation Report\\n\\n#### Post 1:\\n- ❌ **Error**: Draft content cannot be empty.\"}\n";
+                yield return "0:\"### Draft Validation Report\\n\\n#### Post 1:\\n- ❌ **Error**: Draft content cannot be empty.\"\n";
+                yield return "0:\"The editor rejected the save with a message asking for an image URL first.\"\n";
+                yield return "e:{\"finishReason\":\"stop\"}\n";
+            }
+            return Stream();
+        });
+
+        var service = new FeedThreadGenerationService(
+            db,
+            fakeChat,
+            NullLogger<FeedThreadGenerationService>.Instance,
+            new DraftSegmentService(db));
+
+        var success = await service.GenerateCanonicalThreadAsync(
+            draft,
+            "https://www.youtube.com/watch?v=bRRZDT4Q0F4",
+            "Draft a thread.",
+            user.Id,
+            CancellationToken.None);
+
+        Assert.False(success);
+
+        var savedDraft = await db.Drafts.FirstOrDefaultAsync(d => d.Id == draft.Id);
+        Assert.NotNull(savedDraft);
+        Assert.Equal(DraftStatus.Failed, savedDraft.Status);
+        Assert.True(string.IsNullOrWhiteSpace(savedDraft.Content));
+    }
 }

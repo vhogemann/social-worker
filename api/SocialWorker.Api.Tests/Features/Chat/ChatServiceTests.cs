@@ -49,7 +49,8 @@ public sealed class ChatServiceTests
         string? brandVoice = null,
         bool supportsVision = false,
         string model = "test-model",
-        string? draftSummary = null)
+        string? draftSummary = null,
+        List<MediaAsset>? mediaAssets = null)
     {
         var provider = new LlmProvider
         {
@@ -76,7 +77,7 @@ public sealed class ChatServiceTests
         var credentials = new LlmCredentials(provider.BaseUrl, provider.ApiKey, provider.Model);
 
         return new FakeSessionLoader(new ChatSessionContext(
-            provider, credentials, capabilities, draft, editorContent, new List<MediaAsset>(), brandVoice));
+            provider, credentials, capabilities, draft, editorContent, mediaAssets ?? new List<MediaAsset>(), brandVoice));
     }
 
     private sealed class FakeSessionLoader : ChatSessionLoader
@@ -384,6 +385,92 @@ public sealed class ChatServiceTests
         Assert.Contains(lines, l => l.StartsWith("a:") && l.Contains("view_image", StringComparison.Ordinal));
         Assert.True(addImageTool.WasExecuted);
         Assert.True(viewImageTool.WasExecuted);
+        Assert.True(replaceTool.WasExecuted);
+    }
+
+    [Fact]
+    public async Task StreamAsync_NegatedWorkflowImageRuleWithYouTubeEmbed_DoesNotBlockReplaceEditorContent()
+    {
+        var replaceTool = new StubTool("replace_editor_content");
+        var adapter = new DirectReplaceAdapter();
+
+        var service = CreateService(
+            tools: new IChatTool[] { replaceTool },
+            adapter: adapter);
+
+        var lines = await CollectStream(
+            service,
+            MakeRequest("RULE ZERO: NEVER attach images, charts, or cards to Post 1. Include the YouTube embed at the end of Post 1."));
+
+        Assert.DoesNotContain(lines, l => l.StartsWith("a:") && l.Contains("add_image_source", StringComparison.Ordinal));
+        Assert.True(replaceTool.WasExecuted);
+    }
+
+    [Fact]
+    public async Task StreamAsync_ImageRequest_RenderChartSatisfiesMediaImportGate()
+    {
+        var renderChartTool = new StubTool("render_chart");
+        var replaceTool = new StubTool("replace_editor_content");
+        var adapter = new RenderChartThenReplaceAdapter();
+
+        var service = CreateService(
+            tools: new IChatTool[] { renderChartTool, replaceTool },
+            adapter: adapter);
+
+        var lines = await CollectStream(
+            service,
+            MakeRequest("Create an illustrative chart image and attach it to the draft."));
+
+        Assert.DoesNotContain(lines, l => l.StartsWith("a:") && l.Contains("add_image_source", StringComparison.Ordinal));
+        Assert.True(renderChartTool.WasExecuted);
+        Assert.True(replaceTool.WasExecuted);
+    }
+
+    [Fact]
+    public async Task StreamAsync_ImageRequest_WhenDraftAlreadyHasMediaAsset_DoesNotBlockReplaceEditorContent()
+    {
+        var replaceTool = new StubTool("replace_editor_content");
+        var adapter = new DirectReplaceAdapter();
+        var existingMedia = new List<MediaAsset>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                FileName = "chart.png",
+                MimeType = "image/png",
+                CreatedAt = DateTime.UtcNow
+            }
+        };
+
+        var service = CreateService(
+            sessionLoader: CreateMockSessionLoader(mediaAssets: existingMedia),
+            tools: new IChatTool[] { replaceTool },
+            adapter: adapter);
+
+        var lines = await CollectStream(
+            service,
+            MakeRequest("Update the draft and attach the existing chart image."));
+
+        Assert.DoesNotContain(lines, l => l.StartsWith("a:") && l.Contains("add_image_source", StringComparison.Ordinal));
+        Assert.True(replaceTool.WasExecuted);
+    }
+
+    [Fact]
+    public async Task StreamAsync_WhenSkipHeuristicGatesIsTrue_DoesNotBlockReplaceEditorContent()
+    {
+        var replaceTool = new StubTool("replace_editor_content");
+        var adapter = new DirectReplaceAdapter();
+
+        var service = CreateService(
+            tools: new IChatTool[] { replaceTool },
+            adapter: adapter);
+
+        var req = MakeRequest("Find an image, inspect it, then embed it in the draft.");
+        req.SkipHeuristicGates = true;
+
+        var lines = await CollectStream(service, req);
+
+        Assert.DoesNotContain(lines, l => l.StartsWith("a:") && l.Contains("add_image_source", StringComparison.Ordinal));
         Assert.True(replaceTool.WasExecuted);
     }
 
@@ -1509,6 +1596,104 @@ public sealed class ChatServiceTests
             }
 
             return Task.FromResult(new ToolExecutionResult("✅ Valid"));
+        }
+    }
+
+    private sealed class DirectReplaceAdapter : ILlmProviderAdapter
+    {
+        private int _callCount;
+
+        public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
+            OpenAiModels.ChatCompletionRequest request,
+            LlmCredentials credentials,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            _callCount++;
+            if (_callCount == 1)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "direct_replace_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Updated draft content\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            yield return BuildTextDoneChunk();
+        }
+
+        public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+        {
+            return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse());
+        }
+    }
+
+    private sealed class RenderChartThenReplaceAdapter : ILlmProviderAdapter
+    {
+        private int _callCount;
+
+        public async IAsyncEnumerable<OpenAiModels.StreamChunk> CompleteStreamAsync(
+            OpenAiModels.ChatCompletionRequest request,
+            LlmCredentials credentials,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            _callCount++;
+            if (_callCount == 1)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "chart_call_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "render_chart",
+                            Arguments = "{}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            if (_callCount == 2)
+            {
+                yield return BuildToolCallsChunk(new List<OpenAiModels.StreamToolCall>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Id = "chart_replace_1",
+                        Type = "function",
+                        Function = new OpenAiModels.StreamToolCallFunction
+                        {
+                            Name = "replace_editor_content",
+                            Arguments = "{\"markdown\":\"Post with chart\"}"
+                        }
+                    }
+                });
+                yield return BuildToolCallFinishChunk();
+                yield break;
+            }
+
+            yield return BuildTextDoneChunk();
+        }
+
+        public Task<OpenAiModels.ChatCompletionResponse?> CompleteAsync(OpenAiModels.ChatCompletionRequest request, LlmCredentials credentials, CancellationToken ct)
+        {
+            return Task.FromResult<OpenAiModels.ChatCompletionResponse?>(new OpenAiModels.ChatCompletionResponse());
         }
     }
 }

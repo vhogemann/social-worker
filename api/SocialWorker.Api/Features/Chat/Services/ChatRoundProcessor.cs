@@ -11,6 +11,16 @@ namespace SocialWorker.Api.Features.Chat.Services;
 
 public sealed class ChatRoundProcessor
 {
+    private static readonly HashSet<string> MediaProducingToolNames = new(StringComparer.Ordinal)
+    {
+        "add_image_source",
+        "render_chart",
+        "render_diagram",
+        "render_template",
+        "render_code_blocks",
+        "generate_image"
+    };
+
     private readonly ChatStreamWriter _writer;
     private readonly ILlmProviderAdapter _adapter;
     private readonly ChatToolExecutor _toolExecutor;
@@ -110,6 +120,7 @@ public sealed class ChatRoundProcessor
             {
                 if (!ctx.HasListedSources)
                 {
+                    _log.LogWarning("Blocked replace_editor_content on draft {DraftId}: list_sources has not been called yet.", ctx.DraftId);
                     var mustListPayload = new MissingSourcesGatePayload(
                         "Before replace_editor_content, call list_sources and then fetch_source for every listed source ID. list_sources has not been called in this request yet.",
                         System.Array.Empty<System.Guid>());
@@ -122,6 +133,7 @@ public sealed class ChatRoundProcessor
                 var missingIds = ctx.GetMissingSourceIds();
                 if (missingIds.Count > 0)
                 {
+                    _log.LogWarning("Blocked replace_editor_content on draft {DraftId}: {MissingCount} listed sources have not been fetched.", ctx.DraftId, missingIds.Count);
                     var missingPayload = new MissingSourcesGatePayload(
                         "Before replace_editor_content, call fetch_source for every listed source ID.",
                         missingIds.ToArray());
@@ -136,6 +148,7 @@ public sealed class ChatRoundProcessor
             {
                 if (ctx.EnforceImageImportBeforeReplace && !ctx.SawAddImageSource)
                 {
+                    _log.LogWarning("Blocked replace_editor_content on draft {DraftId}: EnforceImageImportBeforeReplace is active and no media-producing tool has succeeded.", ctx.DraftId);
                     var missingImageImport = ToolExecutionResult.Error("Before replace_editor_content, call add_image_source with a direct image URL and use the returned media:// tag.");
                     yield return _writer.ToolResult(toolCall.Id, missingImageImport.Result);
                     ctx.Payload.Messages.AddRange(missingImageImport.ToMessages(toolCall.Id));
@@ -144,6 +157,7 @@ public sealed class ChatRoundProcessor
 
                 if (ctx.EnforceImageInspectionBeforeReplace && !ctx.SawViewImage)
                 {
+                    _log.LogWarning("Blocked replace_editor_content on draft {DraftId}: EnforceImageInspectionBeforeReplace is active and view_image has not been called.", ctx.DraftId);
                     var missingImageInspection = ToolExecutionResult.Error("Before replace_editor_content, call view_image to inspect at least one selected image.");
                     yield return _writer.ToolResult(toolCall.Id, missingImageInspection.Result);
                     ctx.Payload.Messages.AddRange(missingImageInspection.ToMessages(toolCall.Id));
@@ -168,7 +182,7 @@ public sealed class ChatRoundProcessor
                 ctx.LastValidateHadBlockingErrors = ValidateResultHasBlockingErrors(toolResult);
             }
 
-            RecordImageTrackingState(ctx, toolCall.Name);
+            RecordImageTrackingState(ctx, toolCall.Name, toolResult);
 
             if (ctx.EnforceAllSourcesFetchedBeforeReplace)
             {
@@ -179,17 +193,36 @@ public sealed class ChatRoundProcessor
         yield return _writer.StepFinish("tool-calls", true);
     }
 
-    private static void RecordImageTrackingState(ChatRoundContext ctx, string toolName)
+    private static void RecordImageTrackingState(ChatRoundContext ctx, string toolName, ToolExecutionResult toolResult)
     {
-        if (string.Equals(toolName, "add_image_source", StringComparison.Ordinal))
+        if (MediaProducingToolNames.Contains(toolName) && !IsToolErrorResult(toolResult))
         {
             ctx.SawAddImageSource = true;
         }
 
-        if (string.Equals(toolName, "view_image", StringComparison.Ordinal))
+        if (string.Equals(toolName, "view_image", StringComparison.Ordinal) && !IsToolErrorResult(toolResult))
         {
             ctx.SawViewImage = true;
         }
+    }
+
+    private static bool IsToolErrorResult(ToolExecutionResult toolResult)
+    {
+        if (toolResult.Result is ChatToolExecutor.ToolErrorPayload)
+        {
+            return true;
+        }
+
+        if (toolResult.Result is JsonElement json &&
+            json.ValueKind == JsonValueKind.Object &&
+            json.TryGetProperty("error", out var errorProp) &&
+            errorProp.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(errorProp.GetString()))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static void RecordSourceTrackingState(ChatRoundContext ctx, string toolName, object toolResult)
